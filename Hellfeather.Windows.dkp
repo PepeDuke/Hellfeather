@@ -1,0 +1,11 @@
+version = 1
+references = ["../Quaxel-Engine/Quaxel.Windows.dkp"]
+
+[project]
+name = "Hellfeather"
+entry = "hellfeather"
+build_dir = ".duck/build/windows"
+
+[modules.hellfeather]
+sources = ["Source/**/*.dk"]
+depends = ["quaxel_core", "quaxel_platform"]

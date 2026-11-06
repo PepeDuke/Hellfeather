@@ -1,0 +1,22 @@
+// Hellfeather owns the entry point and game rules; Quaxel owns reusable services.
+Main()
+{
+    Print("Hellfeather / Quaxel")
+    int frame = 0
+    bool running = false
+    Quaxel.Begin(frame, running)
+
+    // Deterministic headless bootstrap, not yet a real-time windowed game.
+    double elapsed = 0.0
+    while running
+    {
+        elapsed += Quaxel.FixedDeltaSeconds()
+        Quaxel.Advance(frame, running)
+        if frame >= 3 { Quaxel.Stop(running) }
+    }
+
+    Print("Frames")
+    Print(frame)
+    Print("Simulated seconds")
+    Print(elapsed)
+}

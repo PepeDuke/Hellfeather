@@ -1,0 +1,10 @@
+version = 1
+references = ["../Quaxel-Engine/Quaxel.Headless.dkp"]
+
+[project]
+name = "Hellfeather"
+entry = "hellfeather"
+
+[modules.hellfeather]
+sources = ["Source/**/*.dk"]
+depends = ["quaxel_core", "quaxel_platform"]
