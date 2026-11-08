@@ -23,11 +23,8 @@ Use `-DuckRoot <path>` to locate another Duck toolchain. Build that toolchain
 first with CMake as described in the Quaxel Engine README. Changing the engine
 location requires updating `references` in both game manifests.
 
-The current executable is a headless integration bootstrap: three simulation
-steps totaling 0.05 seconds. It does not yet contain an RPG, window or renderer.
-Engine code remains in Quaxel-Engine; game rules and content belong here.
+The default headless executable runs three simulation steps totaling 0.05 seconds.
 Build outputs are ignored under `.duck/`.
-
 
 ## Selecting a backend
 
@@ -39,8 +36,6 @@ Build outputs are ignored under `.duck/`.
 ./.duck/build/windows/debug/Hellfeather.exe
 ```
 
-Both configurations compile the same game source. Gameplay imports Quaxel's
-shared `quaxel_platform` API, never Windows/backend modules directly. The Windows
-backend currently provides a clock, not window creation; the sample still runs
-three headless simulation steps in either configuration. A future Linux backend
-will use this same API. See Quaxel's `Docs/Platform.md` for the contract.
+Both configurations compile the same game source. On x64 Windows, the game
+opens a blank, resizable Hellfeather window and sleeps between messages.
+Close the window to exit. Gameplay uses Quaxel's shared platform API.

@@ -1,22 +1,28 @@
-// Hellfeather owns the entry point and game rules; Quaxel owns reusable services.
+// Hellfeather owns the main loop. Quaxel owns the platform window.
 Main()
 {
     Print("Hellfeather / Quaxel")
-    int frame = 0
-    bool running = false
-    Quaxel.Begin(frame, running)
-
-    // Deterministic headless bootstrap, not yet a real-time windowed game.
-    double elapsed = 0.0
-    while running
-    {
-        elapsed += Quaxel.FixedDeltaSeconds()
-        Quaxel.Advance(frame, running)
-        if frame >= 3 { Quaxel.Stop(running) }
+    if QuaxelPlatform.SupportsWindowing() {
+        if !QuaxelPlatform.OpenWindow("Hellfeather", 960, 540, true) {
+            Print("Failed to open the Hellfeather window")
+            return
+        }
+        // The blank window has no simulation or rendering work between events.
+        while QuaxelPlatform.PumpWindow(true) {}
+        QuaxelPlatform.CloseWindow()
+        return
     }
 
+    QuaxelSession session()
+    session.Begin()
+    double elapsed = 0.0
+    while session.Running {
+        elapsed += Quaxel.FixedDeltaSeconds()
+        session.Advance()
+        if session.Frame >= 3 { session.Stop() }
+    }
     Print("Frames")
-    Print(frame)
+    Print(session.Frame)
     Print("Simulated seconds")
     Print(elapsed)
 }
