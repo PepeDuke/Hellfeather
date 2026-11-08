@@ -36,6 +36,6 @@ Build outputs are ignored under `.duck/`.
 ./.duck/build/windows/debug/Hellfeather.exe
 ```
 
-Both configurations compile the same game source. On x64 Windows, the game
-opens a blank, resizable Hellfeather window and sleeps between messages.
-Close the window to exit. Gameplay uses Quaxel's shared platform API.
+Both configurations compile the same game source. The x64 Windows build
+requires the Vulkan SDK. It opens a resizable window, draws a colored triangle
+with Vulkan, and pauses rendering while minimized. Close the window to exit.

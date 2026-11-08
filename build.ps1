@@ -11,5 +11,6 @@ if (-not (Test-Path -LiteralPath $builder)) {
     throw "Duck build launcher not found: $builder. Supply -DuckRoot."
 }
 $manifest = if ($Platform -eq 'windows') { 'Hellfeather.Windows.dkp' } else { 'Hellfeather.dkp' }
+if ($Platform -eq 'windows') { & (Join-Path $PSScriptRoot '../Quaxel-Engine/configure-vulkan.ps1') }
 & $builder build (Join-Path $PSScriptRoot $manifest) --profile $Profile
 exit $LASTEXITCODE
