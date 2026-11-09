@@ -6,6 +6,7 @@ HellfeatherGame : QuaxelGameInstance
     int CameraNode
     int StepsSimulated
     int PlayerHealth
+    int PlayerMana
     -float FallenSeconds
     -bool SwingLanded
     -bool MouseHeld
@@ -14,6 +15,7 @@ HellfeatherGame : QuaxelGameInstance
     HellfeatherInventoryScreen Inventory
     HellfeatherFpsCounter Fps
     HellfeatherTerrain Terrain
+    HellfeatherGlobes Globes
 
     string WindowTitle() { return "Hellfeather" }
 
@@ -39,6 +41,8 @@ HellfeatherGame : QuaxelGameInstance
 
     int PlayerMaxHealth() { return 100 }
 
+    int PlayerMaxMana() { return 60 }
+
     int EnemyMaxHealth() { return 60 }
 
     int AxeDamage() { return 20 }
@@ -60,7 +64,7 @@ HellfeatherGame : QuaxelGameInstance
     bool Prepare(QuaxelWorld& world)
     {
         Inventory.Stock()
-        return SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemy(world, 3.0, -3.0) && SpawnCamera(world)
+        return SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemy(world, 3.0, -3.0) && SpawnCamera(world) && SpawnGlobes(world)
     }
 
     -bool SpawnTerrain(QuaxelWorld& world)
@@ -118,6 +122,7 @@ HellfeatherGame : QuaxelGameInstance
         controller.Speed = PlayerSpeed()
         Controllers += controller
         PlayerHealth = PlayerMaxHealth()
+        PlayerMana = PlayerMaxMana()
         return true
     }
 
@@ -161,10 +166,18 @@ HellfeatherGame : QuaxelGameInstance
         // Shows a square of ground centered on the player.
         camera.FrameHalfWidth = extent * Math.Sqrt(2.0) * margin
         camera.FrameHalfHeight = (extent + playerTop) * 2.0 / Math.Sqrt(6.0) * margin
-        camera.Near = 1.0
+        // Well behind the eye, to leave room for the globes in front of the world.
+        camera.Near = -40.0
         camera.Far = 80.0
         world.AttachCamera(CameraNode, camera)
         return world.SetActiveCamera(CameraNode)
+    }
+
+    -bool SpawnGlobes(QuaxelWorld& world)
+    {
+        if !Globes.Spawn(world, CameraNode) { return false }
+        Globes.Anchor(world, WindowWidth(), WindowHeight(), WindowWidth())
+        return true
     }
 
     FixedStep(QuaxelWorld& world, QuaxelInputState& input, float deltaSeconds)
@@ -176,6 +189,7 @@ HellfeatherGame : QuaxelGameInstance
         if inventoryKey && !InventoryKeyHeld { Inventory.Toggle() }
         InventoryKeyHeld = inventoryKey
         if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
+        Globes.Step(world, (float)PlayerHealth / (float)PlayerMaxHealth(), (float)PlayerMana / (float)PlayerMaxMana(), deltaSeconds)
         if PlayerHealth <= 0 {
             StepFallenPlayer(world, deltaSeconds)
             AttackRequested = false
@@ -301,6 +315,7 @@ HellfeatherGame : QuaxelGameInstance
     -RevivePlayer(QuaxelWorld& world)
     {
         PlayerHealth = PlayerMaxHealth()
+        PlayerMana = PlayerMaxMana()
         FallenSeconds = 0.0
         QuaxelTransform transform = world.GetTransform(PlayerNode)
         transform.Position = StandingAt(0.0, 0.0, PlayerRadius())
@@ -382,7 +397,10 @@ HellfeatherGame : QuaxelGameInstance
         SampleAttack(mouseX, mouseY, mouseDown)
         int windowWidth = 0
         int windowHeight = 0
-        if QuaxelPlatform.GetWindowSize(windowWidth, windowHeight) { Inventory.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown) }
+        if QuaxelPlatform.GetWindowSize(windowWidth, windowHeight) && windowWidth > 0 && windowHeight > 0 {
+            Inventory.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
+            Globes.Anchor(world, windowWidth, windowHeight, Inventory.Open ? Inventory.PanelLeft * Inventory.PanelScale | windowWidth)
+        }
         // The open panel covers the corner the counter sits in.
         ui.SetVisible("fps", !Inventory.Open)
         long frequency = 0
