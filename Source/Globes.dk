@@ -135,13 +135,6 @@ HellfeatherGlobeArt
             int feather = FeatherColor(outward, v, w, tint)
             if feather >= 0 { return feather }
         }
-        // Window-shaped shine on the front of the glass, always on the upper left.
-        if w > 0.0 && distance >= 26.5 && distance < 28.0 {
-            float shineX = (u + 11.0) / 5.5
-            float shineY = (v - 13.0) / 3.4
-            if shineX * shineX + shineY * shineY <= 1.0 { return HellfeatherArt.Rgb(0xfff6ea) }
-            if Math.Hypot(u + 2.0, v - 19.0) <= 1.5 { return HellfeatherArt.Rgb(0xfff6ea) }
-        }
         // Only the far half of the glass exists, so the liquid inside stays visible.
         if w < 0.0 && distance < Radius {
             int percent = 55 + (int)(Math.Pow(r / Radius, 3.0) * 120.0)

@@ -151,35 +151,12 @@ HellfeatherInventoryArt
         V(ui, x, y, 5, "..kkkk..")
     }
 
-    -int ColorOf(int code)
-    {
-        if code == 107 { return 0x15110e } // k: outline
-        if code == 83 { return 0xd9e1e4 } // S: bright steel
-        if code == 115 { return 0x98a2a8 } // s: steel
-        if code == 100 { return 0x565d62 } // d: dark steel
-        if code == 87 { return 0x96683a } // W: light wood
-        if code == 119 { return 0x6b4326 } // w: wood
-        if code == 103 { return 0xdcae3e } // g: gold
-        if code == 71 { return 0x8f6a1e } // G: dark gold
-        if code == 82 { return 0xee4e3c } // R: bright red
-        if code == 114 { return 0xa8231b } // r: red
-        if code == 66 { return 0x5a90ee } // B: bright blue
-        if code == 98 { return 0x2746a8 } // b: blue
-        if code == 76 { return 0xa8794b } // L: light leather
-        if code == 108 { return 0x75492b } // l: leather
-        if code == 99 { return 0x3f2a1c } // c: dark cloth
-        if code == 101 { return 0xd8cfb8 } // e: bone
-        if code == 118 { return 0x52dcec } // v: gem
-        if code == 109 { return 0x5a1610 } // m: maroon
-        return -1
-    }
-
     // One row of voxels. Each is lit on its top left and shaded on its bottom right.
     -V(QuaxelUi& ui, int x, int y, int row, string text)
     {
         for i : (long)0; i < Length(text); i++ {
             int code = (int)CodeUnitAt(text, i)
-            int rgb = ColorOf(code)
+            int rgb = HellfeatherItemArt.ColorOf(code)
             if rgb < 0 { continue }
             int left = x + (int)i * VoxelPixels
             int top = y + row * VoxelPixels
@@ -193,222 +170,9 @@ HellfeatherInventoryArt
 
     -PaintIcon(QuaxelUi& ui, int item, int x, int y)
     {
-        if item == HellfeatherItems.BattleAxe { Axe(ui, x, y) }
-        else if item == HellfeatherItems.ShortSword { Sword(ui, x, y) }
-        else if item == HellfeatherItems.RoundShield { Shield(ui, x, y) }
-        else if item == HellfeatherItems.IronHelm { Helm(ui, x, y) }
-        else if item == HellfeatherItems.LeatherArmor { Armor(ui, x, y) }
-        else if item == HellfeatherItems.Gloves { GloveIcon(ui, x, y) }
-        else if item == HellfeatherItems.Boots { BootIcon(ui, x, y) }
-        else if item == HellfeatherItems.Belt { BeltIcon(ui, x, y) }
-        else if item == HellfeatherItems.Ring { RingIcon(ui, x, y) }
-        else if item == HellfeatherItems.Amulet { AmuletIcon(ui, x, y) }
-        else if item == HellfeatherItems.HealthPotion { Potion(ui, x, y, true) }
-        else if item == HellfeatherItems.ManaPotion { Potion(ui, x, y, false) }
-        else if item == HellfeatherItems.RustyKey { KeyIcon(ui, x, y) }
-        else if item == HellfeatherItems.Scroll { ScrollIcon(ui, x, y) }
-    }
-
-    -Axe(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 0, "..kk...kk...kk..")
-        V(ui, x, y, 1, ".kSSk.kWWk.kSSk.")
-        V(ui, x, y, 2, "kSSSSkkWWkkSSSSk")
-        V(ui, x, y, 3, "kSSsssgWWgsssSSk")
-        V(ui, x, y, 4, "kSsssdgWWgdsssSk")
-        V(ui, x, y, 5, "kSsddkkWWkkddsSk")
-        V(ui, x, y, 6, ".kddk.kWWk.kddk.")
-        V(ui, x, y, 7, "..kk..kWWk..kk..")
-        for row : 8; row < 15; row++ { V(ui, x, y, row, "......kWwk......") }
-        for row : 15; row < 21; row++ { V(ui, x, y, row, row % 2 == 0 ? "......kLlk......" | "......klLk......") }
-        V(ui, x, y, 21, ".....kggGGk.....")
-        V(ui, x, y, 22, "......kGGk......")
-        V(ui, x, y, 23, ".......kk.......")
-    }
-
-    -Sword(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 0, "...kk...")
-        V(ui, x, y, 1, "..kSsk..")
-        for row : 2; row < 15; row++ { V(ui, x, y, row, "..kSsk..") }
-        V(ui, x, y, 15, "kkkkkkkk")
-        V(ui, x, y, 16, "kgggGGGk")
-        V(ui, x, y, 17, "kkkkkkkk")
-        for row : 18; row < 22; row++ { V(ui, x, y, row, row % 2 == 0 ? "..kLlk.." | "..klLk..") }
-        V(ui, x, y, 22, "..kggk..")
-        V(ui, x, y, 23, "...kk...")
-    }
-
-    -Shield(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 0, "....kkkkkkkk....")
-        V(ui, x, y, 1, "..kkssssssddkk..")
-        V(ui, x, y, 2, ".ksswWWWWWwwddk.")
-        V(ui, x, y, 3, ".kswWWWwwWWWwdk.")
-        V(ui, x, y, 4, "ksWWWWwggwWWWwdk")
-        V(ui, x, y, 5, "ksWWWwgSSgwWWwdk")
-        V(ui, x, y, 6, "ksWWwgSssdgwWwdk")
-        V(ui, x, y, 7, "ksWWwgSsddgwWwdk")
-        V(ui, x, y, 8, "ksWWwgSsddgwWwdk")
-        V(ui, x, y, 9, "ksWWwgsdddgwWwdk")
-        V(ui, x, y, 10, "ksWWWwgddgwWWwdk")
-        V(ui, x, y, 11, "ksWWWWwggwWWWwdk")
-        V(ui, x, y, 12, ".kswWWWwwWWWwdk.")
-        V(ui, x, y, 13, ".ksswWWWWWwwddk.")
-        V(ui, x, y, 14, "..kkssssddddkk..")
-        V(ui, x, y, 15, "....kkkkkkkk....")
-    }
-
-    -Helm(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 1, ".......kk.......")
-        V(ui, x, y, 2, ".....kkSskk.....")
-        V(ui, x, y, 3, "...kkSSSssdkk...")
-        V(ui, x, y, 4, "..kSSSSsssddk...")
-        V(ui, x, y, 5, ".kSSSSssssdddk..")
-        V(ui, x, y, 6, ".kSSSsssssdddk..")
-        V(ui, x, y, 7, "kgggggggggGGGGk.")
-        V(ui, x, y, 8, "kSSsssgssssdddk.")
-        V(ui, x, y, 9, "kSsskkgkkksdddk.")
-        V(ui, x, y, 10, "kSskk.g..kksddk.")
-        V(ui, x, y, 11, "kSsk..g...ksddk.")
-        V(ui, x, y, 12, "kSsk..k...ksddk.")
-        V(ui, x, y, 13, ".kk.......kkkk..")
-    }
-
-    -Armor(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 0, "...kkk....kkk...")
-        V(ui, x, y, 1, "..klLLk..kLLlk..")
-        V(ui, x, y, 2, ".kLLLLLkkLLLllk.")
-        V(ui, x, y, 3, "kLLLLLLccLLLlllk")
-        V(ui, x, y, 4, "kLLLLlLccLlLlllk")
-        V(ui, x, y, 5, "kLLlkLLLLLLklllk")
-        V(ui, x, y, 6, "kLlkkLLLLlLkklck")
-        V(ui, x, y, 7, "kLlkkLgLLLgkklck")
-        V(ui, x, y, 8, "kLlkkLLLLlLkklck")
-        V(ui, x, y, 9, "kLlkkLgLLLgkklck")
-        V(ui, x, y, 10, ".kk.kLLLLlLk.kk.")
-        V(ui, x, y, 11, "....kLgLLLgk....")
-        V(ui, x, y, 12, "....kLLLLlLk....")
-        V(ui, x, y, 13, "....kLgLLLgk....")
-        V(ui, x, y, 14, "....kLLLLllk....")
-        V(ui, x, y, 15, "....kGggggGk....")
-        V(ui, x, y, 16, "...kLLLLLLllk...")
-        V(ui, x, y, 17, "...kLLLLlLllk...")
-        V(ui, x, y, 18, "...kLLLkklllk...")
-        V(ui, x, y, 19, "..kLLLlkkclllk..")
-        V(ui, x, y, 20, "..kLLlk..kcllk..")
-        V(ui, x, y, 21, "..kLllk..kcllk..")
-        V(ui, x, y, 22, "...kkk....kkk...")
-    }
-
-    -GloveIcon(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 1, "..kk.kk.kk.kk...")
-        V(ui, x, y, 2, ".kLLkLLkLLkLlk..")
-        V(ui, x, y, 3, ".kLlkLlkLlkLlk..")
-        V(ui, x, y, 4, ".kLlkLlkLlkLlk..")
-        V(ui, x, y, 5, ".kLlkLlkLlkLlkk.")
-        V(ui, x, y, 6, ".kLLLLLLLLLLlklk")
-        V(ui, x, y, 7, ".kLLLLLLLLLlllLk")
-        V(ui, x, y, 8, ".kLLLLLLLLllLlk.")
-        V(ui, x, y, 9, ".kLLLLLLLlllkk..")
-        V(ui, x, y, 10, "..kLLLLlllllk...")
-        V(ui, x, y, 11, "..kgggggGGGGk...")
-        V(ui, x, y, 12, "..kcclccclcck...")
-        V(ui, x, y, 13, "..kcclccclcck...")
-        V(ui, x, y, 14, "...kkkkkkkkk....")
-    }
-
-    -BootIcon(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 0, "...kkkkkkkk.....")
-        V(ui, x, y, 1, "...kgggGGGk.....")
-        V(ui, x, y, 2, "...kLLLlllk.....")
-        V(ui, x, y, 3, "...kLLLlllk.....")
-        V(ui, x, y, 4, "...kLLlLllk.....")
-        V(ui, x, y, 5, "...kLLLlllk.....")
-        V(ui, x, y, 6, "...kLlLlllk.....")
-        V(ui, x, y, 7, "...kLLLlllkkk...")
-        V(ui, x, y, 8, "...kLLLllllLlkk.")
-        V(ui, x, y, 9, "...kLLLlllllLLlk")
-        V(ui, x, y, 10, "...kLLLllllllLLk")
-        V(ui, x, y, 11, "...kLLLlllllllLk")
-        V(ui, x, y, 12, "...kcccccccccclk")
-        V(ui, x, y, 13, "...kkkkkkkkkkkk.")
-    }
-
-    -BeltIcon(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 1, "kkkkkkkkkkkkkkkk")
-        V(ui, x, y, 2, "kLLLLlkgggkLLlLk")
-        V(ui, x, y, 3, "kLlLLlkgkgkkkllk")
-        V(ui, x, y, 4, "klllllkgGGklllck")
-        V(ui, x, y, 5, "kkkkkkkkkkkkkkkk")
-    }
-
-    -RingIcon(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 0, "...kk...")
-        V(ui, x, y, 1, "..kvvk..")
-        V(ui, x, y, 2, ".kSvvsk.")
-        V(ui, x, y, 3, "kSk..dsk")
-        V(ui, x, y, 4, "kSk..dsk")
-        V(ui, x, y, 5, "kSk..dsk")
-        V(ui, x, y, 6, ".kSsdsk.")
-        V(ui, x, y, 7, "..kkkk..")
-    }
-
-    -AmuletIcon(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 0, ".G....G.")
-        V(ui, x, y, 1, "..G..G..")
-        V(ui, x, y, 2, "...GG...")
-        V(ui, x, y, 3, "..kggk..")
-        V(ui, x, y, 4, ".kgRrGk.")
-        V(ui, x, y, 5, ".kgrmGk.")
-        V(ui, x, y, 6, "..kGGk..")
-        V(ui, x, y, 7, "...kk...")
-    }
-
-    -Potion(QuaxelUi& ui, int x, int y, bool health)
-    {
-        string bright = health ? "kRRrrrrk" | "kBBbbbbk"
-        string middle = health ? "kRrrrrmk" | "kBbbbbck"
-        string low = health ? ".krrrmk." | ".kbbbck."
-        V(ui, x, y, 0, "..kwwk..")
-        V(ui, x, y, 1, "..kkkk..")
-        V(ui, x, y, 2, "..kSsk..")
-        V(ui, x, y, 3, ".kSSssk.")
-        V(ui, x, y, 4, bright)
-        V(ui, x, y, 5, middle)
-        V(ui, x, y, 6, low)
-        V(ui, x, y, 7, "..kkkk..")
-    }
-
-    -KeyIcon(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 0, ".kggGk..")
-        V(ui, x, y, 1, "kgk.kGk.")
-        V(ui, x, y, 2, "kgk.kGk.")
-        V(ui, x, y, 3, ".kggGk..")
-        V(ui, x, y, 4, "..kgk...")
-        V(ui, x, y, 5, "..kgkk..")
-        V(ui, x, y, 6, "..kggGk.")
-        V(ui, x, y, 7, "..kkkk..")
-    }
-
-    -ScrollIcon(QuaxelUi& ui, int x, int y)
-    {
-        V(ui, x, y, 0, ".kkkkkk.")
-        V(ui, x, y, 1, "keeeeeLk")
-        V(ui, x, y, 2, ".kecceLk")
-        V(ui, x, y, 3, ".keeeeLk")
-        V(ui, x, y, 4, ".kecceLk")
-        V(ui, x, y, 5, ".keeeeLk")
-        V(ui, x, y, 6, "keeeeLk.")
-        V(ui, x, y, 7, ".kkkkk..")
+        HellfeatherItemPicture picture
+        HellfeatherItemArt.Draw(item, picture)
+        for row : 0; row < picture.Rows.Len; row++ { V(ui, x, y, row, picture.Rows[row]) }
     }
 }
 
@@ -522,20 +286,25 @@ HellfeatherInventoryScreen
     bool Captures(int mouseX, int mouseY)
     {
         if !Open { return false }
-        if Items.Held != HellfeatherItems.None { return true }
+        return Items.Held != HellfeatherItems.None || OverPanel(mouseX, mouseY)
+    }
+
+    bool OverPanel(int mouseX, int mouseY)
+    {
+        if !Open { return false }
         int x = mouseX / Scale
         int y = mouseY / Scale
         return x >= PanelX && y >= PanelY && x < PanelX + HellfeatherInventoryArt.PanelWidth && y < PanelY + HellfeatherInventoryArt.PanelHeight
     }
 
-    // Runs once per frame. Takes this frame's mouse and rebuilds the overlay.
+    // Runs once per frame. Takes this frame's mouse and draws over whatever the
+    // overlay already holds, so the game clears the overlay first.
     Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool down)
     {
         if !ArtReady {
             ArtReady = true
             HellfeatherInventoryArt.Paint(ui)
         }
-        ui.ClearOverlay()
         bool pressed = down && !MouseWasDown
         MouseWasDown = down
         if !Open { return }

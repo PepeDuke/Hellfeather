@@ -1,0 +1,407 @@
+// An item lying in the world. Position is the point on the ground under it.
+HellfeatherGroundItem
+{
+    int Item
+    int Node
+    vec3 Position
+}
+
+// Where a title box landed this frame, in UI pixels. Foot is the item itself.
+HellfeatherGroundLabel
+{
+    int Entry
+    int X
+    int Y
+    int Width
+    int FootX
+    int FootY
+}
+
+// Everything on the ground. Each kind of item has one shared volume.
+HellfeatherGroundItems
+{
+    HellfeatherGroundItem [] Entries
+    // The entry under the mouse as of the last DrawLabels, or -1.
+    int Hovered = -1
+    -int [] Volumes
+    -float [] Heights
+    -HellfeatherGroundLabel [] Labels
+    -int Dropped
+
+    bool Build(QuaxelWorld& world)
+    {
+        Volumes += -1
+        Heights += 0.0
+        for item : 1; item < HellfeatherItems.Count; item++ {
+            int height = 0
+            int volume = HellfeatherItemArt.BuildModel(world, item, height)
+            if volume < 0 { return false }
+            Volumes += volume
+            Heights += (float)height * HellfeatherItemArt.ModelVoxel
+        }
+        return true
+    }
+
+    int VolumeOf(int item) { return Volumes[item] }
+
+    // True when nothing else already lies right here.
+    bool IsClear(float x, float z)
+    {
+        for i : 0; i < Entries.Len; i++ {
+            if Math.Hypot(Entries[i].Position.X - x, Entries[i].Position.Z - z) < Spacing { return false }
+        }
+        return true
+    }
+
+    bool Place(QuaxelWorld& world, int item, vec3 ground)
+    {
+        int node = world.CreateNode()
+        float cell = HellfeatherItemArt.ModelVoxel
+        QuaxelTransform pose = QuaxelTransform.Make(vec3(ground.X, ground.Y + Heights[item] * 0.5, ground.Z), vec3(cell, cell, cell))
+        // Picture rows run down the screen, give or take the way it happened to land.
+        Dropped++
+        float angle = 0.7853982 + ((float)(HellfeatherArt.Hash(Dropped, item, 5) % 51) - 25.0) * 0.01745329
+        pose.FacingX = Math.Sin(angle)
+        pose.FacingZ = Math.Cos(angle)
+        world.AttachTransform(node, pose)
+        if !world.AttachVoxels(node, Volumes[item]) { return false }
+        HellfeatherGroundItem entry
+        entry.Item = item
+        entry.Node = node
+        entry.Position = ground
+        Entries += entry
+        return true
+    }
+
+    bool InReach(int index, vec3 player)
+    {
+        return Math.Hypot(Entries[index].Position.X - player.X, Entries[index].Position.Z - player.Z) <= PickupReach
+    }
+
+    // Takes an entry off the ground and returns its item.
+    int Remove(QuaxelWorld& world, int index)
+    {
+        int item = Entries[index].Item
+        world.DestroyNode(Entries[index].Node)
+        Entries -= [index]
+        Hovered = -1
+        return item
+    }
+
+    // Moves a box up past the boxes already placed.
+    -int ClearY(int x, int y, int width)
+    {
+        int top = y
+        bool moved = true
+        while moved {
+            moved = false
+            for i : 0; i < Labels.Len; i++ {
+                bool across = x < Labels[i].X + Labels[i].Width && Labels[i].X < x + width
+                bool down = top < Labels[i].Y + BoxHeight && Labels[i].Y < top + BoxHeight
+                if across && down {
+                    top = Labels[i].Y - BoxHeight - 1
+                    moved = true
+                }
+            }
+        }
+        return top
+    }
+
+    // A title box wins over a model, and the last box drawn is the one on top.
+    -int FindHovered(int x, int y)
+    {
+        for i : (int)Labels.Len - 1; i >= 0; i-- {
+            if x >= Labels[i].X && y >= Labels[i].Y && x < Labels[i].X + Labels[i].Width && y < Labels[i].Y + BoxHeight { return Labels[i].Entry }
+        }
+        for i : (int)Labels.Len - 1; i >= 0; i-- {
+            if Math.Abs(x - Labels[i].FootX) <= ModelHitWidth && y >= Labels[i].FootY - ModelHitAbove && y <= Labels[i].FootY + ModelHitBelow { return Labels[i].Entry }
+        }
+        return -1
+    }
+
+    -DrawBox(QuaxelUi& ui, int x, int y, int width)
+    {
+        ui.OverlayRect(x + 1, y + 1, width - 2, BoxHeight - 2, 0x90000000)
+        ui.OverlayRect(x, y, width, 1, 0xD0000000)
+        ui.OverlayRect(x, y + BoxHeight - 1, width, 1, 0xD0000000)
+        ui.OverlayRect(x, y + 1, 1, BoxHeight - 2, 0xD0000000)
+        ui.OverlayRect(x + width - 1, y + 1, 1, BoxHeight - 2, 0xD0000000)
+    }
+
+    // Adds a title box over every item in view and finds the one under the mouse.
+    // MouseFree is false while the mouse belongs to the inventory.
+    DrawLabels(QuaxelUi& ui, QuaxelWorld& world, int cameraNode, vec3 player, int width, int height, int mouseX, int mouseY, bool mouseFree)
+    {
+        Hovered = -1
+        Labels.Clear()
+        QuaxelCamera camera = world.GetCamera(cameraNode)
+        camera.UpdateBounds(width, height)
+        mat4 screen = camera.ViewProjection(world.WorldPosition(cameraNode))
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        for i : 0; i < Entries.Len; i++ {
+            vec4 point = screen * vec4(Entries[i].Position, 1.0)
+            if Math.Abs(point.X) > 1.1 || Math.Abs(point.Y) > 1.1 { continue }
+            HellfeatherGroundLabel label
+            label.Entry = i
+            label.FootX = (int)((point.X + 1.0) * 0.5 * (float)gridWidth)
+            label.FootY = (int)((point.Y + 1.0) * 0.5 * (float)gridHeight)
+            HellfeatherItemKind kind = HellfeatherItems.Get(Entries[i].Item)
+            label.Width = (int)Length(kind.Name) * 6 - 1 + PaddingX * 2
+            label.X = Math.Clamp(label.FootX - label.Width / 2, 1, Math.Max(gridWidth - label.Width - 1, 1))
+            label.Y = ClearY(label.X, label.FootY - Rise - BoxHeight, label.Width)
+            Labels += label
+        }
+        if mouseFree { Hovered = FindHovered(mouseX / scale, mouseY / scale) }
+        for i : 0; i < Labels.Len; i++ {
+            int entry = Labels[i].Entry
+            DrawBox(ui, Labels[i].X, Labels[i].Y, Labels[i].Width)
+            uint color = 0xFF8C8880
+            if InReach(entry, player) { color = entry == Hovered ? 0xFFFFD27A | 0xFFEDE6D8 }
+            HellfeatherItemKind kind = HellfeatherItems.Get(Entries[entry].Item)
+            ui.OverlayText(Labels[i].X + PaddingX, Labels[i].Y + PaddingY, kind.Name, color)
+        }
+    }
+}
+#{
+    // World units.
+    #float PickupReach = 3.0
+    #float Spacing = 0.7
+    // UI pixels.
+    #int PaddingX = 4
+    #int PaddingY = 2
+    #int BoxHeight = 11
+    #int Rise = 8
+    #int ModelHitWidth = 10
+    #int ModelHitAbove = 9
+    #int ModelHitBelow = 6
+}
+T{
+    EveryItemHasAPictureAndAModel()
+    {
+        QuaxelWorld world()
+        for item : 1; item < HellfeatherItems.Count; item++ {
+            HellfeatherItemPicture picture
+            HellfeatherItemArt.Draw(item, picture)
+            T.IsTrue(picture.Rows.Len > 0 && picture.Width() > 0)
+            int height = 0
+            int volume = HellfeatherItemArt.BuildModel(world, item, height)
+            T.IsTrue(volume >= 0 && height > 0)
+            int filled = 0
+            for x : 0; x < picture.Width(); x++ {
+                for z : 0; z < 24; z++ {
+                    for y : 0; y < height; y++ {
+                        if world.GetVoxel(volume, x, y, z) >= 0 { filled++ }
+                    }
+                }
+            }
+            T.IsTrue(filled > 8)
+        }
+    }
+
+    TheOutlineStaysOnTheIconButInnerLinesStayOnTheModel()
+    {
+        HellfeatherItemPicture picture
+        picture.Row(0, "kkk")
+        picture.Row(1, "krk")
+        picture.Row(2, "rkr")
+        picture.Row(3, "rrr")
+        T.IsFalse(picture.IsSolid(0, 0))
+        T.IsFalse(picture.IsSolid(1, 0))
+        T.IsTrue(picture.IsSolid(1, 2))
+        T.IsTrue(picture.IsSolid(1, 1))
+    }
+
+    FlatItemsLieOnTheirLongSide()
+    {
+        QuaxelWorld world()
+        int height = 0
+        int volume = HellfeatherItemArt.BuildModel(world, HellfeatherItems.ShortSword, height)
+        T.AreEqual(height, 4)
+        // The blade runs along Z and is only two voxels wide, so it stays low.
+        T.IsTrue(world.GetVoxel(volume, 3, 0, 8) >= 0)
+        T.AreEqual(world.GetVoxel(volume, 3, 3, 8), -1)
+    }
+
+    PotionsStandAndAreRound()
+    {
+        QuaxelWorld world()
+        int height = 0
+        int volume = HellfeatherItemArt.BuildModel(world, HellfeatherItems.HealthPotion, height)
+        T.IsTrue(height >= 7)
+        // A voxel of the body at a matching distance along X and along Z.
+        T.AreEqual(world.GetVoxel(volume, 1, 3, 3), world.GetVoxel(volume, 3, 3, 1))
+        T.IsTrue(world.GetVoxel(volume, 1, 3, 3) >= 0)
+    }
+
+    ClickingAGroundItemTakesItOnlyInReach()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.Ground.Place(world, HellfeatherItems.Ring, vec3(player.X + 1.0, 0.0, player.Z)))
+        T.IsTrue(game.Ground.Place(world, HellfeatherItems.Amulet, vec3(player.X + 6.0, 0.0, player.Z)))
+        int ring = game.Ground.Entries[0].Node
+        long bag = game.Inventory.Items.Bag.Len
+        T.IsFalse(game.TakeFromGround(world, 1))
+        T.AreEqual(game.Ground.Entries.Len, 2)
+        T.IsTrue(game.TakeFromGround(world, 0))
+        T.AreEqual(game.Ground.Entries.Len, 1)
+        T.AreEqual(game.Ground.Entries[0].Item, HellfeatherItems.Amulet)
+        T.AreEqual(game.Inventory.Items.Bag.Len, bag + 1)
+        T.IsFalse(world.Exists(ring))
+    }
+
+    AFullBagLeavesTheItemOnTheGround()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        while game.Inventory.Items.Add(HellfeatherItems.Ring) { }
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.Ground.Place(world, HellfeatherItems.Ring, vec3(player.X, 0.0, player.Z)))
+        T.IsFalse(game.TakeFromGround(world, 0))
+        T.AreEqual(game.Ground.Entries.Len, 1)
+    }
+
+    ItemsLandApartAndNearThePlayer()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        for i : 0; i < 6; i++ {
+            game.Inventory.Items.Held = HellfeatherItems.Ring
+            T.IsTrue(game.DropHeld(world))
+            T.AreEqual(game.Inventory.Items.Held, HellfeatherItems.None)
+        }
+        T.AreEqual(game.Ground.Entries.Len, 6)
+        vec3 player = world.GetPosition(game.PlayerNode)
+        for i : 0; i < 6; i++ {
+            T.IsTrue(game.Ground.InReach(i, player))
+            for j : i + 1; j < 6; j++ {
+                vec3 a = game.Ground.Entries[i].Position
+                vec3 b = game.Ground.Entries[j].Position
+                T.IsTrue(Math.Hypot(a.X - b.X, a.Z - b.Z) >= HellfeatherGroundItems.Spacing)
+            }
+        }
+    }
+
+    ClickingBesideThePanelDropsTheHeldItemWithoutASwing()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int visual = game.Controllers[0].VisualNode
+        QuaxelUi ui()
+        ui.Content = game.BuildUi()
+        game.ConfigureUi(ui)
+        game.Inventory.Toggle()
+        game.Inventory.Update(ui, 960, 540, 0, 0, false)
+        game.Inventory.Items.Held = HellfeatherItems.ShortSword
+        game.ClickWorld(world, 300, 400, true)
+        T.AreEqual(game.Ground.Entries.Len, 1)
+        T.AreEqual(game.Ground.Entries[0].Item, HellfeatherItems.ShortSword)
+        T.AreEqual(game.Inventory.Items.Held, HellfeatherItems.None)
+        QuaxelInputState input
+        game.Simulate(world, input, 1)
+        T.IsTrue(world.CurrentClipName(visual) != "attack")
+    }
+
+    ClickingOverThePanelKeepsTheHeldItem()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelUi ui()
+        ui.Content = game.BuildUi()
+        game.ConfigureUi(ui)
+        game.Inventory.Toggle()
+        game.Inventory.Update(ui, 960, 540, 0, 0, false)
+        game.Inventory.Items.Held = HellfeatherItems.ShortSword
+        game.ClickWorld(world, 700, 200, true)
+        T.AreEqual(game.Ground.Entries.Len, 0)
+        T.AreEqual(game.Inventory.Items.Held, HellfeatherItems.ShortSword)
+    }
+
+    ATitleSitsAboveItsItemInASemiTransparentBox()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelUi ui()
+        game.ConfigureUi(ui)
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.Ground.Place(world, HellfeatherItems.Ring, player))
+        game.Ground.DrawLabels(ui, world, game.CameraNode, player, 960, 540, 0, 0, true)
+        ui.Layout(960, 540, 0, 0, false)
+        // A fill, four edges and the title's letters, minus its one space.
+        T.AreEqual(ui.CommandCount, 5 + 10)
+        QuaxelUiCommand fill = ui.GetCommand(0)
+        T.IsTrue((fill.Color >> 24) == (uint)0x90)
+        T.IsTrue((fill.Color & (uint)0xFFFFFF) == (uint)0)
+        T.IsTrue(fill.Y + fill.Height <= 270)
+        T.IsTrue(fill.X < 480 && fill.X + fill.Width > 480)
+    }
+
+    NearbyTitlesStackInsteadOfOverlapping()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelUi ui()
+        game.ConfigureUi(ui)
+        vec3 player = world.GetPosition(game.PlayerNode)
+        for i : 0; i < 4; i++ { game.Ground.Place(world, HellfeatherItems.Ring, player) }
+        game.Ground.DrawLabels(ui, world, game.CameraNode, player, 960, 540, 0, 0, true)
+        ui.Layout(960, 540, 0, 0, false)
+        int perLabel = 15
+        for i : 1; i < 4; i++ {
+            QuaxelUiCommand below = ui.GetCommand((i - 1) * perLabel)
+            QuaxelUiCommand above = ui.GetCommand(i * perLabel)
+            T.IsTrue(above.Y + above.Height <= below.Y)
+        }
+    }
+
+    HoveringFindsTheTitleAndTheInventoryCanOwnTheMouse()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelUi ui()
+        game.ConfigureUi(ui)
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.Ground.Place(world, HellfeatherItems.Ring, player))
+        // Scale 2 at this size. The title box sits just above the center of the view.
+        int mouseX = 480
+        int mouseY = 270 - (HellfeatherGroundItems.Rise + 5) * 2
+        game.Ground.DrawLabels(ui, world, game.CameraNode, player, 960, 540, mouseX, mouseY, true)
+        T.AreEqual(game.Ground.Hovered, 0)
+        game.Ground.DrawLabels(ui, world, game.CameraNode, player, 960, 540, mouseX, mouseY, false)
+        T.AreEqual(game.Ground.Hovered, -1)
+        game.Ground.DrawLabels(ui, world, game.CameraNode, player, 960, 540, 20, 20, true)
+        T.AreEqual(game.Ground.Hovered, -1)
+    }
+
+    ClickingATitleDoesNotSwing()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int visual = game.Controllers[0].VisualNode
+        QuaxelUi ui()
+        game.ConfigureUi(ui)
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.Ground.Place(world, HellfeatherItems.Ring, player))
+        int mouseY = 270 - (HellfeatherGroundItems.Rise + 5) * 2
+        game.Ground.DrawLabels(ui, world, game.CameraNode, player, 960, 540, 480, mouseY, true)
+        long bag = game.Inventory.Items.Bag.Len
+        game.ClickWorld(world, 480, mouseY, true)
+        T.AreEqual(game.Ground.Entries.Len, 0)
+        T.AreEqual(game.Inventory.Items.Bag.Len, bag + 1)
+        QuaxelInputState input
+        game.Simulate(world, input, 1)
+        T.IsTrue(world.CurrentClipName(visual) != "attack")
+    }
+}

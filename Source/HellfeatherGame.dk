@@ -16,6 +16,7 @@ HellfeatherGame : QuaxelGameInstance
     HellfeatherFpsCounter Fps
     HellfeatherTerrain Terrain
     HellfeatherGlobes Globes
+    HellfeatherGroundItems Ground
 
     string WindowTitle() { return "Hellfeather" }
 
@@ -56,6 +57,8 @@ HellfeatherGame : QuaxelGameInstance
 
     float RespawnSeconds() { return 3.0 }
 
+    float ItemRestRadius() { return 0.4 }
+
     // The warrior and duck strike on these frames of their attack clips.
     -int AxeStrikeFrame() { return 3 }
 
@@ -64,7 +67,7 @@ HellfeatherGame : QuaxelGameInstance
     bool Prepare(QuaxelWorld& world)
     {
         Inventory.Stock()
-        return SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemy(world, 3.0, -3.0) && SpawnCamera(world) && SpawnGlobes(world)
+        return SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemy(world, 3.0, -3.0) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world)
     }
 
     -bool SpawnTerrain(QuaxelWorld& world)
@@ -383,8 +386,71 @@ HellfeatherGame : QuaxelGameInstance
 
     SampleAttack(int mouseX, int mouseY, bool held)
     {
-        if held && !MouseHeld && !Inventory.Captures(mouseX, mouseY) { AttackRequested = true }
+        if held && !MouseHeld && !Inventory.Captures(mouseX, mouseY) && Ground.Hovered < 0 { AttackRequested = true }
         MouseHeld = held
+    }
+
+    // Moves the item on the cursor to the ground beside the warrior.
+    bool DropHeld(QuaxelWorld& world)
+    {
+        int item = Inventory.Items.Held
+        if item == HellfeatherItems.None || !Ground.Place(world, item, DropSpot(world)) { return false }
+        Inventory.Items.Held = HellfeatherItems.None
+        return true
+    }
+
+    // The nearest open ground around the warrior, working outward in rings.
+    -vec3 DropSpot(QuaxelWorld& world)
+    {
+        vec3 player = world.GetPosition(PlayerNode)
+        for ring : 1; ring <= 4; ring++ {
+            float distance = 0.4 + (float)ring * 0.5
+            for step : 0; step < 12; step++ {
+                float angle = ((float)step + (float)ring * 0.5) * 0.5235988
+                float x = player.X + Math.Cos(angle) * distance
+                float z = player.Z + Math.Sin(angle) * distance
+                if !Terrain.CircleBlocked(x, z, 0.2) && Ground.IsClear(x, z) { return vec3(x, RestingY(x, z), z) }
+            }
+        }
+        return vec3(player.X, RestingY(player.X, player.Z), player.Z)
+    }
+
+    // The highest ground under an item, since the terrain is rougher than a flat item is tall.
+    float RestingY(float x, float z)
+    {
+        float highest = Terrain.GroundY(x, z)
+        int reach = (int)Math.Ceil(ItemRestRadius() / QuaxelTerrain.Cell)
+        int column = Terrain.ColumnAt(x)
+        int row = Terrain.ColumnAt(z)
+        for a : -reach; a <= reach; a++ {
+            for b : -reach; b <= reach; b++ {
+                if !Terrain.IsBlockedColumn(column + a, row + b) { highest = Math.Max(highest, Terrain.SurfaceY(Terrain.ColumnHeight(column + a, row + b))) }
+            }
+        }
+        return highest
+    }
+
+    // Fails if the item is out of reach or the bag has no room for it.
+    bool TakeFromGround(QuaxelWorld& world, int index)
+    {
+        if !Ground.InReach(index, world.GetPosition(PlayerNode)) { return false }
+        if !Inventory.Items.Add(Ground.Entries[index].Item) { return false }
+        Ground.Remove(world, index)
+        return true
+    }
+
+    // Decides what a click on the world means. Holding an item drops it, and a
+    // click on an item takes it, so neither of them also swings the axe.
+    ClickWorld(QuaxelWorld& world, int mouseX, int mouseY, bool held)
+    {
+        bool pressed = held && !MouseHeld
+        SampleAttack(mouseX, mouseY, held)
+        if !pressed || PlayerHealth <= 0 { return }
+        if Inventory.Items.Held != HellfeatherItems.None {
+            if !Inventory.OverPanel(mouseX, mouseY) { DropHeld(world) }
+            return
+        }
+        if Ground.Hovered >= 0 { TakeFromGround(world, Ground.Hovered) }
     }
 
     UpdateUi(QuaxelUi& ui, QuaxelWorld& world)
@@ -393,12 +459,18 @@ HellfeatherGame : QuaxelGameInstance
         int mouseY = 0
         QuaxelPlatform.GetMousePosition(mouseX, mouseY)
         bool mouseDown = QuaxelPlatform.IsMouseButtonDown()
-        // Before the inventory handles this click, so closing it cannot also swing the axe.
-        SampleAttack(mouseX, mouseY, mouseDown)
         int windowWidth = 0
         int windowHeight = 0
-        if QuaxelPlatform.GetWindowSize(windowWidth, windowHeight) && windowWidth > 0 && windowHeight > 0 {
+        bool hasWindow = QuaxelPlatform.GetWindowSize(windowWidth, windowHeight) && windowWidth > 0 && windowHeight > 0
+        ui.ClearOverlay()
+        // Drawn first, so that the inventory panel covers the titles.
+        if hasWindow { Ground.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, !Inventory.Captures(mouseX, mouseY)) }
+        // Before the inventory handles this click, so closing it cannot also swing the axe.
+        ClickWorld(world, mouseX, mouseY, mouseDown)
+        if hasWindow {
             Inventory.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
+            // An item the bag had no room for when the panel closed goes on the ground.
+            if !Inventory.Open { DropHeld(world) }
             Globes.Anchor(world, windowWidth, windowHeight, Inventory.Open ? Inventory.PanelLeft * Inventory.PanelScale | windowWidth)
         }
         // The open panel covers the corner the counter sits in.
