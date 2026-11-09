@@ -80,7 +80,7 @@ HellfeatherHud
         return {
             <QuaxelUiPanel X=12 Y=12 Flow=QuaxelUiFlow.Column Padding=10 Spacing=6 Color=0xB0101418>
                 <QuaxelUiText Text="HELLFEATHER" Size=3 Color=0xFFF26B19/>
-                <QuaxelUiText Text="WASD to move" Color=0xFFC8CCD4/>
+                <QuaxelUiText Text="WASD to move   LMB to attack" Color=0xFFC8CCD4/>
                 <QuaxelUiText Id="position" Text="X 0  Z 0"/>
                 <QuaxelUiButton Id="recenter" Text="Recenter"/>
             </QuaxelUiPanel>
@@ -88,7 +88,7 @@ HellfeatherHud
         }
     }
 
-    Update(QuaxelUi& ui, QuaxelVec3 position)
+    Update(QuaxelUi& ui, vec3 position)
     {
         ui.SetText("position", "X " + QuaxelUi.FormatInt((int)position.X) + "  Z " + QuaxelUi.FormatInt((int)position.Z))
     }
@@ -105,7 +105,7 @@ T{
         ui.Content = HellfeatherHud.Build()
         ui.Layout(960, 540, 0, 0, false)
         int before = ui.CommandCount
-        HellfeatherHud.Update(ui, QuaxelVec3.Make(-3.5, 0.5, 12.0))
+        HellfeatherHud.Update(ui, vec3(-3.5, 0.5, 12.0))
         ui.Layout(960, 540, 0, 0, false)
         T.AreEqual(ui.CommandCount, before + 2) // "-4" and "12" each add a character.
     }

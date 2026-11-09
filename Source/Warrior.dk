@@ -6,7 +6,12 @@ HellfeatherWarrior
 
     bool Attach(QuaxelWorld& world, int node)
     {
-        int volume = QuaxelAssets.LoadVoxelModel(world, "Assets/Warrior.qvox")
-        return volume >= 0 && world.AttachVoxels(node, volume)
+        int animation = QuaxelAssets.LoadVoxelAnimation(world, "Assets/Warrior.qvox")
+        if !world.AttachAnimator(node, animation) || !world.PlayClip(node, "idle") { return false }
+
+        int volume = QuaxelAssets.LoadVoxelModel(world, "Assets/BattleAxe.qvox")
+        if volume < 0 { return false }
+        int axe = world.CreateNode()
+        return world.AttachVoxels(axe, volume) && world.AttachToSocket(axe, node, "hand_r")
     }
 }
