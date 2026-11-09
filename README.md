@@ -43,6 +43,7 @@ Gameplay tests run without a GPU:
 ```
 
 Both configurations compile the same game source. The x64 Windows build
-requires the Vulkan SDK. It opens a resizable window showing an 8×8×8 voxel player cube on an 80×1×80 voxel ground plane
-from an isometric camera attached to the cube. WASD moves the cube. Rendering
-pauses while the window is minimized. Close the window to exit.
+requires the Vulkan SDK. It opens a resizable window showing a voxel warrior on an 80×1×80 voxel ground plane
+from an isometric camera following the player. WASD moves the warrior and turns her to face her direction of travel. Rendering
+pauses while the window is minimized. Models live in `Assets/`. The HUD in `Source/Hud.dk` is written in
+Duck markup. Close the window to exit.

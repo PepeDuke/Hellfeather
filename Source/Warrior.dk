@@ -1,0 +1,12 @@
+// Solid voxel sculpt stored in Assets/Warrior.qvox. Local +Z is forward.
+HellfeatherWarrior
+#{
+    #int Height = 78
+    #float VoxelSize = 0.025
+
+    bool Attach(QuaxelWorld& world, int node)
+    {
+        int volume = QuaxelAssets.LoadVoxelModel(world, "Assets/Warrior.qvox")
+        return volume >= 0 && world.AttachVoxels(node, volume)
+    }
+}

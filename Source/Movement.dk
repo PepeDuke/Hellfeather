@@ -1,6 +1,7 @@
 // Marks a node as player-controlled. Speed is in world units per second.
 PlayerController
 {
+    int VisualNode
     int Node
     float Speed
 }

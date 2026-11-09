@@ -1,0 +1,138 @@
+// Averages frames over short intervals so the displayed number stays readable.
+HellfeatherFpsCounter
+{
+    int Value
+    -long IntervalStart
+    -int Frames
+    -bool Started
+
+    // Call once per frame. Returns true when Value has a new reading.
+    bool Tick(long now, long frequency)
+    {
+        if !Started || frequency <= 0 {
+            Started = frequency > 0
+            IntervalStart = now
+            Frames = 0
+            return false
+        }
+        Frames++
+        double elapsed = (double)(now - IntervalStart) / (double)frequency
+        if elapsed < 0.5 { return false }
+        bool stalled = elapsed > 2.0 // Minimized or dragged, so not a real frame rate.
+        if !stalled { Value = (int)((double)Frames / elapsed + 0.5) }
+        IntervalStart = now
+        Frames = 0
+        return !stalled
+    }
+}
+T{
+    FirstReadingArrivesAfterHalfASecond()
+    {
+        HellfeatherFpsCounter counter
+        T.IsFalse(counter.Tick(0, 1000))
+        for i : 1; i < 50; i++ {
+            T.IsFalse(counter.Tick((long)i * 10, 1000))
+        }
+        T.AreEqual(counter.Value, 0)
+        T.IsTrue(counter.Tick(500, 1000))
+        T.AreEqual(counter.Value, 100)
+    }
+
+    ReadingsTrackTheCurrentInterval()
+    {
+        HellfeatherFpsCounter counter
+        counter.Tick(0, 1000)
+        counter.Tick(250, 1000)
+        T.IsTrue(counter.Tick(500, 1000))
+        T.AreEqual(counter.Value, 4)
+        counter.Tick(600, 1000)
+        counter.Tick(700, 1000)
+        counter.Tick(800, 1000)
+        counter.Tick(900, 1000)
+        T.IsTrue(counter.Tick(1000, 1000))
+        T.AreEqual(counter.Value, 10)
+    }
+
+    StallIsNotReported()
+    {
+        HellfeatherFpsCounter counter
+        counter.Tick(0, 1000)
+        T.IsFalse(counter.Tick(5000, 1000))
+        T.AreEqual(counter.Value, 0)
+        counter.Tick(5250, 1000)
+        T.IsTrue(counter.Tick(5500, 1000))
+        T.AreEqual(counter.Value, 4)
+    }
+
+    MissingClockFrequencyReportsNothing()
+    {
+        HellfeatherFpsCounter counter
+        T.IsFalse(counter.Tick(0, 0))
+        T.IsFalse(counter.Tick(9000, 0))
+        T.AreEqual(counter.Value, 0)
+    }
+}
+
+HellfeatherHud
+#{
+    markup Build()
+    {
+        return {
+            <QuaxelUiPanel X=12 Y=12 Flow=QuaxelUiFlow.Column Padding=10 Spacing=6 Color=0xB0101418>
+                <QuaxelUiText Text="HELLFEATHER" Size=3 Color=0xFFF26B19/>
+                <QuaxelUiText Text="WASD to move" Color=0xFFC8CCD4/>
+                <QuaxelUiText Id="position" Text="X 0  Z 0"/>
+                <QuaxelUiButton Id="recenter" Text="Recenter"/>
+            </QuaxelUiPanel>
+            <QuaxelUiText Id="fps" Text="FPS --" AnchorX=1.0 X=-12 Y=12/>
+        }
+    }
+
+    Update(QuaxelUi& ui, QuaxelVec3 position)
+    {
+        ui.SetText("position", "X " + QuaxelUi.FormatInt((int)position.X) + "  Z " + QuaxelUi.FormatInt((int)position.Z))
+    }
+
+    ShowFps(QuaxelUi& ui, int framesPerSecond)
+    {
+        ui.SetText("fps", "FPS " + QuaxelUi.FormatInt(framesPerSecond))
+    }
+}
+T{
+    PositionTextFollowsPlayer()
+    {
+        QuaxelUi ui()
+        ui.Content = HellfeatherHud.Build()
+        ui.Layout(960, 540, 0, 0, false)
+        int before = ui.CommandCount
+        HellfeatherHud.Update(ui, QuaxelVec3.Make(-3.5, 0.5, 12.0))
+        ui.Layout(960, 540, 0, 0, false)
+        T.AreEqual(ui.CommandCount, before + 2) // "-4" and "12" each add a character.
+    }
+
+    FpsShowsInTheTopRightCorner()
+    {
+        QuaxelUi ui()
+        ui.Content = HellfeatherHud.Build()
+        HellfeatherHud.ShowFps(ui, 60)
+        ui.Layout(960, 540, 0, 0, false)
+        // "FPS 60" is five visible glyphs, the last of them drawn at the end of the list.
+        QuaxelUiCommand last = ui.GetCommand(ui.CommandCount - 1)
+        T.AreEqual(last.X + last.Width, 960 - 12)
+        T.AreEqual(last.Y, 12)
+    }
+
+    RecenterButtonIsReachableWithTheMouse()
+    {
+        QuaxelUi ui()
+        ui.Content = HellfeatherHud.Build()
+        ui.Layout(960, 540, 0, 0, false)
+        // The button is the panel's last row: inside its left padding, at the bottom.
+        QuaxelUiCommand panel = ui.GetCommand(0)
+        int x = panel.X + 20
+        int y = panel.Y + panel.Height - 16
+        ui.Layout(960, 540, x, y, true)
+        ui.Layout(960, 540, x, y, false)
+        T.IsTrue(ui.TakeClick("recenter"))
+    }
+}
