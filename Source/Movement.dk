@@ -26,8 +26,8 @@ HellfeatherMovement
     {
         QuaxelVec3 moved = QuaxelVec3.Add(position, QuaxelVec3.Scale(direction, speed * deltaSeconds))
         return QuaxelVec3.Make(
-            QuaxelMath.Clamp(moved.X, -limit, limit),
+            Math.Clamp(moved.X, -limit, limit),
             position.Y,
-            QuaxelMath.Clamp(moved.Z, -limit, limit))
+            Math.Clamp(moved.Z, -limit, limit))
     }
 }

@@ -1,0 +1,117 @@
+Hellfeather Source-Available License
+
+Copyright (c) 2026 PepeDuke. All rights reserved.
+
+Hellfeather is proprietary software. Its source code is published so that
+people can read it. It is NOT open source, and publishing it does not place
+it in the public domain or grant any right that is not stated below.
+
+1. DEFINITIONS
+
+"Licensor" means the copyright holder named above and any successor or
+assignee of that holder's rights in the Software.
+
+"Software" means everything in this repository and its version history,
+including source code, build and project files, art, models, audio, game
+data, text and documentation, and anything compiled or generated from them,
+but excluding the Separately Licensed Components described in Section 5.
+
+"You" means any person or entity that accesses the Software.
+
+2. PERMISSION TO READ
+
+Licensor grants You a limited, personal, non-exclusive, non-transferable,
+non-sublicensable, revocable permission to view and read the Software for
+Your own information and study. This includes the temporary or private
+copies that are technically necessary to do so, such as those made by a web
+browser or by cloning the repository to a device You control.
+
+No other permission is granted. All rights not expressly granted are
+reserved by Licensor.
+
+3. RESTRICTIONS
+
+Except as Section 2 permits or Licensor agrees in a signed writing, You may
+not, in whole or in part:
+
+  (a) copy, publish, mirror, or redistribute the Software, in source or
+      compiled form, whether or not You charge for it;
+  (b) sell, rent, lease, license, or sublicense the Software, or otherwise
+      make it available to any third party;
+  (c) modify, adapt, translate, or create derivative works of the Software;
+  (d) reuse any part of the Software, including code, assets, or data, in
+      any other software, game, product, or service;
+  (e) compile, build, install, execute, or host the Software, or distribute
+      or publish any build of it;
+  (f) use the Software for any commercial purpose; or
+  (g) use the Software to train, fine-tune, or evaluate any machine learning
+      or artificial intelligence system, or include it in any dataset.
+
+4. HOSTING PLATFORM RIGHTS
+
+If the Software is hosted on GitHub or a similar service, You may use the
+viewing and forking functions of that service to the extent its terms of
+service require Licensor to allow them. A fork or copy made that way remains
+subject to this License and gives You no additional rights.
+
+5. SEPARATELY LICENSED COMPONENTS
+
+Quaxel Engine and the Duck compiler and toolchain are separate projects
+licensed under the GNU General Public License, version 3. They are not part
+of the Software and are not covered by this License. Nothing in this License
+limits any right You have under the GNU General Public License in those
+projects. The fact that the Software uses those projects does not grant You
+any right in the Software.
+
+6. NAMES AND BRANDING
+
+This License grants no right to use the name "Hellfeather" or any logo,
+character, setting, or other branding associated with the Software.
+
+7. CONTRIBUTIONS
+
+Licensor does not accept contributions except under a separate written
+agreement. If You nevertheless submit any code, asset, or other material for
+inclusion in the Software, You grant Licensor a perpetual, irrevocable,
+worldwide, royalty-free, transferable, sublicensable license to use, modify,
+distribute, and commercially exploit that material for any purpose, and You
+represent that You have the right to grant that license.
+
+8. OWNERSHIP AND FUTURE LICENSING
+
+Licensor retains all right, title, and interest in the Software. Licensor
+may at any time, without notice or obligation to You, sell or assign the
+Software, offer it for sale, license it on different terms, change the terms
+that apply to any version, or withdraw public access to it.
+
+9. TERMINATION
+
+Your permission under Section 2 ends automatically if You breach this
+License. Licensor may also revoke it at any time, including by publishing
+notice in this repository or by withdrawing public access to the Software.
+When Your permission ends, You must stop using the Software and delete all
+copies in Your possession or control. Sections 3 and 6 through 12 survive
+termination.
+
+10. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+
+11. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL LICENSOR BE LIABLE
+FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT, OR
+OTHERWISE, ARISING FROM OR CONNECTED WITH THE SOFTWARE OR YOUR ACCESS TO IT.
+
+12. GENERAL
+
+This License does not limit any right that cannot be restricted under
+applicable law. If any provision is held unenforceable, it will be enforced
+to the extent possible and the remaining provisions will stay in effect. A
+failure to enforce any provision is not a waiver of it. Licensor may assign
+this License and its rights under it without restriction.
+
+To request permission for any use not allowed here, including commercial
+licensing, contact Licensor through https://github.com/PepeDuke/Hellfeather.

@@ -84,8 +84,8 @@ HellfeatherGame : QuaxelGameInstance
         camera.Direction = QuaxelVec3.Make(-1.0, -1.0, -1.0)
         camera.Up = QuaxelVec3.Make(0.0, 1.0, 0.0)
         // Shows the whole plane while the player is at its center.
-        camera.FrameHalfWidth = extent * QuaxelMath.Sqrt(2.0) * margin
-        camera.FrameHalfHeight = (extent + playerTop) * 2.0 / QuaxelMath.Sqrt(6.0) * margin
+        camera.FrameHalfWidth = extent * Math.Sqrt(2.0) * margin
+        camera.FrameHalfHeight = (extent + playerTop) * 2.0 / Math.Sqrt(6.0) * margin
         camera.Near = 1.0
         camera.Far = 80.0
         world.AttachCamera(CameraNode, camera)
@@ -172,7 +172,7 @@ T{
         T.AreEqual(floorTop.X, game.GroundHalfExtent())
         T.AreEqual(floorTop.Z, game.GroundHalfExtent())
         T.AreEqual(floorTop.Y, 0.0)
-        T.IsTrue(QuaxelMath.Abs(feet.Y - floorTop.Y) < 0.00001)
+        T.IsTrue(Math.Abs(feet.Y - floorTop.Y) < 0.00001)
         T.AreEqual(visual, game.Controllers[0].VisualNode)
         T.AreEqual(world.ActiveCamera, game.CameraNode)
         T.AreEqual(game.Controllers[0].Node, game.PlayerNode)
@@ -226,9 +226,9 @@ T{
             float movedY = after.Y - before.Y
             T.IsTrue(movedX * screenX[i] >= 0.0)
             T.IsTrue(movedY * screenY[i] >= 0.0)
-            T.IsTrue(QuaxelMath.Abs(movedX) + QuaxelMath.Abs(movedY) > 0.01)
-            if screenX[i] == 0.0 { T.IsTrue(QuaxelMath.Abs(movedX) < 0.0001) }
-            if screenY[i] == 0.0 { T.IsTrue(QuaxelMath.Abs(movedY) < 0.0001) }
+            T.IsTrue(Math.Abs(movedX) + Math.Abs(movedY) > 0.01)
+            if screenX[i] == 0.0 { T.IsTrue(Math.Abs(movedX) < 0.0001) }
+            if screenY[i] == 0.0 { T.IsTrue(Math.Abs(movedY) < 0.0001) }
         }
     }
 
@@ -242,14 +242,14 @@ T{
         input.SetDown(QuaxelKey.W, true)
         input.SetDown(QuaxelKey.D, true)
         QuaxelVec3 player = game.Simulate(world, input, 45)
-        T.IsTrue(QuaxelMath.Abs(player.X) + QuaxelMath.Abs(player.Z) > 0.5)
+        T.IsTrue(Math.Abs(player.X) + Math.Abs(player.Z) > 0.5)
         QuaxelVec3 eye = world.WorldPosition(game.CameraNode)
         T.AreEqual(eye.X, player.X + 20.0)
         T.AreEqual(eye.Z, player.Z + 20.0)
         QuaxelMat4 screen = game.ScreenMatrix(world)
         QuaxelVec3 center = screen.TransformPoint(player)
-        T.IsTrue(QuaxelMath.Abs(center.X) < 0.0001)
-        T.IsTrue(QuaxelMath.Abs(center.Y) < 0.0001)
+        T.IsTrue(Math.Abs(center.X) < 0.0001)
+        T.IsTrue(Math.Abs(center.Y) < 0.0001)
     }
 
     WarriorFacesTravelAndHoldsHeadingAtRest()
@@ -281,7 +281,7 @@ T{
         input.SetDown(QuaxelKey.D, true)
         QuaxelVec3 position = game.Simulate(world, input, 30)
         float travelled = QuaxelVec3.Make(position.X, 0.0, position.Z).Length()
-        T.IsTrue(QuaxelMath.Abs(travelled - game.PlayerSpeed() * 0.5) < 0.001)
+        T.IsTrue(Math.Abs(travelled - game.PlayerSpeed() * 0.5) < 0.001)
     }
 
     OneSecondCoversSpeedInWorldUnits()
@@ -293,7 +293,7 @@ T{
         input.SetDown(QuaxelKey.W, true)
         QuaxelVec3 position = game.Simulate(world, input, 60)
         float travelled = QuaxelVec3.Make(position.X, 0.0, position.Z).Length()
-        T.IsTrue(QuaxelMath.Abs(travelled - game.PlayerSpeed()) < 0.001)
+        T.IsTrue(Math.Abs(travelled - game.PlayerSpeed()) < 0.001)
     }
 
     PlaneEdgesClampThePlayer()
@@ -308,10 +308,10 @@ T{
             QuaxelVec3 position = game.Simulate(world, input, 600)
             float limit = game.GroundHalfExtent() - game.PlayerRadius()
             T.AreEqual(position.Y, 0.5)
-            T.IsTrue(QuaxelMath.Abs(position.X) <= limit)
-            T.IsTrue(QuaxelMath.Abs(position.Z) <= limit)
-            T.AreEqual(QuaxelMath.Abs(position.X), limit)
-            T.AreEqual(QuaxelMath.Abs(position.Z), limit)
+            T.IsTrue(Math.Abs(position.X) <= limit)
+            T.IsTrue(Math.Abs(position.Z) <= limit)
+            T.AreEqual(Math.Abs(position.X), limit)
+            T.AreEqual(Math.Abs(position.Z), limit)
         }
     }
 
@@ -332,8 +332,8 @@ T{
                 float z = (corner & 2) != 0 ? limit | -limit
                 float y = (corner & 4) != 0 ? game.PlayerRadius() * 2.0 | 0.0
                 QuaxelVec3 point = matrix.TransformPoint(QuaxelVec3.Make(x, y, z))
-                T.IsTrue(QuaxelMath.Abs(point.X) <= 1.0)
-                T.IsTrue(QuaxelMath.Abs(point.Y) <= 1.0)
+                T.IsTrue(Math.Abs(point.X) <= 1.0)
+                T.IsTrue(Math.Abs(point.Y) <= 1.0)
                 T.IsTrue(point.Z >= 0.0 && point.Z <= 1.0)
             }
         }
