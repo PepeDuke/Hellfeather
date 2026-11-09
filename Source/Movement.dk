@@ -1,0 +1,32 @@
+// Marks a node as player-controlled. Speed is in world units per second.
+PlayerController
+{
+    int Node
+    float Speed
+}
+
+HellfeatherMovement
+#{
+    -QuaxelVec3 AlongGround(QuaxelVec3 axis)
+    {
+        return QuaxelVec3.Normalize(QuaxelVec3.Make(axis.X, 0.0, axis.Z))
+    }
+
+    // Unit-length move direction on XZ, or zero when the input cancels out.
+    QuaxelVec3 Direction(QuaxelCamera camera, QuaxelInputState& input)
+    {
+        QuaxelVec3 right = QuaxelVec3.Scale(AlongGround(camera.Right()), input.Axis(QuaxelKey.D, QuaxelKey.A))
+        QuaxelVec3 forward = QuaxelVec3.Scale(AlongGround(camera.Forward()), input.Axis(QuaxelKey.W, QuaxelKey.S))
+        return QuaxelVec3.Normalize(QuaxelVec3.Add(right, forward))
+    }
+
+    // Keeps the whole footprint on the plane. Height never changes.
+    QuaxelVec3 Move(QuaxelVec3 position, QuaxelVec3 direction, float speed, float deltaSeconds, float limit)
+    {
+        QuaxelVec3 moved = QuaxelVec3.Add(position, QuaxelVec3.Scale(direction, speed * deltaSeconds))
+        return QuaxelVec3.Make(
+            QuaxelMath.Clamp(moved.X, -limit, limit),
+            position.Y,
+            QuaxelMath.Clamp(moved.Z, -limit, limit))
+    }
+}

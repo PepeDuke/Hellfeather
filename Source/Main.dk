@@ -1,43 +1,13 @@
-// Hellfeather owns the main loop. Quaxel owns the platform window.
+// Hellfeather supplies the game. Quaxel owns the main loop.
 Main()
 {
     Print("Hellfeather / Quaxel")
-    if QuaxelPlatform.SupportsWindowing() {
-        if !QuaxelPlatform.OpenWindow("Hellfeather", 960, 540, true) {
-            Print("Failed to open the Hellfeather window")
-            return
-        }
-        if !QuaxelRenderer.Start() {
-            Print("Failed to start Vulkan")
-            QuaxelPlatform.CloseWindow()
-            return
-        }
-        bool minimized = false
-        while QuaxelPlatform.PumpWindow(minimized) {
-            int width = 0
-            int height = 0
-            if !QuaxelPlatform.GetWindowSize(width, height) { break }
-            minimized = width == 0 || height == 0
-            if !minimized && !QuaxelRenderer.DrawTriangle() {
-                Print("Vulkan presentation failed")
-                break
-            }
-        }
-        QuaxelRenderer.Stop()
-        QuaxelPlatform.CloseWindow()
-        return
+    HellfeatherGame game()
+    if !QuaxelEngine.Run(game) { return }
+    if !QuaxelPlatform.SupportsWindowing() {
+        Print("Frames")
+        Print(game.StepsSimulated)
+        Print("Simulated seconds")
+        Print((double)game.StepsSimulated * Quaxel.FixedDeltaSeconds())
     }
-
-    QuaxelSession session()
-    session.Begin()
-    double elapsed = 0.0
-    while session.Running {
-        elapsed += Quaxel.FixedDeltaSeconds()
-        session.Advance()
-        if session.Frame >= 3 { session.Stop() }
-    }
-    Print("Frames")
-    Print(session.Frame)
-    Print("Simulated seconds")
-    Print(elapsed)
 }

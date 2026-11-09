@@ -1,0 +1,292 @@
+HellfeatherGame : QuaxelGameInstance
+{
+    PlayerController [] Controllers
+    int PlayerNode
+    int CameraNode
+    int StepsSimulated
+
+    string WindowTitle() { return "Hellfeather" }
+
+    float GroundHalfExtent() { return 5.0 }
+
+    float CubeHalfWidth() { return 0.5 }
+
+    float PlayerSpeed() { return 4.0 }
+
+    // Ground and player share the same voxel density in world space.
+    -float CellSize() { return 0.125 }
+
+    bool Prepare(QuaxelWorld& world)
+    {
+        return SpawnGround(world) && SpawnPlayer(world) && SpawnCamera(world)
+    }
+
+    -bool AttachSolidVolume(QuaxelWorld& world, int node, int width, int height, int depth, int color)
+    {
+        int volume = world.CreateVolume(width, height, depth)
+        if volume < 0 { return false }
+        for z : 0; z < depth; z++ {
+            for y : 0; y < height; y++ {
+                for x : 0; x < width; x++ {
+                    if !world.SetVoxel(volume, x, y, z, color) { return false }
+                }
+            }
+        }
+        return world.AttachVoxels(node, volume)
+    }
+
+    -bool SpawnGround(QuaxelWorld& world)
+    {
+        float cell = CellSize()
+        int width = (int)(2.0 * GroundHalfExtent() / cell)
+        int ground = world.CreateNode()
+        world.AttachTransform(ground, QuaxelTransform.Make(
+            QuaxelVec3.Make(0.0, -0.5 * cell, 0.0), QuaxelVec3.Make(cell, cell, cell)))
+        return AttachSolidVolume(world, ground, width, 1, width, 0x193326)
+    }
+
+    -bool SpawnPlayer(QuaxelWorld& world)
+    {
+        PlayerNode = world.CreateNode()
+        world.AttachTransform(PlayerNode, QuaxelTransform.Make(
+            QuaxelVec3.Make(0.0, CubeHalfWidth(), 0.0), QuaxelVec3.Make(1.0, 1.0, 1.0)))
+
+        // Scale only the visual child so the follow camera keeps its world-space offset.
+        float cell = CellSize()
+        int width = (int)(2.0 * CubeHalfWidth() / cell)
+        int cube = world.CreateChild(PlayerNode)
+        world.AttachTransform(cube, QuaxelTransform.Make(
+            QuaxelVec3.Make(0.0, 0.0, 0.0), QuaxelVec3.Make(cell, cell, cell)))
+        if !AttachSolidVolume(world, cube, width, width, width, 0xf26b19) { return false }
+
+        PlayerController controller
+        controller.Node = PlayerNode
+        controller.Speed = PlayerSpeed()
+        Controllers += controller
+        return true
+    }
+
+    // A child of the player, so it follows the cube and keeps it centered.
+    // Equal offsets give a 45-degree yaw and about 35.3 degrees of elevation.
+    -bool SpawnCamera(QuaxelWorld& world)
+    {
+        CameraNode = world.CreateChild(PlayerNode)
+        world.AttachTransform(CameraNode, QuaxelTransform.Make(QuaxelVec3.Make(20.0, 20.0, 20.0), QuaxelVec3.Make(1.0, 1.0, 1.0)))
+        float extent = GroundHalfExtent()
+        float cubeTop = CubeHalfWidth() * 2.0
+        float margin = 1.05
+        QuaxelCamera camera
+        camera.Direction = QuaxelVec3.Make(-1.0, -1.0, -1.0)
+        camera.Up = QuaxelVec3.Make(0.0, 1.0, 0.0)
+        // Shows the whole plane while the player is at its center.
+        camera.FrameHalfWidth = extent * QuaxelMath.Sqrt(2.0) * margin
+        camera.FrameHalfHeight = (extent + cubeTop) * 2.0 / QuaxelMath.Sqrt(6.0) * margin
+        camera.Near = 1.0
+        camera.Far = 80.0
+        world.AttachCamera(CameraNode, camera)
+        return world.SetActiveCamera(CameraNode)
+    }
+
+    FixedStep(QuaxelWorld& world, QuaxelInputState& input, float deltaSeconds)
+    {
+        StepsSimulated++
+        int activeCamera = world.ActiveCamera
+        if activeCamera == 0 { return }
+        QuaxelVec3 direction = HellfeatherMovement.Direction(world.GetCamera(activeCamera), input)
+        float limit = GroundHalfExtent() - CubeHalfWidth()
+        for controller : Controllers {
+            if world.Has(controller.Node, QuaxelComponents.Transform) {
+                QuaxelTransform transform = world.GetTransform(controller.Node)
+                transform.Position = HellfeatherMovement.Move(transform.Position, direction, controller.Speed, deltaSeconds, limit)
+                world.SetTransform(controller.Node, transform)
+            }
+        }
+    }
+
+    // Advances the simulation as the engine does. Used by the headless tests.
+    QuaxelVec3 Simulate(QuaxelWorld& world, QuaxelInputState& input, int steps)
+    {
+        for i : 0; i < steps; i++ {
+            world.BeginStep()
+            FixedStep(world, input, (float)Quaxel.FixedDeltaSeconds())
+            world.EndStep()
+        }
+        return world.GetPosition(PlayerNode)
+    }
+
+    // Maps world points to the screen: X right and Y down, both -1..1 inside the window.
+    QuaxelMat4 ScreenMatrix(QuaxelWorld& world)
+    {
+        QuaxelCamera camera = world.GetCamera(CameraNode)
+        camera.UpdateBounds(960, 540)
+        return camera.ViewProjection(world.WorldPosition(CameraNode))
+    }
+}
+T{
+    SceneStartsWithCubeRestingOnThePlane()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int mask = QuaxelComponents.Transform | QuaxelComponents.Voxels
+        int ground = world.NextWith(0, mask)
+        int cube = world.NextWith(ground, mask)
+        T.IsTrue(ground != 0 && cube != 0)
+        T.AreEqual(world.NextWith(cube, mask), 0)
+        T.AreEqual(world.ParentOf(cube), game.PlayerNode)
+        T.AreEqual(world.MeshCount, 0)
+        QuaxelMat4 floorModel = world.VolumeModel(ground)
+        QuaxelMat4 cubeModel = world.VolumeModel(cube)
+        QuaxelVec3 floorTop = floorModel.TransformPoint(QuaxelVec3.Make(0.5, 0.5, 0.5))
+        QuaxelVec3 cubeBottom = cubeModel.TransformPoint(QuaxelVec3.Make(0.5, -0.5, 0.5))
+        T.AreEqual(floorTop.X, game.GroundHalfExtent())
+        T.AreEqual(floorTop.Z, game.GroundHalfExtent())
+        T.AreEqual(floorTop.Y, 0.0)
+        T.AreEqual(cubeBottom.Y, floorTop.Y)
+        T.AreEqual(cubeBottom.X, game.CubeHalfWidth())
+        T.AreEqual(world.ActiveCamera, game.CameraNode)
+        T.AreEqual(game.Controllers[0].Node, game.PlayerNode)
+        T.AreEqual(game.Controllers[0].Speed, game.PlayerSpeed())
+    }
+
+    NoInputLeavesPlayerStill()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Prepare(world)
+        QuaxelInputState input
+        QuaxelVec3 position = game.Simulate(world, input, 30)
+        T.AreEqual(position.X, 0.0)
+        T.AreEqual(position.Y, 0.5)
+        T.AreEqual(position.Z, 0.0)
+    }
+
+    OppositeKeysCancel()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Prepare(world)
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.W, true)
+        input.SetDown(QuaxelKey.S, true)
+        input.SetDown(QuaxelKey.A, true)
+        input.SetDown(QuaxelKey.D, true)
+        QuaxelVec3 position = game.Simulate(world, input, 30)
+        T.AreEqual(position.X, 0.0)
+        T.AreEqual(position.Z, 0.0)
+    }
+
+    KeysMoveInScreenDirections()
+    {
+        QuaxelKey [4] keys = {QuaxelKey.W, QuaxelKey.S, QuaxelKey.D, QuaxelKey.A}
+        // Screen Y grows downward, so W must reduce it.
+        float [4] screenX = {0.0, 0.0, 1.0, -1.0}
+        float [4] screenY = {-1.0, 1.0, 0.0, 0.0}
+        for i : 0; i < 4; i++ {
+            HellfeatherGame game()
+            QuaxelWorld world()
+            game.Prepare(world)
+            // The view from before the move, as the camera travels with the player.
+            QuaxelMat4 screen = game.ScreenMatrix(world)
+            QuaxelVec3 before = screen.TransformPoint(world.GetPosition(game.PlayerNode))
+            QuaxelInputState input
+            input.SetDown(keys[i], true)
+            QuaxelVec3 after = screen.TransformPoint(game.Simulate(world, input, 20))
+            float movedX = after.X - before.X
+            float movedY = after.Y - before.Y
+            T.IsTrue(movedX * screenX[i] >= 0.0)
+            T.IsTrue(movedY * screenY[i] >= 0.0)
+            T.IsTrue(QuaxelMath.Abs(movedX) + QuaxelMath.Abs(movedY) > 0.01)
+            if screenX[i] == 0.0 { T.IsTrue(QuaxelMath.Abs(movedX) < 0.0001) }
+            if screenY[i] == 0.0 { T.IsTrue(QuaxelMath.Abs(movedY) < 0.0001) }
+        }
+    }
+
+    CameraFollowsPlayerAndKeepsItCentered()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Prepare(world)
+        T.AreEqual(world.ParentOf(game.CameraNode), game.PlayerNode)
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.W, true)
+        input.SetDown(QuaxelKey.D, true)
+        QuaxelVec3 player = game.Simulate(world, input, 45)
+        T.IsTrue(QuaxelMath.Abs(player.X) + QuaxelMath.Abs(player.Z) > 0.5)
+        QuaxelVec3 eye = world.WorldPosition(game.CameraNode)
+        T.AreEqual(eye.X, player.X + 20.0)
+        T.AreEqual(eye.Z, player.Z + 20.0)
+        QuaxelMat4 screen = game.ScreenMatrix(world)
+        QuaxelVec3 center = screen.TransformPoint(player)
+        T.IsTrue(QuaxelMath.Abs(center.X) < 0.0001)
+        T.IsTrue(QuaxelMath.Abs(center.Y) < 0.0001)
+    }
+
+    DiagonalMatchesSingleKeySpeed()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Prepare(world)
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.W, true)
+        input.SetDown(QuaxelKey.D, true)
+        QuaxelVec3 position = game.Simulate(world, input, 30)
+        float travelled = QuaxelVec3.Make(position.X, 0.0, position.Z).Length()
+        T.IsTrue(QuaxelMath.Abs(travelled - game.PlayerSpeed() * 0.5) < 0.001)
+    }
+
+    OneSecondCoversSpeedInWorldUnits()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Prepare(world)
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.W, true)
+        QuaxelVec3 position = game.Simulate(world, input, 60)
+        float travelled = QuaxelVec3.Make(position.X, 0.0, position.Z).Length()
+        T.IsTrue(QuaxelMath.Abs(travelled - game.PlayerSpeed()) < 0.001)
+    }
+
+    PlaneEdgesStopTheWholeCube()
+    {
+        QuaxelKey [4] keys = {QuaxelKey.W, QuaxelKey.S, QuaxelKey.D, QuaxelKey.A}
+        for i : 0; i < 4; i++ {
+            HellfeatherGame game()
+            QuaxelWorld world()
+            game.Prepare(world)
+            QuaxelInputState input
+            input.SetDown(keys[i], true)
+            QuaxelVec3 position = game.Simulate(world, input, 600)
+            float limit = game.GroundHalfExtent() - game.CubeHalfWidth()
+            T.AreEqual(position.Y, 0.5)
+            T.IsTrue(QuaxelMath.Abs(position.X) <= limit)
+            T.IsTrue(QuaxelMath.Abs(position.Z) <= limit)
+            T.AreEqual(QuaxelMath.Abs(position.X), limit)
+            T.AreEqual(QuaxelMath.Abs(position.Z), limit)
+        }
+    }
+
+    WholePlaneIsInFrameAtStartAtAnyWindowShape()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Prepare(world)
+        int [4] widths = {960, 500, 1800, 300}
+        int [4] heights = {540, 900, 300, 300}
+        float limit = game.GroundHalfExtent()
+        for shape : 0; shape < 4; shape++ {
+            QuaxelCamera camera = world.GetCamera(game.CameraNode)
+            camera.UpdateBounds(widths[shape], heights[shape])
+            QuaxelMat4 matrix = camera.ViewProjection(world.WorldPosition(game.CameraNode))
+            for corner : 0; corner < 8; corner++ {
+                float x = (corner & 1) != 0 ? limit | -limit
+                float z = (corner & 2) != 0 ? limit | -limit
+                float y = (corner & 4) != 0 ? game.CubeHalfWidth() * 2.0 | 0.0
+                QuaxelVec3 point = matrix.TransformPoint(QuaxelVec3.Make(x, y, z))
+                T.IsTrue(QuaxelMath.Abs(point.X) <= 1.0)
+                T.IsTrue(QuaxelMath.Abs(point.Y) <= 1.0)
+                T.IsTrue(point.Z >= 0.0 && point.Z <= 1.0)
+            }
+        }
+    }
+}

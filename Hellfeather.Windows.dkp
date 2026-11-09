@@ -8,4 +8,4 @@ build_dir = ".duck/build/windows"
 
 [modules.hellfeather]
 sources = ["Source/**/*.dk"]
-depends = ["quaxel_core", "quaxel_platform"]
+depends = ["quaxel_core", "quaxel_platform", "quaxel_engine"]

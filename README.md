@@ -26,6 +26,12 @@ location requires updating `references` in both game manifests.
 The default headless executable runs three simulation steps totaling 0.05 seconds.
 Build outputs are ignored under `.duck/`.
 
+Gameplay tests run without a GPU:
+
+```powershell
+../Duck/duck.cmd test Hellfeather.dkp
+```
+
 ## Selecting a backend
 
 ```powershell
@@ -37,5 +43,6 @@ Build outputs are ignored under `.duck/`.
 ```
 
 Both configurations compile the same game source. The x64 Windows build
-requires the Vulkan SDK. It opens a resizable window, draws a colored triangle
-with Vulkan, and pauses rendering while minimized. Close the window to exit.
+requires the Vulkan SDK. It opens a resizable window showing an 8×8×8 voxel player cube on an 80×1×80 voxel ground plane
+from an isometric camera attached to the cube. WASD moves the cube. Rendering
+pauses while the window is minimized. Close the window to exit.
