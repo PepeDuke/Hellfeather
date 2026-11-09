@@ -16,7 +16,7 @@ HellfeatherGame : QuaxelGameInstance
     string WindowTitle() { return "Hellfeather" }
 
     // World units shown each way from the player along the ground.
-    float ViewHalfExtent() { return 5.0 }
+    float ViewHalfExtent() { return 10.0 }
 
     int TerrainSeed() { return 7 }
 
@@ -63,9 +63,18 @@ HellfeatherGame : QuaxelGameInstance
     -bool SpawnTerrain(QuaxelWorld& world)
     {
         Terrain.House.Volume = HellfeatherHouse.Build(world)
-        if Terrain.House.Volume < 0 { return false }
+        Terrain.Church.Volume = HellfeatherChurch.Build(world)
+        if Terrain.House.Volume < 0 || Terrain.Church.Volume < 0 { return false }
+        HellfeatherProps props = HellfeatherProps.Build(world)
+        Terrain.Valley.Props = props
+        Terrain.River.Props = props
+        Terrain.House.Props = props
+        Terrain.Church.Props = props
         QuaxelTerrainConfig config
         config.Seed = (uint)TerrainSeed()
+        config.RoadWidth = 1.6
+        config.GroundRoughness = 1
+        config.TerraceStep = 5
         return Terrain.Configure(config) && Terrain.Start(world, vec3(0.0, 0.0, 0.0))
     }
 
@@ -419,9 +428,38 @@ T{
             if game.Terrain.Layout.Sites[i].Module == 2 { houses++ }
         }
         T.IsTrue(rivers > 0 && houses > 0)
-        T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, 0)
-        T.IsTrue(game.Terrain.Placements.Len > 0)
-        T.IsTrue(game.Terrain.Placements.Len <= houses)
+        T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, 3)
+        int buildings = 0
+        for i : 0; i < game.Terrain.Placements.Len; i++ {
+            if !game.Terrain.Placements[i].Prop { buildings++ }
+        }
+        // The church plus at most one cottage per house clearing.
+        T.IsTrue(buildings >= 1 && buildings <= houses + 1)
+    }
+
+    TheChurchAndPropsBlockWalkersButLeaveTheSpawnClear()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsFalse(game.Terrain.CircleBlocked(0.0, 0.0, game.PlayerRadius()))
+        int spawn = game.Terrain.SpawnSiteIndex
+        bool foundChurch = false
+        int props = 0
+        for i : 0; i < game.Terrain.Placements.Len; i++ {
+            if game.Terrain.Placements[i].Site != spawn { continue }
+            vec3 position = game.Terrain.PlacementPosition(i)
+            int kind = game.Terrain.ColumnKind(game.Terrain.ColumnAt(position.X), game.Terrain.ColumnAt(position.Z))
+            if kind < 0 { continue }
+            T.AreEqual(kind, QuaxelTerrainKind.Structure)
+            if game.Terrain.Placements[i].Prop { props++ }
+            else {
+                foundChurch = true
+                T.IsTrue(game.Terrain.Placements[i].LightRadius > 0)
+            }
+        }
+        T.IsTrue(foundChurch)
+        T.IsTrue(props > 5)
     }
 
     ARiverClearingCanBeCrossedOnItsBridge()

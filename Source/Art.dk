@@ -1,0 +1,475 @@
+// Generated voxel models and the colors of Act I. Colors are written as they
+// should appear on screen; Rgb converts them to the linear values the renderer wants.
+HellfeatherArt
+#{
+    #float FineVoxel = 0.0625
+
+    -int Channel(int value)
+    {
+        float c = (float)value / 255.0
+        float linear = c <= 0.04045 ? c / 12.92 | Math.Pow((c + 0.055) / 1.055, 2.4)
+        return (int)(linear * 255.0 + 0.5)
+    }
+
+    int Rgb(int display)
+    {
+        return (Channel((display >> 16) & 255) << 16) | (Channel((display >> 8) & 255) << 8) | Channel(display & 255)
+    }
+
+    // Scales a screen color by a percentage.
+    int Shade(int display, int percent)
+    {
+        int red = Math.Clamp(((display >> 16) & 255) * percent / 100, 0, 255)
+        int green = Math.Clamp(((display >> 8) & 255) * percent / 100, 0, 255)
+        int blue = Math.Clamp((display & 255) * percent / 100, 0, 255)
+        return (red << 16) | (green << 8) | blue
+    }
+
+    int Hash(int x, int y, int z)
+    {
+        int value = x * 73856093 ^ y * 19349663 ^ z * 83492791
+        value = value ^ (value >> 11)
+        return (value * 40503) & 2147483647
+    }
+
+    // Coursed masonry. Run is the distance along the wall.
+    int StoneColor(int run, int y, int depth)
+    {
+        int course = y / 6
+        int along = run + (course & 1) * 7
+        if y % 6 == 0 || along % 14 == 0 { return Rgb(0x1c1917) }
+        int block = Hash(along / 14, course, 3)
+        int tone = 0x5a544c
+        if (block & 3) == 0 { tone = 0x6b6358 }
+        if (block & 7) == 1 { tone = 0x47423c }
+        if (block & 15) == 2 { tone = 0x5c5240 }
+        return Rgb(Shade(tone, 90 + Hash(run, y, depth) % 21))
+    }
+
+    // Slate shingles. Slope counts courses down from the ridge.
+    int SlateColor(int along, int slope)
+    {
+        int row = slope / 5
+        int across = along + (row & 1) * 4
+        if slope % 5 == 0 || across % 8 == 0 { return Rgb(0x141312) }
+        int tile = Hash(across / 8, row, 11)
+        if tile % 23 == 0 { return Rgb(0x0d0c0b) }
+        if tile % 11 == 0 { return Rgb(0x3b4226) }
+        int tone = (tile & 1) == 0 ? 0x3a3835 | 0x2e2c2b
+        return Rgb(Shade(tone, 92 + tile % 16))
+    }
+
+    // True inside a pointed arch centered on c, up to its spring line and point.
+    bool InArch(int position, int y, int c, int half, int low, int spring)
+    {
+        int offset = Math.Abs(position - c)
+        if y < low || offset >= half { return false }
+        return y < spring || (y - spring) * 2 < (half - offset) * 3
+    }
+
+    Box(QuaxelWorld& world, int volume, int x0, int y0, int z0, int x1, int y1, int z1, int color)
+    {
+        for x : x0; x < x1; x++ {
+            for y : y0; y < y1; y++ {
+                for z : z0; z < z1; z++ { world.SetVoxel(volume, x, y, z, color) }
+            }
+        }
+    }
+
+    StoneBox(QuaxelWorld& world, int volume, int x0, int y0, int z0, int x1, int y1, int z1)
+    {
+        for x : x0; x < x1; x++ {
+            for y : y0; y < y1; y++ {
+                for z : z0; z < z1; z++ { world.SetVoxel(volume, x, y, z, StoneColor(x + z, y, x - z)) }
+            }
+        }
+    }
+
+    Flame(QuaxelWorld& world, int volume, int cx, int y0, int cz, int radius, int height)
+    {
+        // Each short column of fire is a tongue of its own height, tallest at the middle.
+        for x : -radius; x <= radius; x++ {
+            for z : -radius; z <= radius; z++ {
+                int offset = x * x + z * z
+                if offset > radius * radius { continue }
+                int tongue = Hash((x + 20) / 2, 41, (z + 20) / 2)
+                int top = height * (radius * radius - offset) / (radius * radius) * (45 + tongue % 56) / 100
+                for y : 0; y < top; y++ {
+                    int share = y * 100 / Math.Max(top, 1)
+                    int color = 0xc92a08
+                    if share < 72 { color = 0xff6a12 }
+                    if share < 42 { color = 0xffa628 }
+                    if share < 20 && offset <= radius * radius / 3 { color = 0xffe39a }
+                    world.SetVoxel(volume, cx + x, y0 + y, cz + z, Rgb(color))
+                }
+            }
+        }
+    }
+
+    Brazier(QuaxelWorld& world, int volume, int cx, int cz)
+    {
+        StoneBox(world, volume, cx - 3, 0, cz - 3, cx + 4, 12, cz + 4)
+        Box(world, volume, cx - 6, 12, cz - 6, cx + 7, 15, cz + 7, Rgb(0x1a1716))
+        Box(world, volume, cx - 7, 15, cz - 7, cx + 8, 17, cz + 8, Rgb(0x262220))
+        Flame(world, volume, cx, 17, cz, 6, 20)
+    }
+}
+
+// The Act I church. The nave runs along X, with the door on the +X end and the
+// long buttressed wall on +Z, the two sides the camera sees.
+HellfeatherChurch
+#{
+    // In terrain columns.
+    #int Half = 40
+    #int Height = 88
+    // Most of the church is this tall. Only the bell tower rises higher.
+    #int Sight = 48
+
+    #int Size = 160
+    #int Voxels = 176
+    #int NaveLow = 30
+    #int NaveHigh = 130
+    #int SideLow = 45
+    #int SideHigh = 115
+    #int Middle = 80
+    #int WallTop = 56
+
+    int Build(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(Size, Voxels, Size)
+        if volume < 0 { return -1 }
+        Walls(world, volume)
+        Front(world, volume)
+        Roof(world, volume)
+        Tower(world, volume)
+        Annex(world, volume)
+        Buttresses(world, volume)
+        Steps(world, volume)
+        Ruins(world, volume)
+        Barrels(world, volume)
+        HellfeatherArt.Brazier(world, volume, 150, 50)
+        HellfeatherArt.Brazier(world, volume, 150, 110)
+        return volume
+    }
+
+    -int WindowColor(int x, int y)
+    {
+        if x % 5 == 0 || y % 7 == 0 { return HellfeatherArt.Rgb(0x2a1a10) }
+        return HellfeatherArt.Rgb(y < 30 ? 0xffa53a | 0xe8752a)
+    }
+
+    -Walls(QuaxelWorld& world, int volume)
+    {
+        for x : NaveLow; x < NaveHigh; x++ {
+            for y : 0; y < WallTop; y++ {
+                // Two gothic windows between the buttresses on the visible side.
+                bool window = HellfeatherArt.InArch(x, y, 57, 6, 20, 36) || HellfeatherArt.InArch(x, y, 99, 6, 20, 36)
+                for z : SideHigh - 3; z < SideHigh; z++ {
+                    int color = window ? WindowColor(x, y) | HellfeatherArt.StoneColor(x, y, z)
+                    world.SetVoxel(volume, x, y, z, color)
+                }
+                for z : SideLow; z < SideLow + 3; z++ { world.SetVoxel(volume, x, y, z, HellfeatherArt.StoneColor(x, y, z)) }
+            }
+        }
+        HellfeatherArt.StoneBox(world, volume, NaveLow, 0, SideLow, NaveLow + 3, WallTop, SideHigh)
+    }
+
+    -Front(QuaxelWorld& world, int volume)
+    {
+        for z : SideLow; z < SideHigh; z++ {
+            int top = WallTop + 36 - Math.Abs(z - Middle)
+            top = Math.Min(top, WallTop + 34)
+            for y : 0; y < top; y++ {
+                bool opening = HellfeatherArt.InArch(z, y, Middle, 13, 12, 36)
+                bool surround = HellfeatherArt.InArch(z, y, Middle, 18, 8, 38)
+                for x : NaveHigh; x < NaveHigh + 6; x++ {
+                    int color = HellfeatherArt.StoneColor(z, y, x)
+                    if surround && x == NaveHigh + 5 { color = HellfeatherArt.Rgb(0x7a7064 - (HellfeatherArt.Hash(z, y, x) & 0x0f0f0f)) }
+                    if opening {
+                        if x < NaveHigh + 4 { continue }
+                        color = DoorColor(z, y)
+                    }
+                    world.SetVoxel(volume, x, y, z, color)
+                }
+            }
+        }
+        // The cross over the door and the coping along the gable.
+        HellfeatherArt.Box(world, volume, NaveHigh + 6, 56, Middle - 2, NaveHigh + 8, 76, Middle + 2, HellfeatherArt.Rgb(0x151311))
+        HellfeatherArt.Box(world, volume, NaveHigh + 6, 67, Middle - 7, NaveHigh + 8, 71, Middle + 7, HellfeatherArt.Rgb(0x151311))
+        for z : SideLow - 3; z < SideHigh + 3; z++ {
+            int top = Math.Min(WallTop + 37 - Math.Abs(z - Middle), WallTop + 35)
+            HellfeatherArt.StoneBox(world, volume, NaveHigh, top - 2, z, NaveHigh + 8, top + 2, z + 1)
+        }
+    }
+
+    // One leaf stands open on the candle-lit nave.
+    -int DoorColor(int z, int y)
+    {
+        if z < Middle {
+            if (z - Middle) % 5 == 0 || y % 13 == 0 { return HellfeatherArt.Rgb(0x1b120b) }
+            return HellfeatherArt.Rgb(0x4a2d18)
+        }
+        if y < 20 && z > Middle + 4 && z < Middle + 9 { return HellfeatherArt.Rgb(0xffe6a8) }
+        return HellfeatherArt.Rgb(y < 28 ? 0xff9a35 | 0xb54d18)
+    }
+
+    -Roof(QuaxelWorld& world, int volume)
+    {
+        for z : SideLow - 6; z < SideHigh + 6; z++ {
+            int slope = Math.Abs(z - Middle)
+            int top = WallTop + 38 - slope
+            for x : NaveLow - 3; x < NaveHigh + 1; x++ {
+                for y : top - 3; y < top; y++ { world.SetVoxel(volume, x, y, z, HellfeatherArt.SlateColor(x, slope)) }
+            }
+        }
+    }
+
+    -Tower(QuaxelWorld& world, int volume)
+    {
+        int low = 84
+        int spring = 112
+        int top = 132
+        for x : 124; x < 144; x++ {
+            for z : 68; z < 92; z++ {
+                bool edge = x < 127 || x >= 141 || z < 71 || z >= 89
+                if !edge { continue }
+                for y : low; y < top; y++ {
+                    bool sideOpening = HellfeatherArt.InArch(z, y, 80, 7, 98, spring)
+                    bool frontOpening = HellfeatherArt.InArch(x, y, 134, 6, 98, spring)
+                    if (x >= 141 && sideOpening) || (z >= 89 && frontOpening) { continue }
+                    if (x < 127 && sideOpening) || (z < 71 && frontOpening) { continue }
+                    world.SetVoxel(volume, x, y, z, HellfeatherArt.StoneColor(x + z, y, 1))
+                }
+            }
+        }
+        // Bell.
+        for y : 0; y < 15; y++ {
+            int radius = 2 + (15 - y) * 5 / 15
+            for x : -radius; x <= radius; x++ {
+                for z : -radius; z <= radius; z++ {
+                    if x * x + z * z <= radius * radius {
+                        world.SetVoxel(volume, 134 + x, 99 + y, 80 + z, HellfeatherArt.Rgb(((x + z) & 3) == 0 ? 0xb98a3e | 0x8a6228))
+                    }
+                }
+            }
+        }
+        HellfeatherArt.Box(world, volume, 133, 113, 79, 136, 132, 82, HellfeatherArt.Rgb(0x1d1a18))
+        // Cap, with its ridge along Z.
+        for x : 122; x < 146; x++ {
+            int slope = Math.Abs(x - 134)
+            int cap = top + 14 - slope
+            for z : 66; z < 94; z++ {
+                for y : cap - 3; y < cap; y++ { world.SetVoxel(volume, x, y, z, HellfeatherArt.SlateColor(z, slope)) }
+            }
+        }
+        HellfeatherArt.StoneBox(world, volume, 124, top - 2, 68, 144, top + 1, 92)
+        HellfeatherArt.StoneBox(world, volume, 132, 145, 78, 137, 174, 83)
+        HellfeatherArt.StoneBox(world, volume, 132, 160, 72, 137, 165, 89)
+    }
+
+    -Annex(QuaxelWorld& world, int volume)
+    {
+        HellfeatherArt.StoneBox(world, volume, 12, 0, 60, 30, 34, 100)
+        for x : 9; x < 30; x++ {
+            int rise = (x - 9) * 2 / 3
+            for z : 56; z < 104; z++ {
+                for y : 32 + rise; y < 35 + rise; y++ { world.SetVoxel(volume, x, y, z, HellfeatherArt.SlateColor(z, 30 - x)) }
+            }
+        }
+    }
+
+    -Buttresses(QuaxelWorld& world, int volume)
+    {
+        int [3] positions = {34, 76, 120}
+        for i : 0; i < 3; i++ {
+            for y : 0; y < 48; y++ {
+                int reach = y < 24 ? 10 | 10 - (y - 24) * 8 / 24
+                HellfeatherArt.StoneBox(world, volume, positions[i], y, SideHigh, positions[i] + 8, y + 1, SideHigh + reach)
+            }
+        }
+        HellfeatherArt.StoneBox(world, volume, NaveHigh, 0, SideHigh, NaveHigh + 10, 50, SideHigh + 8)
+        HellfeatherArt.StoneBox(world, volume, NaveHigh, 0, SideLow - 8, NaveHigh + 10, 50, SideLow)
+    }
+
+    -Steps(QuaxelWorld& world, int volume)
+    {
+        for tier : 0; tier < 3; tier++ {
+            int front = 158 - tier * 7
+            for x : NaveHigh + 6; x < front; x++ {
+                for z : 56; z < 104; z++ {
+                    for y : tier * 4; y < (tier + 1) * 4; y++ {
+                        bool edge = (x + z) % 9 == 0 || z % 12 == 0
+                        world.SetVoxel(volume, x, y, z, edge ? HellfeatherArt.Rgb(0x201c19) | HellfeatherArt.Rgb(0x5f584f - (HellfeatherArt.Hash(x, tier, z) & 0x0a0a0a)))
+                    }
+                }
+            }
+        }
+    }
+
+    // Low broken walls around the plot.
+    -Ruins(QuaxelWorld& world, int volume)
+    {
+        for x : 4; x < 112; x++ {
+            int section = HellfeatherArt.Hash(x / 9, 5, 2)
+            if section % 5 == 0 { continue }
+            int height = 10 + section % 18
+            HellfeatherArt.StoneBox(world, volume, x, 0, 142, x + 1, height, 150)
+        }
+        for z : 6; z < 142; z++ {
+            int section = HellfeatherArt.Hash(z / 9, 7, 4)
+            if section % 5 == 0 { continue }
+            int height = 8 + section % 16
+            HellfeatherArt.StoneBox(world, volume, 2, 0, z, 10, height, z + 1)
+        }
+        for i : 0; i < 40; i++ {
+            int x = HellfeatherArt.Hash(i, 1, 9) % 150 + 2
+            int z = 118 + HellfeatherArt.Hash(i, 2, 9) % 36
+            int size = 2 + HellfeatherArt.Hash(i, 3, 9) % 5
+            HellfeatherArt.StoneBox(world, volume, x, 0, z, x + size + 2, size, z + size)
+        }
+    }
+
+    -Barrels(QuaxelWorld& world, int volume)
+    {
+        int [3] centers = {24, 42, 60}
+        for i : 0; i < 3; i++ {
+            for y : 0; y < 18; y++ {
+                int radius = 6 + (y > 4 && y < 14 ? 1 | 0)
+                int color = (y == 3 || y == 14) ? 0x24201c | 0x54371f
+                for x : -radius; x <= radius; x++ {
+                    for z : -radius; z <= radius; z++ {
+                        if x * x + z * z <= radius * radius {
+                            int stave = (x + z) % 4 == 0 ? HellfeatherArt.Shade(color, 70) | color
+                            world.SetVoxel(volume, centers[i] + x, y, 130 + z, HellfeatherArt.Rgb(stave))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// The props scattered through the vale. Each holds a shared volume.
+HellfeatherProps
+{
+    int [3] Trees
+    int [3] Rocks
+    int [2] Walls
+    int Banner
+    int Brazier
+}
+#{
+    #int TreeWidth = 64
+    #int TreeHeight = 80
+    #int RockWidth = 32
+    #int RockHeight = 20
+    #int WallLength = 56
+    #int WallHeight = 26
+
+    HellfeatherProps Build(QuaxelWorld& world)
+    {
+        HellfeatherProps props
+        for i : 0; i < 3; i++ {
+            props.Trees[i] = world.CreateVolume(TreeWidth, TreeHeight, TreeWidth)
+            BuildTree(world, props.Trees[i], (uint)(i + 3) * (uint)977)
+            props.Rocks[i] = world.CreateVolume(RockWidth, RockHeight, RockWidth)
+            BuildRock(world, props.Rocks[i], i)
+        }
+        for i : 0; i < 2; i++ {
+            props.Walls[i] = world.CreateVolume(WallLength, WallHeight, 12)
+            BuildWall(world, props.Walls[i], i)
+        }
+        props.Banner = world.CreateVolume(24, 72, 8)
+        BuildBanner(world, props.Banner)
+        props.Brazier = world.CreateVolume(16, 40, 16)
+        HellfeatherArt.Brazier(world, props.Brazier, 8, 8)
+        return props
+    }
+
+    -BuildTree(QuaxelWorld& world, int volume, uint seed)
+    {
+        QuaxelRandom random
+        random.Begin(seed)
+        Branch(world, volume, 32.0, 0.0, 32.0, 0.05, 1.0, -0.05, 34.0, 3.4, 5, random)
+    }
+
+    -Branch(QuaxelWorld& world, int volume, float x, float y, float z, float dx, float dy, float dz, float length, float thick, int depth, QuaxelRandom& random)
+    {
+        int steps = (int)length
+        for i : 0; i < steps; i++ {
+            float t = (float)i / (float)steps
+            float radius = Math.Max(0.6, thick * (1.0 - t * 0.45))
+            int span = (int)Math.Ceil(radius)
+            for a : -span; a <= span; a++ {
+                for b : -span; b <= span; b++ {
+                    for c : -span; c <= span; c++ {
+                        if (float)(a * a + b * b + c * c) > radius * radius { continue }
+                        int color = (a + c) % 3 == 0 ? 0x1b1411 | 0x2b201a
+                        world.SetVoxel(volume, (int)x + a, (int)y + b, (int)z + c, HellfeatherArt.Rgb(color))
+                    }
+                }
+            }
+            x += dx + random.Range(-0.25, 0.25)
+            y += dy
+            z += dz + random.Range(-0.25, 0.25)
+        }
+        if depth == 0 { return }
+        int children = 2 + random.Below(2)
+        for child : 0; child < children; child++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float spread = random.Range(0.45, 0.95)
+            float nx = dx + Math.Cos(angle) * spread
+            float nz = dz + Math.Sin(angle) * spread
+            float ny = Math.Max(0.15, dy * random.Range(0.45, 0.85))
+            Branch(world, volume, x, y, z, nx, ny, nz, length * random.Range(0.55, 0.75), Math.Max(0.6, thick * 0.62), depth - 1, random)
+        }
+    }
+
+    -BuildRock(QuaxelWorld& world, int volume, int variant)
+    {
+        float width = 13.0 - (float)variant * 2.0
+        for x : 0; x < RockWidth; x++ {
+            for z : 0; z < RockWidth; z++ {
+                float dx = ((float)x - 16.0) / width
+                float dz = ((float)z - 16.0) / width
+                float lump = QuaxelNoise.Fbm((uint)(variant + 31), (float)x / 6.0, (float)z / 6.0, 2)
+                float shape = 1.0 - dx * dx - dz * dz
+                if shape <= 0.0 { continue }
+                // Snapping to steps gives flat faces instead of a smooth dome.
+                int height = (int)(Math.Sqrt(shape) * (10.0 + lump * 12.0) * (float)(4 - variant) / 3.0) / 3 * 3
+                for y : 0; y < Math.Min(height, RockHeight); y++ {
+                    int tone = y >= height - 3 ? 0x5a534c | 0x403a35
+                    world.SetVoxel(volume, x, y, z, HellfeatherArt.Rgb(HellfeatherArt.Shade(tone, 86 + HellfeatherArt.Hash(x / 4, y / 3, z / 4) % 26)))
+                }
+            }
+        }
+    }
+
+    -BuildWall(QuaxelWorld& world, int volume, int variant)
+    {
+        for x : 0; x < WallLength; x++ {
+            int block = x / 7
+            int top = 8 + HellfeatherArt.Hash(block, variant, 5) % (WallHeight - 8)
+            HellfeatherArt.StoneBox(world, volume, x, 0, 2, x + 1, top, 10)
+        }
+    }
+
+    -BuildBanner(QuaxelWorld& world, int volume)
+    {
+        int pole = HellfeatherArt.Rgb(0x1f1712)
+        HellfeatherArt.Box(world, volume, 3, 0, 3, 6, 72, 6, pole)
+        HellfeatherArt.Box(world, volume, 3, 64, 3, 24, 66, 6, pole)
+        for x : 7; x < 23; x++ {
+            int tatter = 18 + HellfeatherArt.Hash(x / 2, 3, 3) % 12
+            for y : tatter; y < 64; y++ {
+                int color = 0x6b1414
+                int dx = x - 15
+                int dy = y - 44
+                int ring = dx * dx + dy * dy
+                if (ring >= 36 && ring <= 56) || (Math.Abs(dx) < 1 && Math.Abs(dy) < 10) || (Math.Abs(dy) < 1 && Math.Abs(dx) < 10) { color = 0xc9beb0 }
+                else if HellfeatherArt.Hash(x, y, 8) % 9 == 0 { color = 0x4a0e0e }
+                HellfeatherArt.Box(world, volume, x, y, 4, x + 1, y + 1, 5, HellfeatherArt.Rgb(color))
+            }
+        }
+    }
+}

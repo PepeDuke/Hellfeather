@@ -1,7 +1,55 @@
+// Scatters the vale's dead trees, rocks and ruins through a clearing, staying
+// off the middle where the roads meet.
+HellfeatherScatter
+#{
+    -Offer(HellfeatherProps props, QuaxelTerrainSite site, QuaxelTerrainPlacer& placer, QuaxelRandom& random, int group, int kind)
+    {
+        for attempt : 0; attempt < 10; attempt++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float distance = random.Range(6.5, site.Radius - 1.5)
+            float x = Math.Cos(angle) * distance
+            float z = Math.Sin(angle) * distance
+            float size = HellfeatherArt.FineVoxel
+            if kind == 0 { placer.OfferProp(group, props.Trees[random.Below(3)], x, z, 5, 40, size) }
+            else if kind == 1 { placer.OfferProp(group, props.Rocks[random.Below(3)], x, z, 7, 10, size) }
+            else if kind == 2 { placer.OfferProp(group, props.Walls[random.Below(2)], x, z, 14, 13, size) }
+            else if kind == 3 { placer.OfferProp(group, props.Banner, x, z, 5, 36, size) }
+            else {
+                placer.OfferProp(group, props.Brazier, x, z, 4, 20, size)
+                placer.AddLight(0, 0, 44)
+            }
+        }
+    }
+
+    Place(HellfeatherProps props, QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        QuaxelRandom random
+        random.Begin(site.Seed ^ (uint)0x51ED270B)
+        int group = 100
+        int [5] counts = {9, 8, 3, 2, 2}
+        for kind : 0; kind < 5; kind++ {
+            for n : 0; n < counts[kind]; n++ {
+                Offer(props, site, placer, random, group, kind)
+                group++
+            }
+        }
+    }
+}
+
+// The default clearing: bare earth, dead trees and old stones.
+AshenValley : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer) { HellfeatherScatter.Place(Props, site, placer) }
+}
+
 // A river across the clearing. It only paints water; the generator turns the
 // parts on a reserved path into a bridge.
 RiverCrossing : QuaxelTerrainModule
 {
+    HellfeatherProps Props
+
     QuaxelTerrainModuleRules Rules()
     {
         QuaxelTerrainModuleRules rules
@@ -22,11 +70,30 @@ RiverCrossing : QuaxelTerrainModule
         float meander = QuaxelNoise.SignedFbm(site.Seed, along / 9.0, 0.0, 2) * 2.5
         if Math.Abs(across + meander) < 2.0 { column.MakeWater(5) }
     }
+
+    // Offers props only well clear of the water, which runs through the middle.
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        QuaxelRandom random
+        random.Begin(site.Seed ^ (uint)0x2F0B4C77)
+        int group = 100
+        for n : 0; n < 16; n++ {
+            float side = (n & 1) == 0 ? 1.0 | -1.0
+            float across = side * random.Range(7.5, site.Radius - 1.5)
+            float along = random.Range(-8.0, 8.0)
+            float x = across * site.AxisX - along * site.AxisZ
+            float z = across * site.AxisZ + along * site.AxisX
+            if n < 8 { placer.OfferProp(group, Props.Trees[n % 3], x, z, 5, 40, HellfeatherArt.FineVoxel) }
+            else { placer.OfferProp(group, Props.Rocks[n % 3], x, z, 7, 10, HellfeatherArt.FineVoxel) }
+            group++
+        }
+    }
 }
 
-// A clearing with one house, placed somewhere off the paths.
+// A clearing with one ruined cottage, placed somewhere off the paths.
 ValleyHouse : QuaxelTerrainModule
 {
+    HellfeatherProps Props
     int Volume
 
     QuaxelTerrainModuleRules Rules()
@@ -47,23 +114,59 @@ ValleyHouse : QuaxelTerrainModule
             float distance = random.Range(0.0, site.Radius - 6.0)
             placer.Offer(0, Volume, Math.Cos(angle) * distance, Math.Sin(angle) * distance, HellfeatherHouse.Half, HellfeatherHouse.Height)
         }
+        HellfeatherScatter.Place(Props, site, placer)
     }
 }
 
-// Routes clearings to Hellfeather's modules. To change the default clearing,
-// change the Valley field's type.
+// The church the player starts beside. It sits on the far side of the clearing
+// from the camera, so its sight strip falls behind it.
+ValleyChurch : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    int Volume
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = 24.0
+        return rules
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        // Straight back first, then swinging around the clearing until the roads allow it.
+        for step : 0; step < 32; step++ {
+            float swing = (float)((step + 1) / 2) * ((step & 1) == 0 ? -0.2 | 0.2)
+            for ring : 0; ring < 3; ring++ {
+                float distance = 10.5 + (float)ring * 1.5
+                float angle = 3.9269908 + swing
+                placer.OfferBuilding(0, Volume, Math.Cos(angle) * distance, Math.Sin(angle) * distance, HellfeatherChurch.Half, HellfeatherChurch.Height, HellfeatherChurch.Sight, HellfeatherArt.FineVoxel)
+                // Spills from the open door and braziers onto the road in front.
+                placer.AddLight(HellfeatherChurch.Half + 8, 0, 72)
+            }
+        }
+        HellfeatherScatter.Place(Props, site, placer)
+    }
+}
+
+// Routes clearings to Hellfeather's modules and colors the vale. To change the
+// default clearing, change the Valley field's type.
 HellfeatherTerrain : QuaxelTerrain
 {
-    QuaxelTerrainModule Valley
+    AshenValley Valley
     RiverCrossing River
     ValleyHouse House
+    ValleyChurch Church
 
-    int ModuleCount() { return 3 }
+    int ModuleCount() { return 4 }
+
+    int SpawnModule() { return 3 }
 
     QuaxelTerrainModuleRules ModuleRules(int id)
     {
         if id == 1 { return River.Rules() }
         if id == 2 { return House.Rules() }
+        if id == 3 { return Church.Rules() }
         return Valley.Rules()
     }
 
@@ -71,6 +174,7 @@ HellfeatherTerrain : QuaxelTerrain
     {
         if id == 1 { River.Column(site, x, z, column) }
         else if id == 2 { House.Column(site, x, z, column) }
+        else if id == 3 { Church.Column(site, x, z, column) }
         else { Valley.Column(site, x, z, column) }
     }
 
@@ -78,12 +182,72 @@ HellfeatherTerrain : QuaxelTerrain
     {
         if id == 1 { River.Place(site, placer) }
         else if id == 2 { House.Place(site, placer) }
+        else if id == 3 { Church.Place(site, placer) }
         else { Valley.Place(site, placer) }
+    }
+
+    // Colors are chosen as they should look, then converted to linear at the end.
+    int SurfaceColor(QuaxelTerrainCell cell)
+    {
+        int color = 0x3b3128
+        if cell.Surface == QuaxelTerrainSurface.Rock { color = RockColor(cell) }
+        else if cell.Surface == QuaxelTerrainSurface.Water { color = (cell.Hash % 13) == 0 ? 0x39505a | 0x1e2d36 }
+        else if cell.Surface == QuaxelTerrainSurface.Bridge { color = BridgeColor(cell) }
+        else if cell.Surface == QuaxelTerrainSurface.Yard { color = (cell.Hash % 5) == 0 ? 0x57504a | 0x3a342e }
+        else if cell.Surface == QuaxelTerrainSurface.Path { color = RoadColor(cell) }
+        else { color = GroundColor(cell) }
+        int light = 100 - (int)(cell.Wall * 42.0)
+        return HellfeatherArt.Rgb(HellfeatherArt.Shade(color, light))
+    }
+
+    -int RoadColor(QuaxelTerrainCell cell)
+    {
+        if !cell.Top { return 0x382c21 }
+        if cell.Hash % 37 == 0 { return 0x8d8373 }
+        if cell.Hash % 11 == 0 { return 0x3f3225 }
+        float ruts = QuaxelNoise.Fbm((uint)901, (float)cell.Column / 7.0, (float)cell.Row / 7.0, 2)
+        return HellfeatherArt.Shade(0x7b654b, 72 + (int)(ruts * 42.0) + cell.Hash % 7)
+    }
+
+    -int GroundColor(QuaxelTerrainCell cell)
+    {
+        float patch = QuaxelNoise.Fbm((uint)773, (float)cell.Column / 26.0, (float)cell.Row / 26.0, 3)
+        // Column sides match the ground so small bumps do not draw lines.
+        int shade = 74 + (int)(patch * 50.0) + cell.Hash % 8
+        if !cell.Top { return HellfeatherArt.Shade(0x4e4233, shade * 84 / 100) }
+        if cell.Hash % 89 == 0 { return 0x736d63 }
+        // Dry grass thickens gradually toward the middle of each drift.
+        if cell.Hash % 100 < (int)(Math.Clamp((patch - 0.42) * 2.4, 0.0, 0.42) * 100.0) {
+            return HellfeatherArt.Shade(0x756238, 78 + cell.Hash % 42)
+        }
+        return HellfeatherArt.Shade(0x4e4233, shade)
+    }
+
+    -int RockColor(QuaxelTerrainCell cell)
+    {
+        if cell.Top {
+            if cell.Y >= 88 && cell.Hash % 3 != 0 { return 0x6f6b66 }
+            if cell.Hash % 19 == 0 { return 0x5e543f }
+            return HellfeatherArt.Shade(0x3c3631, 78 + cell.Hash % 36)
+        }
+        // Strata, wandering with position so bands do not read as straight lines.
+        int band = (cell.Y + (cell.Column + cell.Row) / 23) / 5
+        if cell.Hash % 17 == 0 { return 0x171412 }
+        int tone = 0x2d2926
+        if (band & 3) == 1 { tone = 0x3a342e }
+        if (band & 3) == 3 { tone = 0x25211f }
+        return HellfeatherArt.Shade(tone, 90 + cell.Hash % 22)
+    }
+
+    -int BridgeColor(QuaxelTerrainCell cell)
+    {
+        if !cell.Top { return 0x2a2622 }
+        if cell.Column % 9 == 0 || cell.Row % 6 == 0 { return 0x24201c }
+        return HellfeatherArt.Shade(0x5c544a, 84 + cell.Hash % 30)
     }
 }
 
-// A cottage generated in code, since a text model of this size would be large.
-// One cell matches one terrain column.
+// A ruined cottage generated in code. One cell matches one terrain column.
 HellfeatherHouse
 #{
     #int Half = 20
@@ -105,7 +269,7 @@ HellfeatherHouse
             int inset = (y - WallHeight) * 2
             for z : inset; z < width - inset; z++ {
                 for x : 0; x < width; x++ {
-                    world.SetVoxel(volume, x, y, z, ((x + y) & 3) == 0 ? 0x4a1c14 | 0x6e2a1e)
+                    world.SetVoxel(volume, x, y, z, HellfeatherArt.SlateColor(x * 2, (y - WallHeight) * 5 + 1))
                 }
             }
         }
@@ -118,8 +282,8 @@ HellfeatherHouse
         bool front = z == width - 1
         bool door = front && x >= 17 && x < 23 && y < 10
         bool window = front && y >= 5 && y < 10 && ((x >= 6 && x < 12) || (x >= 28 && x < 34))
-        if door { return 0x2c1a0e }
-        if window { return 0x9fc4d8 }
-        return (x & 7) == 0 ? 0x8a7450 | 0xb79f74
+        if door { return HellfeatherArt.Rgb(0x2c1a0e) }
+        if window { return HellfeatherArt.Rgb(0xd9782a) }
+        return HellfeatherArt.StoneColor((x + z) * 2, y * 2, x)
     }
 }
