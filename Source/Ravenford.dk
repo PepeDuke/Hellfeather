@@ -1,0 +1,218 @@
+// Ground surfaces that only Ravenford uses, colored in HellfeatherTerrain.
+HellfeatherSurface
+#{
+    #int Cobble = 16
+    #int Earth = 17
+}
+
+// Act I's walled town, where the player starts. The clearing is straight and
+// level, so offsets from its center are world offsets. The gate is in the +Z
+// wall, the side the camera faces, and the single road to the rest of the level
+// runs out of it. The engine keeps that road open through anything the module
+// builds, which is what cuts the gate's passage through the wall.
+//
+// X and Z below are world units from the town's center. The player stands at 0, 0.
+Ravenford : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    RavenfordVolumes Volumes
+
+    -bool InGateTower(float ax, float z)
+    {
+        return ax >= GateHalf && ax < GateOuter && Math.Abs(z - Wall) < GateTowerDepth
+    }
+
+    -bool InCornerTower(float ax, float az)
+    {
+        return Math.Abs(ax - Wall) < CornerHalf && Math.Abs(az - Wall) < CornerHalf
+    }
+
+    -Block(QuaxelTerrainColumn& column, int surface) { column.MakeBlocked(0, surface) }
+
+    Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        float ax = Math.Abs(x)
+        float az = Math.Abs(z)
+        if InGateTower(ax, z) || InCornerTower(ax, az) {
+            Block(column, QuaxelTerrainSurface.Yard)
+            return
+        }
+        float face = Wall + WallHalf
+        // Ground behind the walls would be hidden from the camera, so it is rock.
+        if (x < -face && z < face) || (z < -face && x < face) {
+            Cliff(site, x, z, column)
+            return
+        }
+        if ax > face || az > face {
+            Forecourt(site, x, z, column)
+            return
+        }
+        bool inGateway = z > 0.0 && ax < GateHalf
+        if !inGateway {
+            float inner = Wall - WallHalf
+            if ax >= inner || az >= inner {
+                Block(column, QuaxelTerrainSurface.Yard)
+                return
+            }
+            // Walkers would vanish behind the two walls nearest the camera.
+            if x >= inner - SightStrip || z >= inner - SightStrip {
+                Block(column, HellfeatherSurface.Earth)
+                return
+            }
+        }
+        column.Surface = OnCobbles(site, x, z, ax) ? HellfeatherSurface.Cobble | HellfeatherSurface.Earth
+    }
+
+    -bool OnCobbles(QuaxelTerrainSite site, float x, float z, float ax)
+    {
+        if ax < 2.6 && z > -3.0 { return true }
+        float frayed = QuaxelNoise.SignedFbm(site.Seed, x / 3.0, z / 3.0, 2) * 2.5
+        return Math.Hypot(x, z + 4.0) + frayed < 12.0
+    }
+
+    // Terraced rock, rising with distance from the wall so the wall still reads.
+    -Cliff(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        float away = Math.Max(-x, -z) - (Wall + WallHalf)
+        float lump = QuaxelNoise.Fbm(site.Seed + (uint)5, x / 5.0, z / 5.0, 2)
+        int rise = 8 + (int)(away * 5.0 + lump * 14.0)
+        column.MakeBlocked(rise / 5 * 5, QuaxelTerrainSurface.Rock)
+    }
+
+    // Open ground outside the walls, with a river the road crosses by bridge.
+    -Forecourt(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        if z < Wall || Math.Hypot(x, z) >= site.Radius + 3.0 { return }
+        float meander = QuaxelNoise.SignedFbm(site.Seed + (uint)9, x / 8.0, 0.0, 2) * 1.2
+        if Math.Abs(z - RiverZ + meander) < RiverHalf { column.MakeWater(5) }
+    }
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = Radius
+        return rules
+    }
+
+    -Building(QuaxelTerrainPlacer& placer, int& group, int volume, float x, float z, int half, int height, int sight)
+    {
+        placer.OfferBuilding(group, volume, x, z, half, height, sight, HellfeatherArt.FineVoxel)
+        group++
+    }
+
+    // A model with no footprint. The module's columns decide what it blocks.
+    -Fixture(QuaxelTerrainPlacer& placer, int& group, int volume, float x, float z, int height)
+    {
+        placer.OfferProp(group, volume, x, z, 0, height, HellfeatherArt.FineVoxel)
+        group++
+    }
+
+    -Clutter(QuaxelTerrainPlacer& placer, int& group, int volume, float x, float z, int half, int height)
+    {
+        placer.OfferProp(group, volume, x, z, half, height, HellfeatherArt.FineVoxel)
+        group++
+    }
+
+    -WallsAndTowers(QuaxelTerrainPlacer& placer, int& group)
+    {
+        for run : 0; run < 8; run++ {
+            float along = -21.0 + (float)run * 6.0
+            Fixture(placer, group, Volumes.WallAlongX, along, -Wall, 32)
+            Fixture(placer, group, Volumes.WallAlongZ, -Wall, along, 32)
+            Fixture(placer, group, Volumes.WallAlongZ, Wall, along, 32)
+            // The gatehouse fills the two middle runs of the front wall.
+            if run < 3 || run > 4 { Fixture(placer, group, Volumes.WallAlongX, along, Wall, 32) }
+        }
+        Fixture(placer, group, Volumes.Gate, 0.0, Wall, 64)
+        Fixture(placer, group, Volumes.GuardTower, -Wall, -Wall, 80)
+        Fixture(placer, group, Volumes.GuardTower, Wall, -Wall, 80)
+        Fixture(placer, group, Volumes.GuardTower, -Wall, Wall, 80)
+        Fixture(placer, group, Volumes.Bastion, Wall, Wall, 36)
+    }
+
+    // Half and sight are in terrain columns. A building's box, its body plus the
+    // strip behind it, must stop short of the wall lines.
+    -Town(QuaxelTerrainPlacer& placer, int& group)
+    {
+        Building(placer, group, Church, -13.0, -13.0, HellfeatherChurch.Half, HellfeatherChurch.Height, HellfeatherChurch.Sight)
+        placer.AddLight(HellfeatherChurch.Half + 8, 0, 72)
+        Building(placer, group, Volumes.Tavern, 0.0, -16.5, 26, 60, 34)
+        placer.AddLight(0, 34, 44)
+        Building(placer, group, Volumes.Blacksmith, 10.0, -17.0, 26, 48, 30)
+        placer.AddLight(0, 22, 40)
+        Building(placer, group, Volumes.Store, 20.0, -17.0, 24, 44, 30)
+        placer.AddLight(0, 26, 30)
+        Building(placer, group, Volumes.Alchemist, 12.0, -6.5, 22, 44, 30)
+        placer.AddLight(0, 24, 30)
+        Building(placer, group, Volumes.Warehouse, 18.0, 3.5, 26, 44, 30)
+        Building(placer, group, Volumes.Stable, 17.0, 14.0, 26, 40, 26)
+        placer.AddLight(0, 26, 26)
+        Building(placer, group, Volumes.Houses[0], -9.0, 2.0, 18, 38, 26)
+        Building(placer, group, Volumes.Houses[1], -17.5, 2.0, 18, 38, 26)
+        Building(placer, group, Volumes.Houses[1], -9.0, 11.0, 18, 38, 26)
+        Building(placer, group, Volumes.Houses[0], -17.5, 11.0, 18, 38, 26)
+        Building(placer, group, Volumes.Houses[0], -9.0, 19.0, 18, 38, 26)
+        Building(placer, group, Volumes.Stalls[0], 8.0, 1.5, 12, 22, 14)
+        placer.AddLight(0, 14, 24)
+        Building(placer, group, Volumes.Stalls[1], 8.0, 8.0, 12, 22, 14)
+        placer.AddLight(0, 14, 24)
+        Building(placer, group, Volumes.Stalls[0], 8.0, 14.5, 12, 22, 14)
+        placer.AddLight(0, 14, 24)
+        Clutter(placer, group, Volumes.Campfire, -1.0, -6.0, 8, 20)
+        placer.AddLight(0, 0, 84)
+    }
+
+    // Lights along the road, odds and ends along the walls, and wild ground outside.
+    -Dressing(QuaxelTerrainPlacer& placer, int& group)
+    {
+        for side : 0; side < 2; side++ {
+            float x = side == 0 ? -4.0 | 4.0
+            Clutter(placer, group, Props.Brazier, x, 19.5, 4, 20)
+            placer.AddLight(0, 0, 44)
+            Clutter(placer, group, Props.Brazier, x, 27.5, 4, 20)
+            placer.AddLight(0, 0, 44)
+            Fixture(placer, group, Volumes.Rail, x * 0.6, RiverZ, 8)
+        }
+        Clutter(placer, group, Volumes.Crate, 22.0, 18.0, 4, 8)
+        Clutter(placer, group, Volumes.Barrel, 22.0, 21.0, 4, 8)
+        Clutter(placer, group, Volumes.Crate, 12.0, 22.0, 4, 8)
+        Clutter(placer, group, Volumes.Barrel, 14.5, 22.0, 4, 8)
+        Clutter(placer, group, Volumes.Crate, -13.0, 22.0, 4, 8)
+        Clutter(placer, group, Volumes.Barrel, -22.0, 22.0, 4, 8)
+        for n : 0; n < 8; n++ {
+            float along = -21.0 + (float)n * 6.0
+            Clutter(placer, group, Props.Trees[n % 3], 28.0 + (float)(n % 3) * 1.5, along, 5, 40)
+        }
+        for n : 0; n < 6; n++ {
+            float x = (n & 1) == 0 ? -9.0 - (float)n * 2.5 | 9.0 + (float)n * 2.5
+            Clutter(placer, group, Props.Rocks[n % 3], x, 27.5, 7, 10)
+        }
+        Clutter(placer, group, Props.Trees[1], -20.0, 34.0, 5, 40)
+        Clutter(placer, group, Props.Rocks[2], 16.0, 34.0, 7, 10)
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        int group = 0
+        Town(placer, group)
+        WallsAndTowers(placer, group)
+        Dressing(placer, group)
+    }
+
+    int Church
+}
+#{
+    // Must be enough to contain the wall's corners and towers.
+    #float Radius = 38.0
+    // Distance from the center to the middle of each wall.
+    #float Wall = 24.0
+    #float WallHalf = 0.75
+    #float CornerHalf = 2.5
+    #float GateHalf = 2.4
+    #float GateOuter = 6.0
+    #float GateTowerDepth = 1.5
+    // Blocked ground inside the +X and +Z walls.
+    #float SightStrip = 2.5
+    #float RiverZ = 31.5
+    #float RiverHalf = 1.6
+}

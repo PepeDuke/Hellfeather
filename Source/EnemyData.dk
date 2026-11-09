@@ -49,7 +49,16 @@ HellfeatherEnemyData
                 <EnemyMember Kind="EvilDuck" Min=3 Max=5/>
             </EnemyGroup>
 
-            // The first duck the player meets, beside the church.
+            // The first duck the player meets, on the road just past the bridge.
+            <EnemyPlacement Kind="EvilDuck" X=2.0 Z=36.0 Respawns=true/>
+        }
+    }
+
+    // One respawning duck a few steps from the player, for tests of combat.
+    markup BesideThePlayer()
+    {
+        return {
+            <EnemyKind Name="EvilDuck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 Radius=0.5 Speed=2.0 Reach=1.2 Notice=14.0 MaxHealth=60 Damage=10/>
             <EnemyPlacement Kind="EvilDuck" X=3.0 Z=-3.0 Respawns=true/>
         }
     }

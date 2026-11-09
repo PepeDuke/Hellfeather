@@ -118,37 +118,6 @@ ValleyHouse : QuaxelTerrainModule
     }
 }
 
-// The church the player starts beside. It sits on the far side of the clearing
-// from the camera, so its sight strip falls behind it.
-ValleyChurch : QuaxelTerrainModule
-{
-    HellfeatherProps Props
-    int Volume
-
-    QuaxelTerrainModuleRules Rules()
-    {
-        QuaxelTerrainModuleRules rules
-        rules.MinRadius = 24.0
-        return rules
-    }
-
-    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
-    {
-        // Straight back first, then swinging around the clearing until the roads allow it.
-        for step : 0; step < 32; step++ {
-            float swing = (float)((step + 1) / 2) * ((step & 1) == 0 ? -0.2 | 0.2)
-            for ring : 0; ring < 3; ring++ {
-                float distance = 10.5 + (float)ring * 1.5
-                float angle = 3.9269908 + swing
-                placer.OfferBuilding(0, Volume, Math.Cos(angle) * distance, Math.Sin(angle) * distance, HellfeatherChurch.Half, HellfeatherChurch.Height, HellfeatherChurch.Sight, HellfeatherArt.FineVoxel)
-                // Spills from the open door and braziers onto the road in front.
-                placer.AddLight(HellfeatherChurch.Half + 8, 0, 72)
-            }
-        }
-        HellfeatherScatter.Place(Props, site, placer)
-    }
-}
-
 // Routes clearings to Hellfeather's modules and colors the vale. To change the
 // default clearing, change the Valley field's type.
 HellfeatherTerrain : QuaxelTerrain
@@ -156,7 +125,7 @@ HellfeatherTerrain : QuaxelTerrain
     AshenValley Valley
     RiverCrossing River
     ValleyHouse House
-    ValleyChurch Church
+    Ravenford Town
 
     int ModuleCount() { return 4 }
 
@@ -166,7 +135,7 @@ HellfeatherTerrain : QuaxelTerrain
     {
         if id == 1 { return River.Rules() }
         if id == 2 { return House.Rules() }
-        if id == 3 { return Church.Rules() }
+        if id == 3 { return Town.Rules() }
         return Valley.Rules()
     }
 
@@ -174,7 +143,7 @@ HellfeatherTerrain : QuaxelTerrain
     {
         if id == 1 { River.Column(site, x, z, column) }
         else if id == 2 { House.Column(site, x, z, column) }
-        else if id == 3 { Church.Column(site, x, z, column) }
+        else if id == 3 { Town.Column(site, x, z, column) }
         else { Valley.Column(site, x, z, column) }
     }
 
@@ -182,7 +151,7 @@ HellfeatherTerrain : QuaxelTerrain
     {
         if id == 1 { River.Place(site, placer) }
         else if id == 2 { House.Place(site, placer) }
-        else if id == 3 { Church.Place(site, placer) }
+        else if id == 3 { Town.Place(site, placer) }
         else { Valley.Place(site, placer) }
     }
 
@@ -193,11 +162,32 @@ HellfeatherTerrain : QuaxelTerrain
         if cell.Surface == QuaxelTerrainSurface.Rock { color = RockColor(cell) }
         else if cell.Surface == QuaxelTerrainSurface.Water { color = (cell.Hash % 13) == 0 ? 0x39505a | 0x1e2d36 }
         else if cell.Surface == QuaxelTerrainSurface.Bridge { color = BridgeColor(cell) }
-        else if cell.Surface == QuaxelTerrainSurface.Yard { color = (cell.Hash % 5) == 0 ? 0x57504a | 0x3a342e }
+        else if cell.Surface == QuaxelTerrainSurface.Yard { color = EarthColor(cell) }
         else if cell.Surface == QuaxelTerrainSurface.Path { color = RoadColor(cell) }
+        else if cell.Surface == HellfeatherSurface.Cobble { color = CobbleColor(cell) }
+        else if cell.Surface == HellfeatherSurface.Earth { color = EarthColor(cell) }
         else { color = GroundColor(cell) }
         int light = 100 - (int)(cell.Wall * 42.0)
         return HellfeatherArt.Rgb(HellfeatherArt.Shade(color, light))
+    }
+
+    // Rows of stones three columns deep, each row offset from the last.
+    -int CobbleColor(QuaxelTerrainCell cell)
+    {
+        if !cell.Top { return 0x2b2622 }
+        int course = cell.Row / 3
+        int along = cell.Column + (course & 1) * 2
+        if cell.Row % 3 == 0 || along % 4 == 0 { return 0x211d19 }
+        int stone = HellfeatherArt.Hash(along / 4, course, 61)
+        int tone = (stone & 3) == 0 ? 0x77695a | 0x5f5549
+        return HellfeatherArt.Shade(tone, 86 + stone % 26)
+    }
+
+    -int EarthColor(QuaxelTerrainCell cell)
+    {
+        if !cell.Top { return 0x352b21 }
+        float patch = QuaxelNoise.Fbm((uint)419, (float)cell.Column / 9.0, (float)cell.Row / 9.0, 2)
+        return HellfeatherArt.Shade(0x5f4c38, 70 + (int)(patch * 44.0) + cell.Hash % 8)
     }
 
     -int RoadColor(QuaxelTerrainCell cell)

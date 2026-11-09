@@ -1,0 +1,719 @@
+// The volumes that make up Ravenford. Models are built from one fine voxel per
+// sixteenth of a world unit. The camera only ever sees their +X, +Z and top
+// faces, so bodies are painted as shells of those faces, and fronts face +Z.
+RavenfordVolumes
+{
+    int WallAlongX
+    int WallAlongZ
+    int Gate
+    int GuardTower
+    int Bastion
+    int Blacksmith
+    int Tavern
+    int Store
+    int Alchemist
+    int Warehouse
+    int Stable
+    int [2] Houses
+    int [2] Stalls
+    int Campfire
+    int Crate
+    int Barrel
+    int Rail
+    bool Complete
+}
+#{
+    RavenfordVolumes Build(QuaxelWorld& world)
+    {
+        RavenfordVolumes made
+        made.WallAlongX = RavenfordWalls.Straight(world, true)
+        made.WallAlongZ = RavenfordWalls.Straight(world, false)
+        made.Gate = RavenfordWalls.Gate(world)
+        made.GuardTower = RavenfordWalls.GuardTower(world)
+        made.Bastion = RavenfordWalls.Bastion(world)
+        made.Blacksmith = RavenfordBuildings.Blacksmith(world)
+        made.Tavern = RavenfordBuildings.Tavern(world)
+        made.Store = RavenfordBuildings.Store(world)
+        made.Alchemist = RavenfordBuildings.Alchemist(world)
+        made.Warehouse = RavenfordBuildings.Warehouse(world)
+        made.Stable = RavenfordBuildings.Stable(world)
+        made.Campfire = RavenfordBuildings.Campfire(world)
+        made.Crate = RavenfordBuildings.LooseCrate(world)
+        made.Barrel = RavenfordBuildings.LooseBarrel(world)
+        made.Rail = RavenfordWalls.Rail(world)
+        bool built = made.WallAlongX >= 0 && made.WallAlongZ >= 0 && made.Gate >= 0 && made.GuardTower >= 0 && made.Bastion >= 0
+        built = built && made.Blacksmith >= 0 && made.Tavern >= 0 && made.Store >= 0 && made.Alchemist >= 0
+        built = built && made.Warehouse >= 0 && made.Stable >= 0 && made.Campfire >= 0 && made.Crate >= 0 && made.Barrel >= 0 && made.Rail >= 0
+        for i : 0; i < 2; i++ {
+            made.Houses[i] = RavenfordBuildings.House(world, i)
+            made.Stalls[i] = RavenfordBuildings.Stall(world, i)
+            built = built && made.Houses[i] >= 0 && made.Stalls[i] >= 0
+        }
+        made.Complete = built
+        return made
+    }
+}
+
+// The painting tools every Ravenford model shares.
+RavenfordArt
+#{
+    #int Stone = 0
+    #int Frame = 1
+
+    #int Window = 0
+    #int Door = 1
+    #int WideDoor = 2
+
+    // Wooden shingles. Slope counts courses down from the ridge.
+    int ShingleColor(int along, int slope)
+    {
+        int row = slope / 4
+        int across = along + (row & 1) * 3
+        if slope % 4 == 0 || across % 6 == 0 { return HellfeatherArt.Rgb(0x171009) }
+        int tile = HellfeatherArt.Hash(across / 6, row, 17)
+        int tone = 0x54402c
+        if (tile & 3) == 0 { tone = 0x69503a }
+        if (tile & 7) == 1 { tone = 0x3f3022 }
+        if tile % 17 == 0 { tone = 0x47482a }
+        return HellfeatherArt.Rgb(HellfeatherArt.Shade(tone, 90 + tile % 22))
+    }
+
+    // Boards run along the first coordinate and are stacked across the second.
+    int PlankColor(int along, int across)
+    {
+        if across % 7 == 0 { return HellfeatherArt.Rgb(0x1a120b) }
+        int board = HellfeatherArt.Hash(across / 7, 23, along / 19)
+        int tone = (board & 1) == 0 ? 0x5c4024 | 0x4b3520
+        return HellfeatherArt.Rgb(HellfeatherArt.Shade(tone, 86 + HellfeatherArt.Hash(along, across, 5) % 24))
+    }
+
+    int TimberColor(int x, int y, int z)
+    {
+        return HellfeatherArt.Rgb(HellfeatherArt.Shade(0x33210f, 90 + HellfeatherArt.Hash(x, y, z) % 24))
+    }
+
+    int CanvasColor(int along, int across, int tone)
+    {
+        int shade = 86 + HellfeatherArt.Hash(along / 3, across / 3, 31) % 20 + ((across / 6) & 1) * 6
+        return HellfeatherArt.Rgb(HellfeatherArt.Shade(tone, shade))
+    }
+
+    // Masonry, or a dark timber frame over pale daub. Run is the distance along the wall.
+    int WallColor(int style, int run, int y, int depth)
+    {
+        if style == Stone { return HellfeatherArt.StoneColor(run, y, depth) }
+        if run % 20 < 3 || y % 26 < 3 { return TimberColor(run, y, depth) }
+        return HellfeatherArt.Rgb(HellfeatherArt.Shade(0x8a7559, 84 + HellfeatherArt.Hash(run / 2, y / 2, depth) % 24))
+    }
+
+    // Paints the +X, +Z and top faces of a box.
+    Shell(QuaxelWorld& world, int volume, int x0, int y0, int z0, int x1, int y1, int z1, int style)
+    {
+        for y : y0; y < y1; y++ {
+            for x : x0; x < x1; x++ {
+                for z : z1 - 2; z < z1; z++ { world.SetVoxel(volume, x, y, z, WallColor(style, x, y, z)) }
+            }
+            for z : z0; z < z1; z++ {
+                for x : x1 - 2; x < x1; x++ { world.SetVoxel(volume, x, y, z, WallColor(style, z, y, x)) }
+            }
+        }
+        for x : x0; x < x1; x++ {
+            for z : z0; z < z1; z++ { world.SetVoxel(volume, x, y1 - 1, z, WallColor(style, x, y1 - 1, z)) }
+        }
+    }
+
+    Timber(QuaxelWorld& world, int volume, int x0, int y0, int z0, int x1, int y1, int z1)
+    {
+        for x : x0; x < x1; x++ {
+            for y : y0; y < y1; y++ {
+                for z : z0; z < z1; z++ { world.SetVoxel(volume, x, y, z, TimberColor(x, y / 3, z)) }
+            }
+        }
+    }
+
+    // A gable with its ridge along X and a filled end on the +X side.
+    RoofAlongX(QuaxelWorld& world, int volume, int x0, int x1, int z0, int z1, int y, int hang, int style)
+    {
+        int middle = (z0 + z1) / 2
+        int half = (z1 - z0) / 2
+        for z : z0 - hang; z < z1 + hang; z++ {
+            int slope = Math.Abs(z - middle)
+            int top = y + (half + hang - slope) * 3 / 4
+            for x : x0 - hang; x < x1 + hang; x++ {
+                for t : 0; t < 3; t++ { world.SetVoxel(volume, x, top - t, z, ShingleColor(x, slope)) }
+            }
+        }
+        for z : z0; z < z1; z++ {
+            int top = y + (half + hang - Math.Abs(z - middle)) * 3 / 4
+            for v : y; v < top; v++ {
+                for x : x1 - 2; x < x1; x++ { world.SetVoxel(volume, x, v, z, WallColor(style, z, v, x)) }
+            }
+        }
+    }
+
+    // A gable with its ridge along Z and a filled end on the +Z side.
+    RoofAlongZ(QuaxelWorld& world, int volume, int x0, int x1, int z0, int z1, int y, int hang, int style)
+    {
+        int middle = (x0 + x1) / 2
+        int half = (x1 - x0) / 2
+        for x : x0 - hang; x < x1 + hang; x++ {
+            int slope = Math.Abs(x - middle)
+            int top = y + (half + hang - slope) * 3 / 4
+            for z : z0 - hang; z < z1 + hang; z++ {
+                for t : 0; t < 3; t++ { world.SetVoxel(volume, x, top - t, z, ShingleColor(z, slope)) }
+            }
+        }
+        for x : x0; x < x1; x++ {
+            int top = y + (half + hang - Math.Abs(x - middle)) * 3 / 4
+            for v : y; v < top; v++ {
+                for z : z1 - 2; z < z1; z++ { world.SetVoxel(volume, x, v, z, WallColor(style, x, v, z)) }
+            }
+        }
+    }
+
+    // A square shingled cap that narrows to a point.
+    Pyramid(QuaxelWorld& world, int volume, int cx, int cz, int half, int y0, int height)
+    {
+        for y : 0; y < height; y++ {
+            int reach = half - y * half / height
+            for x : -reach; x < reach; x++ {
+                for z : -reach; z < reach; z++ {
+                    int edge = Math.Max(Math.Max(x, -x - 1), Math.Max(z, -z - 1))
+                    if edge < reach - 3 { continue }
+                    world.SetVoxel(volume, cx + x, y0 + y, cz + z, ShingleColor(x + z, height - y))
+                }
+            }
+        }
+    }
+
+    -int PanelColor(int kind, int u, int v, int width, int height)
+    {
+        bool rim = u == 0 || v == 0 || u == width - 1 || v == height - 1
+        if kind == Window {
+            if rim || u == width / 2 || v == height / 2 { return HellfeatherArt.Rgb(0x20140b) }
+            return HellfeatherArt.Rgb(v > height / 2 ? 0xffc04d | 0xff9a2e)
+        }
+        if rim { return HellfeatherArt.Rgb(0x1c130c) }
+        if (kind == WideDoor && u == width / 2) || v == height / 3 || v == height * 2 / 3 { return HellfeatherArt.Rgb(0x15100b) }
+        return PlankColor(v, u + 3)
+    }
+
+    // A window or door lying on a face. Position runs along the face, at Depth across it.
+    Panel(QuaxelWorld& world, int volume, bool onZ, int position, int y, int depth, int width, int height, int kind)
+    {
+        for u : 0; u < width; u++ {
+            for v : 0; v < height; v++ {
+                int color = PanelColor(kind, u, v, width, height)
+                if onZ { world.SetVoxel(volume, position + u, y + v, depth, color) }
+                else { world.SetVoxel(volume, depth, y + v, position + u, color) }
+            }
+        }
+    }
+
+    // A roof sloping down toward +Z, on posts at its low edge. Tone 0 is shingled.
+    Awning(QuaxelWorld& world, int volume, int x0, int x1, int z0, int z1, int high, int low, int tone)
+    {
+        for z : z0; z < z1; z++ {
+            int top = high - (z - z0) * (high - low) / (z1 - z0)
+            for x : x0; x < x1; x++ {
+                // Canvas ends in a ragged scallop.
+                if tone != 0 && z >= z1 - 3 && (x / 4) % 2 == 0 { continue }
+                for t : 0; t < 2; t++ {
+                    int color = tone == 0 ? ShingleColor(x, z - z0) | CanvasColor(x, z, tone)
+                    world.SetVoxel(volume, x, top - t, z, color)
+                }
+            }
+        }
+        Timber(world, volume, x0, 0, z1 - 4, x0 + 3, low, z1 - 1)
+        Timber(world, volume, x1 - 3, 0, z1 - 4, x1, low, z1 - 1)
+    }
+
+    Crate(QuaxelWorld& world, int volume, int x0, int y0, int z0, int size)
+    {
+        for x : 0; x < size; x++ {
+            for y : 0; y < size; y++ {
+                for z : 0; z < size; z++ {
+                    int edges = (x == 0 || x == size - 1 ? 1 | 0) + (y == 0 || y == size - 1 ? 1 | 0) + (z == 0 || z == size - 1 ? 1 | 0)
+                    if edges == 0 { continue }
+                    int color = edges >= 2 ? TimberColor(x, y, z) | PlankColor(x + z, y + 2)
+                    world.SetVoxel(volume, x0 + x, y0 + y, z0 + z, color)
+                }
+            }
+        }
+    }
+
+    Barrel(QuaxelWorld& world, int volume, int cx, int y0, int cz, int radius, int height)
+    {
+        for y : 0; y < height; y++ {
+            int bulge = radius + (y > height / 4 && y < height * 3 / 4 ? 1 | 0)
+            int hoop = (y == 2 || y == height - 3) ? 0x24201c | 0x5e4026
+            for x : -bulge; x <= bulge; x++ {
+                for z : -bulge; z <= bulge; z++ {
+                    if x * x + z * z > bulge * bulge { continue }
+                    int stave = (x + z) % 4 == 0 ? HellfeatherArt.Shade(hoop, 70) | hoop
+                    world.SetVoxel(volume, cx + x, y0 + y, cz + z, HellfeatherArt.Rgb(stave))
+                }
+            }
+        }
+    }
+
+    // Rows of small wares on a table top. Palette picks the goods.
+    Goods(QuaxelWorld& world, int volume, int x0, int z0, int x1, int z1, int y, int palette)
+    {
+        int [4] produce = {0xa8421f, 0xc98a2b, 0x7a8a33, 0x8f2f25}
+        int [4] cloth = {0x6d2b32, 0x3f4f6b, 0x8a6a3a, 0x4d5a35}
+        for x : x0; x < x1; x += 5 {
+            for z : z0; z < z1; z += 5 {
+                int roll = HellfeatherArt.Hash(x, y, z)
+                int tone = palette == 0 ? produce[roll & 3] | cloth[roll & 3]
+                int rise = 2 + roll % 3
+                HellfeatherArt.Box(world, volume, x, y, z, x + 4, y + rise, z + 4, HellfeatherArt.Rgb(tone))
+            }
+        }
+    }
+
+    Table(QuaxelWorld& world, int volume, int x0, int z0, int x1, int z1, int y)
+    {
+        for x : x0; x < x1; x++ {
+            for z : z0; z < z1; z++ {
+                for v : y - 2; v < y; v++ { world.SetVoxel(volume, x, v, z, PlankColor(x, z)) }
+            }
+        }
+        Timber(world, volume, x0, 0, z0, x0 + 2, y - 2, z0 + 2)
+        Timber(world, volume, x1 - 2, 0, z0, x1, y - 2, z0 + 2)
+        Timber(world, volume, x0, 0, z1 - 2, x0 + 2, y - 2, z1)
+        Timber(world, volume, x1 - 2, 0, z1 - 2, x1, y - 2, z1)
+    }
+
+    // A small hanging light.
+    Lantern(QuaxelWorld& world, int volume, int x, int y, int z)
+    {
+        HellfeatherArt.Box(world, volume, x, y + 3, z, x + 3, y + 4, z + 3, HellfeatherArt.Rgb(0x15100b))
+        HellfeatherArt.Box(world, volume, x, y, z, x + 3, y + 3, z + 3, HellfeatherArt.Rgb(0xffcf66))
+    }
+
+    Chimney(QuaxelWorld& world, int volume, int x0, int z0, int y0, int y1)
+    {
+        HellfeatherArt.StoneBox(world, volume, x0, y0, z0, x0 + 10, y1, z0 + 10)
+        HellfeatherArt.StoneBox(world, volume, x0 - 1, y1 - 3, z0 - 1, x0 + 11, y1, z0 + 11)
+        HellfeatherArt.Box(world, volume, x0 + 3, y1 - 1, z0 + 3, x0 + 7, y1, z0 + 7, HellfeatherArt.Rgb(0x0d0a08))
+    }
+}
+
+// The town's defenses: wall runs, the gatehouse, and the corner towers.
+RavenfordWalls
+#{
+    #int RunLength = 96
+    #int RunHeight = 64
+    #int RunDepth = 24
+    #int WalkHeight = 56
+
+    #int GateWidth = 192
+    #int GateHeight = 128
+    #int GateDepth = 64
+    #int ArchCenter = 96
+    #int ArchHalf = 38
+    #int ArchSpring = 30
+
+    // Six world units of crenellated wall, in two orientations because models
+    // are placed without rotation.
+    int Straight(QuaxelWorld& world, bool alongX)
+    {
+        int width = alongX ? RunLength | RunDepth
+        int depth = alongX ? RunDepth | RunLength
+        int volume = world.CreateVolume(width, RunHeight, depth)
+        if volume < 0 { return -1 }
+        RavenfordArt.Shell(world, volume, 0, 0, 0, width, WalkHeight, depth, RavenfordArt.Stone)
+        for run : 0; run < RunLength; run++ {
+            if run % 16 >= 11 { continue }
+            for y : WalkHeight; y < RunHeight; y++ {
+                for across : 0; across < 5; across++ {
+                    int x = alongX ? run | RunDepth - 1 - across
+                    int z = alongX ? RunDepth - 1 - across | run
+                    world.SetVoxel(volume, x, y, z, HellfeatherArt.StoneColor(run, y, across))
+                    int backX = alongX ? run | across
+                    int backZ = alongX ? across | run
+                    world.SetVoxel(volume, backX, y, backZ, HellfeatherArt.StoneColor(run, y, across + 9))
+                }
+            }
+        }
+        return volume
+    }
+
+    -bool InArch(int x, int y)
+    {
+        int offset = x - ArchCenter
+        if Math.Abs(offset) >= ArchHalf { return false }
+        if y < ArchSpring { return true }
+        int rise = y - ArchSpring
+        return offset * offset + rise * rise < ArchHalf * ArchHalf
+    }
+
+    -bool InArchTrim(int x, int y)
+    {
+        int offset = x - ArchCenter
+        int reach = ArchHalf + 6
+        if Math.Abs(offset) >= reach { return false }
+        if y < ArchSpring { return true }
+        int rise = y - ArchSpring
+        return offset * offset + rise * rise < reach * reach
+    }
+
+    // The gatehouse. The road passes under the arch, between towers that carry
+    // timber watch rooms and the town's red banners.
+    int Gate(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(GateWidth, GateHeight, GateDepth)
+        if volume < 0 { return -1 }
+        Tower(world, volume, 2)
+        Tower(world, volume, 134)
+        Span(world, volume)
+        Portcullis(world, volume)
+        Banner(world, volume, 16)
+        Banner(world, volume, 148)
+        return volume
+    }
+
+    -Tower(QuaxelWorld& world, int volume, int x0)
+    {
+        int x1 = x0 + 56
+        RavenfordArt.Shell(world, volume, x0, 0, 8, x1, 92, 56, RavenfordArt.Stone)
+        for x : x0 - 3; x < x1 + 3; x++ {
+            for z : 5; z < 59; z++ {
+                for y : 92; y < 95; y++ { world.SetVoxel(volume, x, y, z, RavenfordArt.TimberColor(x, y, z)) }
+            }
+        }
+        RavenfordArt.Shell(world, volume, x0 + 2, 95, 10, x1 - 2, 112, 54, RavenfordArt.Frame)
+        RavenfordArt.Panel(world, volume, true, x0 + 10, 99, 54, 12, 10, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, true, x0 + 34, 99, 54, 12, 10, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, false, 18, 99, x1 - 2, 12, 10, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, false, 36, 99, x1 - 2, 12, 10, RavenfordArt.Window)
+        RavenfordArt.Pyramid(world, volume, x0 + 28, 32, 32, 112, 16)
+    }
+
+    -Span(QuaxelWorld& world, int volume)
+    {
+        int arch = 0x7a7064
+        for x : 58; x < 134; x++ {
+            for y : 0; y < 88; y++ {
+                if InArch(x, y) { continue }
+                for z : 16; z < 48; z++ {
+                    int color = HellfeatherArt.StoneColor(x, y, z)
+                    if InArchTrim(x, y) && z >= 46 { color = HellfeatherArt.Rgb(HellfeatherArt.Shade(arch, 88 + HellfeatherArt.Hash(x / 5, y / 5, 7) % 26)) }
+                    world.SetVoxel(volume, x, y, z, color)
+                }
+            }
+            // Merlons along the top of the span.
+            if x % 16 < 10 { HellfeatherArt.StoneBox(world, volume, x, 88, 42, x + 1, 96, 48) }
+        }
+    }
+
+    // Raised, so only its teeth show under the crown of the arch.
+    -Portcullis(QuaxelWorld& world, int volume)
+    {
+        int iron = HellfeatherArt.Rgb(0x1b1a19)
+        for x : 58; x < 134; x++ {
+            for y : 46; y < 88; y++ {
+                if !InArch(x, y) || (x % 8 != 0 && y % 8 != 0) { continue }
+                for z : 30; z < 33; z++ { world.SetVoxel(volume, x, y, z, iron) }
+            }
+        }
+    }
+
+    -Banner(QuaxelWorld& world, int volume, int x0)
+    {
+        int width = 28
+        for x : 0; x < width; x++ {
+            int tatter = 18 + HellfeatherArt.Hash(x / 3, 3, 3) % 8
+            for y : tatter; y < 84; y++ {
+                int dx = x - width / 2
+                int dy = y - 56
+                int ring = dx * dx + dy * dy
+                int color = 0x7a1616
+                if (ring >= 64 && ring <= 92) || (Math.Abs(dx) < 2 && Math.Abs(dy) < 14) || (Math.Abs(dy) < 2 && Math.Abs(dx) < 12) { color = 0xcfc3b2 }
+                else if HellfeatherArt.Hash(x, y, 8) % 9 == 0 { color = 0x540f0f }
+                world.SetVoxel(volume, x0 + x, y, 56, HellfeatherArt.Rgb(color))
+            }
+        }
+    }
+
+    // A stone base under a braced timber frame and a lit watch room.
+    int GuardTower(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(80, 160, 80)
+        if volume < 0 { return -1 }
+        RavenfordArt.Shell(world, volume, 14, 0, 14, 66, 56, 66, RavenfordArt.Stone)
+        int [2] posts = {16, 58}
+        for a : 0; a < 2; a++ {
+            for b : 0; b < 2; b++ { RavenfordArt.Timber(world, volume, posts[a], 56, posts[b], posts[a] + 6, 100, posts[b] + 6) }
+        }
+        for i : 0; i < 42; i++ {
+            int up = 56 + i * 44 / 42
+            int down = 100 - i * 44 / 42
+            RavenfordArt.Timber(world, volume, 18 + i, up, 60, 21 + i, up + 3, 63)
+            RavenfordArt.Timber(world, volume, 18 + i, down, 60, 21 + i, down + 3, 63)
+            RavenfordArt.Timber(world, volume, 60, up, 18 + i, 63, up + 3, 21 + i)
+            RavenfordArt.Timber(world, volume, 60, down, 18 + i, 63, down + 3, 21 + i)
+        }
+        RavenfordArt.Shell(world, volume, 10, 100, 10, 70, 128, 70, RavenfordArt.Frame)
+        for i : 0; i < 3; i++ {
+            RavenfordArt.Panel(world, volume, true, 15 + i * 18, 106, 70, 14, 14, RavenfordArt.Window)
+            RavenfordArt.Panel(world, volume, false, 15 + i * 18, 106, 70, 14, 14, RavenfordArt.Window)
+        }
+        RavenfordArt.Pyramid(world, volume, 40, 40, 38, 128, 30)
+        return volume
+    }
+
+    // The corner nearest the camera stays low so it hides nothing inside the town.
+    int Bastion(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(80, 72, 80)
+        if volume < 0 { return -1 }
+        RavenfordArt.Shell(world, volume, 10, 0, 10, 70, 60, 70, RavenfordArt.Stone)
+        for i : 10; i < 70; i++ {
+            if i % 14 >= 9 { continue }
+            HellfeatherArt.StoneBox(world, volume, i, 60, 64, i + 1, 72, 70)
+            HellfeatherArt.StoneBox(world, volume, 64, 60, i, 70, 72, i + 1)
+            HellfeatherArt.StoneBox(world, volume, i, 60, 10, i + 1, 72, 15)
+            HellfeatherArt.StoneBox(world, volume, 10, 60, i, 15, 72, i + 1)
+        }
+        return volume
+    }
+
+    int Rail(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(8, 16, 96)
+        if volume < 0 { return -1 }
+        for z : 0; z < 96; z++ {
+            int top = 8 + (z % 16 < 5 ? 8 | 0)
+            HellfeatherArt.StoneBox(world, volume, 1, 0, z, 7, top, z + 1)
+        }
+        return volume
+    }
+}
+
+// The buildings of the town. A building's footprint is its volume's width.
+RavenfordBuildings
+#{
+    int Blacksmith(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(104, 96, 104)
+        if volume < 0 { return -1 }
+        RavenfordArt.Shell(world, volume, 14, 0, 14, 90, 44, 68, RavenfordArt.Stone)
+        RavenfordArt.RoofAlongX(world, volume, 14, 90, 14, 68, 44, 5, RavenfordArt.Stone)
+        RavenfordArt.Panel(world, volume, false, 26, 16, 90, 14, 14, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, false, 48, 16, 90, 14, 14, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, true, 20, 0, 68, 18, 32, RavenfordArt.Door)
+        RavenfordArt.Chimney(world, volume, 44, 50, 40, 90)
+        // The open forge under its lean-to.
+        RavenfordArt.Awning(world, volume, 10, 94, 69, 100, 44, 30, 0)
+        HellfeatherArt.StoneBox(world, volume, 38, 0, 72, 64, 14, 90)
+        HellfeatherArt.Box(world, volume, 42, 14, 76, 60, 16, 86, HellfeatherArt.Rgb(0xff7a1c))
+        HellfeatherArt.Flame(world, volume, 51, 16, 81, 7, 18)
+        HellfeatherArt.Box(world, volume, 72, 0, 82, 80, 8, 90, HellfeatherArt.Rgb(0x2a2523))
+        HellfeatherArt.Box(world, volume, 68, 8, 80, 86, 12, 92, HellfeatherArt.Rgb(0x3c3633))
+        RavenfordArt.Barrel(world, volume, 22, 0, 90, 6, 16)
+        RavenfordArt.Lantern(world, volume, 30, 26, 95)
+        RavenfordArt.Lantern(world, volume, 74, 26, 95)
+        return volume
+    }
+
+    int Tavern(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(104, 120, 104)
+        if volume < 0 { return -1 }
+        RavenfordArt.Shell(world, volume, 12, 0, 22, 92, 36, 80, RavenfordArt.Stone)
+        RavenfordArt.Shell(world, volume, 9, 36, 19, 95, 70, 83, RavenfordArt.Frame)
+        RavenfordArt.RoofAlongX(world, volume, 9, 95, 19, 83, 70, 6, RavenfordArt.Frame)
+        RavenfordArt.Panel(world, volume, true, 42, 0, 80, 20, 32, RavenfordArt.Door)
+        for i : 0; i < 4; i++ {
+            RavenfordArt.Panel(world, volume, true, 18 + i * 20, 44, 83, 12, 16, RavenfordArt.Window)
+            RavenfordArt.Panel(world, volume, false, 28 + i * 13, 44, 95, 10, 16, RavenfordArt.Window)
+        }
+        RavenfordArt.Panel(world, volume, true, 20, 12, 80, 14, 14, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, true, 70, 12, 80, 14, 14, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, false, 34, 12, 92, 14, 14, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, false, 56, 12, 92, 14, 14, RavenfordArt.Window)
+        RavenfordArt.Chimney(world, volume, 74, 28, 60, 112)
+        RavenfordArt.Awning(world, volume, 12, 92, 84, 100, 34, 25, 0)
+        RavenfordArt.Lantern(world, volume, 28, 21, 95)
+        RavenfordArt.Lantern(world, volume, 74, 21, 95)
+        RavenfordArt.Barrel(world, volume, 18, 0, 92, 5, 14)
+        // The inn sign, hanging from a beam on the street side.
+        RavenfordArt.Timber(world, volume, 95, 60, 48, 103, 63, 51)
+        HellfeatherArt.Box(world, volume, 99, 42, 44, 101, 60, 56, HellfeatherArt.Rgb(0x3a2412))
+        HellfeatherArt.Box(world, volume, 101, 46, 47, 102, 56, 53, HellfeatherArt.Rgb(0xc9973d))
+        return volume
+    }
+
+    int Store(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(96, 88, 96)
+        if volume < 0 { return -1 }
+        RavenfordArt.Shell(world, volume, 12, 0, 14, 84, 38, 66, RavenfordArt.Frame)
+        RavenfordArt.RoofAlongZ(world, volume, 12, 84, 14, 66, 38, 5, RavenfordArt.Frame)
+        RavenfordArt.Panel(world, volume, true, 40, 0, 66, 18, 32, RavenfordArt.Door)
+        RavenfordArt.Panel(world, volume, true, 18, 14, 66, 14, 14, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, true, 64, 14, 66, 14, 14, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, false, 30, 14, 84, 14, 14, RavenfordArt.Window)
+        RavenfordArt.Awning(world, volume, 8, 88, 67, 92, 36, 25, 0xb79a72)
+        RavenfordArt.Table(world, volume, 18, 76, 78, 86, 14)
+        RavenfordArt.Goods(world, volume, 20, 77, 76, 85, 14, 0)
+        RavenfordArt.Crate(world, volume, 84, 0, 72, 10)
+        RavenfordArt.Crate(world, volume, 84, 0, 84, 10)
+        RavenfordArt.Lantern(world, volume, 46, 21, 88)
+        return volume
+    }
+
+    int Alchemist(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(88, 88, 88)
+        if volume < 0 { return -1 }
+        RavenfordArt.Shell(world, volume, 12, 0, 14, 76, 36, 60, RavenfordArt.Stone)
+        RavenfordArt.RoofAlongX(world, volume, 12, 76, 14, 60, 36, 4, RavenfordArt.Stone)
+        RavenfordArt.Panel(world, volume, true, 36, 0, 60, 16, 30, RavenfordArt.Door)
+        RavenfordArt.Panel(world, volume, false, 26, 14, 76, 14, 14, RavenfordArt.Window)
+        RavenfordArt.Chimney(world, volume, 56, 22, 40, 74)
+        RavenfordArt.Awning(world, volume, 10, 78, 61, 84, 34, 24, 0xa98c68)
+        RavenfordArt.Table(world, volume, 16, 70, 72, 78, 14)
+        int [4] tonics = {0x8a3fd1, 0x3f7fe0, 0x4bd16b, 0xd14b6e}
+        for x : 18; x < 70; x += 6 {
+            int tone = tonics[(x / 6) & 3]
+            HellfeatherArt.Box(world, volume, x, 14, 72, x + 3, 20, 75, HellfeatherArt.Rgb(tone))
+            world.SetVoxel(volume, x + 1, 20, 73, HellfeatherArt.Rgb(0xd8c9a8))
+            world.SetVoxel(volume, x + 1, 21, 73, HellfeatherArt.Rgb(0x4a3020))
+        }
+        // Drying herbs along the front of the awning.
+        for x : 14; x < 76; x += 7 {
+            int length = 4 + HellfeatherArt.Hash(x, 2, 2) % 5
+            HellfeatherArt.Box(world, volume, x, 24 - length, 80, x + 2, 24, 82, HellfeatherArt.Rgb((x & 1) == 0 ? 0x5e7030 | 0x7a6a2e))
+        }
+        RavenfordArt.Lantern(world, volume, 42, 20, 80)
+        return volume
+    }
+
+    int Warehouse(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(104, 88, 104)
+        if volume < 0 { return -1 }
+        RavenfordArt.Shell(world, volume, 10, 0, 14, 94, 40, 76, RavenfordArt.Stone)
+        RavenfordArt.RoofAlongX(world, volume, 10, 94, 14, 76, 40, 5, RavenfordArt.Stone)
+        RavenfordArt.Panel(world, volume, true, 36, 0, 76, 32, 34, RavenfordArt.WideDoor)
+        RavenfordArt.Crate(world, volume, 12, 0, 80, 14)
+        RavenfordArt.Crate(world, volume, 12, 14, 80, 14)
+        RavenfordArt.Crate(world, volume, 28, 0, 82, 12)
+        RavenfordArt.Crate(world, volume, 76, 0, 80, 14)
+        RavenfordArt.Barrel(world, volume, 96, 0, 34, 6, 16)
+        RavenfordArt.Barrel(world, volume, 96, 0, 50, 6, 16)
+        RavenfordArt.Lantern(world, volume, 52, 36, 78)
+        return volume
+    }
+
+    int Stable(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(104, 80, 104)
+        if volume < 0 { return -1 }
+        RavenfordArt.Shell(world, volume, 10, 0, 12, 94, 36, 22, RavenfordArt.Frame)
+        RavenfordArt.Shell(world, volume, 10, 0, 12, 14, 36, 92, RavenfordArt.Frame)
+        RavenfordArt.RoofAlongX(world, volume, 10, 94, 12, 92, 36, 5, RavenfordArt.Frame)
+        // Bedding on the floor, and open posts and rails along the front.
+        for x : 14; x < 94; x++ {
+            for z : 22; z < 92; z++ {
+                int color = HellfeatherArt.Hash(x / 2, 2, z / 2) % 3 == 0 ? 0x8a7236 | 0x6a5526
+                world.SetVoxel(volume, x, 0, z, HellfeatherArt.Rgb(color))
+            }
+        }
+        for x : 10; x < 94; x += 28 { RavenfordArt.Timber(world, volume, x, 0, 89, x + 4, 36, 93) }
+        RavenfordArt.Timber(world, volume, 90, 0, 89, 94, 36, 93)
+        RavenfordArt.Timber(world, volume, 10, 18, 90, 94, 20, 92)
+        RavenfordArt.Timber(world, volume, 10, 28, 90, 94, 30, 92)
+        Horse(world, volume, 24, 54)
+        HellfeatherArt.Box(world, volume, 58, 0, 40, 80, 16, 60, HellfeatherArt.Rgb(0x9a8240))
+        HellfeatherArt.Box(world, volume, 60, 16, 44, 78, 22, 58, HellfeatherArt.Rgb(0xa68c46))
+        RavenfordArt.Lantern(world, volume, 52, 26, 86)
+        return volume
+    }
+
+    // A horse standing across the stall, facing +X.
+    -Horse(QuaxelWorld& world, int volume, int x, int z)
+    {
+        int hide = HellfeatherArt.Rgb(0x4a2c18)
+        int dark = HellfeatherArt.Rgb(0x23150c)
+        HellfeatherArt.Box(world, volume, x, 12, z, x + 28, 26, z + 12, hide)
+        HellfeatherArt.Box(world, volume, x + 2, 0, z + 1, x + 5, 12, z + 4, dark)
+        HellfeatherArt.Box(world, volume, x + 2, 0, z + 8, x + 5, 12, z + 11, dark)
+        HellfeatherArt.Box(world, volume, x + 23, 0, z + 1, x + 26, 12, z + 4, dark)
+        HellfeatherArt.Box(world, volume, x + 23, 0, z + 8, x + 26, 12, z + 11, dark)
+        HellfeatherArt.Box(world, volume, x + 25, 24, z + 3, x + 33, 34, z + 9, hide)
+        HellfeatherArt.Box(world, volume, x + 31, 30, z + 3, x + 41, 36, z + 9, hide)
+        HellfeatherArt.Box(world, volume, x + 25, 34, z + 5, x + 34, 38, z + 7, dark)
+        HellfeatherArt.Box(world, volume, x - 3, 14, z + 5, x, 26, z + 7, dark)
+    }
+
+    // Variant 0 is stone with its ridge along X, variant 1 is timber with its ridge along Z.
+    int House(QuaxelWorld& world, int variant)
+    {
+        int volume = world.CreateVolume(72, 76, 72)
+        if volume < 0 { return -1 }
+        int style = variant == 0 ? RavenfordArt.Stone | RavenfordArt.Frame
+        RavenfordArt.Shell(world, volume, 10, 0, 12, 62, 30, 56, style)
+        if variant == 0 { RavenfordArt.RoofAlongX(world, volume, 10, 62, 12, 56, 30, 4, style) }
+        else { RavenfordArt.RoofAlongZ(world, volume, 10, 62, 12, 56, 30, 4, style) }
+        RavenfordArt.Panel(world, volume, true, 18, 0, 56, 14, 26, RavenfordArt.Door)
+        RavenfordArt.Panel(world, volume, true, 42, 12, 56, 12, 12, RavenfordArt.Window)
+        RavenfordArt.Panel(world, volume, false, 28, 12, 62, 12, 12, RavenfordArt.Window)
+        RavenfordArt.Chimney(world, volume, variant == 0 ? 48 | 14, 24, 28, variant == 0 ? 64 | 58)
+        RavenfordArt.Barrel(world, volume, 62, 0, 62, 4, 11)
+        return volume
+    }
+
+    // A market stall. Variant 0 sells produce, variant 1 sells cloth.
+    int Stall(QuaxelWorld& world, int variant)
+    {
+        int volume = world.CreateVolume(48, 44, 48)
+        if volume < 0 { return -1 }
+        RavenfordArt.Awning(world, volume, 4, 44, 6, 44, 40, 30, variant == 0 ? 0xb79a72 | 0x8a4a3a)
+        RavenfordArt.Timber(world, volume, 4, 0, 6, 7, 40, 9)
+        RavenfordArt.Timber(world, volume, 41, 0, 6, 44, 40, 9)
+        RavenfordArt.Table(world, volume, 8, 18, 40, 36, 14)
+        RavenfordArt.Goods(world, volume, 10, 19, 38, 35, 14, variant)
+        RavenfordArt.Crate(world, volume, 36, 0, 37, 8)
+        return volume
+    }
+
+    int Campfire(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(32, 40, 32)
+        if volume < 0 { return -1 }
+        for x : 0; x < 32; x++ {
+            for z : 0; z < 32; z++ {
+                int offset = (x - 16) * (x - 16) + (z - 16) * (z - 16)
+                if offset > 15 * 15 || offset < 11 * 11 { continue }
+                int top = 4 + HellfeatherArt.Hash(x / 3, 9, z / 3) % 3
+                HellfeatherArt.Box(world, volume, x, 0, z, x + 1, top, z + 1, HellfeatherArt.Rgb(HellfeatherArt.Shade(0x4a443e, 80 + HellfeatherArt.Hash(x / 3, 1, z / 3) % 40)))
+            }
+        }
+        for i : -9; i <= 9; i++ {
+            RavenfordArt.Timber(world, volume, 16 + i, 2 + Math.Abs(i) / 3, 15, 17 + i, 5 + Math.Abs(i) / 3, 18)
+            RavenfordArt.Timber(world, volume, 15, 2 + Math.Abs(i) / 3, 16 + i, 18, 5 + Math.Abs(i) / 3, 17 + i)
+        }
+        HellfeatherArt.Flame(world, volume, 16, 5, 16, 9, 32)
+        return volume
+    }
+
+    int LooseCrate(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(16, 16, 16)
+        if volume < 0 { return -1 }
+        RavenfordArt.Crate(world, volume, 1, 0, 1, 14)
+        return volume
+    }
+
+    int LooseBarrel(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(16, 16, 16)
+        if volume < 0 { return -1 }
+        RavenfordArt.Barrel(world, volume, 8, 0, 8, 6, 16)
+        return volume
+    }
+}
