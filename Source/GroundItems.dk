@@ -1,7 +1,9 @@
 // An item lying in the world. Position is the point on the ground under it.
+// Amount is how many coins a gold pile is worth.
 HellfeatherGroundItem
 {
     int Item
+    int Amount
     int Node
     vec3 Position
 }
@@ -71,6 +73,21 @@ HellfeatherGroundItems
         entry.Position = ground
         Entries += entry
         return true
+    }
+
+    bool PlaceGold(QuaxelWorld& world, int amount, vec3 ground)
+    {
+        if !Place(world, HellfeatherItems.Gold, ground) { return false }
+        Entries[(int)Entries.Len - 1].Amount = amount
+        return true
+    }
+
+    // The words shown over an entry.
+    string Title(int index)
+    {
+        if Entries[index].Item == HellfeatherItems.Gold { return QuaxelUi.FormatInt(Entries[index].Amount) + " Gold" }
+        HellfeatherItemKind kind = HellfeatherItems.Get(Entries[index].Item)
+        return kind.Name
     }
 
     bool InReach(int index, vec3 player)
@@ -147,8 +164,7 @@ HellfeatherGroundItems
             label.Entry = i
             label.FootX = (int)((point.X + 1.0) * 0.5 * (float)gridWidth)
             label.FootY = (int)((point.Y + 1.0) * 0.5 * (float)gridHeight)
-            HellfeatherItemKind kind = HellfeatherItems.Get(Entries[i].Item)
-            label.Width = (int)Length(kind.Name) * 6 - 1 + PaddingX * 2
+            label.Width = (int)Length(Title(i)) * 6 - 1 + PaddingX * 2
             label.X = Math.Clamp(label.FootX - label.Width / 2, 1, Math.Max(gridWidth - label.Width - 1, 1))
             label.Y = ClearY(label.X, label.FootY - Rise - BoxHeight, label.Width)
             Labels += label
@@ -159,8 +175,7 @@ HellfeatherGroundItems
             DrawBox(ui, Labels[i].X, Labels[i].Y, Labels[i].Width)
             uint color = 0xFF8C8880
             if InReach(entry, player) { color = entry == Hovered ? 0xFFFFD27A | 0xFFEDE6D8 }
-            HellfeatherItemKind kind = HellfeatherItems.Get(Entries[entry].Item)
-            ui.OverlayText(Labels[i].X + PaddingX, Labels[i].Y + PaddingY, kind.Name, color)
+            ui.OverlayText(Labels[i].X + PaddingX, Labels[i].Y + PaddingY, Title(entry), color)
         }
     }
 }
@@ -252,6 +267,22 @@ T{
         T.AreEqual(game.Ground.Entries[0].Item, HellfeatherItems.Amulet)
         T.AreEqual(game.Inventory.Items.Bag.Len, bag + 1)
         T.IsFalse(world.Exists(ring))
+    }
+
+    GoldGoesToThePurseEvenWithAFullBag()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        while game.Inventory.Items.Add(HellfeatherItems.Ring) { }
+        long bag = game.Inventory.Items.Bag.Len
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.Ground.PlaceGold(world, 73, vec3(player.X + 1.0, 0.0, player.Z)))
+        T.IsTrue(game.Ground.Title(0) == "73 Gold")
+        T.IsTrue(game.TakeFromGround(world, 0))
+        T.AreEqual(game.Ground.Entries.Len, 0)
+        T.AreEqual(game.Inventory.Items.Gold, 73)
+        T.AreEqual(game.Inventory.Items.Bag.Len, bag)
     }
 
     AFullBagLeavesTheItemOnTheGround()

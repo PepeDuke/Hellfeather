@@ -87,6 +87,7 @@ HellfeatherItemArt
         else if item == HellfeatherItems.ManaPotion { Potion(p, false) }
         else if item == HellfeatherItems.RustyKey { KeyIcon(p) }
         else if item == HellfeatherItems.Scroll { ScrollIcon(p) }
+        else if item == HellfeatherItems.Gold { GoldIcon(p) }
     }
 
     // Potions and helmets stand up and are round. Everything else lies flat.
@@ -359,6 +360,18 @@ HellfeatherItemArt
         p.Row(5, "..kgkk..")
         p.Row(6, "..kggGk.")
         p.Row(7, "..kkkk..")
+    }
+
+    -GoldIcon(HellfeatherItemPicture& p)
+    {
+        p.Row(0, "..kkk...")
+        p.Row(1, ".kggGkk.")
+        p.Row(2, ".kgGkggk")
+        p.Row(3, "..kkkgGk")
+        p.Row(4, ".kggkkk.")
+        p.Row(5, "kgggGGk.")
+        p.Row(6, "kgGGGGk.")
+        p.Row(7, ".kkkkk..")
     }
 
     -ScrollIcon(HellfeatherItemPicture& p)

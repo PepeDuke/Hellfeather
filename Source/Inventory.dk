@@ -70,7 +70,9 @@ HellfeatherItems
     #int ManaPotion = 12
     #int RustyKey = 13
     #int Scroll = 14
-    #int Count = 15
+    // Only ever a pile on the ground. Taking it adds to the purse, not the bag.
+    #int Gold = 15
+    #int Count = 16
 
     -HellfeatherItemKind Make(string title, string detail, int width, int height, int gear)
     {
@@ -99,6 +101,7 @@ HellfeatherItems
         if item == ManaPotion { return Make("Mana Potion", "Restores 30 MP", 1, 1, HellfeatherGear.None) }
         if item == RustyKey { return Make("Rusty Key", "Opens a chest", 1, 1, HellfeatherGear.None) }
         if item == Scroll { return Make("Old Scroll", "Faded writing", 1, 1, HellfeatherGear.None) }
+        if item == Gold { return Make("Gold", "Coins", 1, 1, HellfeatherGear.None) }
         return Make("", "", 1, 1, HellfeatherGear.None)
     }
 }

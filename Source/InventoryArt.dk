@@ -274,11 +274,6 @@ HellfeatherInventoryScreen
     Stock()
     {
         Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.BattleAxe
-        Items.Equipped[HellfeatherSlot.Body] = HellfeatherItems.LeatherArmor
-        Items.Equipped[HellfeatherSlot.Feet] = HellfeatherItems.Boots
-        int [14] kit = {HellfeatherItems.ShortSword, HellfeatherItems.RoundShield, HellfeatherItems.IronHelm, HellfeatherItems.Gloves, HellfeatherItems.Belt, HellfeatherItems.Ring, HellfeatherItems.Amulet, HellfeatherItems.HealthPotion, HellfeatherItems.HealthPotion, HellfeatherItems.HealthPotion, HellfeatherItems.ManaPotion, HellfeatherItems.ManaPotion, HellfeatherItems.RustyKey, HellfeatherItems.Scroll}
-        for i : 0; i < 14; i++ { Items.Add(kit[i]) }
-        Items.Gold = 127
     }
 
     // True when the mouse is over the panel or carrying an item, so the world
@@ -572,12 +567,15 @@ T{
         T.AreEqual(screen.Items.Bag.Len, 1)
     }
 
-    TheStartingKitFitsInTheBag()
+    TheWarriorStartsWithOnlyHerAxe()
     {
         HellfeatherInventoryScreen screen
         screen.Stock()
-        T.AreEqual(screen.Items.Bag.Len, 14)
-        T.AreEqual(screen.Items.Equipped[HellfeatherSlot.MainHand], HellfeatherItems.BattleAxe)
+        T.AreEqual(screen.Items.Bag.Len, 0)
+        T.AreEqual(screen.Items.Gold, 0)
+        for slot : 0; slot < HellfeatherSlot.Count; slot++ {
+            T.AreEqual(screen.Items.Equipped[slot], slot == HellfeatherSlot.MainHand ? HellfeatherItems.BattleAxe | HellfeatherItems.None)
+        }
     }
 
     AHeldItemFollowsTheMouseAsTheLastThingDrawn()

@@ -1,0 +1,56 @@
+// Everything that lives in the level, as data. Tags can come in any order.
+//
+// EnemyKind       one type of enemy: its model and stats. Distances are world
+//                 units, Speed is world units per second, and Notice is how close
+//                 the player must be before it gives chase.
+// EnemyGroup      one kind of encounter. Weight is its share of the rolls, so
+//                 weights of 80 and 20 make the first four times as common. Spread
+//                 is how far its members stand from the middle of the group.
+// EnemyMember     goes inside an EnemyGroup. Rolls Min to Max of one EnemyKind,
+//                 inclusive. Give a group several members to mix enemy types.
+// EnemyPlacement  one enemy at a fixed world position, for hand-built encounters.
+//                 Respawns=true brings it back after it is slain. Others stay dead.
+// LootTable       what an enemy can drop when slain, named by an EnemyKind's Loot.
+//                 It rolls Rolls times, and each roll drops something with a Chance
+//                 from 0.0 to 1.0. An enemy only ever drops loot once. GoldChance
+//                 is the chance a successful roll also drops MinGold to MaxGold.
+// LootItem        goes inside a LootTable. Weight is its share of the drops.
+// EnemySpawnRules how the level is filled and when groups wake up.
+HellfeatherEnemyData
+#{
+    markup Build()
+    {
+        return {
+            <EnemySpawnRules MinGroups=2 MaxGroups=4/>
+
+            <EnemyKind Name="EvilDuck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 Radius=0.5 Speed=2.0 Reach=1.2 Notice=14.0 MaxHealth=60 Damage=10 Loot="Duck drops"/>
+
+            <LootTable Name="Duck drops" Chance=0.35 Rolls=1 GoldChance=0.35 MinGold=20 MaxGold=100>
+                <LootItem Item=HellfeatherItems.HealthPotion Weight=30/>
+                <LootItem Item=HellfeatherItems.ManaPotion Weight=20/>
+                <LootItem Item=HellfeatherItems.Scroll Weight=8/>
+                <LootItem Item=HellfeatherItems.RustyKey Weight=6/>
+                <LootItem Item=HellfeatherItems.Belt Weight=6/>
+                <LootItem Item=HellfeatherItems.Gloves Weight=6/>
+                <LootItem Item=HellfeatherItems.Boots Weight=6/>
+                <LootItem Item=HellfeatherItems.ShortSword Weight=5/>
+                <LootItem Item=HellfeatherItems.IronHelm Weight=5/>
+                <LootItem Item=HellfeatherItems.RoundShield Weight=5/>
+                <LootItem Item=HellfeatherItems.LeatherArmor Weight=4/>
+                <LootItem Item=HellfeatherItems.Ring Weight=3/>
+                <LootItem Item=HellfeatherItems.Amulet Weight=2/>
+            </LootTable>
+
+            <EnemyGroup Name="Small flock" Weight=80 Spread=2.0>
+                <EnemyMember Kind="EvilDuck" Min=1 Max=3/>
+            </EnemyGroup>
+
+            <EnemyGroup Name="Large flock" Weight=20 Spread=3.0>
+                <EnemyMember Kind="EvilDuck" Min=3 Max=5/>
+            </EnemyGroup>
+
+            // The first duck the player meets, beside the church.
+            <EnemyPlacement Kind="EvilDuck" X=3.0 Z=-3.0 Respawns=true/>
+        }
+    }
+}

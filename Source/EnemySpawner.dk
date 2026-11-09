@@ -1,0 +1,868 @@
+// One enemy of the level. It exists from the start as this record; Node and
+// VisualNode stay 0 until its group wakes. Speed is in world units per second,
+// Reach, Notice and Radius in world units, Cooldown in seconds until the next
+// attack. An enemy at zero Health stays dead unless Respawns is set, and then
+// RespawnTimer counts down in seconds until it returns.
+EnemyController
+{
+    int Kind
+    bool Awake
+    int VisualNode
+    int Node
+    float Speed
+    float Reach
+    float Notice
+    float Radius
+    int Damage
+    float Cooldown
+    int Health
+    int MaxHealth
+    vec3 Home
+    float RespawnTimer
+    bool Respawns
+    bool LootDropped
+    bool PeckLanded
+}
+
+EnemySpawnRules
+{
+    // Rolled for each clearing except the one the player starts in.
+    int MinGroups = 2
+    int MaxGroups = 4
+    // World units a group keeps from the clearing's edge and from other groups.
+    float EdgeMargin = 3.0
+    float GroupSpacing = 8.0
+    // World units from the player. Waking must happen beyond the corners of the
+    // view, about 25 at 16:9, and sleeping before the terrain there is released,
+    // which is at least 32.
+    float WakeRadius = 26.0
+    float SleepRadius = 31.0
+
+    AddTo(EnemyTable& table) { table.Rules = this }
+}
+
+EnemyKind
+{
+    string Name
+    string Model
+    // The model's height in voxels, and the world size of one voxel.
+    int Height
+    float VoxelSize
+    float Radius = 0.5
+    float Speed = 2.0
+    float Reach = 1.2
+    float Notice = 14.0
+    int MaxHealth = 60
+    int Damage = 10
+    // The Name of a LootTable. Empty drops nothing.
+    string Loot
+    int LootIndex = -1
+    int Animation = -1
+
+    AddTo(EnemyTable& table)
+    {
+        if Length(Name) == 0 { table.Fail("an EnemyKind has no Name") }
+        if table.KindNamed(Name) >= 0 { table.Fail("two EnemyKinds are named " + Name) }
+        table.Kinds += this
+    }
+}
+
+EnemyMember
+{
+    string Kind
+    int Min = 1
+    int Max = 1
+    int KindIndex = -1
+
+    Link(EnemyTable& table)
+    {
+        KindIndex = table.KindNamed(Kind)
+        if KindIndex < 0 { table.Fail("no EnemyKind is named " + Kind) }
+        if Min < 0 || Max < Min { table.Fail("an EnemyMember of " + Kind + " needs 0 <= Min <= Max") }
+        table.Members += this
+    }
+}
+
+// One possible drop inside a LootTable. Item is a HellfeatherItems constant.
+LootItem
+{
+    int Item
+    int Weight = 1
+
+    AddLootItem(EnemyTable& table)
+    {
+        if Item <= HellfeatherItems.None || Item >= HellfeatherItems.Count { table.Fail("a LootItem has no valid Item") }
+        if Item == HellfeatherItems.Gold { table.Fail("a LootItem cannot be Gold, use GoldChance on the LootTable") }
+        if Weight <= 0 { table.Fail("a LootItem needs a Weight above 0") }
+        table.LootItems += this
+    }
+}
+
+// A loot table as the table stores it. Its items are a run of EnemyTable.LootItems.
+LootTableEntry
+{
+    string Name
+    float Chance
+    int Rolls
+    int FirstItem
+    int ItemCount
+    int TotalWeight
+    float GoldChance
+    int MinGold
+    int MaxGold
+}
+
+LootTable
+{
+    string Name
+    float Chance = 1.0
+    int Rolls = 1
+    float GoldChance
+    int MinGold
+    int MaxGold
+
+    this{
+    }
+
+    AddTo(EnemyTable& table)
+    {
+        if table.LootNamed(Name) >= 0 { table.Fail("two LootTables are named " + Name) }
+        if Chance < 0.0 || Chance > 1.0 { table.Fail("LootTable " + Name + " needs a Chance from 0.0 to 1.0") }
+        if Rolls < 0 { table.Fail("LootTable " + Name + " needs Rolls of 0 or more") }
+        if GoldChance < 0.0 || GoldChance > 1.0 { table.Fail("LootTable " + Name + " needs a GoldChance from 0.0 to 1.0") }
+        if GoldChance > 0.0 && (MinGold < 1 || MaxGold < MinGold) { table.Fail("LootTable " + Name + " needs 1 <= MinGold <= MaxGold") }
+        LootTableEntry entry
+        entry.Name = Name
+        entry.Chance = Chance
+        entry.Rolls = Rolls
+        entry.GoldChance = GoldChance
+        entry.MinGold = MinGold
+        entry.MaxGold = MaxGold
+        entry.FirstItem = (int)table.LootItems.Len
+        for child : this.GetChildren() { ?child..AddLootItem(table) }
+        entry.ItemCount = (int)table.LootItems.Len - entry.FirstItem
+        if entry.ItemCount == 0 { table.Fail("LootTable " + Name + " has no items") }
+        for i : entry.FirstItem; i < table.LootItems.Len; i++ { entry.TotalWeight += table.LootItems[i].Weight }
+        table.Loots += entry
+    }
+}
+
+// A group as the table stores it. Its members are a run of EnemyTable.Members.
+EnemyGroupEntry
+{
+    string Name
+    int Weight
+    float Spread
+    int FirstMember
+    int MemberCount
+}
+
+EnemyGroup
+{
+    string Name
+    int Weight = 1
+    float Spread = 2.0
+
+    this{
+    }
+
+    Link(EnemyTable& table)
+    {
+        if Weight <= 0 { table.Fail("EnemyGroup " + Name + " needs a Weight above 0") }
+        EnemyGroupEntry entry
+        entry.Name = Name
+        entry.Weight = Weight
+        entry.Spread = Spread
+        entry.FirstMember = (int)table.Members.Len
+        for child : this.GetChildren() { ?child..Link(table) }
+        entry.MemberCount = (int)table.Members.Len - entry.FirstMember
+        if entry.MemberCount == 0 { table.Fail("EnemyGroup " + Name + " has no members") }
+        table.Groups += entry
+        table.TotalWeight += Weight
+    }
+}
+
+EnemyPlacement
+{
+    string Kind
+    float X
+    float Z
+    bool Respawns
+    int KindIndex = -1
+
+    Link(EnemyTable& table)
+    {
+        KindIndex = table.KindNamed(Kind)
+        if KindIndex < 0 { table.Fail("no EnemyKind is named " + Kind) }
+        table.Placements += this
+    }
+}
+
+// The markup in HellfeatherEnemyData, flattened and checked.
+EnemyTable
+{
+    EnemySpawnRules Rules
+    EnemyKind [] Kinds
+    EnemyGroupEntry [] Groups
+    EnemyMember [] Members
+    EnemyPlacement [] Placements
+    LootTableEntry [] Loots
+    LootItem [] LootItems
+    int TotalWeight
+    // The first problem found, or empty.
+    string Error
+
+    Fail(string why)
+    {
+        if Length(Error) == 0 { Error = why }
+    }
+
+    int KindNamed(string kind)
+    {
+        for i : 0; i < Kinds.Len; i++ {
+            if Kinds[i].Name == kind { return i }
+        }
+        return -1
+    }
+
+    int LootNamed(string loot)
+    {
+        for i : 0; i < Loots.Len; i++ {
+            if Loots[i].Name == loot { return i }
+        }
+        return -1
+    }
+
+    // Which group a roll chose, each with a chance in proportion to its weight.
+    int PickGroup(QuaxelRandom& random)
+    {
+        int roll = random.Below(TotalWeight)
+        for i : 0; i < Groups.Len; i++ {
+            roll -= Groups[i].Weight
+            if roll < 0 { return i }
+        }
+        return 0
+    }
+}
+
+// A run of EnemyController records that wake and sleep together. Group is an
+// index into EnemyTable.Groups, or -1 for an EnemyPlacement.
+EnemyEncounter
+{
+    vec3 Center
+    int First
+    int Count
+    int Group
+    bool Awake
+}
+
+// The enemy table and the groups rolled from it.
+HellfeatherEnemySpawner
+{
+    // Replace before Load to spawn something other than HellfeatherEnemyData.
+    markup Data
+    EnemyTable Table
+    EnemyEncounter [] Encounters
+    // Separate from the level's rolls, and seeded differently on each run.
+    QuaxelRandom LootRandom
+
+    -EnemyTable ReadTable()
+    {
+        EnemyTable table
+        for child : Data { ?child..AddTo(table) }
+        // Kinds are all known by now, whatever order the tags came in.
+        for child : Data { ?child..Link(table) }
+        for i : 0; i < table.Kinds.Len; i++ {
+            if Length(table.Kinds[i].Loot) == 0 { continue }
+            table.Kinds[i].LootIndex = table.LootNamed(table.Kinds[i].Loot)
+            if table.Kinds[i].LootIndex < 0 { table.Fail("no LootTable is named " + table.Kinds[i].Loot) }
+        }
+        if table.Rules.MaxGroups < table.Rules.MinGroups { table.Fail("EnemySpawnRules needs MinGroups <= MaxGroups") }
+        if table.Rules.SleepRadius <= table.Rules.WakeRadius { table.Fail("EnemySpawnRules needs SleepRadius above WakeRadius") }
+        return table
+    }
+
+    // Reads the table and loads each kind's model once, for every enemy to share.
+    // Fails after printing what went wrong.
+    bool Load(QuaxelWorld& world)
+    {
+        Table = ReadTable()
+        if Length(Table.Error) > 0 {
+            Print("Enemy data: " + Table.Error)
+            return false
+        }
+        for i : 0; i < Table.Kinds.Len; i++ {
+            Table.Kinds[i].Animation = QuaxelAssets.LoadVoxelAnimation(world, Table.Kinds[i].Model)
+            if Table.Kinds[i].Animation < 0 { return false }
+        }
+        return true
+    }
+
+    // One roll of a loot table. Returns an item, or HellfeatherItems.None for no drop.
+    int RollLoot(int loot)
+    {
+        if LootRandom.Unit() >= Table.Loots[loot].Chance { return HellfeatherItems.None }
+        int roll = LootRandom.Below(Table.Loots[loot].TotalWeight)
+        int first = Table.Loots[loot].FirstItem
+        for i : first; i < first + Table.Loots[loot].ItemCount; i++ {
+            roll -= Table.LootItems[i].Weight
+            if roll < 0 { return Table.LootItems[i].Item }
+        }
+        return HellfeatherItems.None
+    }
+
+    // The coins that come with a successful roll of a loot table, or 0.
+    int RollGold(int loot)
+    {
+        if LootRandom.Unit() >= Table.Loots[loot].GoldChance { return 0 }
+        return Table.Loots[loot].MinGold + LootRandom.Below(Table.Loots[loot].MaxGold - Table.Loots[loot].MinGold + 1)
+    }
+}
+#{
+    // World units. Four rings of 0.75 search up to 3 units from a rolled spot.
+    #int SearchRings = 4
+    #float SearchStep = 0.75
+}
+T{
+    AGroupKeepsItsMembersTogetherAndWithinItsRolledCounts()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = {
+            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 MaxHealth=60/>
+            <EnemyGroup Name="Small" Weight=80 Spread=2.0>
+                <EnemyMember Kind="Duck" Min=1 Max=3/>
+            </EnemyGroup>
+            <EnemyGroup Name="Large" Weight=20 Spread=3.0>
+                <EnemyMember Kind="Duck" Min=3 Max=5/>
+            </EnemyGroup>
+        }
+        T.IsTrue(game.Prepare(world))
+        int small = 0
+        int large = 0
+        for i : 0; i < game.Spawner.Encounters.Len; i++ {
+            int count = game.Spawner.Encounters[i].Count
+            if game.Spawner.Encounters[i].Group == 0 {
+                small++
+                T.IsTrue(count >= 1 && count <= 3)
+            } else {
+                large++
+                T.IsTrue(count >= 3 && count <= 5)
+            }
+            int first = game.Spawner.Encounters[i].First
+            vec3 center = game.Spawner.Encounters[i].Center
+            for e : first; e < first + count; e++ {
+                T.IsTrue(Math.Hypot(game.Enemies[e].Home.X - center.X, game.Enemies[e].Home.Z - center.Z) <= 6.0)
+            }
+        }
+        T.IsTrue(large > 0)
+        T.IsTrue(small > large * 2)
+    }
+
+    AGroupCanMixEnemyKinds()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = {
+            <EnemyGroup Name="Mixed" Weight=1>
+                <EnemyMember Kind="Duck" Min=2 Max=2/>
+                <EnemyMember Kind="Brute" Min=1 Max=1/>
+            </EnemyGroup>
+            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 MaxHealth=60/>
+            <EnemyKind Name="Brute" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.05 MaxHealth=200/>
+        }
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(game.Spawner.Encounters.Len > 0)
+        for i : 0; i < game.Spawner.Encounters.Len; i++ {
+            int first = game.Spawner.Encounters[i].First
+            T.AreEqual(game.Spawner.Encounters[i].Count, 3)
+            T.AreEqual(game.Enemies[first].MaxHealth, 60)
+            T.AreEqual(game.Enemies[first + 1].MaxHealth, 60)
+            T.AreEqual(game.Enemies[first + 2].MaxHealth, 200)
+        }
+    }
+
+    AMistakeInTheTableIsReported()
+    {
+        QuaxelWorld world()
+        HellfeatherEnemySpawner spawner
+        spawner.Data = {
+            <EnemyGroup Name="Ghosts" Weight=1>
+                <EnemyMember Kind="Ghost" Min=1 Max=2/>
+            </EnemyGroup>
+        }
+        T.IsFalse(spawner.Load(world))
+        T.IsTrue(spawner.Table.Error == "no EnemyKind is named Ghost")
+    }
+
+    DistantGroupsHaveNoNodesUntilThePlayerAndTheirGroundArrive()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int target = -1
+        for i : 0; i < game.Spawner.Encounters.Len; i++ {
+            vec3 spot = game.Spawner.Encounters[i].Center
+            if target < 0 && Math.Hypot(spot.X, spot.Z) > 90.0 { target = i }
+            if Math.Hypot(spot.X, spot.Z) > game.Spawner.Table.Rules.WakeRadius + 6.0 {
+                T.IsFalse(game.Spawner.Encounters[i].Awake)
+                T.AreEqual(game.Enemies[game.Spawner.Encounters[i].First].Node, 0)
+            }
+        }
+        T.IsTrue(target >= 0)
+        vec3 center = game.Spawner.Encounters[target].Center
+        int first = game.Spawner.Encounters[target].First
+        int count = game.Spawner.Encounters[target].Count
+
+        // The player is there, but the ground has not been generated yet.
+        T.IsTrue(game.UpdateSpawns(world, center))
+        T.IsFalse(game.Spawner.Encounters[target].Awake)
+        T.AreEqual(game.Enemies[first].Node, 0)
+
+        int calls = 0
+        while !game.Terrain.IsReady(center) && calls < 2000 {
+            T.IsTrue(game.Terrain.Stream(world, center, 100000))
+            calls++
+        }
+        T.IsTrue(game.UpdateSpawns(world, center))
+        T.IsTrue(game.Spawner.Encounters[target].Awake)
+        int [] nodes
+        for e : first; e < first + count; e++ {
+            if !game.Enemies[e].Awake { continue }
+            int node = game.Enemies[e].Node
+            nodes += node
+            T.IsTrue(world.Exists(node))
+            T.IsTrue(world.CurrentClipName(game.Enemies[e].VisualNode) == "idle")
+            vec3 position = world.GetPosition(node)
+            T.IsFalse(game.Terrain.CircleBlocked(position.X, position.Z, game.Enemies[e].Radius))
+            T.IsTrue(Math.Abs(position.Y - game.Enemies[e].Radius - game.Terrain.GroundY(position.X, position.Z)) < 0.001)
+        }
+        T.IsTrue(nodes.Len > 0)
+
+        // A wounded group that is left behind comes back whole.
+        game.Enemies[first].Health = 1
+        T.IsTrue(game.UpdateSpawns(world, center + vec3(200.0, 0.0, 0.0)))
+        T.IsFalse(game.Spawner.Encounters[target].Awake)
+        for node : nodes { T.IsFalse(world.Exists(node)) }
+        T.AreEqual(game.Enemies[first].Node, 0)
+        T.AreEqual(game.Enemies[first].Health, game.Enemies[first].MaxHealth)
+    }
+
+    LootRollsFollowTheChanceAndTheWeights()
+    {
+        QuaxelWorld world()
+        HellfeatherEnemySpawner spawner
+        spawner.Data = {
+            <LootTable Name="Half" Chance=0.5>
+                <LootItem Item=HellfeatherItems.Ring Weight=3/>
+                <LootItem Item=HellfeatherItems.Amulet Weight=1/>
+            </LootTable>
+            <LootTable Name="Never" Chance=0.0>
+                <LootItem Item=HellfeatherItems.Ring/>
+            </LootTable>
+        }
+        T.IsTrue(spawner.Load(world))
+        spawner.LootRandom.Begin((uint)1)
+        int nothing = 0
+        int rings = 0
+        int amulets = 0
+        for i : 0; i < 4000; i++ {
+            int item = spawner.RollLoot(0)
+            if item == HellfeatherItems.None { nothing++ }
+            else if item == HellfeatherItems.Ring { rings++ }
+            else if item == HellfeatherItems.Amulet { amulets++ }
+            T.AreEqual(spawner.RollLoot(1), HellfeatherItems.None)
+        }
+        T.AreEqual(nothing + rings + amulets, 4000)
+        T.IsTrue(nothing > 1800 && nothing < 2200)
+        T.IsTrue(amulets > 350 && amulets < 650)
+        T.IsTrue(rings > amulets * 2)
+    }
+
+    GoldRollsFollowTheChanceAndStayInRange()
+    {
+        QuaxelWorld world()
+        HellfeatherEnemySpawner spawner
+        spawner.Data = {
+            <LootTable Name="Coins" GoldChance=0.35 MinGold=20 MaxGold=100>
+                <LootItem Item=HellfeatherItems.Ring/>
+            </LootTable>
+        }
+        T.IsTrue(spawner.Load(world))
+        spawner.LootRandom.Begin((uint)1)
+        int piles = 0
+        int lowest = 1000
+        int highest = 0
+        for i : 0; i < 4000; i++ {
+            int gold = spawner.RollGold(0)
+            if gold == 0 { continue }
+            piles++
+            lowest = Math.Min(lowest, gold)
+            highest = Math.Max(highest, gold)
+        }
+        T.IsTrue(piles > 1250 && piles < 1550)
+        T.AreEqual(lowest, 20)
+        T.AreEqual(highest, 100)
+    }
+
+    GoldOnlyComesWithASuccessfulDrop()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = {
+            <LootTable Name="Rich" Chance=1.0 GoldChance=1.0 MinGold=20 MaxGold=20>
+                <LootItem Item=HellfeatherItems.Ring/>
+            </LootTable>
+            <LootTable Name="Missed" Chance=0.0 GoldChance=1.0 MinGold=20 MaxGold=20>
+                <LootItem Item=HellfeatherItems.Ring/>
+            </LootTable>
+            <EnemyKind Name="Rich" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 MaxHealth=20 Loot="Rich"/>
+            <EnemyKind Name="Poor" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 MaxHealth=20 Loot="Missed"/>
+            <EnemyPlacement Kind="Rich" X=1.0 Z=0.0/>
+            <EnemyPlacement Kind="Poor" X=-1.0 Z=0.0/>
+        }
+        T.IsTrue(game.Prepare(world))
+        for i : 0; i < 2; i++ {
+            QuaxelTransform placed = world.GetTransform(game.Enemies[i].Node)
+            placed.Position = vec3(i == 0 ? 1.0 | -1.0, game.Enemies[i].Radius, 0.0)
+            world.SetTransform(game.Enemies[i].Node, placed)
+        }
+        QuaxelInputState input
+        game.SampleAttack(480, 270, false)
+        game.SampleAttack(480, 270, true)
+        game.Simulate(world, input, 20)
+        T.AreEqual(game.Enemies[0].Health, 0)
+        T.AreEqual(game.Enemies[1].Health, 0)
+        T.AreEqual(game.Ground.Entries.Len, 2)
+        T.AreEqual(game.Ground.Entries[0].Item, HellfeatherItems.Ring)
+        T.AreEqual(game.Ground.Entries[1].Item, HellfeatherItems.Gold)
+        T.AreEqual(game.Ground.Entries[1].Amount, 20)
+    }
+
+    AMistakeInTheLootIsReported()
+    {
+        QuaxelWorld world()
+        HellfeatherEnemySpawner spawner
+        spawner.Data = {
+            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Loot="Treasure"/>
+        }
+        T.IsFalse(spawner.Load(world))
+        T.IsTrue(spawner.Table.Error == "no LootTable is named Treasure")
+    }
+
+    ASlainEnemyDropsItsLootBesideItOnlyOnce()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = {
+            <LootTable Name="Sure" Chance=1.0 Rolls=2>
+                <LootItem Item=HellfeatherItems.Ring/>
+            </LootTable>
+            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 MaxHealth=20 Loot="Sure"/>
+            <EnemyPlacement Kind="Duck" X=1.0 Z=0.0 Respawns=true/>
+        }
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        for visit : 0; visit < 2; visit++ {
+            QuaxelTransform placed = world.GetTransform(game.Enemies[0].Node)
+            placed.Position = vec3(1.0, game.Enemies[0].Radius, 0.0)
+            world.SetTransform(game.Enemies[0].Node, placed)
+            T.AreEqual(game.Enemies[0].Health, game.Enemies[0].MaxHealth)
+            game.SampleAttack(480, 270, false)
+            game.SampleAttack(480, 270, true)
+            game.Simulate(world, input, 20)
+            T.AreEqual(game.Enemies[0].Health, 0)
+            // A respawning enemy is not a loot fountain.
+            T.AreEqual(game.Ground.Entries.Len, 2)
+            game.Simulate(world, input, 190)
+            game.PlayerHealth = game.PlayerMaxHealth()
+        }
+        vec3 a = game.Ground.Entries[0].Position
+        vec3 b = game.Ground.Entries[1].Position
+        T.AreEqual(game.Ground.Entries[0].Item, HellfeatherItems.Ring)
+        T.IsTrue(Math.Hypot(a.X - 1.0, a.Z) < 3.0 && Math.Hypot(b.X - 1.0, b.Z) < 3.0)
+        T.IsTrue(Math.Hypot(a.X - b.X, a.Z - b.Z) >= HellfeatherGroundItems.Spacing)
+    }
+
+    ASlainGroupMemberStaysDeadThroughRevivesAndReturnVisits()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int target = -1
+        for i : 0; i < game.Spawner.Encounters.Len; i++ {
+            vec3 spot = game.Spawner.Encounters[i].Center
+            if target < 0 && game.Spawner.Encounters[i].Group >= 0 && Math.Hypot(spot.X, spot.Z) > 90.0 { target = i }
+        }
+        T.IsTrue(target >= 0)
+        vec3 center = game.Spawner.Encounters[target].Center
+        int first = game.Spawner.Encounters[target].First
+        int calls = 0
+        while !game.Terrain.IsReady(center) && calls < 2000 {
+            T.IsTrue(game.Terrain.Stream(world, center, 100000))
+            calls++
+        }
+        T.IsTrue(game.UpdateSpawns(world, center))
+        T.IsTrue(game.Enemies[first].Awake)
+        QuaxelTransform placed = world.GetTransform(game.PlayerNode)
+        placed.Position = center
+        world.SetTransform(game.PlayerNode, placed)
+        game.Enemies[first].Health = 0
+        // The warrior falls with the duck already dead, then revives far from it.
+        game.PlayerHealth = 0
+        QuaxelInputState input
+        game.Simulate(world, input, 185)
+        T.AreEqual(game.PlayerHealth, game.PlayerMaxHealth())
+        T.AreEqual(game.Enemies[first].Health, 0)
+        T.IsFalse(game.Spawner.Encounters[target].Awake)
+        T.AreEqual(game.Enemies[first].Node, 0)
+        calls = 0
+        while !game.Terrain.IsReady(center) && calls < 2000 {
+            T.IsTrue(game.Terrain.Stream(world, center, 100000))
+            calls++
+        }
+        T.IsTrue(game.UpdateSpawns(world, center))
+        T.IsTrue(game.Spawner.Encounters[target].Awake)
+        T.IsFalse(game.Enemies[first].Awake)
+        T.AreEqual(game.Enemies[first].Node, 0)
+        T.AreEqual(game.Enemies[first].Health, 0)
+    }
+
+    AnAwakeEnemyWaitsUntilThePlayerIsWithinNoticeRange()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = {
+            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 Notice=6.0/>
+            <EnemyPlacement Kind="Duck" X=10.0 Z=-10.0/>
+        }
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(game.Enemies[0].Awake)
+        int node = game.Enemies[0].Node
+        int visual = game.Enemies[0].VisualNode
+        vec3 start = world.GetPosition(node)
+        QuaxelInputState input
+        game.Simulate(world, input, 30)
+        vec3 waited = world.GetPosition(node)
+        T.AreEqual(waited.X, start.X)
+        T.AreEqual(waited.Z, start.Z)
+        T.IsTrue(world.CurrentClipName(visual) == "idle")
+        // Stands the warrior just inside the duck's range.
+        QuaxelTransform placed = world.GetTransform(game.PlayerNode)
+        placed.Position = vec3(start.X - 4.0, placed.Position.Y, start.Z + 3.0)
+        world.SetTransform(game.PlayerNode, placed)
+        game.Simulate(world, input, 2)
+        T.IsTrue(world.CurrentClipName(visual) == "walk")
+    }
+}
+
+// The half of the spawner that touches the level. The population is rolled up
+// front as plain records placed by the terrain layout. The ground under a group
+// only exists once it has streamed in, so spots are checked and enemies get
+// nodes when the player comes close.
+HellfeatherGame : QuaxelGameInstance
+{
+    -EnemyController MakeEnemy(int kind, float x, float z)
+    {
+        EnemyController enemy
+        enemy.Kind = kind
+        enemy.Speed = Spawner.Table.Kinds[kind].Speed
+        enemy.Reach = Spawner.Table.Kinds[kind].Reach
+        enemy.Notice = Spawner.Table.Kinds[kind].Notice
+        enemy.Radius = Spawner.Table.Kinds[kind].Radius
+        enemy.Damage = Spawner.Table.Kinds[kind].Damage
+        enemy.Health = Spawner.Table.Kinds[kind].MaxHealth
+        enemy.MaxHealth = Spawner.Table.Kinds[kind].MaxHealth
+        enemy.Home = vec3(x, 0.0, z)
+        return enemy
+    }
+
+    // Fills the level. The same terrain seed always gives the same population.
+    PopulateEnemies()
+    {
+        for i : 0; i < Spawner.Table.Placements.Len; i++ {
+            EnemyEncounter encounter
+            encounter.Center = vec3(Spawner.Table.Placements[i].X, 0.0, Spawner.Table.Placements[i].Z)
+            encounter.First = (int)Enemies.Len
+            encounter.Count = 1
+            encounter.Group = -1
+            EnemyController placed = MakeEnemy(Spawner.Table.Placements[i].KindIndex, Spawner.Table.Placements[i].X, Spawner.Table.Placements[i].Z)
+            placed.Respawns = Spawner.Table.Placements[i].Respawns
+            Enemies += placed
+            Spawner.Encounters += encounter
+        }
+        if Spawner.Table.Groups.Len == 0 { return }
+        for i : 0; i < Terrain.Layout.Sites.Len; i++ {
+            if i != Terrain.SpawnSiteIndex { PopulateClearing(Terrain.Layout.Sites[i]) }
+        }
+    }
+
+    -PopulateClearing(QuaxelTerrainSite site)
+    {
+        QuaxelRandom random
+        random.Begin(site.Seed ^ (uint)0x7A3D9E15)
+        int firstHere = (int)Spawner.Encounters.Len
+        int rules = Spawner.Table.Rules.MaxGroups - Spawner.Table.Rules.MinGroups + 1
+        int groups = Spawner.Table.Rules.MinGroups + random.Below(rules)
+        for n : 0; n < groups; n++ {
+            vec3 center = vec3(0.0, 0.0, 0.0)
+            if FindGroupCenter(site, random, firstHere, center) {
+                AddGroup(Spawner.Table.PickGroup(random), center, random)
+            }
+        }
+    }
+
+    // Tries spots spread evenly over the clearing, away from groups already in it.
+    -bool FindGroupCenter(QuaxelTerrainSite site, QuaxelRandom& random, int firstHere, vec3& center)
+    {
+        float limit = Math.Max(0.0, site.Radius - Spawner.Table.Rules.EdgeMargin)
+        for attempt : 0; attempt < 12; attempt++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float distance = limit * Math.Sqrt(random.Unit())
+            vec3 spot = Terrain.WorldPoint(site.X + Math.Cos(angle) * distance, site.Z + Math.Sin(angle) * distance)
+            bool clear = true
+            for i : firstHere; i < Spawner.Encounters.Len; i++ {
+                if Math.Hypot(Spawner.Encounters[i].Center.X - spot.X, Spawner.Encounters[i].Center.Z - spot.Z) < Spawner.Table.Rules.GroupSpacing { clear = false }
+            }
+            if clear {
+                center = spot
+                return true
+            }
+        }
+        return false
+    }
+
+    -AddGroup(int group, vec3 center, QuaxelRandom& random)
+    {
+        int [] kinds
+        int firstMember = Spawner.Table.Groups[group].FirstMember
+        for m : firstMember; m < firstMember + Spawner.Table.Groups[group].MemberCount; m++ {
+            int rolled = Spawner.Table.Members[m].Min + random.Below(Spawner.Table.Members[m].Max - Spawner.Table.Members[m].Min + 1)
+            for n : 0; n < rolled; n++ { kinds += Spawner.Table.Members[m].KindIndex }
+        }
+        if kinds.Len == 0 { return }
+        EnemyEncounter encounter
+        encounter.Center = center
+        encounter.First = (int)Enemies.Len
+        encounter.Count = (int)kinds.Len
+        encounter.Group = group
+        // Evenly around a ring, so that members do not start inside each other.
+        float turn = random.Range(0.0, 6.2831853)
+        float slice = 6.2831853 / (float)kinds.Len
+        for i : 0; i < kinds.Len; i++ {
+            float distance = kinds.Len == 1 ? 0.0 | Spawner.Table.Groups[group].Spread * random.Range(0.5, 1.0)
+            float angle = turn + (float)i * slice + random.Range(-0.2, 0.2)
+            Enemies += MakeEnemy(kinds[i], center.X + Math.Cos(angle) * distance, center.Z + Math.Sin(angle) * distance)
+        }
+        Spawner.Encounters += encounter
+    }
+
+    // Wakes the groups near the player and puts distant ones back to sleep.
+    // Returns false on a failed world call.
+    bool UpdateSpawns(QuaxelWorld& world, vec3 player)
+    {
+        for i : 0; i < Spawner.Encounters.Len; i++ {
+            float distance = Math.Hypot(Spawner.Encounters[i].Center.X - player.X, Spawner.Encounters[i].Center.Z - player.Z)
+            if !Spawner.Encounters[i].Awake {
+                if distance <= Spawner.Table.Rules.WakeRadius && GroundReady(i) {
+                    if !WakeEncounter(world, i) { return false }
+                    Spawner.Encounters[i].Awake = true
+                }
+            } else if distance > Spawner.Table.Rules.SleepRadius && AllBeyond(world, i, player) {
+                SleepEncounter(world, i)
+                Spawner.Encounters[i].Awake = false
+            }
+        }
+        return true
+    }
+
+    // True when every column the group might stand on has been generated.
+    -bool GroundReady(int encounter)
+    {
+        int first = Spawner.Encounters[encounter].First
+        for i : first; i < first + Spawner.Encounters[encounter].Count; i++ {
+            float reach = Enemies[i].Radius + (float)HellfeatherEnemySpawner.SearchRings * HellfeatherEnemySpawner.SearchStep
+            float x = Enemies[i].Home.X
+            float z = Enemies[i].Home.Z
+            if Terrain.ColumnKind(Terrain.ColumnAt(x - reach), Terrain.ColumnAt(z - reach)) < 0 { return false }
+            if Terrain.ColumnKind(Terrain.ColumnAt(x + reach), Terrain.ColumnAt(z - reach)) < 0 { return false }
+            if Terrain.ColumnKind(Terrain.ColumnAt(x - reach), Terrain.ColumnAt(z + reach)) < 0 { return false }
+            if Terrain.ColumnKind(Terrain.ColumnAt(x + reach), Terrain.ColumnAt(z + reach)) < 0 { return false }
+        }
+        return true
+    }
+
+    -bool AllBeyond(QuaxelWorld& world, int encounter, vec3 player)
+    {
+        int first = Spawner.Encounters[encounter].First
+        for i : first; i < first + Spawner.Encounters[encounter].Count; i++ {
+            if !Enemies[i].Awake { continue }
+            vec3 position = world.GetPosition(Enemies[i].Node)
+            if Math.Hypot(position.X - player.X, position.Z - player.Z) <= Spawner.Table.Rules.SleepRadius { return false }
+        }
+        return true
+    }
+
+    // Moves a spot to the nearest open ground, working outward in rings. A rolled
+    // spot can land on a rock, a building or the river. False if nothing is open.
+    -bool FindOpenSpot(float& x, float& z, float radius)
+    {
+        if !Terrain.CircleBlocked(x, z, radius) { return true }
+        for ring : 1; ring <= HellfeatherEnemySpawner.SearchRings; ring++ {
+            float distance = (float)ring * HellfeatherEnemySpawner.SearchStep
+            for step : 0; step < 12; step++ {
+                float angle = (float)step * 0.5235988
+                float tryX = x + Math.Cos(angle) * distance
+                float tryZ = z + Math.Sin(angle) * distance
+                if !Terrain.CircleBlocked(tryX, tryZ, radius) {
+                    x = tryX
+                    z = tryZ
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    -bool WakeEncounter(QuaxelWorld& world, int encounter)
+    {
+        int first = Spawner.Encounters[encounter].First
+        for i : first; i < first + Spawner.Encounters[encounter].Count; i++ {
+            if Enemies[i].Health <= 0 { continue }
+            float x = Enemies[i].Home.X
+            float z = Enemies[i].Home.Z
+            float radius = Enemies[i].Radius
+            // A member with nowhere to stand sits this visit out.
+            if !FindOpenSpot(x, z, radius) { continue }
+            Enemies[i].Home = vec3(x, Terrain.GroundY(x, z) + radius, z)
+            int node = world.CreateNode()
+            world.AttachTransform(node, QuaxelTransform.Make(Enemies[i].Home, vec3(1.0, 1.0, 1.0)))
+            int visual = world.CreateChild(node)
+            float cell = Spawner.Table.Kinds[Enemies[i].Kind].VoxelSize
+            float halfHeight = (float)Spawner.Table.Kinds[Enemies[i].Kind].Height * cell * 0.5
+            world.AttachTransform(visual, QuaxelTransform.Make(vec3(0.0, halfHeight - radius, 0.0), vec3(cell, cell, cell)))
+            if !world.AttachAnimator(visual, Spawner.Table.Kinds[Enemies[i].Kind].Animation) || !world.PlayClip(visual, "idle") { return false }
+            Enemies[i].Node = node
+            Enemies[i].VisualNode = visual
+            Enemies[i].Awake = true
+        }
+        return true
+    }
+
+    // Removes the nodes. Survivors are healed and back at their spots on the next visit.
+    -SleepEncounter(QuaxelWorld& world, int encounter)
+    {
+        int first = Spawner.Encounters[encounter].First
+        for i : first; i < first + Spawner.Encounters[encounter].Count; i++ {
+            if !Enemies[i].Awake { continue }
+            world.DestroyNode(Enemies[i].Node)
+            Enemies[i].Node = 0
+            Enemies[i].VisualNode = 0
+            Enemies[i].Awake = false
+            if Enemies[i].Health > 0 || Enemies[i].Respawns { Enemies[i].Health = Enemies[i].MaxHealth }
+            Enemies[i].Cooldown = 0.0
+            Enemies[i].RespawnTimer = 0.0
+            Enemies[i].PeckLanded = false
+        }
+    }
+}
