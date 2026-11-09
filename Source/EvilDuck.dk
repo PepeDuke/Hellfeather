@@ -1,0 +1,29 @@
+// Walks at the player and pecks when in reach. Speed is in world units per
+// second, Reach in world units, Cooldown in seconds until the next peck.
+// RespawnTimer counts down in seconds while Health is zero.
+EnemyController
+{
+    int VisualNode
+    int Node
+    float Speed
+    float Reach
+    float Cooldown
+    int Health
+    int MaxHealth
+    vec3 Home
+    float RespawnTimer
+    bool PeckLanded
+}
+
+// Solid voxel sculpt stored in Assets/EvilDuck.qvox. Local +Z is forward.
+HellfeatherEvilDuck
+#{
+    #int Height = 66
+    #float VoxelSize = 0.025
+
+    bool Attach(QuaxelWorld& world, int node)
+    {
+        int animation = QuaxelAssets.LoadVoxelAnimation(world, "Assets/EvilDuck.qvox")
+        return world.AttachAnimator(node, animation) && world.PlayClip(node, "idle")
+    }
+}

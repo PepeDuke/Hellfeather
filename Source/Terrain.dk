@@ -1,0 +1,125 @@
+// A river across the clearing. It only paints water; the generator turns the
+// parts on a reserved path into a bridge.
+RiverCrossing : QuaxelTerrainModule
+{
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = 14.0
+        rules.MinPorts = 2
+        rules.Isolated = true
+        rules.Share = 0.25
+        return rules
+    }
+
+    Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        if Math.Hypot(x, z) >= site.Radius + 3.0 { return }
+        // The river runs across the axis between the two farthest exits, so it
+        // always separates them.
+        float across = x * site.AxisX + z * site.AxisZ
+        float along = z * site.AxisX - x * site.AxisZ
+        float meander = QuaxelNoise.SignedFbm(site.Seed, along / 9.0, 0.0, 2) * 2.5
+        if Math.Abs(across + meander) < 2.0 { column.MakeWater(5) }
+    }
+}
+
+// A clearing with one house, placed somewhere off the paths.
+ValleyHouse : QuaxelTerrainModule
+{
+    int Volume
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = 15.0
+        rules.Isolated = true
+        rules.Share = 0.25
+        return rules
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        QuaxelRandom random
+        random.Begin(site.Seed)
+        for attempt : 0; attempt < 60; attempt++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float distance = random.Range(0.0, site.Radius - 6.0)
+            placer.Offer(0, Volume, Math.Cos(angle) * distance, Math.Sin(angle) * distance, HellfeatherHouse.Half, HellfeatherHouse.Height)
+        }
+    }
+}
+
+// Routes clearings to Hellfeather's modules. To change the default clearing,
+// change the Valley field's type.
+HellfeatherTerrain : QuaxelTerrain
+{
+    QuaxelTerrainModule Valley
+    RiverCrossing River
+    ValleyHouse House
+
+    int ModuleCount() { return 3 }
+
+    QuaxelTerrainModuleRules ModuleRules(int id)
+    {
+        if id == 1 { return River.Rules() }
+        if id == 2 { return House.Rules() }
+        return Valley.Rules()
+    }
+
+    ModuleColumn(int id, QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        if id == 1 { River.Column(site, x, z, column) }
+        else if id == 2 { House.Column(site, x, z, column) }
+        else { Valley.Column(site, x, z, column) }
+    }
+
+    ModulePlace(int id, QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        if id == 1 { River.Place(site, placer) }
+        else if id == 2 { House.Place(site, placer) }
+        else { Valley.Place(site, placer) }
+    }
+}
+
+// A cottage generated in code, since a text model of this size would be large.
+// One cell matches one terrain column.
+HellfeatherHouse
+#{
+    #int Half = 20
+    #int Height = 24
+    #int WallHeight = 14
+
+    int Build(QuaxelWorld& world)
+    {
+        int width = Half * 2
+        int volume = world.CreateVolume(width, Height, width)
+        if volume < 0 { return -1 }
+        for y : 0; y < WallHeight; y++ {
+            for x : 0; x < width; x++ {
+                for z : 0; z < width; z++ { world.SetVoxel(volume, x, y, z, WallColor(x, y, z, width)) }
+            }
+        }
+        // A gable that narrows by two cells a side per layer, with its ridge along X.
+        for y : WallHeight; y < Height; y++ {
+            int inset = (y - WallHeight) * 2
+            for z : inset; z < width - inset; z++ {
+                for x : 0; x < width; x++ {
+                    world.SetVoxel(volume, x, y, z, ((x + y) & 3) == 0 ? 0x4a1c14 | 0x6e2a1e)
+                }
+            }
+        }
+        return volume
+    }
+
+    // The door and windows face the camera, on the +Z side.
+    -int WallColor(int x, int y, int z, int width)
+    {
+        bool front = z == width - 1
+        bool door = front && x >= 17 && x < 23 && y < 10
+        bool window = front && y >= 5 && y < 10 && ((x >= 6 && x < 12) || (x >= 28 && x < 34))
+        if door { return 0x2c1a0e }
+        if window { return 0x9fc4d8 }
+        return (x & 7) == 0 ? 0x8a7450 | 0xb79f74
+    }
+}

@@ -1,58 +1,93 @@
 HellfeatherGame : QuaxelGameInstance
 {
     PlayerController [] Controllers
+    EnemyController [] Enemies
     int PlayerNode
     int CameraNode
     int StepsSimulated
+    int PlayerHealth
+    -float FallenSeconds
+    -bool SwingLanded
     -bool MouseHeld
     -bool AttackRequested
     HellfeatherFpsCounter Fps
+    HellfeatherTerrain Terrain
 
     string WindowTitle() { return "Hellfeather" }
 
-    float GroundHalfExtent() { return 5.0 }
+    // World units shown each way from the player along the ground.
+    float ViewHalfExtent() { return 5.0 }
+
+    int TerrainSeed() { return 7 }
+
+    // Generation budget per fixed step, in columns. A chunk needs about 60,000.
+    int TerrainColumnsPerStep() { return 3000 }
 
     float PlayerRadius() { return 0.5 }
 
     float PlayerSpeed() { return 4.0 }
 
-    // Ground cells are one eighth of a world unit.
-    -float CellSize() { return 0.125 }
+    float EnemyRadius() { return 0.5 }
+
+    float EnemySpeed() { return 2.0 }
+
+    float EnemyReach() { return 1.2 }
+
+    float EnemyPeckCooldown() { return 1.2 }
+
+    int PlayerMaxHealth() { return 100 }
+
+    int EnemyMaxHealth() { return 60 }
+
+    int AxeDamage() { return 20 }
+
+    int PeckDamage() { return 10 }
+
+    float AxeReach() { return 1.6 }
+
+    // A peck misses a target that has backed this far past the duck's reach.
+    float PeckDodgeMargin() { return 0.3 }
+
+    float RespawnSeconds() { return 3.0 }
+
+    // The warrior and duck strike on these frames of their attack clips.
+    -int AxeStrikeFrame() { return 3 }
+
+    -int PeckStrikeFrame() { return 3 }
 
     bool Prepare(QuaxelWorld& world)
     {
-        return SpawnGround(world) && SpawnPlayer(world) && SpawnCamera(world)
+        return SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemy(world, 3.0, -3.0) && SpawnCamera(world)
     }
 
-    -bool AttachSolidVolume(QuaxelWorld& world, int node, int width, int height, int depth, int color)
+    -bool SpawnTerrain(QuaxelWorld& world)
     {
-        int volume = world.CreateVolume(width, height, depth)
-        if volume < 0 { return false }
-        for z : 0; z < depth; z++ {
-            for y : 0; y < height; y++ {
-                for x : 0; x < width; x++ {
-                    if !world.SetVoxel(volume, x, y, z, color) { return false }
-                }
-            }
-        }
-        return world.AttachVoxels(node, volume)
+        Terrain.House.Volume = HellfeatherHouse.Build(world)
+        if Terrain.House.Volume < 0 { return false }
+        QuaxelTerrainConfig config
+        config.Seed = (uint)TerrainSeed()
+        return Terrain.Configure(config) && Terrain.Start(world, vec3(0.0, 0.0, 0.0))
     }
 
-    -bool SpawnGround(QuaxelWorld& world)
+    // Where a walker of this radius stands at a point on the ground.
+    -vec3 StandingAt(float x, float z, float radius)
     {
-        float cell = CellSize()
-        int width = (int)(2.0 * GroundHalfExtent() / cell)
-        int ground = world.CreateNode()
-        world.AttachTransform(ground, QuaxelTransform.Make(
-            vec3(0.0, -0.5 * cell, 0.0), vec3(cell, cell, cell)))
-        return AttachSolidVolume(world, ground, width, 1, width, 0x193326)
+        return vec3(x, Terrain.GroundY(x, z) + radius, z)
+    }
+
+    // Moves a walker over the terrain and eases its feet onto the ground.
+    -vec3 Walk(vec3 position, vec3 direction, float speed, float radius, float deltaSeconds)
+    {
+        vec3 moved = Terrain.MoveCircle(position, direction * (speed * deltaSeconds), radius)
+        moved.Y = Math.Lerp(position.Y, Terrain.GroundY(moved.X, moved.Z) + radius, Math.Min(1.0, deltaSeconds * 14.0))
+        return moved
     }
 
     -bool SpawnPlayer(QuaxelWorld& world)
     {
         PlayerNode = world.CreateNode()
         world.AttachTransform(PlayerNode, QuaxelTransform.Make(
-            vec3(0.0, PlayerRadius(), 0.0), vec3(1.0, 1.0, 1.0)))
+            StandingAt(0.0, 0.0, PlayerRadius()), vec3(1.0, 1.0, 1.0)))
 
         int visual = world.CreateChild(PlayerNode)
         float cell = HellfeatherWarrior.VoxelSize
@@ -70,6 +105,32 @@ HellfeatherGame : QuaxelGameInstance
         controller.Node = PlayerNode
         controller.Speed = PlayerSpeed()
         Controllers += controller
+        PlayerHealth = PlayerMaxHealth()
+        return true
+    }
+
+    -bool SpawnEnemy(QuaxelWorld& world, float x, float z)
+    {
+        int node = world.CreateNode()
+        world.AttachTransform(node, QuaxelTransform.Make(
+            StandingAt(x, z, EnemyRadius()), vec3(1.0, 1.0, 1.0)))
+
+        int visual = world.CreateChild(node)
+        float cell = HellfeatherEvilDuck.VoxelSize
+        float halfHeight = HellfeatherEvilDuck.Height * cell * 0.5
+        world.AttachTransform(visual, QuaxelTransform.Make(
+            vec3(0.0, halfHeight - EnemyRadius(), 0.0), vec3(cell, cell, cell)))
+        if !HellfeatherEvilDuck.Attach(world, visual) { return false }
+
+        EnemyController enemy
+        enemy.VisualNode = visual
+        enemy.Node = node
+        enemy.Speed = EnemySpeed()
+        enemy.Reach = EnemyReach()
+        enemy.Health = EnemyMaxHealth()
+        enemy.MaxHealth = EnemyMaxHealth()
+        enemy.Home = StandingAt(x, z, EnemyRadius())
+        Enemies += enemy
         return true
     }
 
@@ -79,13 +140,13 @@ HellfeatherGame : QuaxelGameInstance
     {
         CameraNode = world.CreateChild(PlayerNode)
         world.AttachTransform(CameraNode, QuaxelTransform.Make(vec3(20.0, 20.0, 20.0), vec3(1.0, 1.0, 1.0)))
-        float extent = GroundHalfExtent()
+        float extent = ViewHalfExtent()
         float playerTop = HellfeatherWarrior.Height * HellfeatherWarrior.VoxelSize
         float margin = 1.05
         QuaxelCamera camera
         camera.Direction = vec3(-1.0, -1.0, -1.0)
         camera.Up = vec3(0.0, 1.0, 0.0)
-        // Shows the whole plane while the player is at its center.
+        // Shows a square of ground centered on the player.
         camera.FrameHalfWidth = extent * Math.Sqrt(2.0) * margin
         camera.FrameHalfHeight = (extent + playerTop) * 2.0 / Math.Sqrt(6.0) * margin
         camera.Near = 1.0
@@ -99,32 +160,191 @@ HellfeatherGame : QuaxelGameInstance
         StepsSimulated++
         int activeCamera = world.ActiveCamera
         if activeCamera == 0 { return }
+        if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
+        if PlayerHealth <= 0 {
+            StepFallenPlayer(world, deltaSeconds)
+            AttackRequested = false
+            UpdateEnemies(world, deltaSeconds)
+            return
+        }
         vec3 direction = HellfeatherMovement.Direction(world.GetCamera(activeCamera), input)
-        float limit = GroundHalfExtent() - PlayerRadius()
         for controller : Controllers {
             if world.Has(controller.Node, QuaxelComponents.Transform) {
                 QuaxelTransform transform = world.GetTransform(controller.Node)
                 vec3 before = transform.Position
-                transform.Position = HellfeatherMovement.Move(transform.Position, direction, controller.Speed, deltaSeconds, limit)
+                transform.Position = Walk(transform.Position, direction, controller.Speed, PlayerRadius(), deltaSeconds)
                 world.SetTransform(controller.Node, transform)
                 bool moving = transform.Position.X != before.X || transform.Position.Z != before.Z
                 int visual = controller.VisualNode
                 QuaxelAnimator animator = world.GetAnimator(visual)
                 bool swinging = world.CurrentClipName(visual) == "attack" && animator.Playing
+                if swinging && !SwingLanded && animator.Frame >= AxeStrikeFrame() {
+                    SwingLanded = true
+                    StrikeEnemies(world, transform.Position)
+                }
+                bool startingSwing = !swinging && AttackRequested
                 if !swinging {
-                    if AttackRequested { world.PlayClip(visual, "attack") }
+                    if AttackRequested {
+                        world.PlayClip(visual, "attack")
+                        SwingLanded = false
+                    }
                     else { world.PlayClip(visual, moving ? "walk" | "idle") }
                 }
-                vec3 facing = Math.Normalize(transform.Position - before)
+                vec3 facing = Math.Normalize(vec3(transform.Position.X - before.X, 0.0, transform.Position.Z - before.Z))
                 if (facing.X != 0.0 || facing.Z != 0.0) && world.Has(controller.VisualNode, QuaxelComponents.Transform) {
                     QuaxelTransform pose = world.GetTransform(controller.VisualNode)
                     pose.FacingX = facing.X
                     pose.FacingZ = facing.Z
                     world.SetTransform(controller.VisualNode, pose)
                 }
+                if swinging || startingSwing { AimAtNearestEnemy(world, visual, transform.Position) }
             }
         }
         AttackRequested = false
+        UpdateEnemies(world, deltaSeconds)
+    }
+
+    -FaceAlong(QuaxelWorld& world, int visual, vec3 direction)
+    {
+        if direction.X == 0.0 && direction.Z == 0.0 { return }
+        QuaxelTransform pose = world.GetTransform(visual)
+        pose.FacingX = direction.X
+        pose.FacingZ = direction.Z
+        world.SetTransform(visual, pose)
+    }
+
+    // Length of the XZ offset from a to b.
+    -float GroundDistance(vec3 a, vec3 b)
+    {
+        return vec3(b.X - a.X, 0.0, b.Z - a.Z).Length()
+    }
+
+    // Swings turn toward the closest living enemy within axe reach.
+    -AimAtNearestEnemy(QuaxelWorld& world, int visual, vec3 origin)
+    {
+        float closest = AxeReach()
+        vec3 aim = vec3(0.0, 0.0, 0.0)
+        for i : 0; i < Enemies.Len; i++ {
+            if Enemies[i].Health <= 0 { continue }
+            vec3 enemy = world.GetPosition(Enemies[i].Node)
+            float distance = GroundDistance(origin, enemy)
+            if distance <= closest {
+                closest = distance
+                aim = vec3(enemy.X - origin.X, 0.0, enemy.Z - origin.Z)
+            }
+        }
+        FaceAlong(world, visual, Math.Normalize(aim))
+    }
+
+    -StrikeEnemies(QuaxelWorld& world, vec3 origin)
+    {
+        for i : 0; i < Enemies.Len; i++ {
+            if Enemies[i].Health <= 0 { continue }
+            if GroundDistance(origin, world.GetPosition(Enemies[i].Node)) > AxeReach() { continue }
+            Enemies[i].Health -= AxeDamage()
+            bool slain = Enemies[i].Health <= 0
+            if slain {
+                Enemies[i].Health = 0
+                Enemies[i].RespawnTimer = RespawnSeconds()
+            }
+            world.PlayClip(Enemies[i].VisualNode, slain ? "death" | "hit")
+        }
+    }
+
+    -DamagePlayer(QuaxelWorld& world, int amount)
+    {
+        if PlayerHealth <= 0 { return }
+        PlayerHealth -= amount
+        if PlayerHealth > 0 { return }
+        PlayerHealth = 0
+        FallenSeconds = 0.0
+        for controller : Controllers { world.PlayClip(controller.VisualNode, "idle") }
+    }
+
+    // Fall is 0 standing and 1 flat on her back.
+    -SetFall(QuaxelWorld& world, int visual, float fall)
+    {
+        float standing = HellfeatherWarrior.Height * HellfeatherWarrior.VoxelSize * 0.5 - PlayerRadius()
+        float lying = HellfeatherWarrior.LyingCenterHeight - PlayerRadius()
+        QuaxelTransform pose = world.GetTransform(visual)
+        pose.Rotation = QuaxelRotation.FromDegrees(0.0, -90.0 * fall, 0.0)
+        pose.Position = vec3(0.0, standing + (lying - standing) * fall, 0.0)
+        world.SetTransform(visual, pose)
+    }
+
+    -StepFallenPlayer(QuaxelWorld& world, float deltaSeconds)
+    {
+        FallenSeconds += deltaSeconds
+        if FallenSeconds >= RespawnSeconds() {
+            RevivePlayer(world)
+            return
+        }
+        float fall = Math.Clamp(FallenSeconds / 0.35, 0.0, 1.0)
+        for controller : Controllers { SetFall(world, controller.VisualNode, fall) }
+    }
+
+    -RevivePlayer(QuaxelWorld& world)
+    {
+        PlayerHealth = PlayerMaxHealth()
+        FallenSeconds = 0.0
+        QuaxelTransform transform = world.GetTransform(PlayerNode)
+        transform.Position = StandingAt(0.0, 0.0, PlayerRadius())
+        world.SetTransform(PlayerNode, transform)
+        for controller : Controllers { SetFall(world, controller.VisualNode, 0.0) }
+        for i : 0; i < Enemies.Len; i++ { RespawnEnemy(world, i) }
+    }
+
+    -RespawnEnemy(QuaxelWorld& world, int index)
+    {
+        Enemies[index].Health = Enemies[index].MaxHealth
+        Enemies[index].Cooldown = 0.0
+        QuaxelTransform transform = world.GetTransform(Enemies[index].Node)
+        transform.Position = Enemies[index].Home
+        world.SetTransform(Enemies[index].Node, transform)
+        world.PlayClip(Enemies[index].VisualNode, "idle")
+    }
+
+    -UpdateEnemies(QuaxelWorld& world, float deltaSeconds)
+    {
+        vec3 player = world.GetPosition(PlayerNode)
+        for i : 0; i < Enemies.Len; i++ {
+            if Enemies[i].Health <= 0 {
+                Enemies[i].RespawnTimer -= deltaSeconds
+                if Enemies[i].RespawnTimer <= 0.0 { RespawnEnemy(world, i) }
+                continue
+            }
+            if Enemies[i].Cooldown > 0.0 { Enemies[i].Cooldown -= deltaSeconds }
+            int node = Enemies[i].Node
+            int visual = Enemies[i].VisualNode
+            if PlayerHealth <= 0 {
+                world.PlayClip(visual, "idle")
+                continue
+            }
+            QuaxelTransform transform = world.GetTransform(node)
+            vec3 offset = vec3(player.X - transform.Position.X, 0.0, player.Z - transform.Position.Z)
+            vec3 direction = Math.Normalize(offset)
+            FaceAlong(world, visual, direction)
+            QuaxelAnimator animator = world.GetAnimator(visual)
+            if world.CurrentClipName(visual) == "hit" && animator.Playing { continue }
+            if world.CurrentClipName(visual) == "attack" && animator.Playing {
+                if !Enemies[i].PeckLanded && animator.Frame >= PeckStrikeFrame() {
+                    Enemies[i].PeckLanded = true
+                    if offset.Length() <= Enemies[i].Reach + PeckDodgeMargin() { DamagePlayer(world, PeckDamage()) }
+                }
+                continue
+            }
+            if offset.Length() > Enemies[i].Reach {
+                transform.Position = Walk(transform.Position, direction, Enemies[i].Speed, EnemyRadius(), deltaSeconds)
+                world.SetTransform(node, transform)
+                world.PlayClip(visual, "walk")
+            } else if Enemies[i].Cooldown > 0.0 {
+                world.PlayClip(visual, "idle")
+            } else {
+                world.PlayClip(visual, "attack")
+                Enemies[i].PeckLanded = false
+                Enemies[i].Cooldown = EnemyPeckCooldown()
+            }
+        }
     }
 
     markup BuildUi() { return HellfeatherHud.Build() }
@@ -150,10 +370,11 @@ HellfeatherGame : QuaxelGameInstance
         SampleAttack(ui, mouseX, mouseY, QuaxelPlatform.IsMouseButtonDown())
         if ui.TakeClick("recenter") {
             QuaxelTransform transform = world.GetTransform(PlayerNode)
-            transform.Position = vec3(0.0, PlayerRadius(), 0.0)
+            transform.Position = StandingAt(0.0, 0.0, PlayerRadius())
             world.SetTransform(PlayerNode, transform)
         }
         HellfeatherHud.Update(ui, world.GetPosition(PlayerNode))
+        HellfeatherHud.ShowCombat(ui, PlayerHealth, Enemies[0].Health)
         long frequency = 0
         long now = 0
         if QuaxelPlatform.GetClockFrequency(frequency) && QuaxelPlatform.ReadClock(now) && Fps.Tick(now, frequency) {
@@ -183,33 +404,230 @@ HellfeatherGame : QuaxelGameInstance
     }
 }
 T{
-    WarriorStartsOnThePlane()
+    TerrainRoutesRiversAndHousesAwayFromTheSpawn()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int rivers = 0
+        int houses = 0
+        for i : 0; i < game.Terrain.Layout.Sites.Len; i++ {
+            if game.Terrain.Layout.Sites[i].Module == 1 {
+                rivers++
+                T.IsTrue(game.Terrain.Layout.Sites[i].PortCount >= 2)
+            }
+            if game.Terrain.Layout.Sites[i].Module == 2 { houses++ }
+        }
+        T.IsTrue(rivers > 0 && houses > 0)
+        T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, 0)
+        T.IsTrue(game.Terrain.Placements.Len > 0)
+        T.IsTrue(game.Terrain.Placements.Len <= houses)
+    }
+
+    ARiverClearingCanBeCrossedOnItsBridge()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        for i : 0; i < game.Terrain.Layout.Sites.Len; i++ {
+            if game.Terrain.Layout.Sites[i].Module != 1 { continue }
+            QuaxelTerrainSite site = game.Terrain.Layout.Sites[i]
+            vec3 center = game.Terrain.WorldPoint(site.X, site.Z)
+            int calls = 0
+            while !game.Terrain.IsReady(center) && calls < 2000 {
+                T.IsTrue(game.Terrain.Stream(world, center, 100000))
+                calls++
+            }
+            T.IsTrue(game.Terrain.IsReady(center))
+            // The center is on a reserved path, and water exists across the axis.
+            T.AreEqual(game.Terrain.ColumnKind(game.Terrain.ColumnAt(center.X), game.Terrain.ColumnAt(center.Z)), QuaxelTerrainKind.Open)
+            int water = 0
+            for step : -80; step <= 80; step++ {
+                vec3 point = game.Terrain.WorldPoint(site.X - site.AxisZ * (float)step * 0.125, site.Z + site.AxisX * (float)step * 0.125)
+                if game.Terrain.ColumnKind(game.Terrain.ColumnAt(point.X), game.Terrain.ColumnAt(point.Z)) == QuaxelTerrainKind.Water { water++ }
+            }
+            T.IsTrue(water > 0)
+            return
+        }
+        T.IsTrue(false)
+    }
+
+    WarriorStartsOnTheGround()
     {
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
         int mask = QuaxelComponents.Transform | QuaxelComponents.Voxels
-        int ground = world.NextWith(0, mask)
-        int visual = world.NextWith(ground, mask)
-        T.IsTrue(ground != 0 && visual != 0)
+        int visual = game.Controllers[0].VisualNode
         int axe = world.NextWith(visual, mask)
         T.IsTrue(axe != 0 && world.Has(axe, QuaxelComponents.SocketFollower))
         T.AreEqual(world.ParentOf(axe), visual)
         T.IsFalse(world.IsHidden(axe))
         T.AreEqual(world.ParentOf(visual), game.PlayerNode)
         T.AreEqual(world.MeshCount, 0)
-        mat4 floorModel = world.VolumeModel(ground)
         mat4 warriorModel = world.VolumeModel(visual)
-        vec4 floorTop = floorModel * vec4(0.5, 0.5, 0.5, 1.0)
         vec4 feet = warriorModel * vec4(0.5, -0.5, 0.5, 1.0)
-        T.AreEqual(floorTop.X, game.GroundHalfExtent())
-        T.AreEqual(floorTop.Z, game.GroundHalfExtent())
-        T.AreEqual(floorTop.Y, 0.0)
-        T.IsTrue(Math.Abs(feet.Y - floorTop.Y) < 0.00001)
-        T.AreEqual(visual, game.Controllers[0].VisualNode)
+        T.IsTrue(Math.Abs(feet.Y - game.Terrain.GroundY(0.0, 0.0)) < 0.001)
         T.AreEqual(world.ActiveCamera, game.CameraNode)
         T.AreEqual(game.Controllers[0].Node, game.PlayerNode)
         T.AreEqual(game.Controllers[0].Speed, game.PlayerSpeed())
+    }
+
+    EvilDuckStartsIdleOnTheGround()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int visual = game.Enemies[0].VisualNode
+        T.AreEqual(world.ParentOf(visual), game.Enemies[0].Node)
+        T.IsTrue(world.CurrentClipName(visual) == "idle")
+        vec4 feet = world.VolumeModel(visual) * vec4(0.5, -0.5, 0.5, 1.0)
+        T.IsTrue(Math.Abs(feet.Y - game.Terrain.GroundY(3.0, -3.0)) < 0.001)
+    }
+
+    EvilDuckChasesThenPecksThenRests()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int node = game.Enemies[0].Node
+        int visual = game.Enemies[0].VisualNode
+        QuaxelInputState input
+        vec3 player = world.GetPosition(game.PlayerNode)
+        float start = (world.GetPosition(node) - player).Length()
+        game.Simulate(world, input, 2)
+        T.IsTrue(world.CurrentClipName(visual) == "walk")
+        game.Simulate(world, input, 58)
+        float closer = (world.GetPosition(node) - player).Length()
+        T.IsTrue(closer < start - 1.5)
+        mat4 model = world.ModelMatrix(visual)
+        vec3 front = Math.Normalize(vec3(model[2][0], model[2][1], model[2][2]))
+        T.IsTrue(front.Dot(Math.Normalize(player - world.GetPosition(node))) > 0.99)
+        // Reaches the warrior at about step 92. A peck lasts 0.58 seconds.
+        game.Simulate(world, input, 36)
+        T.IsTrue(world.CurrentClipName(visual) == "attack")
+        game.Simulate(world, input, 40)
+        T.IsTrue(world.CurrentClipName(visual) == "idle")
+        T.IsTrue((world.GetPosition(node) - player).Length() > game.EnemyReach() - 0.05)
+        game.Simulate(world, input, 40)
+        T.IsTrue(world.CurrentClipName(visual) == "attack")
+    }
+
+    EvilDuckStaysOnOpenGround()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.D, true)
+        game.Simulate(world, input, 600)
+        vec3 duck = world.GetPosition(game.Enemies[0].Node)
+        T.IsFalse(game.Terrain.CircleBlocked(duck.X, duck.Z, game.EnemyRadius()))
+        T.IsTrue(Math.Abs(duck.Y - game.EnemyRadius() - game.Terrain.GroundY(duck.X, duck.Z)) < 0.25)
+    }
+
+    ThreeAxeHitsSlayTheDuckAndItReturns()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int node = game.Enemies[0].Node
+        int visual = game.Enemies[0].VisualNode
+        QuaxelTransform placed = world.GetTransform(node)
+        placed.Position = vec3(1.0, game.EnemyRadius(), 0.0)
+        world.SetTransform(node, placed)
+        QuaxelUi ui()
+        ui.Content = game.BuildUi()
+        ui.Layout(960, 540, 0, 0, false)
+        QuaxelInputState input
+        for swing : 1; swing <= 3; swing++ {
+            game.SampleAttack(ui, 480, 270, false)
+            game.SampleAttack(ui, 480, 270, true)
+            game.Simulate(world, input, 20)
+            T.AreEqual(game.Enemies[0].Health, game.EnemyMaxHealth() - swing * game.AxeDamage())
+            game.Simulate(world, input, 12)
+        }
+        // The first swing lands while she turns to face the duck.
+        mat4 model = world.ModelMatrix(game.Controllers[0].VisualNode)
+        vec3 front = Math.Normalize(vec3(model[2][0], model[2][1], model[2][2]))
+        T.IsTrue(front.X > 0.99)
+        T.IsTrue(world.CurrentClipName(visual) == "death")
+        vec3 corpse = world.GetPosition(node)
+        game.Simulate(world, input, 60)
+        vec3 stillThere = world.GetPosition(node)
+        T.AreEqual(stillThere.X, corpse.X)
+        game.Simulate(world, input, 110)
+        T.AreEqual(game.Enemies[0].Health, game.EnemyMaxHealth())
+        T.IsTrue(world.CurrentClipName(visual) != "death")
+    }
+
+    AxeMissesADuckOutOfReach()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelUi ui()
+        ui.Content = game.BuildUi()
+        ui.Layout(960, 540, 0, 0, false)
+        QuaxelInputState input
+        game.SampleAttack(ui, 480, 270, true)
+        game.Simulate(world, input, 20)
+        T.AreEqual(game.Enemies[0].Health, game.EnemyMaxHealth())
+    }
+
+    PecksHurtTheWarrior()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        game.Simulate(world, input, 88)
+        T.AreEqual(game.PlayerHealth, game.PlayerMaxHealth())
+        game.Simulate(world, input, 42)
+        T.AreEqual(game.PlayerHealth, game.PlayerMaxHealth() - game.PeckDamage())
+    }
+
+    WarriorOutrunsAPeckWithoutDamage()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int node = game.Enemies[0].Node
+        QuaxelTransform placed = world.GetTransform(node)
+        placed.Position = vec3(1.0, game.EnemyRadius(), 0.0)
+        world.SetTransform(node, placed)
+        QuaxelInputState input
+        // She walks away from the duck during its wind-up.
+        input.SetDown(QuaxelKey.A, true)
+        game.Simulate(world, input, 30)
+        T.AreEqual(game.PlayerHealth, game.PlayerMaxHealth())
+    }
+
+    FallenWarriorLiesStillThenEverythingResets()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.PlayerHealth = game.PeckDamage()
+        QuaxelInputState input
+        game.Simulate(world, input, 130)
+        T.AreEqual(game.PlayerHealth, 0)
+        input.SetDown(QuaxelKey.W, true)
+        vec3 held = game.Simulate(world, input, 30)
+        T.AreEqual(held.X, 0.0)
+        T.AreEqual(held.Z, 0.0)
+        int visual = game.Controllers[0].VisualNode
+        mat4 flat = world.ModelMatrix(visual)
+        T.IsTrue(Math.Abs(flat[1][1]) < 0.0001)
+        // Her back is at depth 26 of the 64 cells, and the unit cube is centered.
+        vec4 back = world.VolumeModel(visual) * vec4(0.0, 0.0, 26.0 / 64.0 - 0.5, 1.0)
+        T.IsTrue(Math.Abs(back.Y - game.Terrain.GroundY(0.0, 0.0)) < 0.001)
+        input.Clear()
+        game.Simulate(world, input, 170)
+        T.AreEqual(game.PlayerHealth, game.PlayerMaxHealth())
+        mat4 upright = world.ModelMatrix(visual)
+        T.AreEqual(upright[1][1], HellfeatherWarrior.VoxelSize)
+        T.AreEqual(game.Enemies[0].Health, game.EnemyMaxHealth())
     }
 
     WalkingAndClickingDriveTheArmedWarrior()
@@ -255,7 +673,7 @@ T{
         QuaxelInputState input
         vec3 position = game.Simulate(world, input, 30)
         T.AreEqual(position.X, 0.0)
-        T.AreEqual(position.Y, 0.5)
+        T.IsTrue(Math.Abs(position.Y - game.PlayerRadius() - game.Terrain.GroundY(0.0, 0.0)) < 0.001)
         T.AreEqual(position.Z, 0.0)
     }
 
@@ -296,7 +714,8 @@ T{
             T.IsTrue(movedY * screenY[i] >= 0.0)
             T.IsTrue(Math.Abs(movedX) + Math.Abs(movedY) > 0.01)
             if screenX[i] == 0.0 { T.IsTrue(Math.Abs(movedX) < 0.0001) }
-            if screenY[i] == 0.0 { T.IsTrue(Math.Abs(movedY) < 0.0001) }
+            // Ground height shifts the screen vertically, by at most a few cells here.
+            if screenY[i] == 0.0 { T.IsTrue(Math.Abs(movedY) < 0.06) }
         }
     }
 
@@ -331,7 +750,7 @@ T{
             input.SetDown(key, true)
             vec3 before = world.GetPosition(game.PlayerNode)
             vec3 after = game.Simulate(world, input, 1)
-            vec3 travel = Math.Normalize(after - before)
+            vec3 travel = Math.Normalize(vec3(after.X - before.X, 0.0, after.Z - before.Z))
             input.SetDown(key, false)
             game.Simulate(world, input, 1)
             mat4 model = world.ModelMatrix(game.Controllers[0].VisualNode)
@@ -364,7 +783,7 @@ T{
         T.IsTrue(Math.Abs(travelled - game.PlayerSpeed()) < 0.001)
     }
 
-    PlaneEdgesClampThePlayer()
+    MountainsStopThePlayerOnWalkableGround()
     {
         QuaxelKey [4] keys = {QuaxelKey.W, QuaxelKey.S, QuaxelKey.D, QuaxelKey.A}
         for i : 0; i < 4; i++ {
@@ -374,23 +793,22 @@ T{
             QuaxelInputState input
             input.SetDown(keys[i], true)
             vec3 position = game.Simulate(world, input, 600)
-            float limit = game.GroundHalfExtent() - game.PlayerRadius()
-            T.AreEqual(position.Y, 0.5)
-            T.IsTrue(Math.Abs(position.X) <= limit)
-            T.IsTrue(Math.Abs(position.Z) <= limit)
-            T.AreEqual(Math.Abs(position.X), limit)
-            T.AreEqual(Math.Abs(position.Z), limit)
+            T.IsTrue(Math.Abs(position.X) + Math.Abs(position.Z) > 3.0)
+            T.IsFalse(game.Terrain.CircleBlocked(position.X, position.Z, game.PlayerRadius()))
+            T.IsTrue(Math.Abs(position.Y - game.PlayerRadius() - game.Terrain.GroundY(position.X, position.Z)) < 0.25)
         }
     }
 
-    WholePlaneIsInFrameAtStartAtAnyWindowShape()
+    GroundAroundThePlayerIsInFrameAtAnyWindowShape()
     {
         HellfeatherGame game()
         QuaxelWorld world()
         game.Prepare(world)
         int [4] widths = {960, 500, 1800, 300}
         int [4] heights = {540, 900, 300, 300}
-        float limit = game.GroundHalfExtent()
+        float limit = game.ViewHalfExtent()
+        vec3 start = world.GetPosition(game.PlayerNode)
+        float ground = start.Y - game.PlayerRadius()
         for shape : 0; shape < 4; shape++ {
             QuaxelCamera camera = world.GetCamera(game.CameraNode)
             camera.UpdateBounds(widths[shape], heights[shape])
@@ -398,7 +816,7 @@ T{
             for corner : 0; corner < 8; corner++ {
                 float x = (corner & 1) != 0 ? limit | -limit
                 float z = (corner & 2) != 0 ? limit | -limit
-                float y = (corner & 4) != 0 ? game.PlayerRadius() * 2.0 | 0.0
+                float y = ground + ((corner & 4) != 0 ? game.PlayerRadius() * 2.0 | 0.0)
                 vec4 point = matrix * vec4(x, y, z, 1.0)
                 T.IsTrue(Math.Abs(point.X) <= 1.0)
                 T.IsTrue(Math.Abs(point.Y) <= 1.0)

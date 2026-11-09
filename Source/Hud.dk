@@ -82,6 +82,8 @@ HellfeatherHud
                 <QuaxelUiText Text="HELLFEATHER" Size=3 Color=0xFFF26B19/>
                 <QuaxelUiText Text="WASD to move   LMB to attack" Color=0xFFC8CCD4/>
                 <QuaxelUiText Id="position" Text="X 0  Z 0"/>
+                <QuaxelUiText Id="health" Text="HP --" Color=0xFF66E08A/>
+                <QuaxelUiText Id="enemy" Text="DUCK --" Color=0xFFE05040/>
                 <QuaxelUiButton Id="recenter" Text="Recenter"/>
             </QuaxelUiPanel>
             <QuaxelUiText Id="fps" Text="FPS --" AnchorX=1.0 X=-12 Y=12/>
@@ -91,6 +93,12 @@ HellfeatherHud
     Update(QuaxelUi& ui, vec3 position)
     {
         ui.SetText("position", "X " + QuaxelUi.FormatInt((int)position.X) + "  Z " + QuaxelUi.FormatInt((int)position.Z))
+    }
+
+    ShowCombat(QuaxelUi& ui, int playerHealth, int enemyHealth)
+    {
+        ui.SetText("health", playerHealth > 0 ? "HP " + QuaxelUi.FormatInt(playerHealth) | "YOU DIED")
+        ui.SetText("enemy", enemyHealth > 0 ? "DUCK " + QuaxelUi.FormatInt(enemyHealth) | "DUCK SLAIN")
     }
 
     ShowFps(QuaxelUi& ui, int framesPerSecond)

@@ -3,6 +3,8 @@ HellfeatherWarrior
 #{
     #int Height = 78
     #float VoxelSize = 0.025
+    // Height of the volume's center when she lies on her back.
+    #float LyingCenterHeight = 0.15
 
     bool Attach(QuaxelWorld& world, int node)
     {

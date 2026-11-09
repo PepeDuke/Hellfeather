@@ -20,14 +20,4 @@ HellfeatherMovement
         vec3 forward = AlongGround(camera.Forward()) * input.Axis(QuaxelKey.W, QuaxelKey.S)
         return Math.Normalize(right + forward)
     }
-
-    // Keeps the whole footprint on the plane. Height never changes.
-    vec3 Move(vec3 position, vec3 direction, float speed, float deltaSeconds, float limit)
-    {
-        vec3 moved = position + direction * (speed * deltaSeconds)
-        return vec3(
-            Math.Clamp(moved.X, -limit, limit),
-            position.Y,
-            Math.Clamp(moved.Z, -limit, limit))
-    }
 }
