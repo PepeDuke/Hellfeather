@@ -75,30 +75,16 @@ T{
 
 HellfeatherHud
 #{
+    // The whole UI shares one pixel size, the size of a font pixel. The window
+    // shows at least this many of them, which is scale 2 at 960 x 540.
+    #int GridWidth = 200
+    #int GridHeight = 270
+
     markup Build()
     {
         return {
-            <QuaxelUiPanel X=12 Y=12 Flow=QuaxelUiFlow.Column Padding=10 Spacing=6 Color=0xB0101418>
-                <QuaxelUiText Text="HELLFEATHER" Size=3 Color=0xFFF26B19/>
-                <QuaxelUiText Text="WASD to move   LMB to attack" Color=0xFFC8CCD4/>
-                <QuaxelUiText Id="position" Text="X 0  Z 0"/>
-                <QuaxelUiText Id="health" Text="HP --" Color=0xFF66E08A/>
-                <QuaxelUiText Id="enemy" Text="DUCK --" Color=0xFFE05040/>
-                <QuaxelUiButton Id="recenter" Text="Recenter"/>
-            </QuaxelUiPanel>
-            <QuaxelUiText Id="fps" Text="FPS --" AnchorX=1.0 X=-12 Y=12/>
+            <QuaxelUiText Id="fps" Text="FPS --" AnchorX=1.0 X=-6 Y=6/>
         }
-    }
-
-    Update(QuaxelUi& ui, vec3 position)
-    {
-        ui.SetText("position", "X " + QuaxelUi.FormatInt((int)position.X) + "  Z " + QuaxelUi.FormatInt((int)position.Z))
-    }
-
-    ShowCombat(QuaxelUi& ui, int playerHealth, int enemyHealth)
-    {
-        ui.SetText("health", playerHealth > 0 ? "HP " + QuaxelUi.FormatInt(playerHealth) | "YOU DIED")
-        ui.SetText("enemy", enemyHealth > 0 ? "DUCK " + QuaxelUi.FormatInt(enemyHealth) | "DUCK SLAIN")
     }
 
     ShowFps(QuaxelUi& ui, int framesPerSecond)
@@ -107,21 +93,11 @@ HellfeatherHud
     }
 }
 T{
-    PositionTextFollowsPlayer()
-    {
-        QuaxelUi ui()
-        ui.Content = HellfeatherHud.Build()
-        ui.Layout(960, 540, 0, 0, false)
-        int before = ui.CommandCount
-        HellfeatherHud.Update(ui, vec3(-3.5, 0.5, 12.0))
-        ui.Layout(960, 540, 0, 0, false)
-        T.AreEqual(ui.CommandCount, before + 2) // "-4" and "12" each add a character.
-    }
-
     FpsShowsInTheTopRightCorner()
     {
         QuaxelUi ui()
         ui.Content = HellfeatherHud.Build()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
         HellfeatherHud.ShowFps(ui, 60)
         ui.Layout(960, 540, 0, 0, false)
         // "FPS 60" is five visible glyphs, the last of them drawn at the end of the list.
@@ -130,17 +106,12 @@ T{
         T.AreEqual(last.Y, 12)
     }
 
-    RecenterButtonIsReachableWithTheMouse()
+    OnlyTheFpsCounterIsOnScreen()
     {
         QuaxelUi ui()
         ui.Content = HellfeatherHud.Build()
         ui.Layout(960, 540, 0, 0, false)
-        // The button is the panel's last row: inside its left padding, at the bottom.
-        QuaxelUiCommand panel = ui.GetCommand(0)
-        int x = panel.X + 20
-        int y = panel.Y + panel.Height - 16
-        ui.Layout(960, 540, x, y, true)
-        ui.Layout(960, 540, x, y, false)
-        T.IsTrue(ui.TakeClick("recenter"))
+        // "FPS --" has five visible characters and no panel behind it.
+        T.AreEqual(ui.CommandCount, 5)
     }
 }

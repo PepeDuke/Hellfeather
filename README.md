@@ -44,6 +44,6 @@ Gameplay tests run without a GPU:
 
 Both configurations compile the same game source. The x64 Windows build
 requires the Vulkan SDK. It opens a resizable window showing a voxel warrior in a generated world of valleys, rivers and mountains
-from an isometric camera following the player. Clearing types live in `Source/Terrain.dk`. WASD moves the warrior and turns her to face her direction of travel. An evil duck chases her and pecks when in reach. Clicking swings her axe, three hits slay the duck, ten pecks down her, and whoever falls returns after three seconds. Rendering
+from an isometric camera following the player. Clearing types live in `Source/Terrain.dk`. WASD moves the warrior and turns her to face her direction of travel. An evil duck chases her and pecks when in reach. I opens the inventory on the right, where clicking picks up, places and equips items. Clicking elsewhere swings her axe, three hits slay the duck, ten pecks down her, and whoever falls returns after three seconds. Rendering
 pauses while the window is minimized. Models live in `Assets/`. The HUD in `Source/Hud.dk` is written in
 Duck markup. Close the window to exit.

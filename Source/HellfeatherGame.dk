@@ -10,6 +10,8 @@ HellfeatherGame : QuaxelGameInstance
     -bool SwingLanded
     -bool MouseHeld
     -bool AttackRequested
+    -bool InventoryKeyHeld
+    HellfeatherInventoryScreen Inventory
     HellfeatherFpsCounter Fps
     HellfeatherTerrain Terrain
 
@@ -57,6 +59,7 @@ HellfeatherGame : QuaxelGameInstance
 
     bool Prepare(QuaxelWorld& world)
     {
+        Inventory.Stock()
         return SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemy(world, 3.0, -3.0) && SpawnCamera(world)
     }
 
@@ -169,6 +172,9 @@ HellfeatherGame : QuaxelGameInstance
         StepsSimulated++
         int activeCamera = world.ActiveCamera
         if activeCamera == 0 { return }
+        bool inventoryKey = input.IsDown(QuaxelKey.I)
+        if inventoryKey && !InventoryKeyHeld { Inventory.Toggle() }
+        InventoryKeyHeld = inventoryKey
         if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
         if PlayerHealth <= 0 {
             StepFallenPlayer(world, deltaSeconds)
@@ -358,16 +364,11 @@ HellfeatherGame : QuaxelGameInstance
 
     markup BuildUi() { return HellfeatherHud.Build() }
 
-    SampleAttack(QuaxelUi& ui, int mouseX, int mouseY, bool held)
+    ConfigureUi(QuaxelUi& ui) { ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight) }
+
+    SampleAttack(int mouseX, int mouseY, bool held)
     {
-        if held && !MouseHeld {
-            bool overHud = false
-            if ui.CommandCount > 0 {
-                QuaxelUiCommand panel = ui.GetCommand(0)
-                overHud = mouseX >= panel.X && mouseX < panel.X + panel.Width && mouseY >= panel.Y && mouseY < panel.Y + panel.Height
-            }
-            if !overHud { AttackRequested = true }
-        }
+        if held && !MouseHeld && !Inventory.Captures(mouseX, mouseY) { AttackRequested = true }
         MouseHeld = held
     }
 
@@ -376,14 +377,14 @@ HellfeatherGame : QuaxelGameInstance
         int mouseX = 0
         int mouseY = 0
         QuaxelPlatform.GetMousePosition(mouseX, mouseY)
-        SampleAttack(ui, mouseX, mouseY, QuaxelPlatform.IsMouseButtonDown())
-        if ui.TakeClick("recenter") {
-            QuaxelTransform transform = world.GetTransform(PlayerNode)
-            transform.Position = StandingAt(0.0, 0.0, PlayerRadius())
-            world.SetTransform(PlayerNode, transform)
-        }
-        HellfeatherHud.Update(ui, world.GetPosition(PlayerNode))
-        HellfeatherHud.ShowCombat(ui, PlayerHealth, Enemies[0].Health)
+        bool mouseDown = QuaxelPlatform.IsMouseButtonDown()
+        // Before the inventory handles this click, so closing it cannot also swing the axe.
+        SampleAttack(mouseX, mouseY, mouseDown)
+        int windowWidth = 0
+        int windowHeight = 0
+        if QuaxelPlatform.GetWindowSize(windowWidth, windowHeight) { Inventory.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown) }
+        // The open panel covers the corner the counter sits in.
+        ui.SetVisible("fps", !Inventory.Open)
         long frequency = 0
         long now = 0
         if QuaxelPlatform.GetClockFrequency(frequency) && QuaxelPlatform.ReadClock(now) && Fps.Tick(now, frequency) {
@@ -435,6 +436,55 @@ T{
         }
         // The church plus at most one cottage per house clearing.
         T.IsTrue(buildings >= 1 && buildings <= houses + 1)
+    }
+
+    TheIKeyTogglesTheInventoryOncePerPress()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsFalse(game.Inventory.Open)
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.I, true)
+        game.Simulate(world, input, 10)
+        T.IsTrue(game.Inventory.Open)
+        input.SetDown(QuaxelKey.I, false)
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.Inventory.Open)
+        input.SetDown(QuaxelKey.I, true)
+        game.Simulate(world, input, 2)
+        T.IsFalse(game.Inventory.Open)
+    }
+
+    TheWarriorStartsWithHerAxeEquipped()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.AreEqual(game.Inventory.Items.Equipped[HellfeatherSlot.MainHand], HellfeatherItems.BattleAxe)
+        T.IsTrue(game.Inventory.Items.Bag.Len > 0)
+    }
+
+    ClicksOnTheOpenInventoryDoNotSwingButClicksBesideItDo()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int visual = game.Controllers[0].VisualNode
+        QuaxelUi ui()
+        ui.Content = game.BuildUi()
+        game.ConfigureUi(ui)
+        game.Inventory.Toggle()
+        game.Inventory.Update(ui, 960, 540, 0, 0, false)
+        ui.Layout(960, 540, 0, 0, false)
+        QuaxelInputState input
+        game.SampleAttack(700, 200, true)
+        game.Simulate(world, input, 1)
+        T.IsTrue(world.CurrentClipName(visual) != "attack")
+        game.SampleAttack(700, 200, false)
+        game.SampleAttack(300, 400, true)
+        game.Simulate(world, input, 1)
+        T.IsTrue(world.CurrentClipName(visual) == "attack")
     }
 
     TheChurchAndPropsBlockWalkersButLeaveTheSpawnClear()
@@ -574,13 +624,10 @@ T{
         QuaxelTransform placed = world.GetTransform(node)
         placed.Position = vec3(1.0, game.EnemyRadius(), 0.0)
         world.SetTransform(node, placed)
-        QuaxelUi ui()
-        ui.Content = game.BuildUi()
-        ui.Layout(960, 540, 0, 0, false)
         QuaxelInputState input
         for swing : 1; swing <= 3; swing++ {
-            game.SampleAttack(ui, 480, 270, false)
-            game.SampleAttack(ui, 480, 270, true)
+            game.SampleAttack(480, 270, false)
+            game.SampleAttack(480, 270, true)
             game.Simulate(world, input, 20)
             T.AreEqual(game.Enemies[0].Health, game.EnemyMaxHealth() - swing * game.AxeDamage())
             game.Simulate(world, input, 12)
@@ -604,11 +651,8 @@ T{
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
-        QuaxelUi ui()
-        ui.Content = game.BuildUi()
-        ui.Layout(960, 540, 0, 0, false)
         QuaxelInputState input
-        game.SampleAttack(ui, 480, 270, true)
+        game.SampleAttack(480, 270, true)
         game.Simulate(world, input, 20)
         T.AreEqual(game.Enemies[0].Health, game.EnemyMaxHealth())
     }
@@ -675,19 +719,15 @@ T{
         T.IsTrue(game.Prepare(world))
         int visual = game.Controllers[0].VisualNode
         int axe = world.NextWith(0, QuaxelComponents.SocketFollower)
-        QuaxelUi ui()
-        ui.Content = game.BuildUi()
-        ui.Layout(960, 540, 0, 0, false)
         QuaxelInputState input
         input.SetDown(QuaxelKey.W, true)
-        game.SampleAttack(ui, 24, 24, true)
         game.Simulate(world, input, 2)
         T.IsTrue(world.CurrentClipName(visual) == "walk")
         int first = world.VolumeOf(visual)
         game.Simulate(world, input, 5)
         T.IsTrue(world.VolumeOf(visual) != first)
-        game.SampleAttack(ui, 480, 270, false)
-        game.SampleAttack(ui, 480, 270, true)
+        game.SampleAttack(480, 270, false)
+        game.SampleAttack(480, 270, true)
         game.Simulate(world, input, 1)
         T.IsTrue(world.CurrentClipName(visual) == "attack")
         vec3 windup = world.GetPosition(axe)
@@ -695,7 +735,7 @@ T{
         T.IsFalse(world.IsHidden(axe))
         T.IsTrue((world.GetPosition(axe) - windup).Length() > 1.0)
         game.Simulate(world, input, 30)
-        game.SampleAttack(ui, 480, 270, true)
+        game.SampleAttack(480, 270, true)
         game.Simulate(world, input, 1)
         T.IsTrue(world.CurrentClipName(visual) == "walk")
         input.Clear()

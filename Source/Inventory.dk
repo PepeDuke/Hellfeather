@@ -1,0 +1,359 @@
+// What kind of equipment an item is. None cannot be worn.
+HellfeatherGear
+#{
+    #int None = 0
+    #int Head = 1
+    #int Neck = 2
+    #int Body = 3
+    #int Weapon = 4
+    #int Shield = 5
+    #int Hands = 6
+    #int Ring = 7
+    #int Waist = 8
+    #int Feet = 9
+}
+
+// The ten places the warrior can wear something.
+HellfeatherSlot
+#{
+    #int Head = 0
+    #int Neck = 1
+    #int Body = 2
+    #int MainHand = 3
+    #int OffHand = 4
+    #int Hands = 5
+    #int LeftRing = 6
+    #int Waist = 7
+    #int RightRing = 8
+    #int Feet = 9
+    #int Count = 10
+
+    int GearOf(int slot)
+    {
+        if slot == Head { return HellfeatherGear.Head }
+        if slot == Neck { return HellfeatherGear.Neck }
+        if slot == Body { return HellfeatherGear.Body }
+        if slot == MainHand { return HellfeatherGear.Weapon }
+        if slot == OffHand { return HellfeatherGear.Shield }
+        if slot == Hands { return HellfeatherGear.Hands }
+        if slot == LeftRing || slot == RightRing { return HellfeatherGear.Ring }
+        if slot == Waist { return HellfeatherGear.Waist }
+        if slot == Feet { return HellfeatherGear.Feet }
+        return HellfeatherGear.None
+    }
+}
+
+// Width and Height are in backpack cells.
+HellfeatherItemKind
+{
+    string Name
+    string Detail
+    int Width = 1
+    int Height = 1
+    int Gear
+}
+
+HellfeatherItems
+#{
+    #int None = 0
+    #int BattleAxe = 1
+    #int ShortSword = 2
+    #int RoundShield = 3
+    #int IronHelm = 4
+    #int LeatherArmor = 5
+    #int Gloves = 6
+    #int Boots = 7
+    #int Belt = 8
+    #int Ring = 9
+    #int Amulet = 10
+    #int HealthPotion = 11
+    #int ManaPotion = 12
+    #int RustyKey = 13
+    #int Scroll = 14
+    #int Count = 15
+
+    -HellfeatherItemKind Make(string title, string detail, int width, int height, int gear)
+    {
+        HellfeatherItemKind kind
+        kind.Name = title
+        kind.Detail = detail
+        kind.Width = width
+        kind.Height = height
+        kind.Gear = gear
+        return kind
+    }
+
+    HellfeatherItemKind Get(int item)
+    {
+        if item == BattleAxe { return Make("Battle Axe", "Damage 20", 2, 3, HellfeatherGear.Weapon) }
+        if item == ShortSword { return Make("Short Sword", "Damage 12", 1, 3, HellfeatherGear.Weapon) }
+        if item == RoundShield { return Make("Round Shield", "Defense 8", 2, 2, HellfeatherGear.Shield) }
+        if item == IronHelm { return Make("Iron Helm", "Defense 5", 2, 2, HellfeatherGear.Head) }
+        if item == LeatherArmor { return Make("Leather Armor", "Defense 12", 2, 3, HellfeatherGear.Body) }
+        if item == Gloves { return Make("Hide Gloves", "Defense 2", 2, 2, HellfeatherGear.Hands) }
+        if item == Boots { return Make("Worn Boots", "Defense 2", 2, 2, HellfeatherGear.Feet) }
+        if item == Belt { return Make("Leather Belt", "Defense 1", 2, 1, HellfeatherGear.Waist) }
+        if item == Ring { return Make("Silver Ring", "Luck 1", 1, 1, HellfeatherGear.Ring) }
+        if item == Amulet { return Make("Ember Amulet", "Fire ward 3", 1, 1, HellfeatherGear.Neck) }
+        if item == HealthPotion { return Make("Health Potion", "Restores 40 HP", 1, 1, HellfeatherGear.None) }
+        if item == ManaPotion { return Make("Mana Potion", "Restores 30 MP", 1, 1, HellfeatherGear.None) }
+        if item == RustyKey { return Make("Rusty Key", "Opens a chest", 1, 1, HellfeatherGear.None) }
+        if item == Scroll { return Make("Old Scroll", "Faded writing", 1, 1, HellfeatherGear.None) }
+        return Make("", "", 1, 1, HellfeatherGear.None)
+    }
+}
+
+// An item in the backpack. X and Y are its top-left cell.
+HellfeatherBagEntry
+{
+    int Item
+    int X
+    int Y
+}
+
+// What the warrior carries. Held is the item on the mouse cursor.
+HellfeatherInventory
+{
+    int [10] Equipped
+    HellfeatherBagEntry [] Bag
+    int Held
+    int Gold
+
+    // The index of the bag entry covering a cell, or -1.
+    int EntryAt(int x, int y)
+    {
+        for i : 0; i < Bag.Len; i++ {
+            HellfeatherItemKind kind = HellfeatherItems.Get(Bag[i].Item)
+            if x >= Bag[i].X && y >= Bag[i].Y && x < Bag[i].X + kind.Width && y < Bag[i].Y + kind.Height { return i }
+        }
+        return -1
+    }
+
+    bool InBounds(int item, int x, int y)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        return x >= 0 && y >= 0 && x + kind.Width <= Columns && y + kind.Height <= Rows
+    }
+
+    // How many separate bag entries an item would overlap at this position.
+    int CountOverlaps(int item, int x, int y, int& only)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        int count = 0
+        only = -1
+        for i : 0; i < Bag.Len; i++ {
+            HellfeatherItemKind other = HellfeatherItems.Get(Bag[i].Item)
+            if x < Bag[i].X + other.Width && Bag[i].X < x + kind.Width && y < Bag[i].Y + other.Height && Bag[i].Y < y + kind.Height {
+                count++
+                only = i
+            }
+        }
+        return count
+    }
+
+    bool IsFree(int item, int x, int y)
+    {
+        int only = -1
+        return InBounds(item, x, y) && CountOverlaps(item, x, y, only) == 0
+    }
+
+    PutAt(int item, int x, int y)
+    {
+        HellfeatherBagEntry entry
+        entry.Item = item
+        entry.X = x
+        entry.Y = y
+        Bag += entry
+    }
+
+    -RemoveEntry(int index)
+    {
+        Bag[index] = Bag[(int)Bag.Len - 1]
+        Bag--
+    }
+
+    // Finds the first space that fits, scanning columns from the left.
+    bool Add(int item)
+    {
+        for x : 0; x < Columns; x++ {
+            for y : 0; y < Rows; y++ {
+                if IsFree(item, x, y) {
+                    PutAt(item, x, y)
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    // Picks up the item covering a cell. Does nothing while already holding one.
+    bool PickUp(int x, int y)
+    {
+        int index = EntryAt(x, y)
+        if Held != 0 || index < 0 { return false }
+        Held = Bag[index].Item
+        RemoveEntry(index)
+        return true
+    }
+
+    // True if the held item could go here, alone or by swapping with one item.
+    bool CanDrop(int x, int y)
+    {
+        int only = -1
+        return Held != 0 && InBounds(Held, x, y) && CountOverlaps(Held, x, y, only) <= 1
+    }
+
+    // Places the held item with its top-left at a cell, swapping if it covers one item.
+    bool Drop(int x, int y)
+    {
+        if !CanDrop(x, y) { return false }
+        int only = -1
+        CountOverlaps(Held, x, y, only)
+        int swapped = HellfeatherItems.None
+        if only >= 0 {
+            swapped = Bag[only].Item
+            RemoveEntry(only)
+        }
+        PutAt(Held, x, y)
+        Held = swapped
+        return true
+    }
+
+    bool Accepts(int slot, int item)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        return item != HellfeatherItems.None && kind.Gear == HellfeatherSlot.GearOf(slot)
+    }
+
+    // Takes from, fills or swaps an equipment slot, as one click on it would.
+    bool ClickSlot(int slot)
+    {
+        if slot < 0 || slot >= HellfeatherSlot.Count { return false }
+        if Held != HellfeatherItems.None && !Accepts(slot, Held) { return false }
+        if Held == HellfeatherItems.None && Equipped[slot] == HellfeatherItems.None { return false }
+        int previous = Equipped[slot]
+        Equipped[slot] = Held
+        Held = previous
+        return true
+    }
+
+    // Puts the held item back in the bag, if it fits.
+    StowHeld()
+    {
+        if Held != HellfeatherItems.None && Add(Held) { Held = HellfeatherItems.None }
+    }
+}
+#{
+    #int Columns = 10
+    #int Rows = 4
+}
+T{
+    ItemsFillTheBagWithoutOverlapping()
+    {
+        HellfeatherInventory bag
+        T.IsTrue(bag.Add(HellfeatherItems.LeatherArmor))
+        T.IsTrue(bag.Add(HellfeatherItems.HealthPotion))
+        T.AreEqual(bag.EntryAt(1, 2), 0)
+        T.AreEqual(bag.EntryAt(0, 3), 1)
+        T.AreEqual(bag.EntryAt(2, 0), -1)
+    }
+
+    AFullBagRefusesMoreItems()
+    {
+        HellfeatherInventory bag
+        for i : 0; i < 40; i++ { T.IsTrue(bag.Add(HellfeatherItems.HealthPotion)) }
+        T.IsFalse(bag.Add(HellfeatherItems.HealthPotion))
+        T.AreEqual(bag.Bag.Len, 40)
+    }
+
+    TallItemsNeedATallGap()
+    {
+        HellfeatherInventory bag
+        for x : 0; x < 10; x++ { bag.PutAt(HellfeatherItems.HealthPotion, x, 1) }
+        T.IsFalse(bag.Add(HellfeatherItems.ShortSword))
+        T.IsTrue(bag.Add(HellfeatherItems.Belt))
+    }
+
+    PickingUpAndDroppingMovesAnItem()
+    {
+        HellfeatherInventory bag
+        bag.PutAt(HellfeatherItems.BattleAxe, 0, 0)
+        T.IsTrue(bag.PickUp(1, 2))
+        T.AreEqual(bag.Held, HellfeatherItems.BattleAxe)
+        T.AreEqual(bag.Bag.Len, 0)
+        T.IsTrue(bag.Drop(4, 1))
+        T.AreEqual(bag.Held, HellfeatherItems.None)
+        T.AreEqual(bag.EntryAt(5, 3), 0)
+    }
+
+    DroppingOnOneItemSwapsAndOnTwoIsRefused()
+    {
+        HellfeatherInventory bag
+        bag.PutAt(HellfeatherItems.HealthPotion, 0, 0)
+        bag.PutAt(HellfeatherItems.ManaPotion, 1, 1)
+        bag.Held = HellfeatherItems.IronHelm
+        T.IsFalse(bag.Drop(0, 0))
+        T.AreEqual(bag.Held, HellfeatherItems.IronHelm)
+        HellfeatherInventory swap
+        swap.PutAt(HellfeatherItems.HealthPotion, 0, 0)
+        swap.Held = HellfeatherItems.IronHelm
+        T.IsTrue(swap.Drop(0, 0))
+        T.AreEqual(swap.Held, HellfeatherItems.HealthPotion)
+    }
+
+    ItemsCannotHangOffTheBag()
+    {
+        HellfeatherInventory bag
+        bag.Held = HellfeatherItems.LeatherArmor
+        T.IsFalse(bag.CanDrop(9, 0))
+        T.IsFalse(bag.CanDrop(0, 2))
+        T.IsFalse(bag.CanDrop(-1, 0))
+        T.IsTrue(bag.CanDrop(8, 1))
+    }
+
+    SlotsOnlyAcceptMatchingGear()
+    {
+        HellfeatherInventory bag
+        bag.Held = HellfeatherItems.HealthPotion
+        T.IsFalse(bag.ClickSlot(HellfeatherSlot.Head))
+        bag.Held = HellfeatherItems.IronHelm
+        T.IsFalse(bag.ClickSlot(HellfeatherSlot.Feet))
+        T.IsTrue(bag.ClickSlot(HellfeatherSlot.Head))
+        T.AreEqual(bag.Equipped[HellfeatherSlot.Head], HellfeatherItems.IronHelm)
+        T.AreEqual(bag.Held, HellfeatherItems.None)
+    }
+
+    EitherRingSlotTakesARing()
+    {
+        HellfeatherInventory bag
+        bag.Held = HellfeatherItems.Ring
+        T.IsTrue(bag.ClickSlot(HellfeatherSlot.RightRing))
+        bag.Held = HellfeatherItems.Ring
+        T.IsTrue(bag.ClickSlot(HellfeatherSlot.LeftRing))
+    }
+
+    EquippingOverAnItemSwapsIt()
+    {
+        HellfeatherInventory bag
+        bag.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.BattleAxe
+        bag.Held = HellfeatherItems.ShortSword
+        T.IsTrue(bag.ClickSlot(HellfeatherSlot.MainHand))
+        T.AreEqual(bag.Equipped[HellfeatherSlot.MainHand], HellfeatherItems.ShortSword)
+        T.AreEqual(bag.Held, HellfeatherItems.BattleAxe)
+        T.IsFalse(bag.ClickSlot(HellfeatherSlot.Count))
+    }
+
+    StowingNeedsRoom()
+    {
+        HellfeatherInventory bag
+        bag.Held = HellfeatherItems.Belt
+        bag.StowHeld()
+        T.AreEqual(bag.Held, HellfeatherItems.None)
+        T.AreEqual(bag.Bag.Len, 1)
+        HellfeatherInventory full
+        for i : 0; i < 40; i++ { full.Add(HellfeatherItems.HealthPotion) }
+        full.Held = HellfeatherItems.Belt
+        full.StowHeld()
+        T.AreEqual(full.Held, HellfeatherItems.Belt)
+    }
+}

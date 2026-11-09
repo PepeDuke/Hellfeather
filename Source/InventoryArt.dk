@@ -1,0 +1,828 @@
+// Paints the inventory into the sprite atlas: a wall of stone blocks and item
+// icons built from small lit voxels. Coordinates are logical pixels.
+HellfeatherInventoryArt
+#{
+    #int AtlasWidth = 512
+    #int AtlasHeight = 256
+    #int PanelWidth = 176
+    #int PanelHeight = 256
+    #int Cell = 16
+    #int GridX = 8
+    #int GridY = 160
+    #int GoldX = 52
+    #int GoldY = 232
+    #int GoldWidth = 72
+    #int GoldHeight = 16
+    #int CloseX = 158
+    #int CloseY = 7
+    #int CloseSize = 11
+    // Each icon pixel in the art below is one voxel, two logical pixels wide.
+    #int VoxelPixels = 2
+
+    int IconX(int item) { return 190 + ((item - 1) % 9) * 34 }
+
+    int IconY(int item) { return 2 + (item - 1) / 9 * 50 }
+
+    -Put(QuaxelUi& ui, int x, int y, int rgb) { ui.SetAtlasTexel(x, y, (uint)0xFF000000 | (uint)rgb) }
+
+    Paint(QuaxelUi& ui)
+    {
+        ui.ConfigureAtlas(AtlasWidth, AtlasHeight)
+        PaintStone(ui)
+        PaintFrame(ui)
+        PaintWells(ui)
+        PaintClose(ui)
+        PaintCoins(ui, GoldX + 3, GoldY + 3)
+        for item : 1; item < HellfeatherItems.Count; item++ { PaintIcon(ui, item, IconX(item), IconY(item)) }
+    }
+
+    // Courses of six-pixel blocks, each lit from the top left like a voxel.
+    -PaintStone(QuaxelUi& ui)
+    {
+        for y : 0; y < PanelHeight; y++ {
+            int course = y / 6
+            for x : 0; x < PanelWidth; x++ {
+                int along = x + (course & 1) * 3
+                int ex = along % 6
+                int ey = y % 6
+                int tone = HellfeatherArt.Shade(0x34302b, 84 + HellfeatherArt.Hash(along / 6, course, 17) % 32)
+                if ex == 5 || ey == 5 { tone = HellfeatherArt.Shade(tone, 52) }
+                else if ex == 0 || ey == 0 { tone = HellfeatherArt.Shade(tone, 128) }
+                Put(ui, x, y, tone)
+            }
+        }
+    }
+
+    -Fill(QuaxelUi& ui, int x0, int y0, int width, int height, int rgb)
+    {
+        for y : y0; y < y0 + height; y++ {
+            for x : x0; x < x0 + width; x++ { Put(ui, x, y, rgb) }
+        }
+    }
+
+    // A raised block, bright along its top and left edges.
+    -Raised(QuaxelUi& ui, int x, int y, int width, int height, int rgb)
+    {
+        Fill(ui, x, y, width, height, rgb)
+        Fill(ui, x, y, width, 1, HellfeatherArt.Shade(rgb, 150))
+        Fill(ui, x, y, 1, height, HellfeatherArt.Shade(rgb, 130))
+        Fill(ui, x, y + height - 1, width, 1, HellfeatherArt.Shade(rgb, 50))
+        Fill(ui, x + width - 1, y, 1, height, HellfeatherArt.Shade(rgb, 60))
+    }
+
+    -PaintFrame(QuaxelUi& ui)
+    {
+        int metal = 0x4b3b2d
+        for i : 0; i < PanelWidth / 8; i++ {
+            Raised(ui, i * 8, 0, 8, 5, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 1, 2) % 26))
+            Raised(ui, i * 8, PanelHeight - 5, 8, 5, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 2, 2) % 26))
+        }
+        for i : 0; i < PanelHeight / 8; i++ {
+            Raised(ui, 0, i * 8, 5, 8, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 3, 2) % 26))
+            Raised(ui, PanelWidth - 5, i * 8, 5, 8, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 4, 2) % 26))
+        }
+        Stud(ui, 0, 0)
+        Stud(ui, PanelWidth - 13, 0)
+        Stud(ui, 0, PanelHeight - 13)
+        Stud(ui, PanelWidth - 13, PanelHeight - 13)
+        // The title band, closed off by a line of ember.
+        Fill(ui, 13, 6, PanelWidth - 26, 13, 0x1a1715)
+        Fill(ui, 13, 19, PanelWidth - 26, 1, 0x8a2f12)
+        Fill(ui, 13, 20, PanelWidth - 26, 1, 0x3c170b)
+    }
+
+    -Stud(QuaxelUi& ui, int x, int y)
+    {
+        Raised(ui, x, y, 13, 13, 0x6b4f2c)
+        Raised(ui, x + 3, y + 3, 7, 7, 0xa87a3a)
+        Fill(ui, x + 5, y + 5, 3, 3, 0xd8a93a)
+    }
+
+    // A recess: dark along the top and left, catching light at the bottom and right.
+    -Well(QuaxelUi& ui, int x, int y, int width, int height)
+    {
+        Fill(ui, x - 1, y - 1, width + 2, height + 2, 0x0a0908)
+        Fill(ui, x, y, width, height, 0x171412)
+        Fill(ui, x, y, width, 1, 0x070606)
+        Fill(ui, x, y, 1, height, 0x070606)
+        Fill(ui, x - 1, y + height, width + 2, 1, 0x625749)
+        Fill(ui, x + width, y - 1, 1, height + 2, 0x524839)
+    }
+
+    -PaintWells(QuaxelUi& ui)
+    {
+        for slot : 0; slot < HellfeatherSlot.Count; slot++ {
+            int x = 0
+            int y = 0
+            int width = 0
+            int height = 0
+            HellfeatherInventoryLayout.SlotRect(slot, x, y, width, height)
+            Well(ui, x, y, width, height)
+        }
+        Well(ui, GridX, GridY, HellfeatherInventory.Columns * Cell, HellfeatherInventory.Rows * Cell)
+        for row : 0; row < HellfeatherInventory.Rows; row++ {
+            for column : 0; column < HellfeatherInventory.Columns; column++ {
+                int x = GridX + column * Cell
+                int y = GridY + row * Cell
+                Fill(ui, x, y, Cell, 1, 0x2d2823)
+                Fill(ui, x, y, 1, Cell, 0x2d2823)
+                Fill(ui, x + 1, y + 1, Cell - 1, Cell - 1, (column + row) % 2 == 0 ? 0x151210 | 0x181513)
+            }
+        }
+        Well(ui, GoldX, GoldY, GoldWidth, GoldHeight)
+    }
+
+    -PaintClose(QuaxelUi& ui)
+    {
+        Raised(ui, CloseX, CloseY, CloseSize, CloseSize, 0x6b1c12)
+        for i : 2; i < CloseSize - 2; i++ {
+            Put(ui, CloseX + i, CloseY + i, 0xe8c9a0)
+            Put(ui, CloseX + CloseSize - 1 - i, CloseY + i, 0xe8c9a0)
+        }
+    }
+
+    -PaintCoins(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 0, "..kkkk..")
+        V(ui, x, y, 1, ".kgggGk.")
+        V(ui, x, y, 2, "kggGggGk")
+        V(ui, x, y, 3, "kgGggGGk")
+        V(ui, x, y, 4, ".kgGGGk.")
+        V(ui, x, y, 5, "..kkkk..")
+    }
+
+    -int ColorOf(int code)
+    {
+        if code == 107 { return 0x15110e } // k: outline
+        if code == 83 { return 0xd9e1e4 } // S: bright steel
+        if code == 115 { return 0x98a2a8 } // s: steel
+        if code == 100 { return 0x565d62 } // d: dark steel
+        if code == 87 { return 0x96683a } // W: light wood
+        if code == 119 { return 0x6b4326 } // w: wood
+        if code == 103 { return 0xdcae3e } // g: gold
+        if code == 71 { return 0x8f6a1e } // G: dark gold
+        if code == 82 { return 0xee4e3c } // R: bright red
+        if code == 114 { return 0xa8231b } // r: red
+        if code == 66 { return 0x5a90ee } // B: bright blue
+        if code == 98 { return 0x2746a8 } // b: blue
+        if code == 76 { return 0xa8794b } // L: light leather
+        if code == 108 { return 0x75492b } // l: leather
+        if code == 99 { return 0x3f2a1c } // c: dark cloth
+        if code == 101 { return 0xd8cfb8 } // e: bone
+        if code == 118 { return 0x52dcec } // v: gem
+        if code == 109 { return 0x5a1610 } // m: maroon
+        return -1
+    }
+
+    // One row of voxels. Each is lit on its top left and shaded on its bottom right.
+    -V(QuaxelUi& ui, int x, int y, int row, string text)
+    {
+        for i : (long)0; i < Length(text); i++ {
+            int code = (int)CodeUnitAt(text, i)
+            int rgb = ColorOf(code)
+            if rgb < 0 { continue }
+            int left = x + (int)i * VoxelPixels
+            int top = y + row * VoxelPixels
+            bool outline = code == 107
+            Put(ui, left, top, outline ? rgb | HellfeatherArt.Shade(rgb, 128))
+            Put(ui, left + 1, top, rgb)
+            Put(ui, left, top + 1, rgb)
+            Put(ui, left + 1, top + 1, outline ? rgb | HellfeatherArt.Shade(rgb, 68))
+        }
+    }
+
+    -PaintIcon(QuaxelUi& ui, int item, int x, int y)
+    {
+        if item == HellfeatherItems.BattleAxe { Axe(ui, x, y) }
+        else if item == HellfeatherItems.ShortSword { Sword(ui, x, y) }
+        else if item == HellfeatherItems.RoundShield { Shield(ui, x, y) }
+        else if item == HellfeatherItems.IronHelm { Helm(ui, x, y) }
+        else if item == HellfeatherItems.LeatherArmor { Armor(ui, x, y) }
+        else if item == HellfeatherItems.Gloves { GloveIcon(ui, x, y) }
+        else if item == HellfeatherItems.Boots { BootIcon(ui, x, y) }
+        else if item == HellfeatherItems.Belt { BeltIcon(ui, x, y) }
+        else if item == HellfeatherItems.Ring { RingIcon(ui, x, y) }
+        else if item == HellfeatherItems.Amulet { AmuletIcon(ui, x, y) }
+        else if item == HellfeatherItems.HealthPotion { Potion(ui, x, y, true) }
+        else if item == HellfeatherItems.ManaPotion { Potion(ui, x, y, false) }
+        else if item == HellfeatherItems.RustyKey { KeyIcon(ui, x, y) }
+        else if item == HellfeatherItems.Scroll { ScrollIcon(ui, x, y) }
+    }
+
+    -Axe(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 0, "..kk...kk...kk..")
+        V(ui, x, y, 1, ".kSSk.kWWk.kSSk.")
+        V(ui, x, y, 2, "kSSSSkkWWkkSSSSk")
+        V(ui, x, y, 3, "kSSsssgWWgsssSSk")
+        V(ui, x, y, 4, "kSsssdgWWgdsssSk")
+        V(ui, x, y, 5, "kSsddkkWWkkddsSk")
+        V(ui, x, y, 6, ".kddk.kWWk.kddk.")
+        V(ui, x, y, 7, "..kk..kWWk..kk..")
+        for row : 8; row < 15; row++ { V(ui, x, y, row, "......kWwk......") }
+        for row : 15; row < 21; row++ { V(ui, x, y, row, row % 2 == 0 ? "......kLlk......" | "......klLk......") }
+        V(ui, x, y, 21, ".....kggGGk.....")
+        V(ui, x, y, 22, "......kGGk......")
+        V(ui, x, y, 23, ".......kk.......")
+    }
+
+    -Sword(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 0, "...kk...")
+        V(ui, x, y, 1, "..kSsk..")
+        for row : 2; row < 15; row++ { V(ui, x, y, row, "..kSsk..") }
+        V(ui, x, y, 15, "kkkkkkkk")
+        V(ui, x, y, 16, "kgggGGGk")
+        V(ui, x, y, 17, "kkkkkkkk")
+        for row : 18; row < 22; row++ { V(ui, x, y, row, row % 2 == 0 ? "..kLlk.." | "..klLk..") }
+        V(ui, x, y, 22, "..kggk..")
+        V(ui, x, y, 23, "...kk...")
+    }
+
+    -Shield(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 0, "....kkkkkkkk....")
+        V(ui, x, y, 1, "..kkssssssddkk..")
+        V(ui, x, y, 2, ".ksswWWWWWwwddk.")
+        V(ui, x, y, 3, ".kswWWWwwWWWwdk.")
+        V(ui, x, y, 4, "ksWWWWwggwWWWwdk")
+        V(ui, x, y, 5, "ksWWWwgSSgwWWwdk")
+        V(ui, x, y, 6, "ksWWwgSssdgwWwdk")
+        V(ui, x, y, 7, "ksWWwgSsddgwWwdk")
+        V(ui, x, y, 8, "ksWWwgSsddgwWwdk")
+        V(ui, x, y, 9, "ksWWwgsdddgwWwdk")
+        V(ui, x, y, 10, "ksWWWwgddgwWWwdk")
+        V(ui, x, y, 11, "ksWWWWwggwWWWwdk")
+        V(ui, x, y, 12, ".kswWWWwwWWWwdk.")
+        V(ui, x, y, 13, ".ksswWWWWWwwddk.")
+        V(ui, x, y, 14, "..kkssssddddkk..")
+        V(ui, x, y, 15, "....kkkkkkkk....")
+    }
+
+    -Helm(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 1, ".......kk.......")
+        V(ui, x, y, 2, ".....kkSskk.....")
+        V(ui, x, y, 3, "...kkSSSssdkk...")
+        V(ui, x, y, 4, "..kSSSSsssddk...")
+        V(ui, x, y, 5, ".kSSSSssssdddk..")
+        V(ui, x, y, 6, ".kSSSsssssdddk..")
+        V(ui, x, y, 7, "kgggggggggGGGGk.")
+        V(ui, x, y, 8, "kSSsssgssssdddk.")
+        V(ui, x, y, 9, "kSsskkgkkksdddk.")
+        V(ui, x, y, 10, "kSskk.g..kksddk.")
+        V(ui, x, y, 11, "kSsk..g...ksddk.")
+        V(ui, x, y, 12, "kSsk..k...ksddk.")
+        V(ui, x, y, 13, ".kk.......kkkk..")
+    }
+
+    -Armor(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 0, "...kkk....kkk...")
+        V(ui, x, y, 1, "..klLLk..kLLlk..")
+        V(ui, x, y, 2, ".kLLLLLkkLLLllk.")
+        V(ui, x, y, 3, "kLLLLLLccLLLlllk")
+        V(ui, x, y, 4, "kLLLLlLccLlLlllk")
+        V(ui, x, y, 5, "kLLlkLLLLLLklllk")
+        V(ui, x, y, 6, "kLlkkLLLLlLkklck")
+        V(ui, x, y, 7, "kLlkkLgLLLgkklck")
+        V(ui, x, y, 8, "kLlkkLLLLlLkklck")
+        V(ui, x, y, 9, "kLlkkLgLLLgkklck")
+        V(ui, x, y, 10, ".kk.kLLLLlLk.kk.")
+        V(ui, x, y, 11, "....kLgLLLgk....")
+        V(ui, x, y, 12, "....kLLLLlLk....")
+        V(ui, x, y, 13, "....kLgLLLgk....")
+        V(ui, x, y, 14, "....kLLLLllk....")
+        V(ui, x, y, 15, "....kGggggGk....")
+        V(ui, x, y, 16, "...kLLLLLLllk...")
+        V(ui, x, y, 17, "...kLLLLlLllk...")
+        V(ui, x, y, 18, "...kLLLkklllk...")
+        V(ui, x, y, 19, "..kLLLlkkclllk..")
+        V(ui, x, y, 20, "..kLLlk..kcllk..")
+        V(ui, x, y, 21, "..kLllk..kcllk..")
+        V(ui, x, y, 22, "...kkk....kkk...")
+    }
+
+    -GloveIcon(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 1, "..kk.kk.kk.kk...")
+        V(ui, x, y, 2, ".kLLkLLkLLkLlk..")
+        V(ui, x, y, 3, ".kLlkLlkLlkLlk..")
+        V(ui, x, y, 4, ".kLlkLlkLlkLlk..")
+        V(ui, x, y, 5, ".kLlkLlkLlkLlkk.")
+        V(ui, x, y, 6, ".kLLLLLLLLLLlklk")
+        V(ui, x, y, 7, ".kLLLLLLLLLlllLk")
+        V(ui, x, y, 8, ".kLLLLLLLLllLlk.")
+        V(ui, x, y, 9, ".kLLLLLLLlllkk..")
+        V(ui, x, y, 10, "..kLLLLlllllk...")
+        V(ui, x, y, 11, "..kgggggGGGGk...")
+        V(ui, x, y, 12, "..kcclccclcck...")
+        V(ui, x, y, 13, "..kcclccclcck...")
+        V(ui, x, y, 14, "...kkkkkkkkk....")
+    }
+
+    -BootIcon(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 0, "...kkkkkkkk.....")
+        V(ui, x, y, 1, "...kgggGGGk.....")
+        V(ui, x, y, 2, "...kLLLlllk.....")
+        V(ui, x, y, 3, "...kLLLlllk.....")
+        V(ui, x, y, 4, "...kLLlLllk.....")
+        V(ui, x, y, 5, "...kLLLlllk.....")
+        V(ui, x, y, 6, "...kLlLlllk.....")
+        V(ui, x, y, 7, "...kLLLlllkkk...")
+        V(ui, x, y, 8, "...kLLLllllLlkk.")
+        V(ui, x, y, 9, "...kLLLlllllLLlk")
+        V(ui, x, y, 10, "...kLLLllllllLLk")
+        V(ui, x, y, 11, "...kLLLlllllllLk")
+        V(ui, x, y, 12, "...kcccccccccclk")
+        V(ui, x, y, 13, "...kkkkkkkkkkkk.")
+    }
+
+    -BeltIcon(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 1, "kkkkkkkkkkkkkkkk")
+        V(ui, x, y, 2, "kLLLLlkgggkLLlLk")
+        V(ui, x, y, 3, "kLlLLlkgkgkkkllk")
+        V(ui, x, y, 4, "klllllkgGGklllck")
+        V(ui, x, y, 5, "kkkkkkkkkkkkkkkk")
+    }
+
+    -RingIcon(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 0, "...kk...")
+        V(ui, x, y, 1, "..kvvk..")
+        V(ui, x, y, 2, ".kSvvsk.")
+        V(ui, x, y, 3, "kSk..dsk")
+        V(ui, x, y, 4, "kSk..dsk")
+        V(ui, x, y, 5, "kSk..dsk")
+        V(ui, x, y, 6, ".kSsdsk.")
+        V(ui, x, y, 7, "..kkkk..")
+    }
+
+    -AmuletIcon(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 0, ".G....G.")
+        V(ui, x, y, 1, "..G..G..")
+        V(ui, x, y, 2, "...GG...")
+        V(ui, x, y, 3, "..kggk..")
+        V(ui, x, y, 4, ".kgRrGk.")
+        V(ui, x, y, 5, ".kgrmGk.")
+        V(ui, x, y, 6, "..kGGk..")
+        V(ui, x, y, 7, "...kk...")
+    }
+
+    -Potion(QuaxelUi& ui, int x, int y, bool health)
+    {
+        string bright = health ? "kRRrrrrk" | "kBBbbbbk"
+        string middle = health ? "kRrrrrmk" | "kBbbbbck"
+        string low = health ? ".krrrmk." | ".kbbbck."
+        V(ui, x, y, 0, "..kwwk..")
+        V(ui, x, y, 1, "..kkkk..")
+        V(ui, x, y, 2, "..kSsk..")
+        V(ui, x, y, 3, ".kSSssk.")
+        V(ui, x, y, 4, bright)
+        V(ui, x, y, 5, middle)
+        V(ui, x, y, 6, low)
+        V(ui, x, y, 7, "..kkkk..")
+    }
+
+    -KeyIcon(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 0, ".kggGk..")
+        V(ui, x, y, 1, "kgk.kGk.")
+        V(ui, x, y, 2, "kgk.kGk.")
+        V(ui, x, y, 3, ".kggGk..")
+        V(ui, x, y, 4, "..kgk...")
+        V(ui, x, y, 5, "..kgkk..")
+        V(ui, x, y, 6, "..kggGk.")
+        V(ui, x, y, 7, "..kkkk..")
+    }
+
+    -ScrollIcon(QuaxelUi& ui, int x, int y)
+    {
+        V(ui, x, y, 0, ".kkkkkk.")
+        V(ui, x, y, 1, "keeeeeLk")
+        V(ui, x, y, 2, ".kecceLk")
+        V(ui, x, y, 3, ".keeeeLk")
+        V(ui, x, y, 4, ".kecceLk")
+        V(ui, x, y, 5, ".keeeeLk")
+        V(ui, x, y, 6, "keeeeLk.")
+        V(ui, x, y, 7, ".kkkkk..")
+    }
+}
+
+// Where things sit on the panel, in logical pixels. The arrangement is weapon and
+// shield on the sides, head and body up the middle, smaller pieces along the bottom.
+HellfeatherInventoryLayout
+#{
+    SlotRect(int slot, int& x, int& y, int& width, int& height)
+    {
+        x = 0
+        y = 0
+        width = 0
+        height = 0
+        if slot == HellfeatherSlot.MainHand { Set(10, 30, 36, 72, x, y, width, height) }
+        if slot == HellfeatherSlot.OffHand { Set(130, 30, 36, 72, x, y, width, height) }
+        if slot == HellfeatherSlot.Head { Set(70, 24, 36, 36, x, y, width, height) }
+        if slot == HellfeatherSlot.Neck { Set(110, 32, 18, 18, x, y, width, height) }
+        if slot == HellfeatherSlot.Body { Set(70, 64, 36, 52, x, y, width, height) }
+        if slot == HellfeatherSlot.Hands { Set(10, 112, 36, 36, x, y, width, height) }
+        if slot == HellfeatherSlot.LeftRing { Set(50, 126, 18, 18, x, y, width, height) }
+        if slot == HellfeatherSlot.Waist { Set(70, 126, 36, 18, x, y, width, height) }
+        if slot == HellfeatherSlot.RightRing { Set(108, 126, 18, 18, x, y, width, height) }
+        if slot == HellfeatherSlot.Feet { Set(130, 112, 36, 36, x, y, width, height) }
+    }
+
+    -Set(int a, int b, int c, int d, int& x, int& y, int& width, int& height)
+    {
+        x = a
+        y = b
+        width = c
+        height = d
+    }
+
+    // The equipment slot under a logical point, or -1.
+    int SlotAt(int px, int py)
+    {
+        for slot : 0; slot < HellfeatherSlot.Count; slot++ {
+            int x = 0
+            int y = 0
+            int width = 0
+            int height = 0
+            SlotRect(slot, x, y, width, height)
+            if px >= x && py >= y && px < x + width && py < y + height { return slot }
+        }
+        return -1
+    }
+}
+T{
+    SlotsDoNotOverlapAndStayOnThePanel()
+    {
+        for a : 0; a < HellfeatherSlot.Count; a++ {
+            int ax = 0
+            int ay = 0
+            int aw = 0
+            int ah = 0
+            HellfeatherInventoryLayout.SlotRect(a, ax, ay, aw, ah)
+            T.IsTrue(aw > 0 && ah > 0)
+            T.IsTrue(ax + aw <= HellfeatherInventoryArt.PanelWidth - 5)
+            T.IsTrue(ay + ah <= HellfeatherInventoryArt.GridY)
+            T.AreEqual(HellfeatherInventoryLayout.SlotAt(ax + 1, ay + 1), a)
+        }
+    }
+
+    SlotsAreLargeEnoughForTheirGear()
+    {
+        int [10] cellsWide = {2, 1, 2, 2, 2, 2, 1, 2, 1, 2}
+        int [10] cellsTall = {2, 1, 3, 3, 2, 2, 1, 1, 1, 2}
+        for slot : 0; slot < HellfeatherSlot.Count; slot++ {
+            int x = 0
+            int y = 0
+            int width = 0
+            int height = 0
+            HellfeatherInventoryLayout.SlotRect(slot, x, y, width, height)
+            T.IsTrue(width >= cellsWide[slot] * HellfeatherInventoryArt.Cell)
+            T.IsTrue(height >= cellsTall[slot] * HellfeatherInventoryArt.Cell)
+        }
+    }
+}
+
+// The window itself: opens with the I key against the right edge, draws over the
+// world and takes clicks. All its coordinates are on the UI pixel grid.
+HellfeatherInventoryScreen
+{
+    HellfeatherInventory Items
+    bool Open
+    -bool ArtReady
+    -bool MouseWasDown
+    -int Scale = 1
+    -int PanelX
+    -int PanelY
+
+    Toggle()
+    {
+        Open = !Open
+        if !Open { Items.StowHeld() }
+    }
+
+    // The warrior's starting kit.
+    Stock()
+    {
+        Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.BattleAxe
+        Items.Equipped[HellfeatherSlot.Body] = HellfeatherItems.LeatherArmor
+        Items.Equipped[HellfeatherSlot.Feet] = HellfeatherItems.Boots
+        int [14] kit = {HellfeatherItems.ShortSword, HellfeatherItems.RoundShield, HellfeatherItems.IronHelm, HellfeatherItems.Gloves, HellfeatherItems.Belt, HellfeatherItems.Ring, HellfeatherItems.Amulet, HellfeatherItems.HealthPotion, HellfeatherItems.HealthPotion, HellfeatherItems.HealthPotion, HellfeatherItems.ManaPotion, HellfeatherItems.ManaPotion, HellfeatherItems.RustyKey, HellfeatherItems.Scroll}
+        for i : 0; i < 14; i++ { Items.Add(kit[i]) }
+        Items.Gold = 127
+    }
+
+    // True when the mouse is over the panel or carrying an item, so the world
+    // should ignore its clicks.
+    bool Captures(int mouseX, int mouseY)
+    {
+        if !Open { return false }
+        if Items.Held != HellfeatherItems.None { return true }
+        int x = mouseX / Scale
+        int y = mouseY / Scale
+        return x >= PanelX && y >= PanelY && x < PanelX + HellfeatherInventoryArt.PanelWidth && y < PanelY + HellfeatherInventoryArt.PanelHeight
+    }
+
+    // Runs once per frame. Takes this frame's mouse and rebuilds the overlay.
+    Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool down)
+    {
+        if !ArtReady {
+            ArtReady = true
+            HellfeatherInventoryArt.Paint(ui)
+        }
+        ui.ClearOverlay()
+        bool pressed = down && !MouseWasDown
+        MouseWasDown = down
+        if !Open { return }
+        Scale = ui.ScaleFor(width, height)
+        PanelX = Math.Max(0, width / Scale - HellfeatherInventoryArt.PanelWidth - Margin)
+        PanelY = Math.Max(0, (height / Scale - HellfeatherInventoryArt.PanelHeight) / 2)
+        int gridMouseX = mouseX / Scale
+        int gridMouseY = mouseY / Scale
+        int pointerX = gridMouseX - PanelX
+        int pointerY = gridMouseY - PanelY
+        if pressed { Click(pointerX, pointerY) }
+        if Open { Draw(ui, gridMouseX, gridMouseY, pointerX, pointerY) }
+    }
+
+    -int HeldCellX(int pointerX)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(Items.Held)
+        return QuaxelNoise.FloorDiv(pointerX - HellfeatherInventoryArt.GridX - (kind.Width - 1) * HellfeatherInventoryArt.Cell / 2, HellfeatherInventoryArt.Cell)
+    }
+
+    -int HeldCellY(int pointerY)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(Items.Held)
+        return QuaxelNoise.FloorDiv(pointerY - HellfeatherInventoryArt.GridY - (kind.Height - 1) * HellfeatherInventoryArt.Cell / 2, HellfeatherInventoryArt.Cell)
+    }
+
+    -bool InGrid(int pointerX, int pointerY)
+    {
+        return pointerX >= HellfeatherInventoryArt.GridX && pointerY >= HellfeatherInventoryArt.GridY && pointerX < HellfeatherInventoryArt.GridX + HellfeatherInventory.Columns * HellfeatherInventoryArt.Cell && pointerY < HellfeatherInventoryArt.GridY + HellfeatherInventory.Rows * HellfeatherInventoryArt.Cell
+    }
+
+    -bool OnClose(int pointerX, int pointerY)
+    {
+        return pointerX >= HellfeatherInventoryArt.CloseX && pointerY >= HellfeatherInventoryArt.CloseY && pointerX < HellfeatherInventoryArt.CloseX + HellfeatherInventoryArt.CloseSize && pointerY < HellfeatherInventoryArt.CloseY + HellfeatherInventoryArt.CloseSize
+    }
+
+    -Click(int pointerX, int pointerY)
+    {
+        if OnClose(pointerX, pointerY) {
+            Toggle()
+            return
+        }
+        int slot = HellfeatherInventoryLayout.SlotAt(pointerX, pointerY)
+        if slot >= 0 {
+            Items.ClickSlot(slot)
+            return
+        }
+        if !InGrid(pointerX, pointerY) { return }
+        if Items.Held != HellfeatherItems.None {
+            Items.Drop(HeldCellX(pointerX), HeldCellY(pointerY))
+            return
+        }
+        Items.PickUp((pointerX - HellfeatherInventoryArt.GridX) / HellfeatherInventoryArt.Cell, (pointerY - HellfeatherInventoryArt.GridY) / HellfeatherInventoryArt.Cell)
+    }
+
+    -Icon(QuaxelUi& ui, int item, int x, int y)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        ui.OverlaySprite(x, y, HellfeatherInventoryArt.IconX(item), HellfeatherInventoryArt.IconY(item), kind.Width * HellfeatherInventoryArt.Cell, kind.Height * HellfeatherInventoryArt.Cell)
+    }
+
+    // From panel coordinates to the UI pixel grid.
+    -int OnGridX(int x) { return PanelX + x }
+
+    -int OnGridY(int y) { return PanelY + y }
+
+    -Highlight(QuaxelUi& ui, int x, int y, int width, int height, uint color)
+    {
+        ui.OverlayRect(OnGridX(x), OnGridY(y), width, height, color)
+    }
+
+    // Mouse values are on the UI pixel grid, and pointer values relative to the panel.
+    -Draw(QuaxelUi& ui, int mouseX, int mouseY, int pointerX, int pointerY)
+    {
+        ui.OverlaySprite(PanelX, PanelY, 0, 0, HellfeatherInventoryArt.PanelWidth, HellfeatherInventoryArt.PanelHeight)
+        string title = "INVENTORY"
+        ui.OverlayText(OnGridX((HellfeatherInventoryArt.PanelWidth - (int)Length(title) * 6) / 2), OnGridY(9), title, 0xFFE8B070)
+        for slot : 0; slot < HellfeatherSlot.Count; slot++ { DrawSlot(ui, slot, pointerX, pointerY) }
+        DrawBag(ui, pointerX, pointerY)
+        string gold = QuaxelUi.FormatInt(Items.Gold)
+        ui.OverlayText(OnGridX(HellfeatherInventoryArt.GoldX + HellfeatherInventoryArt.GoldWidth - 4 - (int)Length(gold) * 6), OnGridY(HellfeatherInventoryArt.GoldY + 5), gold, 0xFFDCAE3E)
+        DrawTooltip(ui, mouseX, mouseY, pointerX, pointerY)
+        if Items.Held != HellfeatherItems.None {
+            HellfeatherItemKind kind = HellfeatherItems.Get(Items.Held)
+            Icon(ui, Items.Held, mouseX - kind.Width * HellfeatherInventoryArt.Cell / 2, mouseY - kind.Height * HellfeatherInventoryArt.Cell / 2)
+        }
+    }
+
+    -DrawSlot(QuaxelUi& ui, int slot, int pointerX, int pointerY)
+    {
+        int x = 0
+        int y = 0
+        int slotWidth = 0
+        int slotHeight = 0
+        HellfeatherInventoryLayout.SlotRect(slot, x, y, slotWidth, slotHeight)
+        bool hovered = HellfeatherInventoryLayout.SlotAt(pointerX, pointerY) == slot
+        if hovered && Items.Held != HellfeatherItems.None {
+            Highlight(ui, x, y, slotWidth, slotHeight, Items.Accepts(slot, Items.Held) ? 0x5040C060 | 0x50C04030)
+        } else if hovered {
+            Highlight(ui, x, y, slotWidth, slotHeight, 0x30FFFFFF)
+        }
+        int item = Items.Equipped[slot]
+        if item == HellfeatherItems.None { return }
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        int iconX = x + (slotWidth - kind.Width * HellfeatherInventoryArt.Cell) / 2
+        int iconY = y + (slotHeight - kind.Height * HellfeatherInventoryArt.Cell) / 2
+        Icon(ui, item, OnGridX(iconX), OnGridY(iconY))
+    }
+
+    -DrawBag(QuaxelUi& ui, int pointerX, int pointerY)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        int gridX = HellfeatherInventoryArt.GridX
+        int gridY = HellfeatherInventoryArt.GridY
+        if Items.Held != HellfeatherItems.None && InGrid(pointerX, pointerY) {
+            HellfeatherItemKind held = HellfeatherItems.Get(Items.Held)
+            int x = HeldCellX(pointerX)
+            int y = HeldCellY(pointerY)
+            Highlight(ui, gridX + x * cell, gridY + y * cell, held.Width * cell, held.Height * cell, Items.CanDrop(x, y) ? 0x5040C060 | 0x50C04030)
+        }
+        for i : 0; i < Items.Bag.Len; i++ {
+            int item = Items.Bag[i].Item
+            int x = gridX + Items.Bag[i].X * cell
+            int y = gridY + Items.Bag[i].Y * cell
+            HellfeatherItemKind kind = HellfeatherItems.Get(item)
+            bool hovered = Items.Held == HellfeatherItems.None && InGrid(pointerX, pointerY) && Items.EntryAt((pointerX - gridX) / cell, (pointerY - gridY) / cell) == i
+            // A soft tint marks which cells an item fills.
+            Highlight(ui, x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, hovered ? 0x40FFFFFF | 0x28385070)
+            Icon(ui, item, OnGridX(x), OnGridY(y))
+        }
+    }
+
+    -DrawTooltip(QuaxelUi& ui, int mouseX, int mouseY, int pointerX, int pointerY)
+    {
+        if Items.Held != HellfeatherItems.None { return }
+        int item = HellfeatherItems.None
+        int slot = HellfeatherInventoryLayout.SlotAt(pointerX, pointerY)
+        if slot >= 0 { item = Items.Equipped[slot] }
+        else if InGrid(pointerX, pointerY) {
+            int entry = Items.EntryAt((pointerX - HellfeatherInventoryArt.GridX) / HellfeatherInventoryArt.Cell, (pointerY - HellfeatherInventoryArt.GridY) / HellfeatherInventoryArt.Cell)
+            if entry >= 0 { item = Items.Bag[entry].Item }
+        }
+        if item == HellfeatherItems.None { return }
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        int characters = (int)Math.Max(Length(kind.Name), Length(kind.Detail))
+        int boxWidth = characters * 6 + 12
+        int boxHeight = 26
+        // To the left of the cursor, since the panel sits against the right edge.
+        int x = Math.Max(2, mouseX - boxWidth - 6)
+        int y = Math.Max(2, mouseY - boxHeight - 3)
+        ui.OverlayRect(x - 1, y - 1, boxWidth + 2, boxHeight + 2, 0xFF625749)
+        ui.OverlayRect(x, y, boxWidth, boxHeight, 0xF0120F0D)
+        ui.OverlayText(x + 6, y + 4, kind.Name, 0xFFE8B070)
+        ui.OverlayText(x + 6, y + 15, kind.Detail, 0xFFC8CCD4)
+    }
+}
+@{
+    PanelScale: Scale
+    PanelLeft: PanelX
+    PanelTop: PanelY
+}
+#{
+    // UI pixels between the panel and the right edge of the window.
+    #int Margin = 4
+}
+T{
+    ClosedInventoryDrawsNothingAndIgnoresTheMouse()
+    {
+        HellfeatherInventoryScreen screen
+        QuaxelUi ui()
+        screen.Update(ui, 960, 540, 100, 100, true)
+        ui.Layout(960, 540, 0, 0, false)
+        T.AreEqual(ui.CommandCount, 0)
+        T.IsFalse(screen.Captures(100, 100))
+    }
+
+    OpenPanelHugsTheRightEdgeAndFitsTheWindow()
+    {
+        HellfeatherInventoryScreen screen
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Update(ui, 960, 540, 0, 0, false)
+        ui.Layout(960, 540, 0, 0, false)
+        QuaxelUiCommand panel = ui.GetCommand(0)
+        T.AreEqual(panel.X + panel.Width, 960 - 8)
+        T.AreEqual(panel.Width, 352)
+        T.IsTrue(panel.Y >= 0 && panel.Y + panel.Height <= 540)
+        T.AreEqual(panel.Cell, -2)
+        T.IsTrue(screen.Captures(800, 100))
+        T.IsFalse(screen.Captures(20, 100))
+    }
+
+    EveryInventoryPixelMatchesTheFontPixel()
+    {
+        HellfeatherInventoryScreen screen
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Stock()
+        screen.Toggle()
+        screen.Items.Held = HellfeatherItems.Ring
+        // The mouse is over the bag, which also draws the drop highlight.
+        screen.Update(ui, 1920, 1080, 1500, 800, false)
+        ui.Layout(1920, 1080, 1500, 800, false)
+        T.IsTrue(ui.CommandCount > 10)
+        for i : 0; i < ui.CommandCount; i++ {
+            QuaxelUiCommand command = ui.GetCommand(i)
+            T.IsTrue(command.Cell == 0 || command.Cell == 4 || command.Cell == -4)
+            T.AreEqual(command.X % 4, 0)
+            T.AreEqual(command.Y % 4, 0)
+        }
+    }
+
+    PanelGrowsWithALargerWindow()
+    {
+        HellfeatherInventoryScreen screen
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Update(ui, 1920, 1080, 0, 0, false)
+        T.AreEqual(screen.PanelScale, 4)
+        screen.Update(ui, 300, 200, 0, 0, false)
+        T.AreEqual(screen.PanelScale, 1)
+    }
+
+    ClickingMovesAnItemFromBagToSlot()
+    {
+        HellfeatherInventoryScreen screen
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Items.PutAt(HellfeatherItems.IronHelm, 0, 0)
+        screen.Toggle()
+        screen.Update(ui, 960, 540, 0, 0, false)
+        int s = screen.PanelScale
+        int left = screen.PanelLeft
+        int top = screen.PanelTop
+        // Click the helm in the first cell.
+        int bagX = (left + HellfeatherInventoryArt.GridX + 4) * s
+        int bagY = (top + HellfeatherInventoryArt.GridY + 4) * s
+        screen.Update(ui, 960, 540, bagX, bagY, true)
+        T.AreEqual(screen.Items.Held, HellfeatherItems.IronHelm)
+        screen.Update(ui, 960, 540, bagX, bagY, false)
+        // Holding down does not click twice.
+        int headX = (left + 80) * s
+        int headY = (top + 30) * s
+        screen.Update(ui, 960, 540, headX, headY, true)
+        screen.Update(ui, 960, 540, headX, headY, true)
+        T.AreEqual(screen.Items.Held, HellfeatherItems.None)
+        T.AreEqual(screen.Items.Equipped[HellfeatherSlot.Head], HellfeatherItems.IronHelm)
+    }
+
+    TheCloseButtonClosesAndStowsTheHeldItem()
+    {
+        HellfeatherInventoryScreen screen
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Items.Held = HellfeatherItems.Ring
+        screen.Update(ui, 960, 540, 0, 0, false)
+        int x = (screen.PanelLeft + HellfeatherInventoryArt.CloseX + 2) * screen.PanelScale
+        int y = (screen.PanelTop + HellfeatherInventoryArt.CloseY + 2) * screen.PanelScale
+        screen.Update(ui, 960, 540, x, y, true)
+        T.IsFalse(screen.Open)
+        T.AreEqual(screen.Items.Held, HellfeatherItems.None)
+        T.AreEqual(screen.Items.Bag.Len, 1)
+    }
+
+    TheStartingKitFitsInTheBag()
+    {
+        HellfeatherInventoryScreen screen
+        screen.Stock()
+        T.AreEqual(screen.Items.Bag.Len, 14)
+        T.AreEqual(screen.Items.Equipped[HellfeatherSlot.MainHand], HellfeatherItems.BattleAxe)
+    }
+
+    AHeldItemFollowsTheMouseAsTheLastThingDrawn()
+    {
+        HellfeatherInventoryScreen screen
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Items.Held = HellfeatherItems.BattleAxe
+        screen.Update(ui, 960, 540, 500, 300, false)
+        ui.Layout(960, 540, 0, 0, false)
+        QuaxelUiCommand last = ui.GetCommand(ui.CommandCount - 1)
+        T.IsTrue(last.Cell < 0)
+        T.AreEqual(last.X, 500 - 32)
+        T.AreEqual(last.Y, 300 - 48)
+    }
+}
