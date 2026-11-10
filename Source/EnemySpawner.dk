@@ -83,15 +83,15 @@ EnemyMember
     }
 }
 
-// One possible drop inside a LootTable. Item is a HellfeatherItems constant.
+// One possible drop inside a LootTable.
 LootItem
 {
-    int Item
+    HellfeatherItems Item
     int Weight = 1
 
     AddLootItem(EnemyTable& table)
     {
-        if Item <= HellfeatherItems.None || Item >= HellfeatherItems.Count { table.Fail("a LootItem has no valid Item") }
+        if Item == HellfeatherItems.None { table.Fail("a LootItem has no valid Item") }
         if Item == HellfeatherItems.Gold { table.Fail("a LootItem cannot be Gold, use GoldChance on the LootTable") }
         if Weight <= 0 { table.Fail("a LootItem needs a Weight above 0") }
         table.LootItems += this
@@ -299,7 +299,7 @@ HellfeatherEnemySpawner
     }
 
     // One roll of a loot table. Returns an item, or HellfeatherItems.None for no drop.
-    int RollLoot(int loot)
+    HellfeatherItems RollLoot(int loot)
     {
         if LootRandom.Unit() >= Table.Loots[loot].Chance { return HellfeatherItems.None }
         int roll = LootRandom.Below(Table.Loots[loot].TotalWeight)
@@ -467,7 +467,7 @@ T{
         int rings = 0
         int amulets = 0
         for i : 0; i < 4000; i++ {
-            int item = spawner.RollLoot(0)
+            item : spawner.RollLoot(0)
             if item == HellfeatherItems.None { nothing++ }
             else if item == HellfeatherItems.Ring { rings++ }
             else if item == HellfeatherItems.Amulet { amulets++ }
@@ -784,10 +784,10 @@ HellfeatherGame : QuaxelGameInstance
             float reach = Enemies[i].Radius + (float)HellfeatherEnemySpawner.SearchRings * HellfeatherEnemySpawner.SearchStep
             float x = Enemies[i].Home.X
             float z = Enemies[i].Home.Z
-            if Terrain.ColumnKind(Terrain.ColumnAt(x - reach), Terrain.ColumnAt(z - reach)) < 0 { return false }
-            if Terrain.ColumnKind(Terrain.ColumnAt(x + reach), Terrain.ColumnAt(z - reach)) < 0 { return false }
-            if Terrain.ColumnKind(Terrain.ColumnAt(x - reach), Terrain.ColumnAt(z + reach)) < 0 { return false }
-            if Terrain.ColumnKind(Terrain.ColumnAt(x + reach), Terrain.ColumnAt(z + reach)) < 0 { return false }
+            if Terrain.ColumnKind(Terrain.ColumnAt(x - reach), Terrain.ColumnAt(z - reach)) == QuaxelTerrainKind.Unloaded { return false }
+            if Terrain.ColumnKind(Terrain.ColumnAt(x + reach), Terrain.ColumnAt(z - reach)) == QuaxelTerrainKind.Unloaded { return false }
+            if Terrain.ColumnKind(Terrain.ColumnAt(x - reach), Terrain.ColumnAt(z + reach)) == QuaxelTerrainKind.Unloaded { return false }
+            if Terrain.ColumnKind(Terrain.ColumnAt(x + reach), Terrain.ColumnAt(z + reach)) == QuaxelTerrainKind.Unloaded { return false }
         }
         return true
     }

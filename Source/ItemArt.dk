@@ -74,7 +74,7 @@ HellfeatherItemArt
         return -1
     }
 
-    Draw(int item, HellfeatherItemPicture& p)
+    Draw(HellfeatherItems item, HellfeatherItemPicture& p)
     {
         if item == HellfeatherItems.BattleAxe { Axe(p) }
         else if item == HellfeatherItems.ShortSword { Sword(p) }
@@ -94,7 +94,7 @@ HellfeatherItemArt
     }
 
     // Potions and helmets stand up and are round. Everything else lies flat.
-    bool Stands(int item) { return item == HellfeatherItems.HealthPotion || item == HellfeatherItems.ManaPotion || item == HellfeatherItems.IronHelm }
+    bool Stands(HellfeatherItems item) { return item == HellfeatherItems.HealthPotion || item == HellfeatherItems.ManaPotion || item == HellfeatherItems.IronHelm }
 
     // Puffs a flat item up toward its middle, with dark lines pressed in.
     -int Relief(HellfeatherItemPicture& picture, int column, int row)
@@ -167,7 +167,7 @@ HellfeatherItemArt
     }
 
     // The volume for an item, or -1. Height is its size in voxels along Y.
-    int BuildModel(QuaxelWorld& world, int item, int& height)
+    int BuildModel(QuaxelWorld& world, HellfeatherItems item, int& height)
     {
         HellfeatherItemPicture picture
         Draw(item, picture)

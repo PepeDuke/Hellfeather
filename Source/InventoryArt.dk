@@ -34,7 +34,7 @@ HellfeatherInventoryArt
         PaintWells(ui)
         PaintClose(ui)
         PaintCoins(ui, GoldX + 3, GoldY + 3)
-        for item : 1; item < HellfeatherItems.Count; item++ { PaintIcon(ui, item, IconX(item), IconY(item)) }
+        for item : HellfeatherItems { if item != HellfeatherItems.None { PaintIcon(ui, item, IconX(item), IconY(item)) } }
         HellfeatherActionArt.Paint(ui)
     }
 
@@ -119,7 +119,7 @@ HellfeatherInventoryArt
 
     -PaintWells(QuaxelUi& ui)
     {
-        for slot : 0; slot < HellfeatherSlot.Count; slot++ {
+        for slot : HellfeatherSlot {
             int x = 0
             int y = 0
             int width = 0
@@ -176,7 +176,7 @@ HellfeatherInventoryArt
         }
     }
 
-    -PaintIcon(QuaxelUi& ui, int item, int x, int y)
+    -PaintIcon(QuaxelUi& ui, HellfeatherItems item, int x, int y)
     {
         HellfeatherItemPicture picture
         HellfeatherItemArt.Draw(item, picture)
@@ -217,7 +217,7 @@ HellfeatherInventoryLayout
     // The equipment slot under a logical point, or -1.
     int SlotAt(int px, int py)
     {
-        for slot : 0; slot < HellfeatherSlot.Count; slot++ {
+        for slot : HellfeatherSlot {
             int x = 0
             int y = 0
             int width = 0
@@ -231,7 +231,7 @@ HellfeatherInventoryLayout
 T{
     SlotsDoNotOverlapAndStayOnThePanel()
     {
-        for a : 0; a < HellfeatherSlot.Count; a++ {
+        for a : HellfeatherSlot {
             int ax = 0
             int ay = 0
             int aw = 0
@@ -248,7 +248,7 @@ T{
     {
         int [10] cellsWide = {2, 1, 2, 2, 2, 2, 1, 2, 1, 2}
         int [10] cellsTall = {2, 1, 3, 3, 2, 2, 1, 1, 1, 2}
-        for slot : 0; slot < HellfeatherSlot.Count; slot++ {
+        for slot : HellfeatherSlot {
             int x = 0
             int y = 0
             int width = 0
@@ -348,7 +348,7 @@ HellfeatherInventoryScreen
         }
         int slot = HellfeatherInventoryLayout.SlotAt(pointerX, pointerY)
         if slot >= 0 {
-            Items.ClickSlot(slot)
+            Items.ClickSlot((HellfeatherSlot)slot)
             return
         }
         if !InGrid(pointerX, pointerY) { return }
@@ -359,7 +359,7 @@ HellfeatherInventoryScreen
         Items.PickUp((pointerX - HellfeatherInventoryArt.GridX) / HellfeatherInventoryArt.Cell, (pointerY - HellfeatherInventoryArt.GridY) / HellfeatherInventoryArt.Cell)
     }
 
-    -Icon(QuaxelUi& ui, int item, int x, int y)
+    -Icon(QuaxelUi& ui, HellfeatherItems item, int x, int y)
     {
         HellfeatherItemKind kind = HellfeatherItems.Get(item)
         ui.OverlaySprite(x, y, HellfeatherInventoryArt.IconX(item), HellfeatherInventoryArt.IconY(item), kind.Width * HellfeatherInventoryArt.Cell, kind.Height * HellfeatherInventoryArt.Cell)
@@ -381,7 +381,7 @@ HellfeatherInventoryScreen
         ui.OverlaySprite(PanelX, PanelY, 0, 0, HellfeatherInventoryArt.PanelWidth, HellfeatherInventoryArt.PanelHeight)
         string title = "INVENTORY"
         ui.OverlayText(OnGridX((HellfeatherInventoryArt.PanelWidth - (int)Length(title) * 6) / 2), OnGridY(9), title, 0xFFE8B070)
-        for slot : 0; slot < HellfeatherSlot.Count; slot++ { DrawSlot(ui, slot, pointerX, pointerY) }
+        for slot : HellfeatherSlot { DrawSlot(ui, slot, pointerX, pointerY) }
         DrawBag(ui, pointerX, pointerY)
         string gold = QuaxelUi.FormatInt(Items.Gold)
         ui.OverlayText(OnGridX(HellfeatherInventoryArt.GoldX + HellfeatherInventoryArt.GoldWidth - 4 - (int)Length(gold) * 6), OnGridY(HellfeatherInventoryArt.GoldY + 5), gold, 0xFFDCAE3E)
@@ -392,7 +392,7 @@ HellfeatherInventoryScreen
         }
     }
 
-    -DrawSlot(QuaxelUi& ui, int slot, int pointerX, int pointerY)
+    -DrawSlot(QuaxelUi& ui, HellfeatherSlot slot, int pointerX, int pointerY)
     {
         int x = 0
         int y = 0
@@ -405,7 +405,7 @@ HellfeatherInventoryScreen
         } else if hovered {
             Highlight(ui, x, y, slotWidth, slotHeight, 0x30FFFFFF)
         }
-        int item = Items.Equipped[slot]
+        item : Items.Equipped[slot]
         if item == HellfeatherItems.None { return }
         HellfeatherItemKind kind = HellfeatherItems.Get(item)
         int iconX = x + (slotWidth - kind.Width * HellfeatherInventoryArt.Cell) / 2
@@ -425,7 +425,7 @@ HellfeatherInventoryScreen
             Highlight(ui, gridX + x * cell, gridY + y * cell, held.Width * cell, held.Height * cell, Items.CanDrop(x, y) ? 0x5040C060 | 0x50C04030)
         }
         for i : 0; i < Items.Bag.Len; i++ {
-            int item = Items.Bag[i].Item
+            item : Items.Bag[i].Item
             int x = gridX + Items.Bag[i].X * cell
             int y = gridY + Items.Bag[i].Y * cell
             HellfeatherItemKind kind = HellfeatherItems.Get(item)
@@ -439,7 +439,7 @@ HellfeatherInventoryScreen
     -DrawTooltip(QuaxelUi& ui, int mouseX, int mouseY, int pointerX, int pointerY)
     {
         if Items.Held != HellfeatherItems.None { return }
-        int item = HellfeatherItems.None
+        item : HellfeatherItems.None
         int slot = HellfeatherInventoryLayout.SlotAt(pointerX, pointerY)
         if slot >= 0 { item = Items.Equipped[slot] }
         else if InGrid(pointerX, pointerY) {
@@ -577,7 +577,7 @@ T{
         screen.Stock()
         T.AreEqual(screen.Items.Bag.Len, 0)
         T.AreEqual(screen.Items.Gold, 0)
-        for slot : 0; slot < HellfeatherSlot.Count; slot++ {
+        for slot : HellfeatherSlot {
             T.AreEqual(screen.Items.Equipped[slot], slot == HellfeatherSlot.MainHand ? HellfeatherItems.BattleAxe | HellfeatherItems.None)
         }
     }

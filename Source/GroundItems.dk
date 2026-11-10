@@ -2,7 +2,7 @@
 // Amount is how many coins a gold pile is worth.
 HellfeatherGroundItem
 {
-    int Item
+    HellfeatherItems Item
     int Amount
     int Node
     vec3 Position
@@ -34,7 +34,8 @@ HellfeatherGroundItems
     {
         Volumes += -1
         Heights += 0.0
-        for item : 1; item < HellfeatherItems.Count; item++ {
+        for item : HellfeatherItems {
+            if item == HellfeatherItems.None { continue }
             int height = 0
             int volume = HellfeatherItemArt.BuildModel(world, item, height)
             if volume < 0 { return false }
@@ -44,7 +45,7 @@ HellfeatherGroundItems
         return true
     }
 
-    int VolumeOf(int item) { return Volumes[item] }
+    int VolumeOf(HellfeatherItems item) { return Volumes[item] }
 
     // True when nothing else already lies right here.
     bool IsClear(float x, float z)
@@ -55,7 +56,7 @@ HellfeatherGroundItems
         return true
     }
 
-    bool Place(QuaxelWorld& world, int item, vec3 ground)
+    bool Place(QuaxelWorld& world, HellfeatherItems item, vec3 ground)
     {
         int node = world.CreateNode()
         float cell = HellfeatherItemArt.ModelVoxel
@@ -96,9 +97,9 @@ HellfeatherGroundItems
     }
 
     // Takes an entry off the ground and returns its item.
-    int Remove(QuaxelWorld& world, int index)
+    HellfeatherItems Remove(QuaxelWorld& world, int index)
     {
-        int item = Entries[index].Item
+        item : Entries[index].Item
         world.DestroyNode(Entries[index].Node)
         Entries -= [index]
         Hovered = -1
@@ -196,7 +197,8 @@ T{
     EveryItemHasAPictureAndAModel()
     {
         QuaxelWorld world()
-        for item : 1; item < HellfeatherItems.Count; item++ {
+        for item : HellfeatherItems {
+            if item == HellfeatherItems.None { continue }
             HellfeatherItemPicture picture
             HellfeatherItemArt.Draw(item, picture)
             T.IsTrue(picture.Rows.Len > 0 && picture.Width() > 0)

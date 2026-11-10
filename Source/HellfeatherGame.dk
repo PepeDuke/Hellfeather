@@ -14,9 +14,9 @@ HellfeatherGame : QuaxelGameInstance
     -bool RightMouseHeld
     -bool [5] SlotKeysHeld
     // The action a click or key asked for this step, or None.
-    -int RequestedAction
+    -HellfeatherAction RequestedAction
     // The swing in progress, which decides its reach and damage.
-    -int SwingAction
+    -HellfeatherAction SwingAction
     -float WarCrySeconds
     -float DashSeconds
     -vec3 DashDirection
@@ -261,7 +261,8 @@ HellfeatherGame : QuaxelGameInstance
     -SampleSlotKeys(QuaxelInputState& input)
     {
         QuaxelKey [5] keys = {QuaxelKey.Q, QuaxelKey.Q, QuaxelKey.Q, QuaxelKey.E, QuaxelKey.F}
-        for slot : HellfeatherActionSlot.Q; slot < HellfeatherActionSlot.Count; slot++ {
+        for slot : HellfeatherActionSlot {
+            if slot < HellfeatherActionSlot.Q { continue }
             bool down = input.IsDown(keys[slot])
             if down && !SlotKeysHeld[slot] { RequestSlot(slot) }
             SlotKeysHeld[slot] = down
@@ -269,10 +270,10 @@ HellfeatherGame : QuaxelGameInstance
     }
 
     // Asks for whatever action sits in a slot, to be used on the next step.
-    RequestSlot(int slot)
+    RequestSlot(HellfeatherActionSlot slot)
     {
         if PlayerHealth <= 0 { return }
-        int action = Actions.Slots.Assigned[slot]
+        action : Actions.Slots.Assigned[slot]
         if action != HellfeatherAction.None { RequestedAction = action }
     }
 
@@ -294,7 +295,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         HellfeatherActionMeans means
         means.Mana = PlayerMana
-        for action : 1; action < HellfeatherAction.Count; action++ {
+        for action : HellfeatherAction {
             HellfeatherActionKind kind = HellfeatherAction.Get(action)
             if kind.Item != HellfeatherItems.None { means.Stock[action] = Inventory.Items.CountOf(kind.Item) }
         }
@@ -302,7 +303,7 @@ HellfeatherGame : QuaxelGameInstance
     }
 
     // Pays for an action if it is ready: its mana, its cooldown and any potion it drinks.
-    bool Perform(int action)
+    bool Perform(HellfeatherAction action)
     {
         if !Actions.Slots.Ready(action, Means()) { return false }
         HellfeatherActionKind kind = HellfeatherAction.Get(action)
@@ -315,7 +316,7 @@ HellfeatherGame : QuaxelGameInstance
     // Actions that are not swings take effect at once, even mid-swing.
     -UseRequested(QuaxelWorld& world, vec3 direction)
     {
-        int action = RequestedAction
+        action : RequestedAction
         if action == HellfeatherAction.None || HellfeatherAction.IsSwing(action) { return }
         RequestedAction = HellfeatherAction.None
         if !Perform(action) { return }
@@ -379,7 +380,7 @@ HellfeatherGame : QuaxelGameInstance
         FaceAlong(world, visual, Math.Normalize(aim))
     }
 
-    -StrikeEnemies(QuaxelWorld& world, vec3 origin, int action)
+    -StrikeEnemies(QuaxelWorld& world, vec3 origin, HellfeatherAction action)
     {
         bool cleave = action == HellfeatherAction.Cleave
         float reach = cleave ? CleaveReach() | AxeReach()
@@ -408,7 +409,7 @@ HellfeatherGame : QuaxelGameInstance
         Enemies[index].LootDropped = true
         vec3 corpse = world.GetPosition(Enemies[index].Node)
         for roll : 0; roll < Spawner.Table.Loots[loot].Rolls; roll++ {
-            int item = Spawner.RollLoot(loot)
+            item : Spawner.RollLoot(loot)
             if item == HellfeatherItems.None { continue }
             Ground.Place(world, item, DropSpotAround(corpse))
             int gold = Spawner.RollGold(loot)
@@ -551,7 +552,7 @@ HellfeatherGame : QuaxelGameInstance
     // Moves the item on the cursor to the ground beside the warrior.
     bool DropHeld(QuaxelWorld& world)
     {
-        int item = Inventory.Items.Held
+        item : Inventory.Items.Held
         if item == HellfeatherItems.None || !Ground.Place(world, item, DropSpotAround(world.GetPosition(PlayerNode))) { return false }
         Inventory.Items.Held = HellfeatherItems.None
         return true

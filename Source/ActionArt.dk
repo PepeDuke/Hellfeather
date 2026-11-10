@@ -49,7 +49,7 @@ HellfeatherActionArt
     // The slot under a point on the bar, or -1.
     int SlotAt(int px, int py)
     {
-        for slot : 0; slot < HellfeatherActionSlot.Count; slot++ {
+        for slot : HellfeatherActionSlot {
             int x = 0
             int y = 0
             int width = 0
@@ -76,8 +76,8 @@ HellfeatherActionArt
         PaintFeathers(ui, -1)
         PaintFeathers(ui, 1)
         PaintBody(ui)
-        for slot : 0; slot < HellfeatherActionSlot.Count; slot++ { PaintSlot(ui, slot) }
-        for action : 1; action < HellfeatherAction.Count; action++ { PaintIcon(ui, action, IconX(action), IconY(action)) }
+        for slot : HellfeatherActionSlot { PaintSlot(ui, slot) }
+        for action : HellfeatherAction { if action != HellfeatherAction.None { PaintIcon(ui, action, IconX(action), IconY(action)) } }
         PaintLock(ui, LockX, IconAtlasY)
     }
 
@@ -316,7 +316,7 @@ HellfeatherActionArt
 T{
     SlotsSitOnTheBarWithoutOverlapping()
     {
-        for a : 0; a < HellfeatherActionSlot.Count; a++ {
+        for a : HellfeatherActionSlot {
             int x = 0
             int y = 0
             int width = 0
@@ -336,7 +336,8 @@ T{
         HellfeatherInventoryArt.Paint(ui)
         T.IsTrue(HellfeatherActionArt.BarAtlasY >= HellfeatherInventoryArt.PanelHeight)
         T.IsTrue(HellfeatherActionArt.IconAtlasY >= HellfeatherActionArt.BarAtlasY + HellfeatherActionArt.BarHeight)
-        int last = HellfeatherActionArt.IconX(HellfeatherAction.Count - 1) + HellfeatherActionArt.Icon
+        int last = 0
+        for action : HellfeatherAction { last = Math.Max(last, HellfeatherActionArt.IconX(action) + HellfeatherActionArt.Icon) }
         T.IsTrue(last <= HellfeatherActionArt.LockX)
         // The stone under the first slot's well and the axe icon are both painted.
         T.IsTrue(ui.AtlasTexel(HellfeatherActionArt.BodyLeft + 6, HellfeatherActionArt.BarAtlasY + 30) != (uint)0)

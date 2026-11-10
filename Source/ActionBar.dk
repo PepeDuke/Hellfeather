@@ -81,7 +81,7 @@ HellfeatherActionBar
         int x = pointerX - PickerX() - PickerPad
         if x < 0 { return -1 }
         int action = x / Entry
-        return action < HellfeatherAction.Count ? action | -1
+        return IsValid((HellfeatherAction)action) ? action | -1
     }
 
     -int SlotUnder(int pointerX, int pointerY) { return HellfeatherActionArt.SlotAt(pointerX - BarX, pointerY - BarY) }
@@ -95,7 +95,7 @@ HellfeatherActionBar
         }
         int action = EntryAt(pointerX, pointerY)
         if action >= 0 {
-            if Slots.Assign(Picking, action) { Picking = -1 }
+            if Slots.Assign((HellfeatherActionSlot)Picking, (HellfeatherAction)action) { Picking = -1 }
             return
         }
         if OverPicker(pointerX, pointerY) { return }
@@ -106,7 +106,7 @@ HellfeatherActionBar
     -Draw(QuaxelUi& ui, int pointerX, int pointerY, HellfeatherActionMeans means)
     {
         ui.OverlaySprite(BarX, BarY, 0, HellfeatherActionArt.BarAtlasY, HellfeatherActionArt.BarWidth, HellfeatherActionArt.BarHeight)
-        for slot : 0; slot < HellfeatherActionSlot.Count; slot++ { DrawSlot(ui, slot, pointerX, pointerY, means) }
+        for slot : HellfeatherActionSlot { DrawSlot(ui, slot, pointerX, pointerY, means) }
         DrawKeys(ui)
         if Picking >= 0 { DrawPicker(ui, pointerX, pointerY) }
         else if Slots.LearnedSeconds > 0.0 { DrawLearned(ui) }
@@ -145,7 +145,7 @@ HellfeatherActionBar
         int size = HellfeatherActionArt.Icon
         int iconX = x + (width - size) / 2
         int iconY = y + (height - size) / 2
-        int action = Slots.Assigned[slot]
+        action : Slots.Assigned[slot]
         if action != HellfeatherAction.None {
             Icon(ui, action, iconX, iconY)
             HellfeatherActionKind kind = HellfeatherAction.Get(action)
@@ -165,7 +165,8 @@ HellfeatherActionBar
     -DrawKeys(QuaxelUi& ui)
     {
         string [5] labels = {"", "", "Q", "E", "F"}
-        for slot : HellfeatherActionSlot.Q; slot < HellfeatherActionSlot.Count; slot++ {
+        for slot : HellfeatherActionSlot {
+            if slot < HellfeatherActionSlot.Q { continue }
             ui.OverlayText(BarX + HellfeatherActionArt.KeyX(slot) + 5, BarY + HellfeatherActionArt.KeyY + 1, labels[slot], 0xFFD8C8A8)
         }
     }
@@ -179,7 +180,7 @@ HellfeatherActionBar
         ui.OverlayRect(x + PickerPad, y + PickerTitle - 3, PickerWidth - PickerPad * 2, 1, 0xFF8A2F12)
         Shadowed(ui, x + PickerPad, y + 3, "ACTIONS", 0xFFE8B070)
         int hovered = EntryAt(pointerX, pointerY)
-        for action : 0; action < HellfeatherAction.Count; action++ {
+        for action : HellfeatherAction {
             int entryX = EntryX(action)
             int entryY = EntryY()
             ui.OverlayRect(entryX, entryY, Entry, Entry, 0xFF0A0908)
@@ -210,7 +211,7 @@ HellfeatherActionBar
             if slot >= 0 && Slots.Assigned[slot] != HellfeatherAction.None { action = Slots.Assigned[slot] }
         }
         if action < 0 { return }
-        HellfeatherActionKind kind = HellfeatherAction.Get(action)
+        HellfeatherActionKind kind = HellfeatherAction.Get((HellfeatherAction)action)
         string detail = kind.Detail
         if !Slots.Known[action] { detail = "Slay " + QuaxelUi.FormatInt(kind.LearnKills - Slots.Kills) + " more to learn" }
         int characters = (int)Math.Max(Length(kind.Name), Length(detail))
