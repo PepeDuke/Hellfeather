@@ -1,0 +1,70 @@
+{
+  "style": "item icon, centered, dark fantasy RPG, isolated on a plain white background, no shadow",
+  "seed": 7,
+  "items": {
+    "BattleAxe": {
+      "prompt": "a double-bladed steel battle axe with a long wooden handle wrapped in leather, vertical",
+      "colors": "SsdDWwnLlcgGH"
+    },
+    "ShortSword": {
+      "prompt": "a short steel sword with a gold crossguard and leather wrapped grip, vertical, point up",
+      "colors": "SsdDLlcgGHWwn",
+      "shadow": false
+    },
+    "RoundShield": {
+      "prompt": "a round wooden shield with a steel rim and a steel boss in the middle, front view",
+      "colors": "SsdDWwnLlgGQ"
+    },
+    "IronHelm": {
+      "prompt": "an empty iron helmet with a gold band and a nose guard, no horns, no face, front view",
+      "colors": "SsdDgGHc"
+    },
+    "LeatherArmor": {
+      "prompt": "a brown leather chest armor vest with gold studs, front view",
+      "colors": "QLlcWwngGH"
+    },
+    "Gloves": {
+      "prompt": "a pair of brown hide leather gloves with fur cuffs",
+      "colors": "QLlcWwngGeE"
+    },
+    "Boots": {
+      "prompt": "a single worn brown leather boot, side view",
+      "colors": "QLlcWwngG"
+    },
+    "Belt": {
+      "prompt": "a brown leather belt with a gold buckle, horizontal",
+      "colors": "QLlcwngGHvV"
+    },
+    "Ring": {
+      "prompt": "a silver ring with a cyan gem",
+      "colors": "SsdDvVI",
+      "shadow": false
+    },
+    "Amulet": {
+      "prompt": "a gold amulet pendant with a glowing orange ember gem, no chain",
+      "colors": "gGHRromy",
+      "crop_top": 0.5
+    },
+    "HealthPotion": {
+      "prompt": "a round glass potion bottle filled with red liquid with a cork",
+      "colors": "RrmPSsdWwl"
+    },
+    "ManaPotion": {
+      "prompt": "a round glass potion bottle filled with blue liquid with a cork",
+      "colors": "BbuASsdWwl"
+    },
+    "RustyKey": {
+      "prompt": "an old rusty iron key, diagonal",
+      "colors": "LlcwnWdDso",
+      "rotate": -45
+    },
+    "Scroll": {
+      "prompt": "a rolled parchment scroll",
+      "colors": "eELlwcQ"
+    },
+    "Gold": {
+      "prompt": "three gold coins lying in a small pile",
+      "colors": "gGHc"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 // Paints the action bar into the bottom half of the shared sprite atlas: a stone
 // bar framed in iron with a fan of black, ember-tipped feathers at each end, and
 // one icon per action. Icons are 8 x 8 voxels, each two logical pixels wide and
-// lit like the inventory's, over a glow in the action's color.
+// flat like the inventory's, over a glow in the action's color.
 HellfeatherActionArt
 #{
     #int BarAtlasY = 256
@@ -223,10 +223,8 @@ HellfeatherActionArt
     {
         PaintGlow(ui, action, x, y)
         if action == HellfeatherAction.HealthPotion || action == HellfeatherAction.ManaPotion {
-            // The potions are the inventory's own drawings, eight voxels square too.
-            HellfeatherItemPicture potion
-            HellfeatherItemArt.Draw(action == HellfeatherAction.HealthPotion ? HellfeatherItems.HealthPotion | HellfeatherItems.ManaPotion, potion)
-            for row : 0; row < potion.Rows.Len; row++ { HellfeatherInventoryArt.V(ui, x, y, row, potion.Rows[row]) }
+            // The potions are the inventory's own drawings, sixteen pixels square too.
+            HellfeatherInventoryArt.Picture(ui, action == HellfeatherAction.HealthPotion ? HellfeatherItems.HealthPotion | HellfeatherItems.ManaPotion, x, y)
             return
         }
         HellfeatherItemPicture picture

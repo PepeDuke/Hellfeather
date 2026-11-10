@@ -1,5 +1,5 @@
 // Paints the inventory into the sprite atlas: a wall of stone blocks and item
-// icons built from small lit voxels. Coordinates are logical pixels.
+// icons drawn as flat pixel art. Coordinates are logical pixels.
 HellfeatherInventoryArt
 #{
     #int AtlasWidth = 512
@@ -17,8 +17,13 @@ HellfeatherInventoryArt
     #int CloseX = 158
     #int CloseY = 7
     #int CloseSize = 11
-    // Each icon pixel in the art below is one voxel, two logical pixels wide.
+    // Each cell of the coin and action art is two logical pixels wide. Item
+    // pictures are drawn at twice that detail, one logical pixel per cell.
     #int VoxelPixels = 2
+    #int ItemPixels = 1
+    // Item pictures carry only their colors. The UI shader draws this one-pixel
+    // border around them, in the clear margin each picture keeps.
+    #uint IconOutline = 0xFF15110E
 
     int IconX(int item) { return 190 + ((item - 1) % 9) * 34 }
 
@@ -159,29 +164,29 @@ HellfeatherInventoryArt
         V(ui, x, y, 5, "..kkkk..")
     }
 
-    // One row of voxels. Each is lit on its top left and shaded on its bottom right.
-    V(QuaxelUi& ui, int x, int y, int row, string text)
+    // One row of art. Each cell is a flat square of its color, so the drawing reads
+    // as clean pixel art; the shading lives in the drawing itself.
+    V(QuaxelUi& ui, int x, int y, int row, string text) { Cells(ui, x, y, row, text, VoxelPixels) }
+
+    // One row of art with cells of the given size in logical pixels.
+    Cells(QuaxelUi& ui, int x, int y, int row, string text, int size)
     {
         for i : (long)0; i < Length(text); i++ {
-            int code = (int)CodeUnitAt(text, i)
-            int rgb = HellfeatherItemArt.ColorOf(code)
+            int rgb = HellfeatherItemArt.ColorOf((int)CodeUnitAt(text, i))
             if rgb < 0 { continue }
-            int left = x + (int)i * VoxelPixels
-            int top = y + row * VoxelPixels
-            bool outline = code == 107
-            Put(ui, left, top, outline ? rgb | HellfeatherArt.Shade(rgb, 128))
-            Put(ui, left + 1, top, rgb)
-            Put(ui, left, top + 1, rgb)
-            Put(ui, left + 1, top + 1, outline ? rgb | HellfeatherArt.Shade(rgb, 68))
+            Fill(ui, x + (int)i * size, y + row * size, size, size, rgb)
         }
     }
 
-    -PaintIcon(QuaxelUi& ui, HellfeatherItems item, int x, int y)
+    // Paints an item's picture at one logical pixel per cell.
+    Picture(QuaxelUi& ui, HellfeatherItems item, int x, int y)
     {
         HellfeatherItemPicture picture
         HellfeatherItemArt.Draw(item, picture)
-        for row : 0; row < picture.Rows.Len; row++ { V(ui, x, y, row, picture.Rows[row]) }
+        for row : 0; row < picture.Rows.Len; row++ { Cells(ui, x, y, row, picture.Rows[row], ItemPixels) }
     }
+
+    -PaintIcon(QuaxelUi& ui, HellfeatherItems item, int x, int y) { Picture(ui, item, x, y) }
 }
 
 // Where things sit on the panel, in logical pixels. The arrangement is weapon and
@@ -362,7 +367,7 @@ HellfeatherInventoryScreen
     -Icon(QuaxelUi& ui, HellfeatherItems item, int x, int y)
     {
         HellfeatherItemKind kind = HellfeatherItems.Get(item)
-        ui.OverlaySprite(x, y, HellfeatherInventoryArt.IconX(item), HellfeatherInventoryArt.IconY(item), kind.Width * HellfeatherInventoryArt.Cell, kind.Height * HellfeatherInventoryArt.Cell)
+        ui.OverlayOutlinedSprite(x, y, HellfeatherInventoryArt.IconX(item), HellfeatherInventoryArt.IconY(item), kind.Width * HellfeatherInventoryArt.Cell, kind.Height * HellfeatherInventoryArt.Cell, HellfeatherInventoryArt.IconOutline)
     }
 
     // From panel coordinates to the UI pixel grid.

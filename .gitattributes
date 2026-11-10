@@ -1,3 +1,4 @@
 *.dk linguist-language=Duck
 *.dkp linguist-language=Duck
 *.qvox filter=lfs diff=lfs merge=lfs -text
+*.png filter=lfs diff=lfs merge=lfs -text

@@ -45,8 +45,11 @@ HellfeatherItemPicture
 
 HellfeatherItemArt
 #{
-    // World units per picture cell of a model.
-    #float ModelVoxel = 0.0625
+    // World units per picture cell of a model. Pictures are drawn at one screen
+    // pixel per cell, so cells are half the size of the world's fine voxels.
+    #float ModelVoxel = 0.03125
+    // How many voxels a flat item rises at its thickest.
+    #int Thickness = 8
 
     int ColorOf(int code)
     {
@@ -71,43 +74,36 @@ HellfeatherItemArt
         if code == 111 { return 0xe2561c } // o: ember
         if code == 121 { return 0xf6c64a } // y: flame
         if code == 97 { return 0xb8e0ff } // a: wind
+        // Deeper and brighter steps, so each material shades in three or four tones.
+        if code == 68 { return 0x33383c } // D: darkest steel
+        if code == 110 { return 0x4a2c18 } // n: dark wood
+        if code == 72 { return 0xfbe7a1 } // H: gold highlight
+        if code == 81 { return 0xc99a64 } // Q: leather highlight
+        if code == 69 { return 0xa8946c } // E: shaded bone
+        if code == 80 { return 0xf9a08c } // P: red highlight
+        if code == 65 { return 0xbfe0ff } // A: blue highlight
+        if code == 117 { return 0x16245e } // u: deep blue
+        if code == 86 { return 0x1f7d99 } // V: dark gem
+        if code == 73 { return 0xd8fbff } // I: gem highlight
         return -1
-    }
-
-    Draw(HellfeatherItems item, HellfeatherItemPicture& p)
-    {
-        if item == HellfeatherItems.BattleAxe { Axe(p) }
-        else if item == HellfeatherItems.ShortSword { Sword(p) }
-        else if item == HellfeatherItems.RoundShield { Shield(p) }
-        else if item == HellfeatherItems.IronHelm { Helm(p) }
-        else if item == HellfeatherItems.LeatherArmor { Armor(p) }
-        else if item == HellfeatherItems.Gloves { GloveIcon(p) }
-        else if item == HellfeatherItems.Boots { BootIcon(p) }
-        else if item == HellfeatherItems.Belt { BeltIcon(p) }
-        else if item == HellfeatherItems.Ring { RingIcon(p) }
-        else if item == HellfeatherItems.Amulet { AmuletIcon(p) }
-        else if item == HellfeatherItems.HealthPotion { Potion(p, true) }
-        else if item == HellfeatherItems.ManaPotion { Potion(p, false) }
-        else if item == HellfeatherItems.RustyKey { KeyIcon(p) }
-        else if item == HellfeatherItems.Scroll { ScrollIcon(p) }
-        else if item == HellfeatherItems.Gold { GoldIcon(p) }
     }
 
     // Potions and helmets stand up and are round. Everything else lies flat.
     bool Stands(HellfeatherItems item) { return item == HellfeatherItems.HealthPotion || item == HellfeatherItems.ManaPotion || item == HellfeatherItems.IronHelm }
 
     // Puffs a flat item up toward its middle, with dark lines pressed in.
+    // Cells within two of an edge rise half as high, within four three quarters.
     -int Relief(HellfeatherItemPicture& picture, int column, int row)
     {
-        int rise = 4
-        for ring : 2; ring >= 1; ring-- {
+        int rise = Thickness
+        for ring : 4; ring >= 1; ring-- {
             for a : -ring; a <= ring; a++ {
                 for b : -ring; b <= ring; b++ {
-                    if !picture.IsSolid(column + a, row + b) { rise = ring + 1 }
+                    if !picture.IsSolid(column + a, row + b) { rise = ring <= 2 ? Thickness / 2 | Thickness * 3 / 4 }
                 }
             }
         }
-        return picture.Code(column, row) == 107 ? Math.Max(rise - 1, 1) | rise
+        return picture.Code(column, row) == 107 ? Math.Max(rise - 2, 2) | rise
     }
 
     -int FirstRow(HellfeatherItemPicture& picture)
@@ -129,7 +125,7 @@ HellfeatherItemArt
         int first = FirstRow(picture)
         int last = LastRow(picture)
         int width = picture.Width()
-        height = 4
+        height = Thickness
         int volume = world.CreateVolume(width, height, last - first + 1)
         if volume < 0 { return -1 }
         for row : first; row <= last; row++ {
@@ -173,219 +169,5 @@ HellfeatherItemArt
         Draw(item, picture)
         if Stands(item) { return Revolve(world, picture, height) }
         return Lay(world, picture, height)
-    }
-
-    -Axe(HellfeatherItemPicture& p)
-    {
-        p.Row(0, "..kk...kk...kk..")
-        p.Row(1, ".kSSk.kWWk.kSSk.")
-        p.Row(2, "kSSSSkkWWkkSSSSk")
-        p.Row(3, "kSSsssgWWgsssSSk")
-        p.Row(4, "kSsssdgWWgdsssSk")
-        p.Row(5, "kSsddkkWWkkddsSk")
-        p.Row(6, ".kddk.kWWk.kddk.")
-        p.Row(7, "..kk..kWWk..kk..")
-        for row : 8; row < 15; row++ { p.Row(row, "......kWwk......") }
-        for row : 15; row < 21; row++ { p.Row(row, row % 2 == 0 ? "......kLlk......" | "......klLk......") }
-        p.Row(21, ".....kggGGk.....")
-        p.Row(22, "......kGGk......")
-        p.Row(23, ".......kk.......")
-    }
-
-    -Sword(HellfeatherItemPicture& p)
-    {
-        p.Row(0, "...kk...")
-        p.Row(1, "..kSsk..")
-        for row : 2; row < 15; row++ { p.Row(row, "..kSsk..") }
-        p.Row(15, "kkkkkkkk")
-        p.Row(16, "kgggGGGk")
-        p.Row(17, "kkkkkkkk")
-        for row : 18; row < 22; row++ { p.Row(row, row % 2 == 0 ? "..kLlk.." | "..klLk..") }
-        p.Row(22, "..kggk..")
-        p.Row(23, "...kk...")
-    }
-
-    -Shield(HellfeatherItemPicture& p)
-    {
-        p.Row(0, "....kkkkkkkk....")
-        p.Row(1, "..kkssssssddkk..")
-        p.Row(2, ".ksswWWWWWwwddk.")
-        p.Row(3, ".kswWWWwwWWWwdk.")
-        p.Row(4, "ksWWWWwggwWWWwdk")
-        p.Row(5, "ksWWWwgSSgwWWwdk")
-        p.Row(6, "ksWWwgSssdgwWwdk")
-        p.Row(7, "ksWWwgSsddgwWwdk")
-        p.Row(8, "ksWWwgSsddgwWwdk")
-        p.Row(9, "ksWWwgsdddgwWwdk")
-        p.Row(10, "ksWWWwgddgwWWwdk")
-        p.Row(11, "ksWWWWwggwWWWwdk")
-        p.Row(12, ".kswWWWwwWWWwdk.")
-        p.Row(13, ".ksswWWWWWwwddk.")
-        p.Row(14, "..kkssssddddkk..")
-        p.Row(15, "....kkkkkkkk....")
-    }
-
-    -Helm(HellfeatherItemPicture& p)
-    {
-        p.Row(1, ".......kk.......")
-        p.Row(2, ".....kkSskk.....")
-        p.Row(3, "...kkSSSssdkk...")
-        p.Row(4, "..kSSSSsssddk...")
-        p.Row(5, ".kSSSSssssdddk..")
-        p.Row(6, ".kSSSsssssdddk..")
-        p.Row(7, "kgggggggggGGGGk.")
-        p.Row(8, "kSSsssgssssdddk.")
-        p.Row(9, "kSsskkgkkksdddk.")
-        p.Row(10, "kSskk.g..kksddk.")
-        p.Row(11, "kSsk..g...ksddk.")
-        p.Row(12, "kSsk..k...ksddk.")
-        p.Row(13, ".kk.......kkkk..")
-    }
-
-    -Armor(HellfeatherItemPicture& p)
-    {
-        p.Row(0, "...kkk....kkk...")
-        p.Row(1, "..klLLk..kLLlk..")
-        p.Row(2, ".kLLLLLkkLLLllk.")
-        p.Row(3, "kLLLLLLccLLLlllk")
-        p.Row(4, "kLLLLlLccLlLlllk")
-        p.Row(5, "kLLlkLLLLLLklllk")
-        p.Row(6, "kLlkkLLLLlLkklck")
-        p.Row(7, "kLlkkLgLLLgkklck")
-        p.Row(8, "kLlkkLLLLlLkklck")
-        p.Row(9, "kLlkkLgLLLgkklck")
-        p.Row(10, ".kk.kLLLLlLk.kk.")
-        p.Row(11, "....kLgLLLgk....")
-        p.Row(12, "....kLLLLlLk....")
-        p.Row(13, "....kLgLLLgk....")
-        p.Row(14, "....kLLLLllk....")
-        p.Row(15, "....kGggggGk....")
-        p.Row(16, "...kLLLLLLllk...")
-        p.Row(17, "...kLLLLlLllk...")
-        p.Row(18, "...kLLLkklllk...")
-        p.Row(19, "..kLLLlkkclllk..")
-        p.Row(20, "..kLLlk..kcllk..")
-        p.Row(21, "..kLllk..kcllk..")
-        p.Row(22, "...kkk....kkk...")
-    }
-
-    -GloveIcon(HellfeatherItemPicture& p)
-    {
-        p.Row(1, "..kk.kk.kk.kk...")
-        p.Row(2, ".kLLkLLkLLkLlk..")
-        p.Row(3, ".kLlkLlkLlkLlk..")
-        p.Row(4, ".kLlkLlkLlkLlk..")
-        p.Row(5, ".kLlkLlkLlkLlkk.")
-        p.Row(6, ".kLLLLLLLLLLlklk")
-        p.Row(7, ".kLLLLLLLLLlllLk")
-        p.Row(8, ".kLLLLLLLLllLlk.")
-        p.Row(9, ".kLLLLLLLlllkk..")
-        p.Row(10, "..kLLLLlllllk...")
-        p.Row(11, "..kgggggGGGGk...")
-        p.Row(12, "..kcclccclcck...")
-        p.Row(13, "..kcclccclcck...")
-        p.Row(14, "...kkkkkkkkk....")
-    }
-
-    -BootIcon(HellfeatherItemPicture& p)
-    {
-        p.Row(0, "...kkkkkkkk.....")
-        p.Row(1, "...kgggGGGk.....")
-        p.Row(2, "...kLLLlllk.....")
-        p.Row(3, "...kLLLlllk.....")
-        p.Row(4, "...kLLlLllk.....")
-        p.Row(5, "...kLLLlllk.....")
-        p.Row(6, "...kLlLlllk.....")
-        p.Row(7, "...kLLLlllkkk...")
-        p.Row(8, "...kLLLllllLlkk.")
-        p.Row(9, "...kLLLlllllLLlk")
-        p.Row(10, "...kLLLllllllLLk")
-        p.Row(11, "...kLLLlllllllLk")
-        p.Row(12, "...kcccccccccclk")
-        p.Row(13, "...kkkkkkkkkkkk.")
-    }
-
-    -BeltIcon(HellfeatherItemPicture& p)
-    {
-        p.Row(1, "kkkkkkkkkkkkkkkk")
-        p.Row(2, "kLLLLlkgggkLLlLk")
-        p.Row(3, "kLlLLlkgkgkkkllk")
-        p.Row(4, "klllllkgGGklllck")
-        p.Row(5, "kkkkkkkkkkkkkkkk")
-    }
-
-    -RingIcon(HellfeatherItemPicture& p)
-    {
-        p.Row(0, "...kk...")
-        p.Row(1, "..kvvk..")
-        p.Row(2, ".kSvvsk.")
-        p.Row(3, "kSk..dsk")
-        p.Row(4, "kSk..dsk")
-        p.Row(5, "kSk..dsk")
-        p.Row(6, ".kSsdsk.")
-        p.Row(7, "..kkkk..")
-    }
-
-    -AmuletIcon(HellfeatherItemPicture& p)
-    {
-        p.Row(0, ".G....G.")
-        p.Row(1, "..G..G..")
-        p.Row(2, "...GG...")
-        p.Row(3, "..kggk..")
-        p.Row(4, ".kgRrGk.")
-        p.Row(5, ".kgrmGk.")
-        p.Row(6, "..kGGk..")
-        p.Row(7, "...kk...")
-    }
-
-    -Potion(HellfeatherItemPicture& p, bool health)
-    {
-        string bright = health ? "kRRrrrrk" | "kBBbbbbk"
-        string middle = health ? "kRrrrrmk" | "kBbbbbck"
-        string low = health ? ".krrrmk." | ".kbbbck."
-        p.Row(0, "..kwwk..")
-        p.Row(1, "..kkkk..")
-        p.Row(2, "..kSsk..")
-        p.Row(3, ".kSSssk.")
-        p.Row(4, bright)
-        p.Row(5, middle)
-        p.Row(6, low)
-        p.Row(7, "..kkkk..")
-    }
-
-    -KeyIcon(HellfeatherItemPicture& p)
-    {
-        p.Row(0, ".kggGk..")
-        p.Row(1, "kgk.kGk.")
-        p.Row(2, "kgk.kGk.")
-        p.Row(3, ".kggGk..")
-        p.Row(4, "..kgk...")
-        p.Row(5, "..kgkk..")
-        p.Row(6, "..kggGk.")
-        p.Row(7, "..kkkk..")
-    }
-
-    -GoldIcon(HellfeatherItemPicture& p)
-    {
-        p.Row(0, "..kkk...")
-        p.Row(1, ".kggGkk.")
-        p.Row(2, ".kgGkggk")
-        p.Row(3, "..kkkgGk")
-        p.Row(4, ".kggkkk.")
-        p.Row(5, "kgggGGk.")
-        p.Row(6, "kgGGGGk.")
-        p.Row(7, ".kkkkk..")
-    }
-
-    -ScrollIcon(HellfeatherItemPicture& p)
-    {
-        p.Row(0, ".kkkkkk.")
-        p.Row(1, "keeeeeLk")
-        p.Row(2, ".kecceLk")
-        p.Row(3, ".keeeeLk")
-        p.Row(4, ".kecceLk")
-        p.Row(5, ".keeeeLk")
-        p.Row(6, "keeeeLk.")
-        p.Row(7, ".kkkkk..")
     }
 }
