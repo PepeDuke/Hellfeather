@@ -28,6 +28,7 @@ HellfeatherGame : QuaxelGameInstance
     HellfeatherTerrain Terrain
     HellfeatherGlobes Globes
     HellfeatherGroundItems Ground
+    HellfeatherFires Fires
 
     string WindowTitle() { return "Hellfeather" }
 
@@ -131,6 +132,8 @@ HellfeatherGame : QuaxelGameInstance
         PlayerNode = world.CreateNode()
         world.AttachTransform(PlayerNode, QuaxelTransform.Make(
             StandingAt(0.0, 0.0, PlayerRadius()), vec3(1.0, 1.0, 1.0)))
+        // She moves, so stains would be left hanging where she stood.
+        world.SetCatchesEffects(PlayerNode, false)
 
         int visual = world.CreateChild(PlayerNode)
         float cell = HellfeatherWarrior.VoxelSize
@@ -205,6 +208,7 @@ HellfeatherGame : QuaxelGameInstance
         Actions.Slots.Tick(deltaSeconds)
         WarCrySeconds = Math.Max(0.0, WarCrySeconds - deltaSeconds)
         if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
+        Fires.Step(world, Terrain.Valley.Props.Brazier, Terrain.Town.Volumes.Campfire, world.GetPosition(PlayerNode), deltaSeconds)
         if !UpdateSpawns(world, world.GetPosition(PlayerNode)) { Print("Enemy spawning failed") }
         Globes.Step(world, (float)PlayerHealth / (float)PlayerMaxHealth(), (float)PlayerMana / (float)PlayerMaxMana(), deltaSeconds)
         if PlayerHealth <= 0 {
@@ -346,6 +350,9 @@ HellfeatherGame : QuaxelGameInstance
             DashDirection = Math.Normalize(vec3(pose.FacingX, 0.0, pose.FacingZ))
         }
         DashSeconds = DashSecondsTotal()
+        vec3 feet = world.GetPosition(PlayerNode)
+        feet.Y = Terrain.GroundY(feet.X, feet.Z)
+        world.StartEffect(QuaxelEffectStyle.Dust(), feet, vec3(0.0, 1.0, 0.0) - DashDirection)
     }
 
     -FaceAlong(QuaxelWorld& world, int visual, vec3 direction)
@@ -391,6 +398,7 @@ HellfeatherGame : QuaxelGameInstance
             if GroundDistance(origin, world.GetPosition(Enemies[i].Node)) > reach { continue }
             Enemies[i].Health -= damage
             bool slain = Enemies[i].Health <= 0
+            Bleed(world, Enemies[i].Node, origin, slain)
             if slain {
                 Actions.Slots.CountKill()
                 Enemies[i].Health = 0
@@ -417,10 +425,20 @@ HellfeatherGame : QuaxelGameInstance
         }
     }
 
+    // Blood flies from the wound away from the attacker, and more of it on a kill.
+    -Bleed(QuaxelWorld& world, int node, vec3 attacker, bool heavy)
+    {
+        vec3 wound = world.GetPosition(node)
+        vec3 away = Math.Normalize(vec3(wound.X - attacker.X, 0.0, wound.Z - attacker.Z))
+        QuaxelEffectStyle style = heavy ? QuaxelEffectStyle.BloodSplatter() | QuaxelEffectStyle.BloodSplash()
+        world.StartEffectIgnoring(style, wound, away + vec3(0.0, 0.8, 0.0), node)
+    }
+
     -DamagePlayer(QuaxelWorld& world, int amount)
     {
         if PlayerHealth <= 0 { return }
         PlayerHealth -= amount
+        Bleed(world, PlayerNode, world.GetPosition(PlayerNode), PlayerHealth <= 0)
         if PlayerHealth > 0 { return }
         PlayerHealth = 0
         FallenSeconds = 0.0
@@ -653,6 +671,7 @@ HellfeatherGame : QuaxelGameInstance
             world.BeginStep()
             world.AdvanceAnimations((float)Quaxel.FixedDeltaSeconds())
             FixedStep(world, input, (float)Quaxel.FixedDeltaSeconds())
+            world.AdvanceEffects((float)Quaxel.FixedDeltaSeconds())
             world.UpdateSockets()
             world.EndStep()
         }
@@ -939,6 +958,46 @@ T{
         game.Simulate(world, input, 110)
         T.AreEqual(game.Enemies[0].Health, game.Enemies[0].MaxHealth)
         T.IsTrue(world.CurrentClipName(visual) != "death")
+    }
+
+    AxeHitsDrawBlood()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = HellfeatherEnemyData.BesideThePlayer()
+        T.IsTrue(game.Prepare(world))
+        int node = game.Enemies[0].Node
+        QuaxelTransform placed = world.GetTransform(node)
+        placed.Position = vec3(1.0, game.Enemies[0].Radius, 0.0)
+        world.SetTransform(node, placed)
+        QuaxelInputState input
+        game.Simulate(world, input, 2)
+        int before = world.PlayingEffectCount()
+        game.SampleAttack(480, 270, false)
+        game.SampleAttack(480, 270, true)
+        game.Simulate(world, input, 20)
+        T.AreEqual(game.Enemies[0].Health, game.Enemies[0].MaxHealth - game.AxeDamage())
+        T.IsTrue(world.PlayingEffectCount() > before)
+    }
+
+    BraziersBurnOnlyNearThePlayer()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        game.Simulate(world, input, 2)
+        int already = game.Fires.Burning()
+        vec3 player = world.GetPosition(game.PlayerNode)
+        int brazier = world.CreateNode()
+        float cell = HellfeatherArt.FineVoxel
+        world.AttachTransform(brazier, QuaxelTransform.Make(player + vec3(2.0, 0.75, 0.0), vec3(cell, cell, cell)))
+        world.AttachVoxels(brazier, game.Terrain.Valley.Props.Brazier)
+        game.Simulate(world, input, 20)
+        T.AreEqual(game.Fires.Burning(), already + 1)
+        world.SetTransform(brazier, QuaxelTransform.Make(player + vec3(60.0, 0.75, 0.0), vec3(cell, cell, cell)))
+        game.Simulate(world, input, 20)
+        T.AreEqual(game.Fires.Burning(), already)
     }
 
     AxeMissesADuckOutOfReach()

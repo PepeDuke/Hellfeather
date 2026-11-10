@@ -837,6 +837,7 @@ HellfeatherGame : QuaxelGameInstance
             Enemies[i].Home = vec3(x, Terrain.GroundY(x, z) + radius, z)
             int node = world.CreateNode()
             world.AttachTransform(node, QuaxelTransform.Make(Enemies[i].Home, vec3(1.0, 1.0, 1.0)))
+            world.SetCatchesEffects(node, false)
             int visual = world.CreateChild(node)
             float cell = Spawner.Table.Kinds[Enemies[i].Kind].VoxelSize
             float halfHeight = (float)Spawner.Table.Kinds[Enemies[i].Kind].Height * cell * 0.5

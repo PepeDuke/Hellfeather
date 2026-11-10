@@ -106,11 +106,18 @@ HellfeatherArt
         }
     }
 
-    Brazier(QuaxelWorld& world, int volume, int cx, int cz)
+    // The stand alone, for braziers that burn with a live fire effect.
+    BrazierStand(QuaxelWorld& world, int volume, int cx, int cz)
     {
         StoneBox(world, volume, cx - 3, 0, cz - 3, cx + 4, 12, cz + 4)
         Box(world, volume, cx - 6, 12, cz - 6, cx + 7, 15, cz + 7, Rgb(0x1a1716))
         Box(world, volume, cx - 7, 15, cz - 7, cx + 8, 17, cz + 8, Rgb(0x262220))
+    }
+
+    // With a painted flame, for braziers built into a larger model.
+    Brazier(QuaxelWorld& world, int volume, int cx, int cz)
+    {
+        BrazierStand(world, volume, cx, cz)
         Flame(world, volume, cx, 17, cz, 6, 20)
     }
 }
@@ -382,7 +389,7 @@ HellfeatherProps
         props.Banner = world.CreateVolume(24, 72, 8)
         BuildBanner(world, props.Banner)
         props.Brazier = world.CreateVolume(16, 40, 16)
-        HellfeatherArt.Brazier(world, props.Brazier, 8, 8)
+        HellfeatherArt.BrazierStand(world, props.Brazier, 8, 8)
         return props
     }
 

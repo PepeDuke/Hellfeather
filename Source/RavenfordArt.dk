@@ -705,7 +705,6 @@ RavenfordBuildings
             RavenfordArt.Timber(world, volume, 16 + i, 2 + Math.Abs(i) / 3, 15, 17 + i, 5 + Math.Abs(i) / 3, 18)
             RavenfordArt.Timber(world, volume, 15, 2 + Math.Abs(i) / 3, 16 + i, 18, 5 + Math.Abs(i) / 3, 17 + i)
         }
-        HellfeatherArt.Flame(world, volume, 16, 5, 16, 9, 32)
         return volume
     }
 

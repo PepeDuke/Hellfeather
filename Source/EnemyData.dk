@@ -48,9 +48,6 @@ HellfeatherEnemyData
             <EnemyGroup Name="Large flock" Weight=20 Spread=3.0>
                 <EnemyMember Kind="EvilDuck" Min=3 Max=5/>
             </EnemyGroup>
-
-            // The first duck the player meets, on the road just past the bridge.
-            <EnemyPlacement Kind="EvilDuck" X=2.0 Z=36.0 Respawns=true/>
         }
     }
 
@@ -61,5 +58,17 @@ HellfeatherEnemyData
             <EnemyKind Name="EvilDuck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 Radius=0.5 Speed=2.0 Reach=1.2 Notice=14.0 MaxHealth=60 Damage=10/>
             <EnemyPlacement Kind="EvilDuck" X=3.0 Z=-3.0 Respawns=true/>
         }
+    }
+}
+T{
+    // Every duck in the real level comes from the group rolls and stays dead.
+    LevelHasNoHandPlacedOrRespawningEnemies()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(game.Enemies.Len > 0)
+        for enemy : game.Enemies { T.IsFalse(enemy.Respawns) }
+        for encounter : game.Spawner.Encounters { T.IsTrue(encounter.Group >= 0) }
     }
 }
