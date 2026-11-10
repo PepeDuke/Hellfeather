@@ -240,6 +240,28 @@ HellfeatherInventory
         return true
     }
 
+    // How many of an item the bag holds.
+    int CountOf(int item)
+    {
+        int count = 0
+        for entry : Bag {
+            if entry.Item == item { count++ }
+        }
+        return count
+    }
+
+    // Removes one of an item from the bag. False if there is none.
+    bool Consume(int item)
+    {
+        for i : 0; i < Bag.Len; i++ {
+            if Bag[i].Item == item {
+                RemoveEntry(i)
+                return true
+            }
+        }
+        return false
+    }
+
     // Puts the held item back in the bag, if it fits.
     StowHeld()
     {

@@ -3,7 +3,8 @@
 HellfeatherInventoryArt
 #{
     #int AtlasWidth = 512
-    #int AtlasHeight = 256
+    // The inventory uses the top half, the action bar the bottom.
+    #int AtlasHeight = 512
     #int PanelWidth = 176
     #int PanelHeight = 256
     #int Cell = 16
@@ -23,7 +24,7 @@ HellfeatherInventoryArt
 
     int IconY(int item) { return 2 + (item - 1) / 9 * 50 }
 
-    -Put(QuaxelUi& ui, int x, int y, int rgb) { ui.SetAtlasTexel(x, y, (uint)0xFF000000 | (uint)rgb) }
+    Put(QuaxelUi& ui, int x, int y, int rgb) { ui.SetAtlasTexel(x, y, (uint)0xFF000000 | (uint)rgb) }
 
     Paint(QuaxelUi& ui)
     {
@@ -34,6 +35,13 @@ HellfeatherInventoryArt
         PaintClose(ui)
         PaintCoins(ui, GoldX + 3, GoldY + 3)
         for item : 1; item < HellfeatherItems.Count; item++ { PaintIcon(ui, item, IconX(item), IconY(item)) }
+        HellfeatherActionArt.Paint(ui)
+    }
+
+    // Paints the whole atlas the first time any screen needs it.
+    EnsurePainted(QuaxelUi& ui)
+    {
+        if ui.AtlasWords != AtlasWidth * AtlasHeight { Paint(ui) }
     }
 
     // Courses of six-pixel blocks, each lit from the top left like a voxel.
@@ -53,7 +61,7 @@ HellfeatherInventoryArt
         }
     }
 
-    -Fill(QuaxelUi& ui, int x0, int y0, int width, int height, int rgb)
+    Fill(QuaxelUi& ui, int x0, int y0, int width, int height, int rgb)
     {
         for y : y0; y < y0 + height; y++ {
             for x : x0; x < x0 + width; x++ { Put(ui, x, y, rgb) }
@@ -61,7 +69,7 @@ HellfeatherInventoryArt
     }
 
     // A raised block, bright along its top and left edges.
-    -Raised(QuaxelUi& ui, int x, int y, int width, int height, int rgb)
+    Raised(QuaxelUi& ui, int x, int y, int width, int height, int rgb)
     {
         Fill(ui, x, y, width, height, rgb)
         Fill(ui, x, y, width, 1, HellfeatherArt.Shade(rgb, 150))
@@ -99,7 +107,7 @@ HellfeatherInventoryArt
     }
 
     // A recess: dark along the top and left, catching light at the bottom and right.
-    -Well(QuaxelUi& ui, int x, int y, int width, int height)
+    Well(QuaxelUi& ui, int x, int y, int width, int height)
     {
         Fill(ui, x - 1, y - 1, width + 2, height + 2, 0x0a0908)
         Fill(ui, x, y, width, height, 0x171412)
@@ -152,7 +160,7 @@ HellfeatherInventoryArt
     }
 
     // One row of voxels. Each is lit on its top left and shaded on its bottom right.
-    -V(QuaxelUi& ui, int x, int y, int row, string text)
+    V(QuaxelUi& ui, int x, int y, int row, string text)
     {
         for i : (long)0; i < Length(text); i++ {
             int code = (int)CodeUnitAt(text, i)
@@ -258,7 +266,6 @@ HellfeatherInventoryScreen
 {
     HellfeatherInventory Items
     bool Open
-    -bool ArtReady
     -bool MouseWasDown
     -int Scale = 1
     -int PanelX
@@ -296,10 +303,7 @@ HellfeatherInventoryScreen
     // overlay already holds, so the game clears the overlay first.
     Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool down)
     {
-        if !ArtReady {
-            ArtReady = true
-            HellfeatherInventoryArt.Paint(ui)
-        }
+        HellfeatherInventoryArt.EnsurePainted(ui)
         bool pressed = down && !MouseWasDown
         MouseWasDown = down
         if !Open { return }

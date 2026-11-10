@@ -11,9 +11,19 @@ HellfeatherGame : QuaxelGameInstance
     -float FallenSeconds
     -bool SwingLanded
     -bool MouseHeld
-    -bool AttackRequested
+    -bool RightMouseHeld
+    -bool [5] SlotKeysHeld
+    // The action a click or key asked for this step, or None.
+    -int RequestedAction
+    // The swing in progress, which decides its reach and damage.
+    -int SwingAction
+    -float WarCrySeconds
+    -float DashSeconds
+    -vec3 DashDirection
+    -float ManaRegen
     -bool InventoryKeyHeld
     HellfeatherInventoryScreen Inventory
+    HellfeatherActionBar Actions
     HellfeatherFpsCounter Fps
     HellfeatherTerrain Terrain
     HellfeatherGlobes Globes
@@ -43,6 +53,26 @@ HellfeatherGame : QuaxelGameInstance
 
     float AxeReach() { return 1.6 }
 
+    int CleaveDamage() { return 30 }
+
+    float CleaveReach() { return 2.4 }
+
+    // A war cry doubles damage for this long and staggers enemies this close.
+    float WarCrySecondsTotal() { return 8.0 }
+
+    float WarCryRadius() { return 4.0 }
+
+    // A dash covers DashSpeed * DashSecondsTotal world units.
+    float DashSpeed() { return 18.0 }
+
+    float DashSecondsTotal() { return 0.18 }
+
+    float ManaPerSecond() { return 2.0 }
+
+    int HealthPotionHeal() { return 40 }
+
+    int ManaPotionRestore() { return 30 }
+
     // A peck misses a target that has backed this far past the duck's reach.
     float PeckDodgeMargin() { return 0.3 }
 
@@ -58,6 +88,7 @@ HellfeatherGame : QuaxelGameInstance
     bool Prepare(QuaxelWorld& world)
     {
         Inventory.Stock()
+        Actions.Stock()
         return SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world)
     }
 
@@ -170,21 +201,30 @@ HellfeatherGame : QuaxelGameInstance
         bool inventoryKey = input.IsDown(QuaxelKey.I)
         if inventoryKey && !InventoryKeyHeld { Inventory.Toggle() }
         InventoryKeyHeld = inventoryKey
+        SampleSlotKeys(input)
+        Actions.Slots.Tick(deltaSeconds)
+        WarCrySeconds = Math.Max(0.0, WarCrySeconds - deltaSeconds)
         if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
         if !UpdateSpawns(world, world.GetPosition(PlayerNode)) { Print("Enemy spawning failed") }
         Globes.Step(world, (float)PlayerHealth / (float)PlayerMaxHealth(), (float)PlayerMana / (float)PlayerMaxMana(), deltaSeconds)
         if PlayerHealth <= 0 {
             StepFallenPlayer(world, deltaSeconds)
-            AttackRequested = false
+            RequestedAction = HellfeatherAction.None
             UpdateEnemies(world, deltaSeconds)
             return
         }
+        RegenerateMana(deltaSeconds)
         vec3 direction = HellfeatherMovement.Direction(world.GetCamera(activeCamera), input)
+        UseRequested(world, direction)
         for controller : Controllers {
             if world.Has(controller.Node, QuaxelComponents.Transform) {
                 QuaxelTransform transform = world.GetTransform(controller.Node)
                 vec3 before = transform.Position
-                transform.Position = Walk(transform.Position, direction, controller.Speed, PlayerRadius(), deltaSeconds)
+                if DashSeconds > 0.0 {
+                    transform.Position = Walk(transform.Position, DashDirection, DashSpeed(), PlayerRadius(), Math.Min(deltaSeconds, DashSeconds))
+                    DashSeconds -= deltaSeconds
+                }
+                else { transform.Position = Walk(transform.Position, direction, controller.Speed, PlayerRadius(), deltaSeconds) }
                 world.SetTransform(controller.Node, transform)
                 bool moving = transform.Position.X != before.X || transform.Position.Z != before.Z
                 int visual = controller.VisualNode
@@ -192,13 +232,14 @@ HellfeatherGame : QuaxelGameInstance
                 bool swinging = world.CurrentClipName(visual) == "attack" && animator.Playing
                 if swinging && !SwingLanded && animator.Frame >= AxeStrikeFrame() {
                     SwingLanded = true
-                    StrikeEnemies(world, transform.Position)
+                    StrikeEnemies(world, transform.Position, SwingAction)
                 }
-                bool startingSwing = !swinging && AttackRequested
+                bool startingSwing = !swinging && HellfeatherAction.IsSwing(RequestedAction) && Perform(RequestedAction)
                 if !swinging {
-                    if AttackRequested {
+                    if startingSwing {
                         world.PlayClip(visual, "attack")
                         SwingLanded = false
+                        SwingAction = RequestedAction
                     }
                     else { world.PlayClip(visual, moving ? "walk" | "idle") }
                 }
@@ -212,8 +253,98 @@ HellfeatherGame : QuaxelGameInstance
                 if swinging || startingSwing { AimAtNearestEnemy(world, visual, transform.Position) }
             }
         }
-        AttackRequested = false
+        RequestedAction = HellfeatherAction.None
         UpdateEnemies(world, deltaSeconds)
+    }
+
+    // Q, E and F use their slots once per press.
+    -SampleSlotKeys(QuaxelInputState& input)
+    {
+        QuaxelKey [5] keys = {QuaxelKey.Q, QuaxelKey.Q, QuaxelKey.Q, QuaxelKey.E, QuaxelKey.F}
+        for slot : HellfeatherActionSlot.Q; slot < HellfeatherActionSlot.Count; slot++ {
+            bool down = input.IsDown(keys[slot])
+            if down && !SlotKeysHeld[slot] { RequestSlot(slot) }
+            SlotKeysHeld[slot] = down
+        }
+    }
+
+    // Asks for whatever action sits in a slot, to be used on the next step.
+    RequestSlot(int slot)
+    {
+        if PlayerHealth <= 0 { return }
+        int action = Actions.Slots.Assigned[slot]
+        if action != HellfeatherAction.None { RequestedAction = action }
+    }
+
+    -RegenerateMana(float deltaSeconds)
+    {
+        if PlayerMana >= PlayerMaxMana() {
+            ManaRegen = 0.0
+            return
+        }
+        ManaRegen += deltaSeconds * ManaPerSecond()
+        while ManaRegen >= 1.0 && PlayerMana < PlayerMaxMana() {
+            PlayerMana++
+            ManaRegen -= 1.0
+        }
+    }
+
+    // Her mana, and how many potions each drinking action could use.
+    HellfeatherActionMeans Means()
+    {
+        HellfeatherActionMeans means
+        means.Mana = PlayerMana
+        for action : 1; action < HellfeatherAction.Count; action++ {
+            HellfeatherActionKind kind = HellfeatherAction.Get(action)
+            if kind.Item != HellfeatherItems.None { means.Stock[action] = Inventory.Items.CountOf(kind.Item) }
+        }
+        return means
+    }
+
+    // Pays for an action if it is ready: its mana, its cooldown and any potion it drinks.
+    bool Perform(int action)
+    {
+        if !Actions.Slots.Ready(action, Means()) { return false }
+        HellfeatherActionKind kind = HellfeatherAction.Get(action)
+        PlayerMana -= kind.Mana
+        if kind.Item != HellfeatherItems.None { Inventory.Items.Consume(kind.Item) }
+        Actions.Slots.Spend(action)
+        return true
+    }
+
+    // Actions that are not swings take effect at once, even mid-swing.
+    -UseRequested(QuaxelWorld& world, vec3 direction)
+    {
+        int action = RequestedAction
+        if action == HellfeatherAction.None || HellfeatherAction.IsSwing(action) { return }
+        RequestedAction = HellfeatherAction.None
+        if !Perform(action) { return }
+        if action == HellfeatherAction.HealthPotion { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + HealthPotionHeal()) }
+        else if action == HellfeatherAction.ManaPotion { PlayerMana = Math.Min(PlayerMaxMana(), PlayerMana + ManaPotionRestore()) }
+        else if action == HellfeatherAction.WarCry { Shout(world) }
+        else if action == HellfeatherAction.Dash { StartDash(world, direction) }
+    }
+
+    -Shout(QuaxelWorld& world)
+    {
+        WarCrySeconds = WarCrySecondsTotal()
+        vec3 origin = world.GetPosition(PlayerNode)
+        for i : 0; i < Enemies.Len; i++ {
+            if !Enemies[i].Awake || Enemies[i].Health <= 0 { continue }
+            if GroundDistance(origin, world.GetPosition(Enemies[i].Node)) > WarCryRadius() { continue }
+            world.PlayClip(Enemies[i].VisualNode, "hit")
+        }
+    }
+
+    // Along the keys held, or straight ahead when none are.
+    -StartDash(QuaxelWorld& world, vec3 direction)
+    {
+        DashDirection = direction
+        if direction.X == 0.0 && direction.Z == 0.0 && Controllers.Len > 0 {
+            QuaxelTransform pose = world.GetTransform(Controllers[0].VisualNode)
+            DashDirection = Math.Normalize(vec3(pose.FacingX, 0.0, pose.FacingZ))
+        }
+        DashSeconds = DashSecondsTotal()
     }
 
     -FaceAlong(QuaxelWorld& world, int visual, vec3 direction)
@@ -248,14 +379,19 @@ HellfeatherGame : QuaxelGameInstance
         FaceAlong(world, visual, Math.Normalize(aim))
     }
 
-    -StrikeEnemies(QuaxelWorld& world, vec3 origin)
+    -StrikeEnemies(QuaxelWorld& world, vec3 origin, int action)
     {
+        bool cleave = action == HellfeatherAction.Cleave
+        float reach = cleave ? CleaveReach() | AxeReach()
+        int damage = cleave ? CleaveDamage() | AxeDamage()
+        if WarCrySeconds > 0.0 { damage *= 2 }
         for i : 0; i < Enemies.Len; i++ {
             if !Enemies[i].Awake || Enemies[i].Health <= 0 { continue }
-            if GroundDistance(origin, world.GetPosition(Enemies[i].Node)) > AxeReach() { continue }
-            Enemies[i].Health -= AxeDamage()
+            if GroundDistance(origin, world.GetPosition(Enemies[i].Node)) > reach { continue }
+            Enemies[i].Health -= damage
             bool slain = Enemies[i].Health <= 0
             if slain {
+                Actions.Slots.CountKill()
                 Enemies[i].Health = 0
                 Enemies[i].RespawnTimer = RespawnSeconds()
                 DropLoot(world, i)
@@ -287,6 +423,8 @@ HellfeatherGame : QuaxelGameInstance
         if PlayerHealth > 0 { return }
         PlayerHealth = 0
         FallenSeconds = 0.0
+        WarCrySeconds = 0.0
+        DashSeconds = 0.0
         for controller : Controllers { world.PlayClip(controller.VisualNode, "idle") }
     }
 
@@ -392,10 +530,22 @@ HellfeatherGame : QuaxelGameInstance
 
     ConfigureUi(QuaxelUi& ui) { ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight) }
 
+    // The left button uses the Left slot, unless the click belongs to a panel or an item.
     SampleAttack(int mouseX, int mouseY, bool held)
     {
-        if held && !MouseHeld && !Inventory.Captures(mouseX, mouseY) && Ground.Hovered < 0 { AttackRequested = true }
+        if held && !MouseHeld && !ClickTaken(mouseX, mouseY) { RequestSlot(HellfeatherActionSlot.Left) }
         MouseHeld = held
+    }
+
+    SampleRightClick(int mouseX, int mouseY, bool held)
+    {
+        if held && !RightMouseHeld && !ClickTaken(mouseX, mouseY) { RequestSlot(HellfeatherActionSlot.Right) }
+        RightMouseHeld = held
+    }
+
+    -bool ClickTaken(int mouseX, int mouseY)
+    {
+        return Inventory.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || Ground.Hovered >= 0
     }
 
     // Moves the item on the cursor to the ground beside the warrior.
@@ -455,7 +605,7 @@ HellfeatherGame : QuaxelGameInstance
         SampleAttack(mouseX, mouseY, held)
         if !pressed || PlayerHealth <= 0 { return }
         if Inventory.Items.Held != HellfeatherItems.None {
-            if !Inventory.OverPanel(mouseX, mouseY) { DropHeld(world) }
+            if !Inventory.OverPanel(mouseX, mouseY) && !Actions.OverBar(mouseX, mouseY) { DropHeld(world) }
             return
         }
         if Ground.Hovered >= 0 { TakeFromGround(world, Ground.Hovered) }
@@ -467,15 +617,20 @@ HellfeatherGame : QuaxelGameInstance
         int mouseY = 0
         QuaxelPlatform.GetMousePosition(mouseX, mouseY)
         bool mouseDown = QuaxelPlatform.IsMouseButtonDown()
+        bool rightDown = QuaxelPlatform.IsRightMouseButtonDown()
         int windowWidth = 0
         int windowHeight = 0
         bool hasWindow = QuaxelPlatform.GetWindowSize(windowWidth, windowHeight) && windowWidth > 0 && windowHeight > 0
         ui.ClearOverlay()
         // Drawn first, so that the inventory panel covers the titles.
-        if hasWindow { Ground.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, !Inventory.Captures(mouseX, mouseY)) }
-        // Before the inventory handles this click, so closing it cannot also swing the axe.
+        if hasWindow { Ground.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, !Inventory.Captures(mouseX, mouseY) && !Actions.Captures(mouseX, mouseY)) }
+        // Before the panels handle this click, so closing one cannot also swing the axe.
         ClickWorld(world, mouseX, mouseY, mouseDown)
+        SampleRightClick(mouseX, mouseY, rightDown)
         if hasWindow {
+            // Under the inventory, which covers it when the window is too narrow for both.
+            int clearWidth = Inventory.Open ? Inventory.PanelLeft * Inventory.PanelScale | windowWidth
+            Actions.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, clearWidth, Inventory.OverPanel(mouseX, mouseY), Means())
             Inventory.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
             // An item the bag had no room for when the panel closed goes on the ground.
             if !Inventory.Open { DropHeld(world) }
@@ -1044,5 +1199,143 @@ T{
                 T.IsTrue(point.Z >= 0.0 && point.Z <= 1.0)
             }
         }
+    }
+
+    RightClickCleavesWithTheActionInTheRightSlot()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = HellfeatherEnemyData.BesideThePlayer()
+        T.IsTrue(game.Prepare(world))
+        game.Actions.Slots.Known[HellfeatherAction.Cleave] = true
+        T.IsTrue(game.Actions.Slots.Assign(HellfeatherActionSlot.Right, HellfeatherAction.Cleave))
+        QuaxelTransform placed = world.GetTransform(game.Enemies[0].Node)
+        placed.Position = vec3(1.0, game.Enemies[0].Radius, 0.0)
+        world.SetTransform(game.Enemies[0].Node, placed)
+        QuaxelInputState input
+        game.SampleRightClick(480, 270, true)
+        game.Simulate(world, input, 20)
+        T.AreEqual(game.Enemies[0].Health, game.Enemies[0].MaxHealth - game.CleaveDamage())
+        T.AreEqual(game.PlayerMana, game.PlayerMaxMana() - 8)
+    }
+
+    AnEmptySlotDoesNothing()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int visual = game.Controllers[0].VisualNode
+        QuaxelInputState input
+        game.SampleRightClick(480, 270, true)
+        game.Simulate(world, input, 2)
+        T.IsTrue(world.CurrentClipName(visual) != "attack")
+    }
+
+    TheQKeyDrinksOneHealthPotionPerPress()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Inventory.Items.Add(HellfeatherItems.HealthPotion)
+        game.Inventory.Items.Add(HellfeatherItems.HealthPotion)
+        game.PlayerHealth = 20
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.Q, true)
+        game.Simulate(world, input, 1)
+        T.AreEqual(game.PlayerHealth, 20 + game.HealthPotionHeal())
+        game.Simulate(world, input, 90)
+        T.AreEqual(game.PlayerHealth, 20 + game.HealthPotionHeal())
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), 1)
+        input.SetDown(QuaxelKey.Q, false)
+        game.Simulate(world, input, 1)
+        input.SetDown(QuaxelKey.Q, true)
+        game.Simulate(world, input, 1)
+        T.AreEqual(game.PlayerHealth, game.PlayerMaxHealth())
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), 0)
+    }
+
+    ManaComesBackOverTime()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.PlayerMana = 10
+        QuaxelInputState input
+        game.Simulate(world, input, 60)
+        T.AreEqual(game.PlayerMana, 10 + (int)game.ManaPerSecond())
+    }
+
+    AWarCryDoublesTheNextSwing()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = HellfeatherEnemyData.BesideThePlayer()
+        T.IsTrue(game.Prepare(world))
+        game.Actions.Slots.Known[HellfeatherAction.WarCry] = true
+        T.IsTrue(game.Actions.Slots.Assign(HellfeatherActionSlot.F, HellfeatherAction.WarCry))
+        QuaxelTransform placed = world.GetTransform(game.Enemies[0].Node)
+        placed.Position = vec3(1.0, game.Enemies[0].Radius, 0.0)
+        world.SetTransform(game.Enemies[0].Node, placed)
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.F, true)
+        game.Simulate(world, input, 1)
+        T.AreEqual(game.PlayerMana, game.PlayerMaxMana() - 15)
+        T.IsTrue(world.CurrentClipName(game.Enemies[0].VisualNode) == "hit")
+        input.Clear()
+        game.SampleAttack(480, 270, true)
+        game.Simulate(world, input, 20)
+        T.AreEqual(game.Enemies[0].Health, game.Enemies[0].MaxHealth - game.AxeDamage() * 2)
+    }
+
+    ADashLeapsAheadAndCoolsDown()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Actions.Slots.Known[HellfeatherAction.Dash] = true
+        T.IsTrue(game.Actions.Slots.Assign(HellfeatherActionSlot.F, HellfeatherAction.Dash))
+        vec3 start = world.GetPosition(game.PlayerNode)
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.F, true)
+        vec3 after = game.Simulate(world, input, 15)
+        float travelled = vec3(after.X - start.X, 0.0, after.Z - start.Z).Length()
+        T.IsTrue(Math.Abs(travelled - game.DashSpeed() * game.DashSecondsTotal()) < 0.05)
+        // She starts facing the camera, so the dash goes that way.
+        T.IsTrue(after.X > start.X && after.Z > start.Z)
+        T.IsTrue(game.Actions.Slots.Cooldowns[HellfeatherAction.Dash] > 0.0)
+    }
+
+    SlayingADuckCountsTowardAgilities()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = HellfeatherEnemyData.BesideThePlayer()
+        T.IsTrue(game.Prepare(world))
+        game.Enemies[0].Health = 1
+        QuaxelTransform placed = world.GetTransform(game.Enemies[0].Node)
+        placed.Position = vec3(1.0, game.Enemies[0].Radius, 0.0)
+        world.SetTransform(game.Enemies[0].Node, placed)
+        QuaxelInputState input
+        game.SampleAttack(480, 270, true)
+        game.Simulate(world, input, 20)
+        T.AreEqual(game.Actions.Slots.Kills, 1)
+    }
+
+    ClicksOnTheActionBarDoNotSwing()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int visual = game.Controllers[0].VisualNode
+        QuaxelUi ui()
+        ui.Content = game.BuildUi()
+        game.ConfigureUi(ui)
+        game.Actions.Update(ui, 960, 540, 0, 0, false, 960, false, game.Means())
+        int x = (game.Actions.BarLeft + 30) * 2
+        int y = (game.Actions.BarTop + 20) * 2
+        QuaxelInputState input
+        game.SampleAttack(x, y, true)
+        game.Simulate(world, input, 1)
+        T.IsTrue(world.CurrentClipName(visual) != "attack")
     }
 }

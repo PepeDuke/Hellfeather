@@ -1,0 +1,350 @@
+// The action bar along the bottom of the window. Clicking a slot opens a picker
+// above the bar that lists every action. Clicking a learned one puts it in the
+// slot, and locked agilities show how many more kills they need. All of its
+// coordinates are on the UI pixel grid.
+HellfeatherActionBar
+{
+    HellfeatherActionSlots Slots
+    // The slot whose picker is open, or -1.
+    int Picking = -1
+    -bool MouseWasDown
+    -bool Placed
+    -int Scale = 1
+    -int GridWide
+    -int BarX
+    -int BarY
+
+    Stock() { Slots.Stock() }
+
+    // True when the world should ignore a click: over the bar, or anywhere while
+    // the picker is open, since that click only closes it.
+    bool Captures(int mouseX, int mouseY)
+    {
+        if Picking >= 0 { return true }
+        return OverBar(mouseX, mouseY)
+    }
+
+    bool OverBar(int mouseX, int mouseY)
+    {
+        if !Placed { return false }
+        int x = mouseX / Scale - BarX
+        int y = mouseY / Scale - BarY
+        return x >= HellfeatherActionArt.BodyLeft && y >= 0 && x < HellfeatherActionArt.BodyRight && y < HellfeatherActionArt.BarHeight
+    }
+
+    // Runs once per frame after the overlay is cleared. ClearWidth is how many
+    // screen pixels from the left an open panel leaves uncovered, and Blocked
+    // means a panel drawn over the bar takes this click.
+    Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool down, int clearWidth, bool blocked, HellfeatherActionMeans means)
+    {
+        HellfeatherInventoryArt.EnsurePainted(ui)
+        bool pressed = down && !MouseWasDown
+        MouseWasDown = down
+        Place(ui, width, height, clearWidth)
+        int pointerX = mouseX / Scale
+        int pointerY = mouseY / Scale
+        if pressed && !blocked { Click(pointerX, pointerY) }
+        Draw(ui, pointerX, pointerY, means)
+    }
+
+    // Centered in the uncovered part of the window when the bar fits there.
+    -Place(QuaxelUi& ui, int width, int height, int clearWidth)
+    {
+        Scale = ui.ScaleFor(width, height)
+        GridWide = width / Scale
+        int clear = clearWidth / Scale
+        int room = clear >= HellfeatherActionArt.BarWidth + 4 ? clear | GridWide
+        BarX = Math.Max(0, (room - HellfeatherActionArt.BarWidth) / 2)
+        BarY = Math.Max(0, height / Scale - HellfeatherActionArt.BarHeight - Margin)
+        Placed = true
+    }
+
+    -int PickerX() { return Math.Clamp(BarX + HellfeatherActionArt.BarWidth / 2 - PickerWidth / 2, 0, Math.Max(0, GridWide - PickerWidth)) }
+
+    -int PickerY() { return Math.Max(0, BarY - PickerHeight - 2) }
+
+    -int EntryX(int action) { return PickerX() + PickerPad + action * Entry }
+
+    -int EntryY() { return PickerY() + PickerTitle }
+
+    -bool OverPicker(int pointerX, int pointerY)
+    {
+        return Picking >= 0 && pointerX >= PickerX() && pointerY >= PickerY() && pointerX < PickerX() + PickerWidth && pointerY < PickerY() + PickerHeight
+    }
+
+    // The action whose picker entry is under a point, or -1.
+    -int EntryAt(int pointerX, int pointerY)
+    {
+        if !OverPicker(pointerX, pointerY) { return -1 }
+        int y = pointerY - EntryY()
+        if y < 0 || y >= Entry { return -1 }
+        int x = pointerX - PickerX() - PickerPad
+        if x < 0 { return -1 }
+        int action = x / Entry
+        return action < HellfeatherAction.Count ? action | -1
+    }
+
+    -int SlotUnder(int pointerX, int pointerY) { return HellfeatherActionArt.SlotAt(pointerX - BarX, pointerY - BarY) }
+
+    -Click(int pointerX, int pointerY)
+    {
+        int slot = SlotUnder(pointerX, pointerY)
+        if Picking < 0 {
+            if slot >= 0 { Picking = slot }
+            return
+        }
+        int action = EntryAt(pointerX, pointerY)
+        if action >= 0 {
+            if Slots.Assign(Picking, action) { Picking = -1 }
+            return
+        }
+        if OverPicker(pointerX, pointerY) { return }
+        // Another slot moves the picker to it. Anything else closes it.
+        Picking = slot >= 0 && slot != Picking ? slot | -1
+    }
+
+    -Draw(QuaxelUi& ui, int pointerX, int pointerY, HellfeatherActionMeans means)
+    {
+        ui.OverlaySprite(BarX, BarY, 0, HellfeatherActionArt.BarAtlasY, HellfeatherActionArt.BarWidth, HellfeatherActionArt.BarHeight)
+        for slot : 0; slot < HellfeatherActionSlot.Count; slot++ { DrawSlot(ui, slot, pointerX, pointerY, means) }
+        DrawKeys(ui)
+        if Picking >= 0 { DrawPicker(ui, pointerX, pointerY) }
+        else if Slots.LearnedSeconds > 0.0 { DrawLearned(ui) }
+        DrawTooltip(ui, pointerX, pointerY)
+    }
+
+    -Icon(QuaxelUi& ui, int action, int x, int y)
+    {
+        ui.OverlaySprite(x, y, HellfeatherActionArt.IconX(action), HellfeatherActionArt.IconY(action), HellfeatherActionArt.Icon, HellfeatherActionArt.Icon)
+    }
+
+    -Outline(QuaxelUi& ui, int x, int y, int width, int height, uint color)
+    {
+        ui.OverlayRect(x - 1, y - 1, width + 2, 1, color)
+        ui.OverlayRect(x - 1, y + height, width + 2, 1, color)
+        ui.OverlayRect(x - 1, y, 1, height, color)
+        ui.OverlayRect(x + width, y, 1, height, color)
+    }
+
+    // Text with a one-pixel shadow, so it reads over the bright icons.
+    -Shadowed(QuaxelUi& ui, int x, int y, string text, uint color)
+    {
+        ui.OverlayText(x + 1, y + 1, text, 0xFF000000)
+        ui.OverlayText(x, y, text, color)
+    }
+
+    -DrawSlot(QuaxelUi& ui, int slot, int pointerX, int pointerY, HellfeatherActionMeans means)
+    {
+        int x = 0
+        int y = 0
+        int width = 0
+        int height = 0
+        HellfeatherActionArt.SlotRect(slot, x, y, width, height)
+        x += BarX
+        y += BarY
+        int size = HellfeatherActionArt.Icon
+        int iconX = x + (width - size) / 2
+        int iconY = y + (height - size) / 2
+        int action = Slots.Assigned[slot]
+        if action != HellfeatherAction.None {
+            Icon(ui, action, iconX, iconY)
+            HellfeatherActionKind kind = HellfeatherAction.Get(action)
+            float cooling = Slots.CooldownShare(action)
+            // Cooldown drains from the top down, and an unaffordable action turns red.
+            if cooling > 0.0 { ui.OverlayRect(iconX, iconY, size, (int)Math.Ceil(cooling * (float)size), 0xB0000000) }
+            else if !Slots.Ready(action, means) { ui.OverlayRect(iconX, iconY, size, size, 0x80A01010) }
+            if kind.Item != HellfeatherItems.None {
+                string count = QuaxelUi.FormatInt(means.Stock[action])
+                Shadowed(ui, iconX + size - (int)Length(count) * 6, iconY + size - 8, count, 0xFFE8E0D0)
+            }
+        }
+        if slot == Picking { Outline(ui, x, y, width, height, 0xFFE8B070) }
+        else if Picking < 0 && SlotUnder(pointerX, pointerY) == slot { ui.OverlayRect(x, y, width, height, 0x30FFFFFF) }
+    }
+
+    -DrawKeys(QuaxelUi& ui)
+    {
+        string [5] labels = {"", "", "Q", "E", "F"}
+        for slot : HellfeatherActionSlot.Q; slot < HellfeatherActionSlot.Count; slot++ {
+            ui.OverlayText(BarX + HellfeatherActionArt.KeyX(slot) + 5, BarY + HellfeatherActionArt.KeyY + 1, labels[slot], 0xFFD8C8A8)
+        }
+    }
+
+    -DrawPicker(QuaxelUi& ui, int pointerX, int pointerY)
+    {
+        int x = PickerX()
+        int y = PickerY()
+        ui.OverlayRect(x - 1, y - 1, PickerWidth + 2, PickerHeight + 2, 0xFF625749)
+        ui.OverlayRect(x, y, PickerWidth, PickerHeight, 0xF0120F0D)
+        ui.OverlayRect(x + PickerPad, y + PickerTitle - 3, PickerWidth - PickerPad * 2, 1, 0xFF8A2F12)
+        Shadowed(ui, x + PickerPad, y + 3, "ACTIONS", 0xFFE8B070)
+        int hovered = EntryAt(pointerX, pointerY)
+        for action : 0; action < HellfeatherAction.Count; action++ {
+            int entryX = EntryX(action)
+            int entryY = EntryY()
+            ui.OverlayRect(entryX, entryY, Entry, Entry, 0xFF0A0908)
+            ui.OverlayRect(entryX + 1, entryY + 1, Entry - 2, Entry - 2, 0xFF171412)
+            if action != HellfeatherAction.None { Icon(ui, action, entryX + 1, entryY + 1) }
+            if !Slots.Known[action] {
+                ui.OverlayRect(entryX + 1, entryY + 1, Entry - 2, Entry - 2, 0xB0000000)
+                ui.OverlaySprite(entryX + 3, entryY + 2, HellfeatherActionArt.LockX, HellfeatherActionArt.IconAtlasY, HellfeatherActionArt.LockWidth, HellfeatherActionArt.LockHeight)
+            }
+            if action == Slots.Assigned[Picking] { Outline(ui, entryX + 1, entryY + 1, Entry - 2, Entry - 2, 0xFFE8B070) }
+            else if action == hovered && Slots.Known[action] { ui.OverlayRect(entryX + 1, entryY + 1, Entry - 2, Entry - 2, 0x30FFFFFF) }
+        }
+    }
+
+    -DrawLearned(QuaxelUi& ui)
+    {
+        HellfeatherActionKind kind = HellfeatherAction.Get(Slots.Learned)
+        string text = "Learned " + kind.Name
+        Shadowed(ui, BarX + (HellfeatherActionArt.BarWidth - (int)Length(text) * 6) / 2, BarY - 12, text, 0xFFE8B070)
+    }
+
+    -DrawTooltip(QuaxelUi& ui, int pointerX, int pointerY)
+    {
+        int action = -1
+        if Picking >= 0 { action = EntryAt(pointerX, pointerY) }
+        else {
+            int slot = SlotUnder(pointerX, pointerY)
+            if slot >= 0 && Slots.Assigned[slot] != HellfeatherAction.None { action = Slots.Assigned[slot] }
+        }
+        if action < 0 { return }
+        HellfeatherActionKind kind = HellfeatherAction.Get(action)
+        string detail = kind.Detail
+        if !Slots.Known[action] { detail = "Slay " + QuaxelUi.FormatInt(kind.LearnKills - Slots.Kills) + " more to learn" }
+        int characters = (int)Math.Max(Length(kind.Name), Length(detail))
+        int boxWidth = characters * 6 + 12
+        int boxHeight = 26
+        int x = Math.Clamp(pointerX - boxWidth / 2, 2, Math.Max(2, GridWide - boxWidth - 2))
+        int y = Math.Max(2, pointerY - boxHeight - 8)
+        ui.OverlayRect(x - 1, y - 1, boxWidth + 2, boxHeight + 2, 0xFF625749)
+        ui.OverlayRect(x, y, boxWidth, boxHeight, 0xF0120F0D)
+        ui.OverlayText(x + 6, y + 4, kind.Name, kind.Agility ? 0xFFF08A2A | 0xFFE8B070)
+        ui.OverlayText(x + 6, y + 15, detail, 0xFFC8CCD4)
+    }
+}
+@{
+    BarScale: Scale
+    BarLeft: BarX
+    BarTop: BarY
+}
+#{
+    // UI pixels between the bar and the bottom of the window.
+    #int Margin = 2
+    #int Entry = 18
+    #int PickerPad = 4
+    #int PickerTitle = 14
+    #int PickerWidth = 134
+    #int PickerHeight = 36
+}
+T{
+    TheBarSitsAtTheBottomCenterOnTheFontGrid()
+    {
+        HellfeatherActionBar bar
+        bar.Stock()
+        HellfeatherActionMeans means
+        means.Mana = 60
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        bar.Update(ui, 960, 540, 0, 0, false, 960, false, means)
+        ui.Layout(960, 540, 0, 0, false)
+        QuaxelUiCommand sprite = ui.GetCommand(0)
+        T.AreEqual(sprite.X, (480 - HellfeatherActionArt.BarWidth) / 2 * 2)
+        T.AreEqual(sprite.Y + sprite.Height, 540 - HellfeatherActionBar.Margin * 2)
+        for i : 0; i < ui.CommandCount; i++ {
+            QuaxelUiCommand command = ui.GetCommand(i)
+            T.AreEqual(command.X % 2, 0)
+            T.AreEqual(command.Y % 2, 0)
+        }
+    }
+
+    TheBarCentersBesideAnOpenPanel()
+    {
+        HellfeatherActionBar bar
+        HellfeatherActionMeans means
+        means.Mana = 60
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        bar.Update(ui, 1920, 1080, 0, 0, false, 1200, false, means)
+        T.AreEqual(bar.BarLeft, (300 - HellfeatherActionArt.BarWidth) / 2)
+        // Too little room beside the panel, so the bar keeps to the window's middle.
+        bar.Update(ui, 960, 540, 0, 0, false, 300, false, means)
+        T.AreEqual(bar.BarLeft, (480 - HellfeatherActionArt.BarWidth) / 2)
+    }
+
+    ClickingASlotThenALearnedActionPutsItThere()
+    {
+        HellfeatherActionBar bar
+        bar.Stock()
+        bar.Slots.Known[HellfeatherAction.Cleave] = true
+        HellfeatherActionMeans means
+        means.Mana = 60
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        bar.Update(ui, 960, 540, 0, 0, false, 960, false, means)
+        int x = 0
+        int y = 0
+        int width = 0
+        int height = 0
+        HellfeatherActionArt.SlotRect(HellfeatherActionSlot.Right, x, y, width, height)
+        int slotX = (bar.BarLeft + x + 4) * 2
+        int slotY = (bar.BarTop + y + 4) * 2
+        T.IsTrue(bar.Captures(slotX, slotY))
+        T.IsFalse(bar.Captures(10, 10))
+        bar.Update(ui, 960, 540, slotX, slotY, true, 960, false, means)
+        T.AreEqual(bar.Picking, HellfeatherActionSlot.Right)
+        // While picking, every click belongs to the bar.
+        T.IsTrue(bar.Captures(10, 10))
+        bar.Update(ui, 960, 540, slotX, slotY, false, 960, false, means)
+        int entryX = ((480 - HellfeatherActionBar.PickerWidth) / 2 + HellfeatherActionBar.PickerPad + HellfeatherAction.Cleave * HellfeatherActionBar.Entry + 4) * 2
+        int entryY = (bar.BarTop - HellfeatherActionBar.PickerHeight - 2 + HellfeatherActionBar.PickerTitle + 4) * 2
+        bar.Update(ui, 960, 540, entryX, entryY, true, 960, false, means)
+        T.AreEqual(bar.Slots.Assigned[HellfeatherActionSlot.Right], HellfeatherAction.Cleave)
+        T.AreEqual(bar.Picking, -1)
+    }
+
+    LockedAgilitiesStayInThePickerAndOutsideClicksClose()
+    {
+        HellfeatherActionBar bar
+        bar.Stock()
+        HellfeatherActionMeans means
+        means.Mana = 60
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        bar.Update(ui, 960, 540, 0, 0, false, 960, false, means)
+        int x = 0
+        int y = 0
+        int width = 0
+        int height = 0
+        HellfeatherActionArt.SlotRect(HellfeatherActionSlot.F, x, y, width, height)
+        bar.Update(ui, 960, 540, (bar.BarLeft + x + 4) * 2, (bar.BarTop + y + 4) * 2, true, 960, false, means)
+        bar.Update(ui, 960, 540, 0, 0, false, 960, false, means)
+        int dashX = ((480 - HellfeatherActionBar.PickerWidth) / 2 + HellfeatherActionBar.PickerPad + HellfeatherAction.Dash * HellfeatherActionBar.Entry + 4) * 2
+        int entryY = (bar.BarTop - HellfeatherActionBar.PickerHeight - 2 + HellfeatherActionBar.PickerTitle + 4) * 2
+        bar.Update(ui, 960, 540, dashX, entryY, true, 960, false, means)
+        T.AreEqual(bar.Slots.Assigned[HellfeatherActionSlot.F], HellfeatherAction.None)
+        T.AreEqual(bar.Picking, HellfeatherActionSlot.F)
+        bar.Update(ui, 960, 540, 0, 0, false, 960, false, means)
+        bar.Update(ui, 960, 540, 20, 20, true, 960, false, means)
+        T.AreEqual(bar.Picking, -1)
+    }
+
+    APanelOverTheBarTakesItsClicks()
+    {
+        HellfeatherActionBar bar
+        bar.Stock()
+        HellfeatherActionMeans means
+        means.Mana = 60
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        bar.Update(ui, 960, 540, 0, 0, false, 960, false, means)
+        int x = 0
+        int y = 0
+        int width = 0
+        int height = 0
+        HellfeatherActionArt.SlotRect(HellfeatherActionSlot.Q, x, y, width, height)
+        bar.Update(ui, 960, 540, (bar.BarLeft + x + 4) * 2, (bar.BarTop + y + 4) * 2, true, 960, true, means)
+        T.AreEqual(bar.Picking, -1)
+    }
+}

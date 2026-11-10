@@ -68,6 +68,9 @@ HellfeatherItemArt
         if code == 101 { return 0xd8cfb8 } // e: bone
         if code == 118 { return 0x52dcec } // v: gem
         if code == 109 { return 0x5a1610 } // m: maroon
+        if code == 111 { return 0xe2561c } // o: ember
+        if code == 121 { return 0xf6c64a } // y: flame
+        if code == 97 { return 0xb8e0ff } // a: wind
         return -1
     }
 

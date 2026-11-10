@@ -1,0 +1,253 @@
+// What one action costs and does. Cooldown is in seconds. Agilities are learned
+// later, once the warrior has slain LearnKills enemies. Item is what each use
+// takes from the bag, or None.
+HellfeatherActionKind
+{
+    string Name
+    string Detail
+    int Mana
+    float Cooldown
+    bool Agility
+    int LearnKills
+    int Item
+}
+
+// Everything that can sit on the action bar. None is an empty slot.
+HellfeatherAction
+#{
+    #int None = 0
+    #int Attack = 1
+    #int Cleave = 2
+    #int WarCry = 3
+    #int Dash = 4
+    #int HealthPotion = 5
+    #int ManaPotion = 6
+    #int Count = 7
+
+    -HellfeatherActionKind Make(string title, string detail, int mana, float cooldown)
+    {
+        HellfeatherActionKind kind
+        kind.Name = title
+        kind.Detail = detail
+        kind.Mana = mana
+        kind.Cooldown = cooldown
+        return kind
+    }
+
+    -HellfeatherActionKind Agility(string title, string detail, int mana, float cooldown, int kills)
+    {
+        HellfeatherActionKind kind = Make(title, detail, mana, cooldown)
+        kind.Agility = true
+        kind.LearnKills = kills
+        return kind
+    }
+
+    -HellfeatherActionKind Drink(string title, string detail, int item)
+    {
+        HellfeatherActionKind kind = Make(title, detail, 0, 1.0)
+        kind.Item = item
+        return kind
+    }
+
+    HellfeatherActionKind Get(int action)
+    {
+        if action == Attack { return Make("Attack", "Swing the axe", 0, 0.0) }
+        if action == Cleave { return Agility("Cleave", "Wide swing  8 MP", 8, 0.0, 3) }
+        if action == WarCry { return Agility("War Cry", "Stun, x2 dmg  15 MP", 15, 12.0, 8) }
+        if action == Dash { return Agility("Dash", "Leap ahead  10 MP", 10, 3.0, 15) }
+        if action == HealthPotion { return Drink("Health Potion", "Restores 40 HP", HellfeatherItems.HealthPotion) }
+        if action == ManaPotion { return Drink("Mana Potion", "Restores 30 MP", HellfeatherItems.ManaPotion) }
+        return Make("Empty", "Clears the slot", 0, 0.0)
+    }
+
+    // Swings play the attack clip and strike on its strike frame.
+    bool IsSwing(int action) { return action == Attack || action == Cleave }
+}
+
+// What the warrior has to spend right now: her mana, and for each action how
+// many of the item it uses are in her bag.
+HellfeatherActionMeans
+{
+    int Mana
+    int [7] Stock
+}
+
+// The bar's five slots, named for what triggers them.
+HellfeatherActionSlot
+#{
+    #int Left = 0
+    #int Right = 1
+    #int Q = 2
+    #int E = 3
+    #int F = 4
+    #int Count = 5
+}
+
+// Which action sits in each slot, which actions the warrior knows, and what is
+// cooling down. Learned is the most recent agility, shown for LearnedSeconds.
+HellfeatherActionSlots
+{
+    int [5] Assigned
+    bool [7] Known
+    float [7] Cooldowns
+    int Kills
+    int Learned
+    float LearnedSeconds
+
+    // What she knows from the start.
+    Stock()
+    {
+        Known[HellfeatherAction.None] = true
+        Known[HellfeatherAction.Attack] = true
+        Known[HellfeatherAction.HealthPotion] = true
+        Known[HellfeatherAction.ManaPotion] = true
+        Assigned[HellfeatherActionSlot.Left] = HellfeatherAction.Attack
+        Assigned[HellfeatherActionSlot.Q] = HellfeatherAction.HealthPotion
+        Assigned[HellfeatherActionSlot.E] = HellfeatherAction.ManaPotion
+    }
+
+    // Puts a known action in a slot. The same action may sit in several slots.
+    bool Assign(int slot, int action)
+    {
+        if slot < 0 || slot >= HellfeatherActionSlot.Count || action < 0 || action >= HellfeatherAction.Count { return false }
+        if !Known[action] { return false }
+        Assigned[slot] = action
+        return true
+    }
+
+    // Counts a slain enemy. An agility learned this way goes in the first empty slot.
+    CountKill()
+    {
+        Kills++
+        for action : 1; action < HellfeatherAction.Count; action++ {
+            HellfeatherActionKind kind = HellfeatherAction.Get(action)
+            if !kind.Agility || Known[action] || Kills < kind.LearnKills { continue }
+            Known[action] = true
+            Learned = action
+            LearnedSeconds = LearnedNoticeSeconds
+            for slot : 0; slot < HellfeatherActionSlot.Count; slot++ {
+                if Assigned[slot] == HellfeatherAction.None {
+                    Assigned[slot] = action
+                    return
+                }
+            }
+            return
+        }
+    }
+
+    Tick(float deltaSeconds)
+    {
+        for i : 0; i < HellfeatherAction.Count; i++ { Cooldowns[i] = Math.Max(0.0, Cooldowns[i] - deltaSeconds) }
+        LearnedSeconds = Math.Max(0.0, LearnedSeconds - deltaSeconds)
+    }
+
+    // True when the action is learned, cooled down and affordable.
+    bool Ready(int action, HellfeatherActionMeans means)
+    {
+        if action <= HellfeatherAction.None || action >= HellfeatherAction.Count || !Known[action] { return false }
+        HellfeatherActionKind kind = HellfeatherAction.Get(action)
+        if Cooldowns[action] > 0.0 || means.Mana < kind.Mana { return false }
+        return kind.Item == HellfeatherItems.None || means.Stock[action] > 0
+    }
+
+    Spend(int action)
+    {
+        HellfeatherActionKind kind = HellfeatherAction.Get(action)
+        Cooldowns[action] = kind.Cooldown
+    }
+
+    // 1 just after use, falling to 0 when ready again.
+    float CooldownShare(int action)
+    {
+        HellfeatherActionKind kind = HellfeatherAction.Get(action)
+        float total = kind.Cooldown
+        if total <= 0.0 { return 0.0 }
+        return Math.Clamp(Cooldowns[action] / total, 0.0, 1.0)
+    }
+}
+#{
+    #float LearnedNoticeSeconds = 4.0
+}
+T{
+    TheWarriorStartsWithHerAxeAndPotionsOnTheBar()
+    {
+        HellfeatherActionSlots slots
+        slots.Stock()
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.Left], HellfeatherAction.Attack)
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.Right], HellfeatherAction.None)
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.Q], HellfeatherAction.HealthPotion)
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.E], HellfeatherAction.ManaPotion)
+        T.IsFalse(slots.Known[HellfeatherAction.Cleave])
+    }
+
+    OnlyKnownActionsCanBeAssigned()
+    {
+        HellfeatherActionSlots slots
+        slots.Stock()
+        T.IsFalse(slots.Assign(HellfeatherActionSlot.F, HellfeatherAction.Dash))
+        T.IsTrue(slots.Assign(HellfeatherActionSlot.F, HellfeatherAction.Attack))
+        T.IsTrue(slots.Assign(HellfeatherActionSlot.Left, HellfeatherAction.None))
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.F], HellfeatherAction.Attack)
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.Left], HellfeatherAction.None)
+        T.IsFalse(slots.Assign(HellfeatherActionSlot.Count, HellfeatherAction.Attack))
+    }
+
+    SlayingEnemiesTeachesAgilitiesIntoEmptySlots()
+    {
+        HellfeatherActionSlots slots
+        slots.Stock()
+        slots.CountKill()
+        slots.CountKill()
+        T.IsFalse(slots.Known[HellfeatherAction.Cleave])
+        slots.CountKill()
+        T.IsTrue(slots.Known[HellfeatherAction.Cleave])
+        T.AreEqual(slots.Learned, HellfeatherAction.Cleave)
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.Right], HellfeatherAction.Cleave)
+        for i : 0; i < 5; i++ { slots.CountKill() }
+        T.IsTrue(slots.Known[HellfeatherAction.WarCry])
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.F], HellfeatherAction.WarCry)
+        for i : 0; i < 7; i++ { slots.CountKill() }
+        // Every slot is full, so Dash waits in the picker.
+        T.IsTrue(slots.Known[HellfeatherAction.Dash])
+        for slot : 0; slot < HellfeatherActionSlot.Count; slot++ { T.AreNotEqual(slots.Assigned[slot], HellfeatherAction.Dash) }
+    }
+
+    CooldownsManaAndPotionsGateUse()
+    {
+        HellfeatherActionSlots slots
+        slots.Stock()
+        HellfeatherActionMeans means
+        T.IsTrue(slots.Ready(HellfeatherAction.Attack, means))
+        means.Mana = 100
+        T.IsFalse(slots.Ready(HellfeatherAction.None, means))
+        T.IsFalse(slots.Ready(HellfeatherAction.HealthPotion, means))
+        means.Mana = 0
+        means.Stock[HellfeatherAction.HealthPotion] = 1
+        T.IsTrue(slots.Ready(HellfeatherAction.HealthPotion, means))
+        slots.Spend(HellfeatherAction.HealthPotion)
+        T.IsFalse(slots.Ready(HellfeatherAction.HealthPotion, means))
+        T.AreEqual(slots.CooldownShare(HellfeatherAction.HealthPotion), 1.0)
+        slots.Tick(0.5)
+        T.AreEqual(slots.CooldownShare(HellfeatherAction.HealthPotion), 0.5)
+        slots.Tick(0.6)
+        T.IsTrue(slots.Ready(HellfeatherAction.HealthPotion, means))
+        slots.Known[HellfeatherAction.WarCry] = true
+        means.Mana = 14
+        T.IsFalse(slots.Ready(HellfeatherAction.WarCry, means))
+        means.Mana = 15
+        T.IsTrue(slots.Ready(HellfeatherAction.WarCry, means))
+    }
+
+    BagCountsAndConsumesItems()
+    {
+        HellfeatherInventory bag
+        bag.Add(HellfeatherItems.ManaPotion)
+        bag.Add(HellfeatherItems.Ring)
+        bag.Add(HellfeatherItems.ManaPotion)
+        T.AreEqual(bag.CountOf(HellfeatherItems.ManaPotion), 2)
+        T.IsTrue(bag.Consume(HellfeatherItems.ManaPotion))
+        T.AreEqual(bag.CountOf(HellfeatherItems.ManaPotion), 1)
+        T.IsFalse(bag.Consume(HellfeatherItems.HealthPotion))
+        T.AreEqual(bag.Bag.Len, 2)
+    }
+}
