@@ -1,5 +1,5 @@
-// What one action costs and does. Cooldown is in seconds. Agilities are learned
-// later, once the warrior has slain LearnKills enemies. Item is what each use
+// What one action costs and does. Cooldown is in seconds. Agilities are known
+// only while a rune granting them sits on the rune board. Item is what each use
 // takes from the bag, or None.
 HellfeatherActionKind
 {
@@ -8,7 +8,6 @@ HellfeatherActionKind
     int Mana
     float Cooldown
     bool Agility
-    int LearnKills
     HellfeatherItems Item
 }
 
@@ -36,11 +35,10 @@ HellfeatherAction
         return kind
     }
 
-    -HellfeatherActionKind Agility(string title, string detail, int mana, float cooldown, int kills)
+    -HellfeatherActionKind Agility(string title, string detail, int mana, float cooldown)
     {
         HellfeatherActionKind kind = Make(title, detail, mana, cooldown)
         kind.Agility = true
-        kind.LearnKills = kills
         return kind
     }
 
@@ -54,9 +52,9 @@ HellfeatherAction
     HellfeatherActionKind Get(HellfeatherAction action)
     {
         if action == HellfeatherAction.Attack { return Make("Attack", "Swing the axe", 0, 0.0) }
-        if action == HellfeatherAction.Cleave { return Agility("Cleave", "Wide swing  8 MP", 8, 0.0, 3) }
-        if action == HellfeatherAction.WarCry { return Agility("War Cry", "Stun, x2 dmg  15 MP", 15, 12.0, 8) }
-        if action == HellfeatherAction.Dash { return Agility("Dash", "Leap ahead  10 MP", 10, 3.0, 15) }
+        if action == HellfeatherAction.Cleave { return Agility("Cleave", "Wide swing  8 MP", 8, 0.0) }
+        if action == HellfeatherAction.WarCry { return Agility("War Cry", "Stun, x2 dmg  15 MP", 15, 12.0) }
+        if action == HellfeatherAction.Dash { return Agility("Dash", "Leap ahead  10 MP", 10, 3.0) }
         if action == HellfeatherAction.HealthPotion { return Drink("Health Potion", "Restores 40 HP", HellfeatherItems.HealthPotion) }
         if action == HellfeatherAction.ManaPotion { return Drink("Mana Potion", "Restores 30 MP", HellfeatherItems.ManaPotion) }
         return Make("Empty", "Clears the slot", 0, 0.0)
@@ -86,6 +84,7 @@ HellfeatherActionSlot : int
 
 // Which action sits in each slot, which actions the warrior knows, and what is
 // cooling down. Learned is the most recent agility, shown for LearnedSeconds.
+// Kills only counts; runes, not kills, teach agilities.
 HellfeatherActionSlots
 {
     HellfeatherAction [5] Assigned
@@ -115,23 +114,26 @@ HellfeatherActionSlots
         return true
     }
 
-    // Counts a slain enemy. An agility learned this way goes in the first empty slot.
-    CountKill()
+    CountKill() { Kills++ }
+
+    // Learns or forgets an agility as its runes come and go. One newly learned is
+    // announced and goes in the first empty slot; one forgotten stays in its slots
+    // but cannot be used until a rune brings it back.
+    SetKnown(HellfeatherAction action, bool known)
     {
-        Kills++
-        for action : HellfeatherAction {
-            HellfeatherActionKind kind = HellfeatherAction.Get(action)
-            if !kind.Agility || Known[action] || Kills < kind.LearnKills { continue }
-            Known[action] = true
-            Learned = action
-            LearnedSeconds = LearnedNoticeSeconds
-            for slot : HellfeatherActionSlot {
-                if Assigned[slot] == HellfeatherAction.None {
-                    Assigned[slot] = action
-                    return
-                }
-            }
+        if !known || Known[action] {
+            Known[action] = known
             return
+        }
+        Known[action] = true
+        Learned = action
+        LearnedSeconds = LearnedNoticeSeconds
+        for slot : HellfeatherActionSlot { if Assigned[slot] == action { return } }
+        for slot : HellfeatherActionSlot {
+            if Assigned[slot] == HellfeatherAction.None {
+                Assigned[slot] = action
+                return
+            }
         }
     }
 
@@ -191,24 +193,36 @@ T{
         T.AreEqual(slots.Assigned[HellfeatherActionSlot.Left], HellfeatherAction.None)
     }
 
-    SlayingEnemiesTeachesAgilitiesIntoEmptySlots()
+    KillsNoLongerTeachAgilities()
     {
         HellfeatherActionSlots slots
         slots.Stock()
-        slots.CountKill()
-        slots.CountKill()
+        for i : 0; i < 50; i++ { slots.CountKill() }
+        T.AreEqual(slots.Kills, 50)
         T.IsFalse(slots.Known[HellfeatherAction.Cleave])
-        slots.CountKill()
+    }
+
+    LearnedAgilitiesGoInEmptySlotsAndForgottenOnesStay()
+    {
+        HellfeatherActionSlots slots
+        slots.Stock()
+        slots.SetKnown(HellfeatherAction.Cleave, true)
         T.IsTrue(slots.Known[HellfeatherAction.Cleave])
         T.AreEqual(slots.Learned, HellfeatherAction.Cleave)
         T.AreEqual(slots.Assigned[HellfeatherActionSlot.Right], HellfeatherAction.Cleave)
-        for i : 0; i < 5; i++ { slots.CountKill() }
-        T.IsTrue(slots.Known[HellfeatherAction.WarCry])
+        slots.SetKnown(HellfeatherAction.WarCry, true)
         T.AreEqual(slots.Assigned[HellfeatherActionSlot.F], HellfeatherAction.WarCry)
-        for i : 0; i < 7; i++ { slots.CountKill() }
         // Every slot is full, so Dash waits in the picker.
-        T.IsTrue(slots.Known[HellfeatherAction.Dash])
+        slots.SetKnown(HellfeatherAction.Dash, true)
         for slot : HellfeatherActionSlot { T.AreNotEqual(slots.Assigned[slot], HellfeatherAction.Dash) }
+        // Losing the rune keeps the slot but not the skill, and getting it back
+        // does not put it in a second slot.
+        slots.SetKnown(HellfeatherAction.Cleave, false)
+        T.IsFalse(slots.Known[HellfeatherAction.Cleave])
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.Right], HellfeatherAction.Cleave)
+        slots.Assigned[HellfeatherActionSlot.F] = HellfeatherAction.None
+        slots.SetKnown(HellfeatherAction.Cleave, true)
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.F], HellfeatherAction.None)
     }
 
     CooldownsManaAndPotionsGateUse()

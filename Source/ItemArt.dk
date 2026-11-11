@@ -85,6 +85,12 @@ HellfeatherItemArt
         if code == 117 { return 0x16245e } // u: deep blue
         if code == 86 { return 0x1f7d99 } // V: dark gem
         if code == 73 { return 0xd8fbff } // I: gem highlight
+        // Old stone for runes, from lit faces down into the cracks, and moss.
+        if code == 84 { return 0xa59a88 } // T: lit stone
+        if code == 116 { return 0x7a7163 } // t: stone
+        if code == 120 { return 0x524b42 } // x: shaded stone
+        if code == 88 { return 0x2a2622 } // X: crack
+        if code == 106 { return 0x5c6b3a } // j: moss
         return -1
     }
 

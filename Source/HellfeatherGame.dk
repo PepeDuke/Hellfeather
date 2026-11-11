@@ -22,13 +22,23 @@ HellfeatherGame : QuaxelGameInstance
     -vec3 DashDirection
     -float ManaRegen
     -bool InventoryKeyHeld
+    -bool StatsKeyHeld
+    -bool PassivesKeyHeld
+    -bool RunesKeyHeld
+    // The rune board's Version when the known skills last matched it.
+    -int RunesSynced
     HellfeatherInventoryScreen Inventory
+    HellfeatherStatsScreen StatsScreen
+    HellfeatherPassiveScreen Passives
+    HellfeatherRuneScreen Runes
     HellfeatherActionBar Actions
     HellfeatherFpsCounter Fps
     HellfeatherTerrain Terrain
     HellfeatherGlobes Globes
     HellfeatherGroundItems Ground
     HellfeatherFires Fires
+    HellfeatherShopKeeper Keeper
+    HellfeatherShopScreen Shop
 
     string WindowTitle() { return "Hellfeather" }
 
@@ -46,29 +56,63 @@ HellfeatherGame : QuaxelGameInstance
 
     float EnemyPeckCooldown() { return 1.2 }
 
-    int PlayerMaxHealth() { return 100 }
+    // Her attributes and everything she wears, worked out fresh each time.
+    // Her attributes, everything she wears and every passive she has taken.
+    HellfeatherStats Stats()
+    {
+        stats : Inventory.Items.Stats()
+        Passives.Tree.ApplyTo(stats)
+        return stats
+    }
 
-    int PlayerMaxMana() { return 60 }
+    int PlayerMaxHealth()
+    {
+        stats : Stats()
+        return stats.MaxHealth
+    }
 
-    int AxeDamage() { return 20 }
+    int PlayerMaxMana()
+    {
+        stats : Stats()
+        return stats.MaxMana
+    }
+
+    // A plain swing with whatever weapon she holds.
+    int AxeDamage()
+    {
+        stats : Stats()
+        return stats.Damage()
+    }
 
     float AxeReach() { return 1.6 }
 
-    int CleaveDamage() { return 30 }
+    int CleaveDamage()
+    {
+        stats : Stats()
+        return stats.CleaveDamage() * RunePower(HellfeatherAction.Cleave) / 100
+    }
+
+    // How strong a rune skill is, as a percent. A skill known without a rune on
+    // the board, as tests arrange, works at its base strength.
+    int RunePower(HellfeatherAction skill) { return Math.Max(100, Runes.Board.PowerOf(skill)) }
 
     float CleaveReach() { return 2.4 }
 
     // A war cry doubles damage for this long and staggers enemies this close.
-    float WarCrySecondsTotal() { return 8.0 }
+    float WarCrySecondsTotal() { return 8.0 * (float)RunePower(HellfeatherAction.WarCry) / 100.0 }
 
     float WarCryRadius() { return 4.0 }
 
     // A dash covers DashSpeed * DashSecondsTotal world units.
     float DashSpeed() { return 18.0 }
 
-    float DashSecondsTotal() { return 0.18 }
+    float DashSecondsTotal() { return 0.18 * (float)RunePower(HellfeatherAction.Dash) / 100.0 }
 
-    float ManaPerSecond() { return 2.0 }
+    float ManaPerSecond()
+    {
+        stats : Stats()
+        return stats.ManaPerSecond
+    }
 
     int HealthPotionHeal() { return 40 }
 
@@ -90,7 +134,76 @@ HellfeatherGame : QuaxelGameInstance
     {
         Inventory.Stock()
         Actions.Stock()
-        return SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world)
+        Runes.Stock()
+        long clock = 0
+        QuaxelPlatform.ReadClock(clock)
+        Shop.Shop.RestockSeeded((uint)(clock & (long)0x7FFFFFFF))
+        return SpawnTerrain(world) && SpawnPlayer(world) && SpawnKeeper(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world)
+    }
+
+    -bool SpawnKeeper(QuaxelWorld& world)
+    {
+        float x = HellfeatherShopKeeper.StandX
+        float z = HellfeatherShopKeeper.StandZ
+        return Keeper.Spawn(world, vec3(x, Terrain.GroundY(x, z), z))
+    }
+
+    // Opens the shop on the right with the inventory beside it on the left.
+    OpenShop()
+    {
+        Shop.Open = true
+        // The inventory takes the left side while trading.
+        StatsScreen.Open = false
+        Passives.Open = false
+        Runes.Open = false
+        Inventory.OnLeft = true
+        if !Inventory.Open { Inventory.Toggle() }
+    }
+
+    // The two windows open and close together. Walking away closes both.
+    SyncShop(QuaxelWorld& world)
+    {
+        if Shop.Open && (!Inventory.Open || FarFromKeeper(world)) { Shop.Open = false }
+        if !Shop.Open && Inventory.OnLeft {
+            Inventory.OnLeft = false
+            if Inventory.Open { Inventory.Toggle() }
+        }
+    }
+
+    // Carries out the buy or sell the shop window asked for this frame.
+    ApplyShopRequests()
+    {
+        int index = Shop.BuyRequest
+        bool sell = Shop.SellRequest
+        Shop.BuyRequest = -1
+        Shop.SellRequest = false
+        if index >= 0 {
+            HellfeatherShopResult quote = Shop.Shop.Quote(index, Inventory.Items.Gold)
+            if quote == HellfeatherShopResult.TooPoor { Shop.Say("Not enough gold") }
+            else if quote == HellfeatherShopResult.Done {
+                item : Shop.Shop.Stock[index].Item
+                if Inventory.Items.AddWith(item, Shop.Shop.Stock[index].Mods) {
+                    Inventory.Items.Gold -= Shop.Shop.PriceOf(index)
+                    Shop.Shop.Take(index)
+                } else {
+                    Shop.Say("No room in your bag")
+                }
+            }
+        }
+        if sell {
+            int paid = Shop.Shop.ReceiveWith(Inventory.Items.Held, Inventory.Items.HeldMods)
+            if paid > 0 {
+                Inventory.Items.Gold += paid
+                Inventory.Items.ClearHeld()
+            }
+        }
+    }
+
+    -bool FarFromKeeper(QuaxelWorld& world)
+    {
+        vec3 feet = Keeper.Feet(world)
+        vec3 player = world.GetPosition(PlayerNode)
+        return Math.Hypot(feet.X - player.X, feet.Z - player.Z) > HellfeatherShopKeeper.LeaveReach
     }
 
     -bool SpawnTerrain(QuaxelWorld& world)
@@ -204,6 +317,41 @@ HellfeatherGame : QuaxelGameInstance
         bool inventoryKey = input.IsDown(QuaxelKey.I)
         if inventoryKey && !InventoryKeyHeld { Inventory.Toggle() }
         InventoryKeyHeld = inventoryKey
+        // The shop puts the inventory on the left, where the stats would go.
+        bool statsKey = input.IsDown(QuaxelKey.C)
+        if statsKey && !StatsKeyHeld && !Shop.Open {
+            StatsScreen.Toggle()
+            if StatsScreen.Open {
+                Passives.Open = false
+                Runes.Open = false
+            }
+        }
+        StatsKeyHeld = statsKey
+        // The passive tree shares the left side with the stats, so one closes the other.
+        bool passivesKey = input.IsDown(QuaxelKey.P)
+        if passivesKey && !PassivesKeyHeld && !Shop.Open {
+            Passives.Toggle()
+            if Passives.Open {
+                StatsScreen.Open = false
+                Runes.Open = false
+            }
+        }
+        PassivesKeyHeld = passivesKey
+        // The rune board opens with the bag beside it, since runes come from there.
+        bool runesKey = input.IsDown(QuaxelKey.R)
+        if runesKey && !RunesKeyHeld && !Shop.Open {
+            Runes.Toggle()
+            if Runes.Open {
+                StatsScreen.Open = false
+                Passives.Open = false
+                if !Inventory.Open { Inventory.Toggle() }
+            }
+        }
+        RunesKeyHeld = runesKey
+        SyncRuneSkills()
+        // Taking off gear can lower her maximums below what she has.
+        PlayerHealth = Math.Min(PlayerHealth, PlayerMaxHealth())
+        PlayerMana = Math.Min(PlayerMana, PlayerMaxMana())
         SampleSlotKeys(input)
         Actions.Slots.Tick(deltaSeconds)
         WarCrySeconds = Math.Max(0.0, WarCrySeconds - deltaSeconds)
@@ -228,7 +376,11 @@ HellfeatherGame : QuaxelGameInstance
                     transform.Position = Walk(transform.Position, DashDirection, DashSpeed(), PlayerRadius(), Math.Min(deltaSeconds, DashSeconds))
                     DashSeconds -= deltaSeconds
                 }
-                else { transform.Position = Walk(transform.Position, direction, controller.Speed, PlayerRadius(), deltaSeconds) }
+                else {
+                    stats : Stats()
+                    controller.Speed = PlayerSpeed() * (float)stats.MoveSpeed / 100.0
+                    transform.Position = Walk(transform.Position, direction, controller.Speed, PlayerRadius(), deltaSeconds)
+                }
                 world.SetTransform(controller.Node, transform)
                 bool moving = transform.Position.X != before.X || transform.Position.Z != before.Z
                 int visual = controller.VisualNode
@@ -401,6 +553,7 @@ HellfeatherGame : QuaxelGameInstance
             Bleed(world, Enemies[i].Node, origin, slain)
             if slain {
                 Actions.Slots.CountKill()
+                GainExperience(Spawner.Table.Kinds[Enemies[i].Kind].Experience)
                 Enemies[i].Health = 0
                 Enemies[i].RespawnTimer = RespawnSeconds()
                 DropLoot(world, i)
@@ -419,7 +572,8 @@ HellfeatherGame : QuaxelGameInstance
         for roll : 0; roll < Spawner.Table.Loots[loot].Rolls; roll++ {
             item : Spawner.RollLoot(loot)
             if item == HellfeatherItems.None { continue }
-            Ground.Place(world, item, DropSpotAround(corpse))
+            mods : Spawner.RollMods(item)
+            Ground.PlaceWith(world, item, mods, DropSpotAround(corpse))
             int gold = Spawner.RollGold(loot)
             if gold > 0 { Ground.PlaceGold(world, gold, DropSpotAround(corpse)) }
         }
@@ -432,6 +586,24 @@ HellfeatherGame : QuaxelGameInstance
         vec3 away = Math.Normalize(vec3(wound.X - attacker.X, 0.0, wound.Z - attacker.Z))
         QuaxelEffectStyle style = heavy ? QuaxelEffectStyle.BloodSplatter() | QuaxelEffectStyle.BloodSplash()
         world.StartEffectIgnoring(style, wound, away + vec3(0.0, 0.8, 0.0), node)
+    }
+
+    // Skills are known while a rune granting them is on the board.
+    SyncRuneSkills()
+    {
+        if Runes.Board.Version == RunesSynced { return }
+        RunesSynced = Runes.Board.Version
+        for action : HellfeatherAction {
+            if HellfeatherRunes.IsRuneSkill(action) { Actions.Slots.SetKnown(action, Runes.Board.PowerOf(action) > 0) }
+        }
+    }
+
+    // A new level brings a passive point and refills her health and mana.
+    GainExperience(int amount)
+    {
+        if Passives.Level.Gain(amount) == 0 { return }
+        PlayerHealth = PlayerMaxHealth()
+        PlayerMana = PlayerMaxMana()
     }
 
     -DamagePlayer(QuaxelWorld& world, int amount)
@@ -564,15 +736,15 @@ HellfeatherGame : QuaxelGameInstance
 
     -bool ClickTaken(int mouseX, int mouseY)
     {
-        return Inventory.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || Ground.Hovered >= 0
+        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || Ground.Hovered >= 0 || Keeper.Hovered
     }
 
     // Moves the item on the cursor to the ground beside the warrior.
     bool DropHeld(QuaxelWorld& world)
     {
         item : Inventory.Items.Held
-        if item == HellfeatherItems.None || !Ground.Place(world, item, DropSpotAround(world.GetPosition(PlayerNode))) { return false }
-        Inventory.Items.Held = HellfeatherItems.None
+        if item == HellfeatherItems.None || !Ground.PlaceWith(world, item, Inventory.Items.HeldMods, DropSpotAround(world.GetPosition(PlayerNode))) { return false }
+        Inventory.Items.ClearHeld()
         return true
     }
 
@@ -611,7 +783,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         if !Ground.InReach(index, world.GetPosition(PlayerNode)) { return false }
         if Ground.Entries[index].Item == HellfeatherItems.Gold { Inventory.Items.Gold += Ground.Entries[index].Amount }
-        else if !Inventory.Items.Add(Ground.Entries[index].Item) { return false }
+        else if !Inventory.Items.AddWith(Ground.Entries[index].Item, Ground.Entries[index].Mods) { return false }
         Ground.Remove(world, index)
         return true
     }
@@ -624,10 +796,11 @@ HellfeatherGame : QuaxelGameInstance
         SampleAttack(mouseX, mouseY, held)
         if !pressed || PlayerHealth <= 0 { return }
         if Inventory.Items.Held != HellfeatherItems.None {
-            if !Inventory.OverPanel(mouseX, mouseY) && !Actions.OverBar(mouseX, mouseY) { DropHeld(world) }
+            if !Inventory.OverPanel(mouseX, mouseY) && !StatsScreen.OverPanel(mouseX, mouseY) && !Passives.OverPanel(mouseX, mouseY) && !Runes.OverPanel(mouseX, mouseY) && !Shop.OverPanel(mouseX, mouseY) && !Actions.OverBar(mouseX, mouseY) { DropHeld(world) }
             return
         }
         if Ground.Hovered >= 0 { TakeFromGround(world, Ground.Hovered) }
+        else if Keeper.Hovered && Keeper.InReach(world, world.GetPosition(PlayerNode)) { OpenShop() }
     }
 
     UpdateUi(QuaxelUi& ui, QuaxelWorld& world)
@@ -642,18 +815,49 @@ HellfeatherGame : QuaxelGameInstance
         bool hasWindow = QuaxelPlatform.GetWindowSize(windowWidth, windowHeight) && windowWidth > 0 && windowHeight > 0
         ui.ClearOverlay()
         // Drawn first, so that the inventory panel covers the titles.
-        if hasWindow { Ground.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, !Inventory.Captures(mouseX, mouseY) && !Actions.Captures(mouseX, mouseY)) }
+        if hasWindow {
+            bool panelsFree = !Inventory.Captures(mouseX, mouseY) && !StatsScreen.Captures(mouseX, mouseY) && !Passives.Captures(mouseX, mouseY) && !Runes.Captures(mouseX, mouseY) && !Shop.Captures(mouseX, mouseY) && !Actions.Captures(mouseX, mouseY)
+            Keeper.DrawLabel(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, panelsFree)
+            Ground.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, panelsFree)
+            // An item's title wins over the shopkeeper behind it.
+            if Ground.Hovered >= 0 { Keeper.Hovered = false }
+        }
         // Before the panels handle this click, so closing one cannot also swing the axe.
         ClickWorld(world, mouseX, mouseY, mouseDown)
         SampleRightClick(mouseX, mouseY, rightDown)
         if hasWindow {
             // Under the inventory, which covers it when the window is too narrow for both.
             int clearWidth = Inventory.Open ? Inventory.PanelLeft * Inventory.PanelScale | windowWidth
-            Actions.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, clearWidth, Inventory.OverPanel(mouseX, mouseY), Means())
+            if Shop.Open { clearWidth = Shop.PanelLeft * Shop.PanelScale }
+            // Worked out here, since the stats panel places itself after the bar.
+            int coveredLeft = StatsScreen.Open || Passives.Open || Runes.Open ? (HellfeatherStatsScreen.Margin + HellfeatherInventoryArt.PanelWidth) * ui.ScaleFor(windowWidth, windowHeight) | 0
+            Actions.CoveredLeft = coveredLeft
+            Actions.ExperienceShare = Passives.Level.Share()
+            Actions.UnspentPoints = Passives.Open ? 0 | Passives.Points()
+            Globes.CoveredLeft = coveredLeft
+            Actions.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, clearWidth, Inventory.OverPanel(mouseX, mouseY) || StatsScreen.OverPanel(mouseX, mouseY) || Passives.OverPanel(mouseX, mouseY) || Runes.OverPanel(mouseX, mouseY) || Shop.OverPanel(mouseX, mouseY), Means())
+            // Before the inventory, which draws the item on the cursor over every panel.
+            Shop.HeldMods = Inventory.Items.HeldMods
+            Shop.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, Inventory.Items.Gold, Inventory.Items.Held)
+            ApplyShopRequests()
+            stats : Stats()
+            StatsScreen.Level = Passives.Level.Level
+            StatsScreen.Experience = Passives.Level.Experience
+            StatsScreen.ToNext = Passives.Level.ToNext()
+            StatsScreen.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, stats, PlayerHealth, PlayerMana)
+            Passives.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, rightDown)
+            // The board and the bag share the cursor's item.
+            Runes.Level = Passives.Level.Level
+            Runes.Held = Inventory.Items.Held
+            Runes.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
+            Inventory.Items.ReplaceHeld(Runes.Held)
             Inventory.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
+            // Without the bag beside it the board has nowhere to put a lifted rune.
+            if !Inventory.Open { Runes.Open = false }
+            SyncShop(world)
             // An item the bag had no room for when the panel closed goes on the ground.
             if !Inventory.Open { DropHeld(world) }
-            Globes.Anchor(world, windowWidth, windowHeight, Inventory.Open ? Inventory.PanelLeft * Inventory.PanelScale | windowWidth)
+            Globes.Anchor(world, windowWidth, windowHeight, clearWidth)
         }
         // The open panel covers the corner the counter sits in.
         ui.SetVisible("fps", !Inventory.Open)
@@ -729,13 +933,198 @@ T{
         T.IsFalse(game.Inventory.Open)
     }
 
+    TheCKeyTogglesTheStatsOncePerPressButNotWhileTrading()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsFalse(game.StatsScreen.Open)
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.C, true)
+        game.Simulate(world, input, 10)
+        T.IsTrue(game.StatsScreen.Open)
+        input.SetDown(QuaxelKey.C, false)
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.StatsScreen.Open)
+        // Opening the shop gives the left side to the inventory.
+        game.OpenShop()
+        T.IsFalse(game.StatsScreen.Open)
+        input.SetDown(QuaxelKey.C, true)
+        game.Simulate(world, input, 2)
+        T.IsFalse(game.StatsScreen.Open)
+    }
+
+    ThePKeyOpensThePassivesInPlaceOfTheStats()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.C, true)
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.StatsScreen.Open)
+        input.Clear()
+        input.SetDown(QuaxelKey.P, true)
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.Passives.Open)
+        T.IsFalse(game.StatsScreen.Open)
+        input.Clear()
+        game.Simulate(world, input, 1)
+        input.SetDown(QuaxelKey.P, true)
+        game.Simulate(world, input, 2)
+        T.IsFalse(game.Passives.Open)
+    }
+
+    SlayingEnemiesLevelsTheWarriorUpAndRefillsHer()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.PlayerHealth = 10
+        game.GainExperience(30)
+        T.AreEqual(game.Passives.Level.Level, 1)
+        T.AreEqual(game.PlayerHealth, 10)
+        game.GainExperience(10)
+        T.AreEqual(game.Passives.Level.Level, 2)
+        T.AreEqual(game.Passives.Points(), 1)
+        T.AreEqual(game.PlayerHealth, game.PlayerMaxHealth())
+    }
+
+    TakenPassivesChangeTheLiveStats()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int before = game.PlayerMaxHealth()
+        game.GainExperience(40)
+        T.IsTrue(game.Passives.Tree.Allocate(1, game.Passives.Points()))
+        T.AreEqual(game.PlayerMaxHealth(), before + 8)
+        int strength = 1 + 3 * HellfeatherPassiveTree.PerQuadrant
+        game.GainExperience(80)
+        T.IsTrue(game.Passives.Tree.Allocate(strength, game.Passives.Points()))
+        T.AreEqual(game.AxeDamage(), 20 + HellfeatherStats.BaseStrength + 2)
+    }
+
+    SwingsHitWithTheWeaponPlusStrength()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.AreEqual(game.AxeDamage(), 20 + HellfeatherStats.BaseStrength)
+        game.Inventory.Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.ShortSword
+        T.AreEqual(game.AxeDamage(), 12 + HellfeatherStats.BaseStrength)
+    }
+
+    TheStatsPanelPushesTheBarAndHealthGlobeRight()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        mat4 matrix = game.ScreenMatrix(world)
+        game.Globes.Anchor(world, 960, 540, 960)
+        vec4 before = matrix * vec4(world.WorldPosition(game.Globes.Health.Root), 1.0)
+        int covered = (HellfeatherStatsScreen.Margin + HellfeatherInventoryArt.PanelWidth) * 2
+        game.Globes.CoveredLeft = covered
+        game.Globes.Anchor(world, 960, 540, 960)
+        vec4 placed = matrix * vec4(world.WorldPosition(game.Globes.Health.Root), 1.0)
+        float after = placed.X
+        T.IsTrue(after > before.X)
+        T.IsTrue((after + 1.0) * 480.0 > (float)covered)
+        QuaxelUi ui()
+        game.ConfigureUi(ui)
+        game.Actions.CoveredLeft = covered
+        game.Actions.Update(ui, 960, 540, 0, 0, false, 960, false, game.Means())
+        ui.Layout(960, 540, 0, 0, false)
+        QuaxelUiCommand bar = ui.GetCommand(0)
+        T.IsTrue(bar.X >= covered)
+    }
+
     TheWarriorStartsWithHerAxeEquipped()
     {
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
         T.AreEqual(game.Inventory.Items.Equipped[HellfeatherSlot.MainHand], HellfeatherItems.BattleAxe)
-        T.AreEqual(game.Inventory.Items.Bag.Len, 0)
+        T.AreEqual(game.Inventory.Items.Bag.Len, 1)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.RuneCleave), 1)
+        T.IsFalse(game.Actions.Slots.Known[HellfeatherAction.Cleave])
+    }
+
+    ModsSurviveTheGroundAndDropsRollThem()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Inventory.Items.Held = HellfeatherItems.Boots
+        game.Inventory.Items.HeldMods.Rarity = HellfeatherRarity.Magic
+        game.Inventory.Items.HeldMods.Add(HellfeatherModKind.MoveSpeed, 8)
+        T.IsTrue(game.DropHeld(world))
+        T.AreEqual(game.Inventory.Items.HeldMods.Count, 0)
+        T.AreEqual(game.Ground.Entries[0].Mods.Rarity, HellfeatherRarity.Magic)
+        T.IsTrue(game.TakeFromGround(world, 0))
+        int boots = (int)game.Inventory.Items.Bag.Len - 1
+        T.AreEqual(game.Inventory.Items.Bag[boots].Item, HellfeatherItems.Boots)
+        T.AreEqual(game.Inventory.Items.Bag[boots].Mods.Values[0], 8)
+        // Rolled drops: gear sometimes comes magic or rare, potions never do.
+        int special = 0
+        for i : 0; i < 300; i++ {
+            gloves : game.Spawner.RollMods(HellfeatherItems.Gloves)
+            if gloves.Rarity != HellfeatherRarity.Common { special++ }
+            potion : game.Spawner.RollMods(HellfeatherItems.HealthPotion)
+            T.AreEqual(potion.Rarity, HellfeatherRarity.Common)
+        }
+        T.IsTrue(special > 30 && special < 180)
+    }
+
+    TheRKeyOpensTheRunesBesideTheBag()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.R, true)
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.Runes.Open)
+        T.IsTrue(game.Inventory.Open)
+        input.Clear()
+        input.SetDown(QuaxelKey.P, true)
+        game.Simulate(world, input, 2)
+        T.IsFalse(game.Runes.Open)
+        T.IsTrue(game.Passives.Open)
+    }
+
+    SocketingARuneTeachesItsSkillAndStackingStrengthensIt()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        game.Runes.Board.Place(HellfeatherItems.RuneCleave, 4, 4)
+        game.Simulate(world, input, 1)
+        T.IsTrue(game.Actions.Slots.Known[HellfeatherAction.Cleave])
+        T.AreEqual(game.Actions.Slots.Assigned[HellfeatherActionSlot.Right], HellfeatherAction.Cleave)
+        int single = game.CleaveDamage()
+        game.Runes.Board.Place(HellfeatherItems.RuneCleave, 4, 5)
+        stats : game.Stats()
+        T.AreEqual(game.CleaveDamage(), stats.CleaveDamage() * (100 + HellfeatherRuneBoard.PerRune) / 100)
+        T.IsTrue(game.CleaveDamage() > single)
+        game.Runes.Board.Lift(4, 4)
+        game.Runes.Board.Lift(4, 5)
+        game.Simulate(world, input, 1)
+        T.IsFalse(game.Actions.Slots.Known[HellfeatherAction.Cleave])
+    }
+
+    WarCryRunesStretchTheCry()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        float base = game.WarCrySecondsTotal()
+        game.Runes.Board.Place(HellfeatherItems.RuneWarCry, 4, 4)
+        game.Runes.Board.Expand(3, 4, 1)
+        game.Runes.Board.Expand(2, 4, 1)
+        game.Runes.Board.Place(HellfeatherItems.RuneCleave, 2, 4)
+        T.AreEqual(game.WarCrySecondsTotal(), base * (float)(100 + HellfeatherRuneBoard.PerKin) / 100.0)
     }
 
     ClicksOnTheOpenInventoryDoNotSwingButClicksBesideItDo()
@@ -943,7 +1332,7 @@ T{
             game.SampleAttack(480, 270, false)
             game.SampleAttack(480, 270, true)
             game.Simulate(world, input, 20)
-            T.AreEqual(game.Enemies[0].Health, game.Enemies[0].MaxHealth - swing * game.AxeDamage())
+            T.AreEqual(game.Enemies[0].Health, Math.Max(0, game.Enemies[0].MaxHealth - swing * game.AxeDamage()))
             game.Simulate(world, input, 12)
         }
         // The first swing lands while she turns to face the duck.

@@ -9,6 +9,10 @@ shader, so pictures carry only their colors.
 The palette is read from ColorOf in Source/ItemArt.dk and the footprints from
 HellfeatherItems.Get in Source/Inventory.dk, so neither is repeated here.
 
+Runes are made of two parts from items.json: a stone, sized in bag cells and
+stretched to fill them, and a symbol, sized in pixels. The symbol lies centered on
+the stone with a dark groove carved around it, so one stone serves many runes.
+
     python Tools/ItemArt/convert.py              write Source/ItemPictures.dk
     python Tools/ItemArt/convert.py --preview p  also save a preview PNG
 """
@@ -91,8 +95,11 @@ def prepare(image, item):
     return image
 
 
-def convert(image, width, height, colors, codes, shadows=True):
-    """Rows of codes, width x height, for the picture inside the margin."""
+def convert(image, width, height, colors, codes, shadows=True, fill=False):
+    """Rows of codes, width x height, for the picture inside the margin.
+
+    With fill the image stretches to the whole area instead of keeping its shape.
+    """
     mask = cut_out(image, shadows)
     pixels = image.load()
     points = [(x, y) for y, row in enumerate(mask) for x, on in enumerate(row) if on]
@@ -101,8 +108,10 @@ def convert(image, width, height, colors, codes, shadows=True):
     x1 = max(p[0] for p in points) + 1
     y1 = max(p[1] for p in points) + 1
     scale = max((x1 - x0) / width, (y1 - y0) / height)
-    left = (width - (x1 - x0) / scale) / 2
-    top = (height - (y1 - y0) / scale) / 2
+    scale_x = (x1 - x0) / width if fill else scale
+    scale_y = (y1 - y0) / height if fill else scale
+    left = (width - (x1 - x0) / scale_x) / 2
+    top = (height - (y1 - y0) / scale_y) / 2
     nearest = {}
 
     def code_of(rgb):
@@ -113,13 +122,13 @@ def convert(image, width, height, colors, codes, shadows=True):
     grid = [['.'] * width for _ in range(height)]
     for row in range(height):
         for column in range(width):
-            sx0 = x0 + (column - left) * scale
-            sy0 = y0 + (row - top) * scale
+            sx0 = x0 + (column - left) * scale_x
+            sy0 = y0 + (row - top) * scale_y
             light = []
             dark = 0
             total = 0
-            for y in range(int(sy0), int(sy0 + scale + 0.999)):
-                for x in range(int(sx0), int(sx0 + scale + 0.999)):
+            for y in range(int(sy0), int(sy0 + scale_y + 0.999)):
+                for x in range(int(sx0), int(sx0 + scale_x + 0.999)):
                     total += 1
                     if not (x0 <= x < x1 and y0 <= y < y1) or not mask[y][x]:
                         continue
@@ -174,6 +183,27 @@ def strip_edge_lines(grid):
                 if grid[y][x] == 'k' and any(empty(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))]
         for x, y in edge:
             grid[y][x] = '.'
+    return [''.join(row) for row in grid]
+
+
+def lay_symbol(stone, glyph):
+    """The stone's rows with the symbol centered on it and a groove around it."""
+    grid = [list(row) for row in stone]
+    height, width = len(grid), len(grid[0])
+    top = (height - len(glyph)) // 2
+    left = (width - len(glyph[0])) // 2
+    marked = set()
+    for y, row in enumerate(glyph):
+        for x, code in enumerate(row):
+            if code in '.k':
+                continue
+            grid[top + y][left + x] = code
+            marked.add((left + x, top + y))
+    for x, y in marked:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in marked and grid[ny][nx] not in '.':
+                grid[ny][nx] = 'X'
     return [''.join(row) for row in grid]
 
 
@@ -240,15 +270,33 @@ def main():
     colors = palette()
     sizes = footprints()
     pictures = {}
-    for name, item in config['items'].items():
+    pad = '.' * MARGIN
+
+    def picture(name, item, width, height):
         image = prepare(Image.open(ROOT / 'Assets/ItemArt' / f'{name}.png').convert('RGB'), item)
-        cells_wide, cells_tall = sizes[name]
-        width, height = cells_wide * CELL - 2 * MARGIN, cells_tall * CELL - 2 * MARGIN
         codes = [c for c in item.get('colors', ''.join(colors)) if c in colors]
         # Pale steel touching the background can pass for shadow; such items set "shadow": false.
-        rows = convert(image, width, height, colors, codes, item.get('shadow', True))
-        pad = '.' * MARGIN
-        pictures[name] = [pad * (width + 2)] * MARGIN + [pad + r + pad for r in rows] + [pad * (width + 2)] * MARGIN
+        return convert(image, width, height, colors, codes, item.get('shadow', True), item.get('fill', False))
+
+    def framed(rows, width):
+        return [pad * (width + 2)] * MARGIN + [pad + r + pad for r in rows] + [pad * (width + 2)] * MARGIN
+
+    for name, item in config['items'].items():
+        cells_wide, cells_tall = sizes[name]
+        width, height = cells_wide * CELL - 2 * MARGIN, cells_tall * CELL - 2 * MARGIN
+        pictures[name] = framed(picture(name, item, width, height), width)
+    parts = {}
+    for name, part in config.get('parts', {}).items():
+        if 'cells' in part:
+            width, height = part['cells'][0] * CELL - 2 * MARGIN, part['cells'][1] * CELL - 2 * MARGIN
+            parts[name] = framed(picture(name, part, width, height), width)
+        else:
+            parts[name] = picture(name, part, part['size'][0], part['size'][1])
+    for name, rune in config.get('runes', {}).items():
+        stone = parts[rune['stone']]
+        if (len(stone[0]), len(stone)) != (sizes[name][0] * CELL, sizes[name][1] * CELL):
+            raise SystemExit(f'{name} is {sizes[name]} cells but its stone {rune["stone"]} is not')
+        pictures[name] = lay_symbol(stone, parts[rune['glyph']])
     write_duck(pictures, ROOT / 'Source/ItemPictures.dk')
     if args.preview:
         save_preview(pictures, colors, args.preview)

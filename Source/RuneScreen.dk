@@ -1,0 +1,381 @@
+// Paints the rune board panel into the sprite atlas below the passive tree: the
+// shared stone and frame, the board recess with every cell sealed, a recess for
+// what the board grants, and beside the panel the tiles for an open cell and for
+// one that can be bought. Coordinates are logical pixels.
+HellfeatherRuneArt
+#{
+    #int Top = 1280
+    #int BoardX = 8
+    #int BoardY = 36
+    #int InfoY = 200
+    #int InfoHeight = 44
+    #int TilesX = 180
+    #int OpenTileX = 180
+    #int PlusTileX = 198
+    #int TileY = 1282
+
+    Paint(QuaxelUi& ui)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        int columns = HellfeatherRuneBoard.Columns
+        int rows = HellfeatherRuneBoard.Rows
+        HellfeatherInventoryArt.PaintStone(ui, Top)
+        HellfeatherInventoryArt.PaintFrame(ui, Top)
+        HellfeatherInventoryArt.PaintClose(ui, Top)
+        HellfeatherInventoryArt.Well(ui, BoardX, Top + BoardY, columns * cell, rows * cell)
+        // Sealed cells are solid: a wall of raised stone blocks, each its own shade.
+        for row : 0; row < rows; row++ {
+            for column : 0; column < columns; column++ {
+                SealedBlock(ui, BoardX + column * cell, Top + BoardY + row * cell, column, row)
+            }
+        }
+        HellfeatherInventoryArt.Well(ui, BoardX, Top + InfoY, columns * cell, InfoHeight)
+        PaintOpenTile(ui, OpenTileX, TileY)
+        // The plus that marks a cell a point can open, cut into a sealed block.
+        SealedBlock(ui, PlusTileX, TileY, 3, 7)
+        HellfeatherInventoryArt.Fill(ui, PlusTileX + 7, TileY + 4, 2, 8, 0xd8a93a)
+        HellfeatherInventoryArt.Fill(ui, PlusTileX + 4, TileY + 7, 8, 2, 0xd8a93a)
+        HellfeatherInventoryArt.Fill(ui, PlusTileX + 9, TileY + 5, 1, 3, 0x8f6a1e)
+        HellfeatherInventoryArt.Fill(ui, PlusTileX + 9, TileY + 9, 3, 1, 0x8f6a1e)
+    }
+
+    // A sealed cell: a raised stone block like the panel's wall, lit from the top left.
+    -SealedBlock(QuaxelUi& ui, int x, int y, int column, int row)
+    {
+        int tone = HellfeatherArt.Shade(0x3a352f, 88 + HellfeatherArt.Hash(column, row, 29) % 28)
+        HellfeatherInventoryArt.Raised(ui, x, y, HellfeatherInventoryArt.Cell, HellfeatherInventoryArt.Cell, tone)
+    }
+
+    // An open cell: an empty socket sunk into the stone, dark like a bag cell, in
+    // shadow along its top and left and catching light along its bottom and right.
+    -PaintOpenTile(QuaxelUi& ui, int x, int y)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        HellfeatherInventoryArt.Fill(ui, x, y, cell, cell, 0x0a0908)
+        HellfeatherInventoryArt.Fill(ui, x + 1, y + 1, cell - 2, cell - 2, 0x171412)
+        HellfeatherInventoryArt.Fill(ui, x + 1, y + 1, cell - 2, 2, 0x0d0b0a)
+        HellfeatherInventoryArt.Fill(ui, x + 1, y + 1, 2, cell - 2, 0x0d0b0a)
+        HellfeatherInventoryArt.Fill(ui, x + 1, y + cell - 2, cell - 2, 1, 0x4a4036)
+        HellfeatherInventoryArt.Fill(ui, x + cell - 2, y + 1, 1, cell - 2, 0x3e362d)
+    }
+}
+T{
+    TheBoardFitsOnThePanelAndTheAtlas()
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        T.IsTrue(HellfeatherRuneArt.BoardX + HellfeatherRuneBoard.Columns * cell <= HellfeatherInventoryArt.PanelWidth - 6)
+        T.IsTrue(HellfeatherRuneArt.BoardY + HellfeatherRuneBoard.Rows * cell < HellfeatherRuneArt.InfoY)
+        T.IsTrue(HellfeatherRuneArt.InfoY + HellfeatherRuneArt.InfoHeight <= HellfeatherInventoryArt.PanelHeight - 6)
+        T.IsTrue(HellfeatherRuneArt.Top + HellfeatherInventoryArt.PanelHeight <= HellfeatherInventoryArt.AtlasHeight)
+    }
+
+    TheTilesArePainted()
+    {
+        QuaxelUi ui()
+        HellfeatherInventoryArt.EnsurePainted(ui)
+        T.IsTrue(ui.AtlasTexel(HellfeatherRuneArt.OpenTileX + 8, HellfeatherRuneArt.TileY + 8) != (uint)0)
+        T.AreEqual(ui.AtlasTexel(HellfeatherRuneArt.PlusTileX + 7, HellfeatherRuneArt.TileY + 7), (uint)0xFFD8A93A)
+    }
+}
+
+// The rune board window: opens with the R key against the left edge, beside the
+// bag. Clicking a + opens that cell for a point; carrying a rune from the bag and
+// clicking open cells sockets it, and clicking a socketed rune lifts it back onto
+// the cursor. The game copies the cursor's item into Held before each update and
+// back out after, so the bag and the board share one cursor.
+HellfeatherRuneScreen
+{
+    HellfeatherRuneBoard Board
+    bool Open
+    // The warrior's level, set by the game. Each level past the first buys a cell.
+    int Level = 1
+    HellfeatherItems Held
+    -bool MouseWasDown
+    -int Scale = 1
+    -int PanelX
+    -int PanelY
+    -int PointerX = -1
+    -int PointerY = -1
+
+    Stock() { Board.Stock() }
+
+    Toggle() { Open = !Open }
+
+    int Points() { return Level - 1 - Board.Bought }
+
+    bool Captures(int mouseX, int mouseY) { return OverPanel(mouseX, mouseY) }
+
+    bool OverPanel(int mouseX, int mouseY)
+    {
+        if !Open { return false }
+        int x = mouseX / Scale
+        int y = mouseY / Scale
+        return x >= PanelX && y >= PanelY && x < PanelX + HellfeatherInventoryArt.PanelWidth && y < PanelY + HellfeatherInventoryArt.PanelHeight
+    }
+
+    // Runs once per frame after the overlay is cleared.
+    Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool down)
+    {
+        HellfeatherInventoryArt.EnsurePainted(ui)
+        bool pressed = down && !MouseWasDown
+        MouseWasDown = down
+        if !Open { return }
+        Scale = ui.ScaleFor(width, height)
+        PanelX = HellfeatherRuneScreen.Margin
+        PanelY = Math.Max(0, (height / Scale - HellfeatherInventoryArt.PanelHeight) / 2)
+        PointerX = mouseX / Scale - PanelX
+        PointerY = mouseY / Scale - PanelY
+        if pressed { Click() }
+        if Open { Draw(ui) }
+    }
+
+    -bool OnClose()
+    {
+        return PointerX >= HellfeatherInventoryArt.CloseX && PointerY >= HellfeatherInventoryArt.CloseY && PointerX < HellfeatherInventoryArt.CloseX + HellfeatherInventoryArt.CloseSize && PointerY < HellfeatherInventoryArt.CloseY + HellfeatherInventoryArt.CloseSize
+    }
+
+    -bool OnBoard()
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        return PointerX >= HellfeatherRuneArt.BoardX && PointerY >= HellfeatherRuneArt.BoardY && PointerX < HellfeatherRuneArt.BoardX + HellfeatherRuneBoard.Columns * cell && PointerY < HellfeatherRuneArt.BoardY + HellfeatherRuneBoard.Rows * cell
+    }
+
+    -int CellX() { return QuaxelNoise.FloorDiv(PointerX - HellfeatherRuneArt.BoardX, HellfeatherInventoryArt.Cell) }
+
+    -int CellY() { return QuaxelNoise.FloorDiv(PointerY - HellfeatherRuneArt.BoardY, HellfeatherInventoryArt.Cell) }
+
+    // Where the held rune's top-left would go, with the rune centered on the mouse.
+    -int DropX()
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(Held)
+        return QuaxelNoise.FloorDiv(PointerX - HellfeatherRuneArt.BoardX - (kind.Width - 1) * HellfeatherInventoryArt.Cell / 2, HellfeatherInventoryArt.Cell)
+    }
+
+    -int DropY()
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(Held)
+        return QuaxelNoise.FloorDiv(PointerY - HellfeatherRuneArt.BoardY - (kind.Height - 1) * HellfeatherInventoryArt.Cell / 2, HellfeatherInventoryArt.Cell)
+    }
+
+    -Click()
+    {
+        if OnClose() {
+            Open = false
+            return
+        }
+        if !OnBoard() { return }
+        if Held != HellfeatherItems.None {
+            if Board.CanPlace(Held, DropX(), DropY()) { Held = Board.Place(Held, DropX(), DropY()) }
+            return
+        }
+        if Board.SocketAt(CellX(), CellY()) >= 0 {
+            Held = Board.Lift(CellX(), CellY())
+            return
+        }
+        Board.Expand(CellX(), CellY(), Points())
+    }
+
+    // From panel coordinates to the UI pixel grid.
+    -int OnGridX(int x) { return PanelX + x }
+
+    -int OnGridY(int y) { return PanelY + y }
+
+    -Draw(QuaxelUi& ui)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        ui.OverlaySprite(PanelX, PanelY, 0, HellfeatherRuneArt.Top, HellfeatherInventoryArt.PanelWidth, HellfeatherInventoryArt.PanelHeight)
+        string title = "RUNES"
+        ui.OverlayText(OnGridX((HellfeatherInventoryArt.PanelWidth - (int)Length(title) * 6) / 2), OnGridY(9), title, 0xFFE8B070)
+        int points = Points()
+        ui.OverlayText(OnGridX(HellfeatherRuneArt.BoardX + 1), OnGridY(25), "Slots " + QuaxelUi.FormatInt(Board.OpenCount()), 0xFFC8CCD4)
+        string spare = "Points " + QuaxelUi.FormatInt(points)
+        ui.OverlayText(OnGridX(HellfeatherRuneArt.BoardX + HellfeatherRuneBoard.Columns * cell - (int)Length(spare) * 6), OnGridY(25), spare, points > 0 ? 0xFFE8C850 | 0xFF8A8278)
+        for row : 0; row < HellfeatherRuneBoard.Rows; row++ {
+            for column : 0; column < HellfeatherRuneBoard.Columns; column++ {
+                int x = OnGridX(HellfeatherRuneArt.BoardX + column * cell)
+                int y = OnGridY(HellfeatherRuneArt.BoardY + row * cell)
+                if Board.IsOpen(column, row) { ui.OverlaySprite(x, y, HellfeatherRuneArt.OpenTileX, HellfeatherRuneArt.TileY, cell, cell) }
+                else if Board.CanExpand(column, row, points) { ui.OverlaySprite(x, y, HellfeatherRuneArt.PlusTileX, HellfeatherRuneArt.TileY, cell, cell) }
+            }
+        }
+        DrawRunes(ui)
+        DrawPointer(ui)
+        DrawInfo(ui)
+    }
+
+    -DrawRunes(QuaxelUi& ui)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        int hovered = Held == HellfeatherItems.None && OnBoard() ? Board.SocketAt(CellX(), CellY()) | -1
+        for i : 0; i < Board.Sockets.Len; i++ {
+            item : Board.Sockets[i].Item
+            HellfeatherItemKind kind = HellfeatherItems.Get(item)
+            int x = HellfeatherRuneArt.BoardX + Board.Sockets[i].X * cell
+            int y = HellfeatherRuneArt.BoardY + Board.Sockets[i].Y * cell
+            ui.OverlayOutlinedSprite(OnGridX(x), OnGridY(y), HellfeatherInventoryArt.IconX(item), HellfeatherInventoryArt.IconY(item), kind.Width * cell, kind.Height * cell, HellfeatherInventoryArt.IconOutline)
+            if i == hovered { ui.OverlayRect(OnGridX(x + 1), OnGridY(y + 1), kind.Width * cell - 1, kind.Height * cell - 1, 0x30FFFFFF) }
+        }
+    }
+
+    // Where the held rune would land, green when it fits and red when it does not,
+    // or a light square over a cell a point can open.
+    -DrawPointer(QuaxelUi& ui)
+    {
+        if !OnBoard() { return }
+        int cell = HellfeatherInventoryArt.Cell
+        if Held != HellfeatherItems.None {
+            HellfeatherItemKind kind = HellfeatherItems.Get(Held)
+            int x = DropX()
+            int y = DropY()
+            uint tint = Board.CanPlace(Held, x, y) ? 0x5040C060 | 0x50C04030
+            ui.OverlayRect(OnGridX(HellfeatherRuneArt.BoardX + x * cell), OnGridY(HellfeatherRuneArt.BoardY + y * cell), kind.Width * cell, kind.Height * cell, tint)
+            return
+        }
+        if Board.CanExpand(CellX(), CellY(), Points()) {
+            ui.OverlayRect(OnGridX(HellfeatherRuneArt.BoardX + CellX() * cell), OnGridY(HellfeatherRuneArt.BoardY + CellY() * cell), cell, cell, 0x30FFFFFF)
+        }
+    }
+
+    -Line(QuaxelUi& ui, int row, string text, uint color)
+    {
+        ui.OverlayText(OnGridX(HellfeatherRuneArt.BoardX + 5), OnGridY(HellfeatherRuneArt.InfoY + 4 + row * 11), text, color)
+    }
+
+    // The rune under the mouse, or else every skill the board grants and how strong.
+    -DrawInfo(QuaxelUi& ui)
+    {
+        int hovered = Held == HellfeatherItems.None && OnBoard() ? Board.SocketAt(CellX(), CellY()) | -1
+        if hovered >= 0 {
+            item : Board.Sockets[hovered].Item
+            HellfeatherItemKind kind = HellfeatherItems.Get(item)
+            found : Board.Skill(HellfeatherRunes.SkillOf(item))
+            Line(ui, 0, kind.Name, 0xFFE8B070)
+            Line(ui, 1, kind.Detail, 0xFFC8CCD4)
+            Line(ui, 2, "Power " + QuaxelUi.FormatInt(found.Power) + "%  kin " + QuaxelUi.FormatInt(found.Kin), 0xFFDCAE3E)
+            return
+        }
+        if OnBoard() && Held == HellfeatherItems.None && Board.CanExpand(CellX(), CellY(), Points()) {
+            Line(ui, 0, "Open this slot", 0xFFE8B070)
+            Line(ui, 1, "Costs 1 point", 0xFFC8CCD4)
+            return
+        }
+        int row = 0
+        for action : HellfeatherAction {
+            if !HellfeatherRunes.IsRuneSkill(action) { continue }
+            found : Board.Skill(action)
+            if found.Power <= 0 { continue }
+            HellfeatherActionKind kind = HellfeatherAction.Get(action)
+            string power = QuaxelUi.FormatInt(found.Power) + "%"
+            Line(ui, row, kind.Name, 0xFFC8CCD4)
+            ui.OverlayText(OnGridX(HellfeatherRuneArt.BoardX + HellfeatherRuneBoard.Columns * HellfeatherInventoryArt.Cell - 5 - (int)Length(power) * 6), OnGridY(HellfeatherRuneArt.InfoY + 4 + row * 11), power, 0xFFDCAE3E)
+            row++
+        }
+        if row == 0 {
+            Line(ui, 0, "Socket runes from the bag", 0xFF8A8278)
+            Line(ui, 1, "to learn their skills", 0xFF8A8278)
+        }
+    }
+}
+@{
+    PanelScale: Scale
+    PanelLeft: PanelX
+    PanelTop: PanelY
+}
+#{
+    // UI pixels between the panel and the left edge of the window.
+    #int Margin = 4
+}
+T{
+    ClosedRunesDrawNothingAndIgnoreTheMouse()
+    {
+        HellfeatherRuneScreen screen
+        screen.Stock()
+        QuaxelUi ui()
+        screen.Update(ui, 960, 540, 100, 100, true)
+        ui.Layout(960, 540, 0, 0, false)
+        T.AreEqual(ui.CommandCount, 0)
+        T.IsFalse(screen.Captures(100, 100))
+    }
+
+    ClickingAPlusOpensACellForAPoint()
+    {
+        HellfeatherRuneScreen screen
+        screen.Stock()
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Update(ui, 960, 540, 0, 0, false)
+        int s = screen.PanelScale
+        int cell = HellfeatherInventoryArt.Cell
+        int x = (screen.PanelLeft + HellfeatherRuneArt.BoardX + 3 * cell + 4) * s
+        int y = (screen.PanelTop + HellfeatherRuneArt.BoardY + 4 * cell + 4) * s
+        // No points yet at level one.
+        screen.Update(ui, 960, 540, x, y, true)
+        T.IsFalse(screen.Board.IsOpen(3, 4))
+        screen.Update(ui, 960, 540, x, y, false)
+        screen.Level = 2
+        screen.Update(ui, 960, 540, x, y, true)
+        T.IsTrue(screen.Board.IsOpen(3, 4))
+        T.AreEqual(screen.Points(), 0)
+    }
+
+    AHeldRuneSocketsAndLiftsBack()
+    {
+        HellfeatherRuneScreen screen
+        screen.Stock()
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Held = HellfeatherItems.RuneCleave
+        screen.Update(ui, 960, 540, 0, 0, false)
+        int s = screen.PanelScale
+        int cell = HellfeatherInventoryArt.Cell
+        // The two cells of the rune sit either side of the mouse.
+        int x = (screen.PanelLeft + HellfeatherRuneArt.BoardX + 5 * cell) * s
+        int y = (screen.PanelTop + HellfeatherRuneArt.BoardY + 4 * cell + 8) * s
+        screen.Update(ui, 960, 540, x, y, true)
+        T.AreEqual(screen.Held, HellfeatherItems.None)
+        T.AreEqual(screen.Board.SocketAt(4, 4), 0)
+        T.AreEqual(screen.Board.PowerOf(HellfeatherAction.Cleave), 100)
+        screen.Update(ui, 960, 540, x, y, false)
+        screen.Update(ui, 960, 540, x, y, true)
+        T.AreEqual(screen.Held, HellfeatherItems.RuneCleave)
+        T.AreEqual(screen.Board.Sockets.Len, 0)
+    }
+
+    OnlyRunesGoOnTheBoard()
+    {
+        HellfeatherRuneScreen screen
+        screen.Stock()
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Held = HellfeatherItems.HealthPotion
+        screen.Update(ui, 960, 540, 0, 0, false)
+        int s = screen.PanelScale
+        int x = (screen.PanelLeft + HellfeatherRuneArt.BoardX + 4 * HellfeatherInventoryArt.Cell + 4) * s
+        int y = (screen.PanelTop + HellfeatherRuneArt.BoardY + 4 * HellfeatherInventoryArt.Cell + 4) * s
+        screen.Update(ui, 960, 540, x, y, true)
+        T.AreEqual(screen.Held, HellfeatherItems.HealthPotion)
+        T.AreEqual(screen.Board.Sockets.Len, 0)
+    }
+
+    EveryRunesPixelMatchesTheFontPixel()
+    {
+        HellfeatherRuneScreen screen
+        screen.Stock()
+        screen.Level = 5
+        screen.Board.Place(HellfeatherItems.RuneWarCry, 4, 4)
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Update(ui, 1920, 1080, 300, 500, false)
+        ui.Layout(1920, 1080, 300, 500, false)
+        T.IsTrue(ui.CommandCount > 10)
+        for i : 0; i < ui.CommandCount; i++ {
+            QuaxelUiCommand command = ui.GetCommand(i)
+            T.AreEqual(command.X % 4, 0)
+            T.AreEqual(command.Y % 4, 0)
+        }
+    }
+}

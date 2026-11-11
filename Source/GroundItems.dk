@@ -3,6 +3,7 @@
 HellfeatherGroundItem
 {
     HellfeatherItems Item
+    HellfeatherItemMods Mods
     int Amount
     int Node
     vec3 Position
@@ -73,6 +74,14 @@ HellfeatherGroundItems
         entry.Node = node
         entry.Position = ground
         Entries += entry
+        return true
+    }
+
+    // An item with its mods, which come back with it when it is picked up.
+    bool PlaceWith(QuaxelWorld& world, HellfeatherItems item, HellfeatherItemMods mods, vec3 ground)
+    {
+        if !Place(world, item, ground) { return false }
+        Entries[(int)Entries.Len - 1].Mods = mods
         return true
     }
 
@@ -174,8 +183,10 @@ HellfeatherGroundItems
         for i : 0; i < Labels.Len; i++ {
             int entry = Labels[i].Entry
             DrawBox(ui, Labels[i].X, Labels[i].Y, Labels[i].Width)
-            uint color = 0xFF8C8880
-            if InReach(entry, player) { color = entry == Hovered ? 0xFFFFD27A | 0xFFEDE6D8 }
+            // Titles take their rarity's color, dimmed out of reach and white under the mouse.
+            uint color = HellfeatherItemMods.ColorOf(Entries[entry].Mods.Rarity)
+            if !InReach(entry, player) { color = (color & (uint)0x00FEFEFE) / (uint)2 | (uint)0xFF000000 }
+            else if entry == Hovered { color = 0xFFFFFFFF }
             ui.OverlayText(Labels[i].X + PaddingX, Labels[i].Y + PaddingY, Title(entry), color)
         }
     }

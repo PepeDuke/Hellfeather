@@ -54,6 +54,8 @@ EnemyKind
     float Notice = 14.0
     int MaxHealth = 60
     int Damage = 10
+    // What slaying one is worth toward the next level.
+    int Experience = 10
     // The Name of a LootTable. Empty drops nothing.
     string Loot
     int LootIndex = -1
@@ -310,6 +312,9 @@ HellfeatherEnemySpawner
         }
         return HellfeatherItems.None
     }
+
+    // Rarity and mods for an item that just dropped.
+    HellfeatherItemMods RollMods(HellfeatherItems item) { return HellfeatherItemMods.Roll(item, (uint)LootRandom.Below(2147483647)) }
 
     // The coins that come with a successful roll of a loot table, or 0.
     int RollGold(int loot)

@@ -280,6 +280,8 @@ HellfeatherGlobes
 {
     HellfeatherGlobe Health
     HellfeatherGlobe Mana
+    // Screen pixels from the left that a panel on that side covers.
+    int CoveredLeft
     -int CameraNode
 
     bool Spawn(QuaxelWorld& world, int camera)
@@ -308,9 +310,13 @@ HellfeatherGlobes
         float panelEdge = (float)clearWidth * (2.0 * halfWidth / (float)width) - halfWidth
         // When there is no room beside the panel, the panel simply covers the globe.
         if panelEdge >= -halfWidth + SideInset * 4.0 && panelEdge < halfWidth { rightEdge = panelEdge }
+        // Likewise the health globe moves out from under a panel on the left.
+        float leftEdge = -halfWidth
+        float coveredEdge = (float)CoveredLeft * (2.0 * halfWidth / (float)width) - halfWidth
+        if CoveredLeft > 0 && coveredEdge <= rightEdge - SideInset * 4.0 { leftEdge = coveredEdge }
         float floor = BottomInset - camera.BoundsHalfHeight
         vec3 depth = forward * Depth
-        Health.Place(world, right * (SideInset - halfWidth) + up * floor + depth)
+        Health.Place(world, right * (leftEdge + SideInset) + up * floor + depth)
         Mana.Place(world, right * (rightEdge - SideInset) + up * floor + depth)
     }
 }

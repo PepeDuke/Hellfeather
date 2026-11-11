@@ -53,6 +53,8 @@ HellfeatherItemKind
     int Width = 1
     int Height = 1
     HellfeatherGear Gear
+    // What the shopkeeper asks for it, in gold. He pays a quarter of this.
+    int Price
 }
 
 HellfeatherItems : int
@@ -73,12 +75,16 @@ HellfeatherItems : int
     RustyKey,
     Scroll,
     // Only ever a pile on the ground. Taking it adds to the purse, not the bag.
-    Gold
+    Gold,
+    // Runes sit on the rune board, where each grants an active skill.
+    RuneCleave,
+    RuneWarCry,
+    RuneDash
 }
 
 HellfeatherItems
 #{
-    -HellfeatherItemKind Make(string title, string detail, int width, int height, HellfeatherGear gear)
+    -HellfeatherItemKind Make(string title, string detail, int width, int height, HellfeatherGear gear, int price)
     {
         HellfeatherItemKind kind
         kind.Name = title
@@ -86,27 +92,31 @@ HellfeatherItems
         kind.Width = width
         kind.Height = height
         kind.Gear = gear
+        kind.Price = price
         return kind
     }
 
     HellfeatherItemKind Get(HellfeatherItems item)
     {
-        if item == HellfeatherItems.BattleAxe { return Make("Battle Axe", "Damage 20", 2, 3, HellfeatherGear.Weapon) }
-        if item == HellfeatherItems.ShortSword { return Make("Short Sword", "Damage 12", 1, 3, HellfeatherGear.Weapon) }
-        if item == HellfeatherItems.RoundShield { return Make("Round Shield", "Defense 8", 2, 2, HellfeatherGear.Shield) }
-        if item == HellfeatherItems.IronHelm { return Make("Iron Helm", "Defense 5", 2, 2, HellfeatherGear.Head) }
-        if item == HellfeatherItems.LeatherArmor { return Make("Leather Armor", "Defense 12", 2, 3, HellfeatherGear.Body) }
-        if item == HellfeatherItems.Gloves { return Make("Hide Gloves", "Defense 2", 2, 2, HellfeatherGear.Hands) }
-        if item == HellfeatherItems.Boots { return Make("Worn Boots", "Defense 2", 2, 2, HellfeatherGear.Feet) }
-        if item == HellfeatherItems.Belt { return Make("Leather Belt", "Defense 1", 2, 1, HellfeatherGear.Waist) }
-        if item == HellfeatherItems.Ring { return Make("Silver Ring", "Luck 1", 1, 1, HellfeatherGear.Ring) }
-        if item == HellfeatherItems.Amulet { return Make("Ember Amulet", "Fire ward 3", 1, 1, HellfeatherGear.Neck) }
-        if item == HellfeatherItems.HealthPotion { return Make("Health Potion", "Restores 40 HP", 1, 1, HellfeatherGear.None) }
-        if item == HellfeatherItems.ManaPotion { return Make("Mana Potion", "Restores 30 MP", 1, 1, HellfeatherGear.None) }
-        if item == HellfeatherItems.RustyKey { return Make("Rusty Key", "Opens a chest", 1, 1, HellfeatherGear.None) }
-        if item == HellfeatherItems.Scroll { return Make("Old Scroll", "Faded writing", 1, 1, HellfeatherGear.None) }
-        if item == HellfeatherItems.Gold { return Make("Gold", "Coins", 1, 1, HellfeatherGear.None) }
-        return Make("", "", 1, 1, HellfeatherGear.None)
+        if item == HellfeatherItems.BattleAxe { return Make("Battle Axe", "Damage 20", 2, 3, HellfeatherGear.Weapon, 300) }
+        if item == HellfeatherItems.ShortSword { return Make("Short Sword", "Damage 12", 1, 3, HellfeatherGear.Weapon, 120) }
+        if item == HellfeatherItems.RoundShield { return Make("Round Shield", "Defense 8", 2, 2, HellfeatherGear.Shield, 100) }
+        if item == HellfeatherItems.IronHelm { return Make("Iron Helm", "Defense 5", 2, 2, HellfeatherGear.Head, 90) }
+        if item == HellfeatherItems.LeatherArmor { return Make("Leather Armor", "Defense 12", 2, 3, HellfeatherGear.Body, 160) }
+        if item == HellfeatherItems.Gloves { return Make("Hide Gloves", "Defense 2", 2, 2, HellfeatherGear.Hands, 45) }
+        if item == HellfeatherItems.Boots { return Make("Worn Boots", "Defense 2", 2, 2, HellfeatherGear.Feet, 50) }
+        if item == HellfeatherItems.Belt { return Make("Leather Belt", "Defense 1", 2, 1, HellfeatherGear.Waist, 35) }
+        if item == HellfeatherItems.Ring { return Make("Silver Ring", "Luck 1", 1, 1, HellfeatherGear.Ring, 220) }
+        if item == HellfeatherItems.Amulet { return Make("Ember Amulet", "Fire ward 3", 1, 1, HellfeatherGear.Neck, 260) }
+        if item == HellfeatherItems.HealthPotion { return Make("Health Potion", "Restores 40 HP", 1, 1, HellfeatherGear.None, 30) }
+        if item == HellfeatherItems.ManaPotion { return Make("Mana Potion", "Restores 30 MP", 1, 1, HellfeatherGear.None, 30) }
+        if item == HellfeatherItems.RustyKey { return Make("Rusty Key", "Opens a chest", 1, 1, HellfeatherGear.None, 15) }
+        if item == HellfeatherItems.Scroll { return Make("Old Scroll", "Faded writing", 1, 1, HellfeatherGear.None, 60) }
+        if item == HellfeatherItems.Gold { return Make("Gold", "Coins", 1, 1, HellfeatherGear.None, 0) }
+        if item == HellfeatherItems.RuneCleave { return Make("Cleave Rune", "War rune: Cleave", 2, 1, HellfeatherGear.None, 180) }
+        if item == HellfeatherItems.RuneWarCry { return Make("War Cry Rune", "War rune: War Cry", 2, 2, HellfeatherGear.None, 260) }
+        if item == HellfeatherItems.RuneDash { return Make("Dash Rune", "Wind rune: Dash", 1, 2, HellfeatherGear.None, 180) }
+        return Make("", "", 1, 1, HellfeatherGear.None, 0)
     }
 }
 
@@ -114,16 +124,20 @@ HellfeatherItems
 HellfeatherBagEntry
 {
     HellfeatherItems Item
+    HellfeatherItemMods Mods
     int X
     int Y
 }
 
-// What the warrior carries. Held is the item on the mouse cursor.
+// What the warrior carries. Held is the item on the mouse cursor. Each item's
+// mods sit beside it: EquippedMods for each slot and HeldMods for the cursor.
 HellfeatherInventory
 {
     HellfeatherItems [10] Equipped
+    HellfeatherItemMods [10] EquippedMods
     HellfeatherBagEntry [] Bag
     HellfeatherItems Held
+    HellfeatherItemMods HeldMods
     int Gold
 
     // The index of the bag entry covering a cell, or -1.
@@ -166,11 +180,33 @@ HellfeatherInventory
 
     PutAt(HellfeatherItems item, int x, int y)
     {
+        HellfeatherItemMods none
+        none.Clear()
+        PutWithAt(item, none, x, y)
+    }
+
+    PutWithAt(HellfeatherItems item, HellfeatherItemMods mods, int x, int y)
+    {
         HellfeatherBagEntry entry
         entry.Item = item
+        entry.Mods = mods
         entry.X = x
         entry.Y = y
         Bag += entry
+    }
+
+    // Puts an item on the cursor. A different item does not keep the old mods.
+    ReplaceHeld(HellfeatherItems item)
+    {
+        if item == Held { return }
+        Held = item
+        HeldMods.Clear()
+    }
+
+    ClearHeld()
+    {
+        Held = HellfeatherItems.None
+        HeldMods.Clear()
     }
 
     -RemoveEntry(int index)
@@ -182,10 +218,17 @@ HellfeatherInventory
     // Finds the first space that fits, scanning columns from the left.
     bool Add(HellfeatherItems item)
     {
+        HellfeatherItemMods none
+        none.Clear()
+        return AddWith(item, none)
+    }
+
+    bool AddWith(HellfeatherItems item, HellfeatherItemMods mods)
+    {
         for x : 0; x < Columns; x++ {
             for y : 0; y < Rows; y++ {
                 if IsFree(item, x, y) {
-                    PutAt(item, x, y)
+                    PutWithAt(item, mods, x, y)
                     return true
                 }
             }
@@ -199,6 +242,7 @@ HellfeatherInventory
         int index = EntryAt(x, y)
         if Held != HellfeatherItems.None || index < 0 { return false }
         Held = Bag[index].Item
+        HeldMods = Bag[index].Mods
         RemoveEntry(index)
         return true
     }
@@ -217,12 +261,16 @@ HellfeatherInventory
         int only = -1
         CountOverlaps(Held, x, y, only)
         swapped : HellfeatherItems.None
+        HellfeatherItemMods swappedMods
+        swappedMods.Clear()
         if only >= 0 {
             swapped = Bag[only].Item
+            swappedMods = Bag[only].Mods
             RemoveEntry(only)
         }
-        PutAt(Held, x, y)
+        PutWithAt(Held, HeldMods, x, y)
         Held = swapped
+        HeldMods = swappedMods
         return true
     }
 
@@ -238,8 +286,11 @@ HellfeatherInventory
         if Held != HellfeatherItems.None && !Accepts(slot, Held) { return false }
         if Held == HellfeatherItems.None && Equipped[slot] == HellfeatherItems.None { return false }
         previous : Equipped[slot]
+        previousMods : EquippedMods[slot]
         Equipped[slot] = Held
+        EquippedMods[slot] = HeldMods
         Held = previous
+        HeldMods = previousMods
         return true
     }
 
@@ -268,7 +319,7 @@ HellfeatherInventory
     // Puts the held item back in the bag, if it fits.
     StowHeld()
     {
-        if Held != HellfeatherItems.None && Add(Held) { Held = HellfeatherItems.None }
+        if Held != HellfeatherItems.None && AddWith(Held, HeldMods) { ClearHeld() }
     }
 }
 #{

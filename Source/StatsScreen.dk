@@ -1,0 +1,281 @@
+// Paints the character panel into the sprite atlas below the shop: the stone
+// and frame every panel shares, with a recess for each group of stats and one
+// for the hint along the bottom. Coordinates are logical pixels.
+HellfeatherStatsArt
+#{
+    #int Top = 768
+    #int FirstY = 26
+    // A group's title sits above its recess.
+    #int HeaderHeight = 11
+    #int Row = 10
+    #int Pad = 2
+    #int Gap = 3
+    #int WellX = 8
+    #int WellWidth = 160
+    #int HintY = 228
+    #int HintHeight = 14
+    #int Sections = 4
+
+    // Attributes, offense, defense, and everything else.
+    int SectionRows(int section)
+    {
+        if section == 0 { return 5 }
+        if section == 2 { return 4 }
+        return 2
+    }
+
+    string SectionTitle(int section)
+    {
+        if section == 0 { return "ATTRIBUTES" }
+        if section == 1 { return "OFFENSE" }
+        if section == 2 { return "DEFENSE" }
+        return "OTHER"
+    }
+
+    int SectionY(int section)
+    {
+        int y = FirstY
+        for i : 0; i < section; i++ { y += HeaderHeight + WellHeight(i) + Gap }
+        return y
+    }
+
+    int WellY(int section) { return SectionY(section) + HeaderHeight }
+
+    int WellHeight(int section) { return SectionRows(section) * Row + Pad * 2 }
+
+    // The top of a row's text, on the panel.
+    int RowY(int section, int row) { return WellY(section) + Pad + row * Row }
+
+    Paint(QuaxelUi& ui)
+    {
+        HellfeatherInventoryArt.PaintStone(ui, Top)
+        HellfeatherInventoryArt.PaintFrame(ui, Top)
+        HellfeatherInventoryArt.PaintClose(ui, Top)
+        for section : 0; section < Sections; section++ {
+            HellfeatherInventoryArt.Well(ui, WellX, Top + WellY(section), WellWidth, WellHeight(section))
+            // Every other row a shade lighter, so a label leads the eye to its value.
+            for row : 1; row < SectionRows(section); row += 2 {
+                HellfeatherInventoryArt.Fill(ui, WellX + 1, Top + RowY(section, row), WellWidth - 2, Row, 0x1e1a17)
+            }
+        }
+        HellfeatherInventoryArt.Well(ui, WellX, Top + HintY, WellWidth, HintHeight)
+    }
+}
+T{
+    StatGroupsFitAboveTheHintAndInsideTheFrame()
+    {
+        int last = HellfeatherStatsArt.Sections - 1
+        T.IsTrue(HellfeatherStatsArt.WellY(last) + HellfeatherStatsArt.WellHeight(last) < HellfeatherStatsArt.HintY)
+        T.IsTrue(HellfeatherStatsArt.HintY + HellfeatherStatsArt.HintHeight <= HellfeatherInventoryArt.PanelHeight - 6)
+        T.IsTrue(HellfeatherStatsArt.WellX + HellfeatherStatsArt.WellWidth <= HellfeatherInventoryArt.PanelWidth - 6)
+        T.IsTrue(HellfeatherStatsArt.Top + HellfeatherInventoryArt.PanelHeight <= HellfeatherInventoryArt.AtlasHeight)
+    }
+
+    ThePanelIsPaintedIntoTheAtlas()
+    {
+        QuaxelUi ui()
+        HellfeatherInventoryArt.EnsurePainted(ui)
+        T.IsTrue(ui.AtlasTexel(2, HellfeatherStatsArt.Top + 2) != (uint)0)
+        T.IsTrue(ui.AtlasTexel(HellfeatherStatsArt.WellX + 4, HellfeatherStatsArt.Top + HellfeatherStatsArt.WellY(0) + 1) != (uint)0)
+    }
+}
+
+// The character window: opens with the C key against the left edge and shows
+// what the warrior is made of. It only shows. Its one button closes it.
+HellfeatherStatsScreen
+{
+    bool Open
+    // The warrior's level and her experience within it, set by the game.
+    int Level = 1
+    int Experience
+    int ToNext = 40
+    -bool MouseWasDown
+    -int Scale = 1
+    -int PanelX
+    -int PanelY
+    // What the row under the mouse means, shown along the bottom.
+    -string Hint
+
+    Toggle() { Open = !Open }
+
+    // True when the mouse is over the panel, so the world should ignore its clicks.
+    bool Captures(int mouseX, int mouseY) { return OverPanel(mouseX, mouseY) }
+
+    bool OverPanel(int mouseX, int mouseY)
+    {
+        if !Open { return false }
+        int x = mouseX / Scale
+        int y = mouseY / Scale
+        return x >= PanelX && y >= PanelY && x < PanelX + HellfeatherInventoryArt.PanelWidth && y < PanelY + HellfeatherInventoryArt.PanelHeight
+    }
+
+    // Runs once per frame after the overlay is cleared. Health and mana are what
+    // she has right now; the stats give their maximums.
+    Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool down, HellfeatherStats& stats, int health, int mana)
+    {
+        HellfeatherInventoryArt.EnsurePainted(ui)
+        bool pressed = down && !MouseWasDown
+        MouseWasDown = down
+        if !Open { return }
+        Scale = ui.ScaleFor(width, height)
+        PanelX = HellfeatherStatsScreen.Margin
+        PanelY = Math.Max(0, (height / Scale - HellfeatherInventoryArt.PanelHeight) / 2)
+        int pointerX = mouseX / Scale - PanelX
+        int pointerY = mouseY / Scale - PanelY
+        if pressed && OnClose(pointerX, pointerY) {
+            Open = false
+            return
+        }
+        Draw(ui, pointerX, pointerY, stats, health, mana)
+    }
+
+    -bool OnClose(int pointerX, int pointerY)
+    {
+        return pointerX >= HellfeatherInventoryArt.CloseX && pointerY >= HellfeatherInventoryArt.CloseY && pointerX < HellfeatherInventoryArt.CloseX + HellfeatherInventoryArt.CloseSize && pointerY < HellfeatherInventoryArt.CloseY + HellfeatherInventoryArt.CloseSize
+    }
+
+    -Draw(QuaxelUi& ui, int pointerX, int pointerY, HellfeatherStats& stats, int health, int mana)
+    {
+        ui.OverlaySprite(PanelX, PanelY, 0, HellfeatherStatsArt.Top, HellfeatherInventoryArt.PanelWidth, HellfeatherInventoryArt.PanelHeight)
+        string title = "CHARACTER"
+        ui.OverlayText(PanelX + (HellfeatherInventoryArt.PanelWidth - (int)Length(title) * 6) / 2, PanelY + 9, title, 0xFFE8B070)
+        for section : 0; section < HellfeatherStatsArt.Sections; section++ {
+            ui.OverlayText(PanelX + HellfeatherStatsArt.WellX + 1, PanelY + HellfeatherStatsArt.SectionY(section) + 2, HellfeatherStatsArt.SectionTitle(section), 0xFFB07848)
+        }
+        Hint = ""
+        string experience = QuaxelUi.FormatInt(Experience) + "/" + QuaxelUi.FormatInt(ToNext) + " experience"
+        if Level >= HellfeatherLevel.MaxLevel { experience = "The highest level" }
+        Line(ui, 0, 0, "Level", QuaxelUi.FormatInt(Level), experience, pointerX, pointerY)
+        Line(ui, 0, 1, "Strength", QuaxelUi.FormatInt(stats.Strength), "+1 damage with weapons", pointerX, pointerY)
+        Line(ui, 0, 2, "Agility", QuaxelUi.FormatInt(stats.Agility), "+1 ranged dmg, +1% hit", pointerX, pointerY)
+        Line(ui, 0, 3, "Health", QuaxelUi.FormatInt(health) + "/" + QuaxelUi.FormatInt(stats.MaxHealth), "She falls at zero", pointerX, pointerY)
+        Line(ui, 0, 4, "Mana", QuaxelUi.FormatInt(mana) + "/" + QuaxelUi.FormatInt(stats.MaxMana), "Spent on actions", pointerX, pointerY)
+        string damageHint = "Weapon " + QuaxelUi.FormatInt(stats.WeaponDamage) + " + strength " + QuaxelUi.FormatInt(stats.Strength)
+        if stats.Ranged { damageHint = "Weapon + str + agi" }
+        Line(ui, 1, 0, "Damage", QuaxelUi.FormatInt(stats.Damage()), damageHint, pointerX, pointerY)
+        Line(ui, 1, 1, "Hit chance", QuaxelUi.FormatInt(stats.HitChance()) + "%", "75% + agility, max 95%", pointerX, pointerY)
+        Line(ui, 2, 0, "Defense", QuaxelUi.FormatInt(stats.Defense), "From the armor she wears", pointerX, pointerY)
+        Line(ui, 2, 1, "Fire resist", QuaxelUi.FormatInt(stats.FireResist) + "%", "Less damage from fire", pointerX, pointerY)
+        Line(ui, 2, 2, "Cold resist", QuaxelUi.FormatInt(stats.ColdResist) + "%", "Less damage from cold", pointerX, pointerY)
+        Line(ui, 2, 3, "Lightning res", QuaxelUi.FormatInt(stats.LightningResist) + "%", "Less lightning damage", pointerX, pointerY)
+        Line(ui, 3, 0, "Move speed", QuaxelUi.FormatInt(stats.MoveSpeed) + "%", "Of her normal pace", pointerX, pointerY)
+        Line(ui, 3, 1, "Mana regen", HellfeatherStats.FormatTenths(stats.ManaPerSecond) + "/s", "Mana back each second", pointerX, pointerY)
+        if Length(Hint) > 0 {
+            ui.OverlayText(PanelX + HellfeatherStatsArt.WellX + 5, PanelY + HellfeatherStatsArt.HintY + 4, Hint, 0xFFC8CCD4)
+        }
+    }
+
+    // One stat: its name on the left and its value against the right of its
+    // recess. Hovering it lights the row and puts its hint along the bottom.
+    -Line(QuaxelUi& ui, int section, int row, string label, string value, string hint, int pointerX, int pointerY)
+    {
+        int x = HellfeatherStatsArt.WellX
+        int y = HellfeatherStatsArt.RowY(section, row)
+        bool hovered = pointerX >= x && pointerY >= y && pointerX < x + HellfeatherStatsArt.WellWidth && pointerY < y + HellfeatherStatsArt.Row
+        if hovered {
+            ui.OverlayRect(PanelX + x + 1, PanelY + y, HellfeatherStatsArt.WellWidth - 2, HellfeatherStatsArt.Row, 0x30FFFFFF)
+            Hint = hint
+        }
+        ui.OverlayText(PanelX + x + 5, PanelY + y + 2, label, 0xFFC8CCD4)
+        ui.OverlayText(PanelX + x + HellfeatherStatsArt.WellWidth - 5 - (int)Length(value) * 6, PanelY + y + 2, value, 0xFFDCAE3E)
+    }
+}
+@{
+    PanelScale: Scale
+    PanelLeft: PanelX
+    PanelTop: PanelY
+    HintText: Hint
+}
+#{
+    // UI pixels between the panel and the left edge of the window.
+    #int Margin = 4
+}
+T{
+    ClosedStatsDrawNothingAndIgnoreTheMouse()
+    {
+        HellfeatherStatsScreen screen
+        HellfeatherInventory items
+        stats : items.Stats()
+        QuaxelUi ui()
+        screen.Update(ui, 960, 540, 100, 100, true, stats, 100, 60)
+        ui.Layout(960, 540, 0, 0, false)
+        T.AreEqual(ui.CommandCount, 0)
+        T.IsFalse(screen.Captures(100, 100))
+    }
+
+    OpenStatsHugTheLeftEdge()
+    {
+        HellfeatherStatsScreen screen
+        HellfeatherInventory items
+        stats : items.Stats()
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Update(ui, 960, 540, 0, 0, false, stats, 100, 60)
+        ui.Layout(960, 540, 0, 0, false)
+        QuaxelUiCommand panel = ui.GetCommand(0)
+        T.AreEqual(panel.X, HellfeatherStatsScreen.Margin * 2)
+        T.AreEqual(panel.Width, HellfeatherInventoryArt.PanelWidth * 2)
+        T.IsTrue(panel.Y >= 0 && panel.Y + panel.Height <= 540)
+        T.IsTrue(screen.Captures(40, 200))
+        T.IsFalse(screen.Captures(800, 200))
+    }
+
+    EveryStatsPixelMatchesTheFontPixel()
+    {
+        HellfeatherStatsScreen screen
+        HellfeatherInventory items
+        stats : items.Stats()
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Update(ui, 1920, 1080, 100, 300, false, stats, 73, 60)
+        ui.Layout(1920, 1080, 100, 300, false)
+        T.IsTrue(ui.CommandCount > 10)
+        for i : 0; i < ui.CommandCount; i++ {
+            QuaxelUiCommand command = ui.GetCommand(i)
+            T.AreEqual(command.X % 4, 0)
+            T.AreEqual(command.Y % 4, 0)
+        }
+    }
+
+    HoveringAStatExplainsIt()
+    {
+        HellfeatherStatsScreen screen
+        HellfeatherInventory items
+        items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.BattleAxe
+        stats : items.Stats()
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Update(ui, 960, 540, 0, 0, false, stats, 100, 60)
+        T.AreEqual(screen.HintText, "")
+        int s = screen.PanelScale
+        int x = (screen.PanelLeft + HellfeatherStatsArt.WellX + 10) * s
+        int y = (screen.PanelTop + HellfeatherStatsArt.RowY(1, 0) + 3) * s
+        screen.Update(ui, 960, 540, x, y, false, stats, 100, 60)
+        T.AreEqual(screen.HintText, "Weapon 20 + strength 5")
+        y = (screen.PanelTop + HellfeatherStatsArt.RowY(0, 1) + 3) * s
+        screen.Update(ui, 960, 540, x, y, false, stats, 100, 60)
+        T.AreEqual(screen.HintText, "+1 damage with weapons")
+        screen.Experience = 12
+        y = (screen.PanelTop + HellfeatherStatsArt.RowY(0, 0) + 3) * s
+        screen.Update(ui, 960, 540, x, y, false, stats, 100, 60)
+        T.AreEqual(screen.HintText, "12/40 experience")
+    }
+
+    TheCloseButtonClosesTheStats()
+    {
+        HellfeatherStatsScreen screen
+        HellfeatherInventory items
+        stats : items.Stats()
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Update(ui, 960, 540, 0, 0, false, stats, 100, 60)
+        int x = (screen.PanelLeft + HellfeatherInventoryArt.CloseX + 2) * screen.PanelScale
+        int y = (screen.PanelTop + HellfeatherInventoryArt.CloseY + 2) * screen.PanelScale
+        screen.Update(ui, 960, 540, x, y, true, stats, 100, 60)
+        T.IsFalse(screen.Open)
+    }
+}

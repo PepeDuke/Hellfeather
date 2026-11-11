@@ -1,0 +1,161 @@
+// The shopkeeper of Ravenford. He stands between the market stalls, facing the
+// camera, with his name over his head. Clicking him within reach opens his shop.
+// The model in Assets/ShopKeeper.qvox is built by Tools/Models/shopkeeper.py.
+HellfeatherShopKeeper
+{
+    int Node
+    // Whether the mouse was on him or his name as of the last DrawLabel.
+    bool Hovered
+
+    bool Spawn(QuaxelWorld& world, vec3 feet)
+    {
+        int volume = QuaxelAssets.LoadVoxelModel(world, "Assets/ShopKeeper.qvox")
+        if volume < 0 { return false }
+        Node = world.CreateNode()
+        QuaxelTransform pose = QuaxelTransform.Make(feet + vec3(0.0, (float)Height * VoxelSize * 0.5, 0.0), vec3(VoxelSize, VoxelSize, VoxelSize))
+        // Toward the isometric camera.
+        pose.FacingX = 0.70710678
+        pose.FacingZ = 0.70710678
+        world.AttachTransform(Node, pose)
+        world.SetCatchesEffects(Node, false)
+        return world.AttachVoxels(Node, volume)
+    }
+
+    vec3 Feet(QuaxelWorld& world) { return world.GetPosition(Node) - vec3(0.0, (float)Height * VoxelSize * 0.5, 0.0) }
+
+    bool InReach(QuaxelWorld& world, vec3 player)
+    {
+        vec3 feet = Feet(world)
+        return Math.Hypot(feet.X - player.X, feet.Z - player.Z) <= Reach
+    }
+
+    // Draws his name over his head and finds whether the mouse is on him.
+    // MouseFree is false while a panel owns the mouse.
+    DrawLabel(QuaxelUi& ui, QuaxelWorld& world, int cameraNode, vec3 player, int width, int height, int mouseX, int mouseY, bool mouseFree)
+    {
+        Hovered = false
+        if Node == 0 || !world.Exists(Node) { return }
+        QuaxelCamera camera = world.GetCamera(cameraNode)
+        camera.UpdateBounds(width, height)
+        mat4 screen = camera.ViewProjection(world.WorldPosition(cameraNode))
+        vec3 feet = Feet(world)
+        vec4 low = screen * vec4(feet, 1.0)
+        vec4 high = screen * vec4(feet + vec3(0.0, (float)Height * VoxelSize, 0.0), 1.0)
+        if Math.Abs(low.X) > 1.1 || Math.Abs(low.Y) > 1.1 { return }
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        int footX = (int)((low.X + 1.0) * 0.5 * (float)gridWidth)
+        int footY = (int)((low.Y + 1.0) * 0.5 * (float)gridHeight)
+        int headY = (int)((high.Y + 1.0) * 0.5 * (float)gridHeight)
+        // He is about half as wide as he is tall.
+        int halfWide = Math.Max(4, (footY - headY) / 4)
+        string title = "Shopkeeper"
+        int boxWidth = (int)Length(title) * 6 - 1 + 8
+        int boxHeight = 11
+        int boxX = Math.Clamp(footX - boxWidth / 2, 1, Math.Max(gridWidth - boxWidth - 1, 1))
+        int boxY = headY - 4 - boxHeight
+        if mouseFree {
+            int x = mouseX / scale
+            int y = mouseY / scale
+            bool onBody = Math.Abs(x - footX) <= halfWide && y >= headY && y <= footY
+            bool onName = x >= boxX && y >= boxY && x < boxX + boxWidth && y < boxY + boxHeight
+            Hovered = onBody || onName
+        }
+        ui.OverlayRect(boxX + 1, boxY + 1, boxWidth - 2, boxHeight - 2, 0x90000000)
+        ui.OverlayRect(boxX, boxY, boxWidth, 1, 0xD0000000)
+        ui.OverlayRect(boxX, boxY + boxHeight - 1, boxWidth, 1, 0xD0000000)
+        ui.OverlayRect(boxX, boxY + 1, 1, boxHeight - 2, 0xD0000000)
+        ui.OverlayRect(boxX + boxWidth - 1, boxY + 1, 1, boxHeight - 2, 0xD0000000)
+        uint color = 0xFF8C8880
+        if InReach(world, player) { color = Hovered ? 0xFFFFD27A | 0xFFEDE6D8 }
+        ui.OverlayText(boxX + 4, boxY + 2, title, color)
+    }
+}
+#{
+    #int Height = 72
+    #float VoxelSize = 0.025
+    // World units along the ground from which he can be clicked, and beyond
+    // which his shop closes.
+    #float Reach = 3.0
+    #float LeaveReach = 4.5
+    // Between the first two market stalls, in world units from the town center.
+    #float StandX = 8.0
+    #float StandZ = 4.8
+}
+T{
+    HeStandsOnOpenGroundInTown()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(world.Exists(game.Keeper.Node))
+        vec3 feet = game.Keeper.Feet(world)
+        int calls = 0
+        while !game.Terrain.IsReady(feet) && calls < 2000 {
+            T.IsTrue(game.Terrain.Stream(world, feet, 100000))
+            calls++
+        }
+        T.IsFalse(game.Terrain.CircleBlocked(feet.X, feet.Z, 0.4))
+        T.IsTrue(Math.Abs(feet.Y - game.Terrain.GroundY(feet.X, feet.Z)) < 0.01)
+    }
+
+    TradingMovesGoldAndItems()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenShop()
+        T.IsTrue(game.Shop.Open)
+        T.IsTrue(game.Inventory.Open)
+        T.IsTrue(game.Inventory.OnLeft)
+        game.Inventory.Items.Gold = 100
+        // The first shelf holds endless health potions.
+        game.Shop.BuyRequest = 0
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), 1)
+        T.AreEqual(game.Inventory.Items.Gold, 100 - game.Shop.Shop.PriceOf(0))
+        game.Inventory.Items.Gold = 5
+        game.Shop.BuyRequest = 0
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), 1)
+        game.Inventory.Items.Held = HellfeatherItems.Ring
+        game.Shop.SellRequest = true
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.Held, HellfeatherItems.None)
+        T.AreEqual(game.Inventory.Items.Gold, 60)
+    }
+
+    WalkingAwayClosesBothWindows()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        vec3 feet = game.Keeper.Feet(world)
+        QuaxelTransform pose = world.GetTransform(game.PlayerNode)
+        pose.Position = vec3(feet.X - 2.0, pose.Position.Y, feet.Z)
+        world.SetTransform(game.PlayerNode, pose)
+        T.IsTrue(game.Keeper.InReach(world, pose.Position))
+        game.OpenShop()
+        game.SyncShop(world)
+        T.IsTrue(game.Shop.Open)
+        pose.Position = vec3(feet.X - 8.0, pose.Position.Y, feet.Z)
+        world.SetTransform(game.PlayerNode, pose)
+        game.SyncShop(world)
+        T.IsFalse(game.Shop.Open)
+        T.IsFalse(game.Inventory.Open)
+        T.IsFalse(game.Inventory.OnLeft)
+    }
+
+    ClosingTheInventoryClosesTheShop()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenShop()
+        game.Inventory.Toggle()
+        game.SyncShop(world)
+        T.IsFalse(game.Shop.Open)
+        T.IsFalse(game.Inventory.OnLeft)
+    }
+}

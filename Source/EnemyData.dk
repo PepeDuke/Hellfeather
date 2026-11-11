@@ -39,6 +39,9 @@ HellfeatherEnemyData
                 <LootItem Item=HellfeatherItems.LeatherArmor Weight=4/>
                 <LootItem Item=HellfeatherItems.Ring Weight=3/>
                 <LootItem Item=HellfeatherItems.Amulet Weight=2/>
+                <LootItem Item=HellfeatherItems.RuneCleave Weight=4/>
+                <LootItem Item=HellfeatherItems.RuneWarCry Weight=3/>
+                <LootItem Item=HellfeatherItems.RuneDash Weight=3/>
             </LootTable>
 
             <EnemyGroup Name="Small flock" Weight=80 Spread=2.0>

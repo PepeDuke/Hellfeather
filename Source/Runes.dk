@@ -1,0 +1,346 @@
+// What a rune belongs to. Runes of one theme strengthen neighboring runes of the
+// same theme that grant a different skill.
+HellfeatherRuneTheme : int
+#@{
+    None,
+    War,
+    Wind
+}
+
+HellfeatherRunes
+#{
+    // The active skill a rune grants, or None for anything that is not a rune.
+    HellfeatherAction SkillOf(HellfeatherItems item)
+    {
+        if item == HellfeatherItems.RuneCleave { return HellfeatherAction.Cleave }
+        if item == HellfeatherItems.RuneWarCry { return HellfeatherAction.WarCry }
+        if item == HellfeatherItems.RuneDash { return HellfeatherAction.Dash }
+        return HellfeatherAction.None
+    }
+
+    bool IsRune(HellfeatherItems item) { return SkillOf(item) != HellfeatherAction.None }
+
+    HellfeatherRuneTheme ThemeOf(HellfeatherItems item)
+    {
+        if item == HellfeatherItems.RuneCleave || item == HellfeatherItems.RuneWarCry { return HellfeatherRuneTheme.War }
+        if item == HellfeatherItems.RuneDash { return HellfeatherRuneTheme.Wind }
+        return HellfeatherRuneTheme.None
+    }
+
+    // Every skill a rune can grant, in the order the board lists them.
+    bool IsRuneSkill(HellfeatherAction action) { return action == HellfeatherAction.Cleave || action == HellfeatherAction.WarCry || action == HellfeatherAction.Dash }
+}
+
+// A rune on the board. X and Y are its top-left cell.
+HellfeatherRuneSocket
+{
+    HellfeatherItems Item
+    int X
+    int Y
+}
+
+// How strong one skill is on the board, from its strongest group of touching
+// runes. Power is a percent of the skill's base strength, 0 when no rune grants it.
+HellfeatherRuneSkill
+{
+    int Runes
+    int Kin
+    int Power
+}
+
+// The rune board: a grid of cells of which only some are open. It starts with a
+// square of open cells in the middle, and each level buys one more cell touching
+// those already open, so the open cells always stay in one piece. Runes fill open
+// cells like items fill the bag.
+HellfeatherRuneBoard
+{
+    // One for each cell, row by row.
+    bool [100] Opened
+    HellfeatherRuneSocket [] Sockets
+    // Cells bought with points, not counting the starting ones.
+    int Bought
+    // Goes up with every change, so the game can tell when to look again.
+    int Version
+
+    Stock()
+    {
+        int start = HellfeatherRuneBoard.Columns / 2 - 1
+        for y : start; y <= start + 1; y++ {
+            for x : start; x <= start + 1; x++ { Opened[y * HellfeatherRuneBoard.Columns + x] = true }
+        }
+    }
+
+    bool InBoard(int x, int y) { return x >= 0 && y >= 0 && x < HellfeatherRuneBoard.Columns && y < HellfeatherRuneBoard.Rows }
+
+    bool IsOpen(int x, int y) { return InBoard(x, y) && Opened[y * HellfeatherRuneBoard.Columns + x] }
+
+    int OpenCount()
+    {
+        int count = 0
+        for i : 0; i < HellfeatherRuneBoard.Columns * HellfeatherRuneBoard.Rows; i++ { if Opened[i] { count++ } }
+        return count
+    }
+
+    // A closed cell beside an open one can be bought for a point.
+    bool CanExpand(int x, int y, int points)
+    {
+        if points <= 0 || !InBoard(x, y) || IsOpen(x, y) { return false }
+        return IsOpen(x - 1, y) || IsOpen(x + 1, y) || IsOpen(x, y - 1) || IsOpen(x, y + 1)
+    }
+
+    bool Expand(int x, int y, int points)
+    {
+        if !CanExpand(x, y, points) { return false }
+        Opened[y * HellfeatherRuneBoard.Columns + x] = true
+        Bought++
+        Version++
+        return true
+    }
+
+    // The index of the rune covering a cell, or -1.
+    int SocketAt(int x, int y)
+    {
+        for i : 0; i < Sockets.Len; i++ {
+            HellfeatherItemKind kind = HellfeatherItems.Get(Sockets[i].Item)
+            if x >= Sockets[i].X && y >= Sockets[i].Y && x < Sockets[i].X + kind.Width && y < Sockets[i].Y + kind.Height { return i }
+        }
+        return -1
+    }
+
+    -bool AllOpen(HellfeatherItems item, int x, int y)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        for cy : y; cy < y + kind.Height; cy++ {
+            for cx : x; cx < x + kind.Width; cx++ { if !IsOpen(cx, cy) { return false } }
+        }
+        return true
+    }
+
+    // How many runes an item would cover at this position; Only is the last of them.
+    -int CountOverlaps(HellfeatherItems item, int x, int y, int& only)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        int count = 0
+        only = -1
+        for i : 0; i < Sockets.Len; i++ {
+            HellfeatherItemKind other = HellfeatherItems.Get(Sockets[i].Item)
+            if x < Sockets[i].X + other.Width && Sockets[i].X < x + kind.Width && y < Sockets[i].Y + other.Height && Sockets[i].Y < y + kind.Height {
+                count++
+                only = i
+            }
+        }
+        return count
+    }
+
+    // A rune fits where every cell it needs is open, swapping with at most one rune.
+    bool CanPlace(HellfeatherItems item, int x, int y)
+    {
+        if !HellfeatherRunes.IsRune(item) || !AllOpen(item, x, y) { return false }
+        int only = -1
+        return CountOverlaps(item, x, y, only) <= 1
+    }
+
+    // Sockets a rune with its top-left at a cell and gives back the rune it
+    // replaced, or None. Check CanPlace first: a rune that does not fit comes back.
+    HellfeatherItems Place(HellfeatherItems item, int x, int y)
+    {
+        if !CanPlace(item, x, y) { return item }
+        int only = -1
+        CountOverlaps(item, x, y, only)
+        swapped : HellfeatherItems.None
+        if only >= 0 {
+            swapped = Sockets[only].Item
+            RemoveSocket(only)
+        }
+        HellfeatherRuneSocket socket
+        socket.Item = item
+        socket.X = x
+        socket.Y = y
+        Sockets += socket
+        Version++
+        return swapped
+    }
+
+    // Takes out the rune covering a cell, or gives None if there is none.
+    HellfeatherItems Lift(int x, int y)
+    {
+        int index = SocketAt(x, y)
+        if index < 0 { return HellfeatherItems.None }
+        item : Sockets[index].Item
+        RemoveSocket(index)
+        Version++
+        return item
+    }
+
+    -RemoveSocket(int index)
+    {
+        Sockets[index] = Sockets[(int)Sockets.Len - 1]
+        Sockets--
+    }
+
+    // Two runes touch when they share an edge along at least one cell.
+    bool Touch(int a, int b)
+    {
+        if a == b { return false }
+        HellfeatherItemKind ka = HellfeatherItems.Get(Sockets[a].Item)
+        HellfeatherItemKind kb = HellfeatherItems.Get(Sockets[b].Item)
+        int ax = Sockets[a].X
+        int ay = Sockets[a].Y
+        int bx = Sockets[b].X
+        int by = Sockets[b].Y
+        bool sideBySide = (ax + ka.Width == bx || bx + kb.Width == ax) && ay < by + kb.Height && by < ay + ka.Height
+        bool stacked = (ay + ka.Height == by || by + kb.Height == ay) && ax < bx + kb.Width && bx < ax + ka.Width
+        return sideBySide || stacked
+    }
+
+    -HellfeatherAction SkillAt(int index) { return HellfeatherRunes.SkillOf(Sockets[index].Item) }
+
+    // The skill's strongest group of touching runes that grant it. Each rune past
+    // the first adds PerRune percent, and each different rune of the same theme
+    // touching the group adds PerKin percent.
+    HellfeatherRuneSkill Skill(HellfeatherAction skill)
+    {
+        HellfeatherRuneSkill best
+        bool [100] visited
+        for start : 0; start < Sockets.Len; start++ {
+            if visited[start] || SkillAt(start) != skill { continue }
+            bool [100] member
+            int [] frontier = {start}
+            visited[start] = true
+            member[start] = true
+            int count = 1
+            while frontier.Len > 0 {
+                int at = (frontier--)
+                for i : 0; i < Sockets.Len; i++ {
+                    if visited[i] || SkillAt(i) != skill || !Touch(at, i) { continue }
+                    visited[i] = true
+                    member[i] = true
+                    count++
+                    frontier += i
+                }
+            }
+            theme : HellfeatherRunes.ThemeOf(Sockets[start].Item)
+            int kin = 0
+            for i : 0; i < Sockets.Len; i++ {
+                if SkillAt(i) == skill || HellfeatherRunes.ThemeOf(Sockets[i].Item) != theme { continue }
+                bool touching = false
+                for j : 0; j < Sockets.Len; j++ { if member[j] && Touch(i, j) { touching = true } }
+                if touching { kin++ }
+            }
+            int power = 100 + (count - 1) * HellfeatherRuneBoard.PerRune + kin * HellfeatherRuneBoard.PerKin
+            if power > best.Power {
+                best.Runes = count
+                best.Kin = kin
+                best.Power = power
+            }
+        }
+        return best
+    }
+
+    int PowerOf(HellfeatherAction skill)
+    {
+        found : Skill(skill)
+        return found.Power
+    }
+}
+#{
+    #int Columns = 10
+    #int Rows = 10
+    #int StartCells = 4
+    #int PerRune = 25
+    #int PerKin = 10
+}
+T{
+    TheBoardStartsWithFourOpenCellsInTheMiddle()
+    {
+        HellfeatherRuneBoard board
+        board.Stock()
+        T.AreEqual(board.OpenCount(), HellfeatherRuneBoard.StartCells)
+        T.IsTrue(board.IsOpen(4, 4) && board.IsOpen(5, 5))
+        T.IsFalse(board.IsOpen(3, 4))
+        T.IsFalse(board.IsOpen(-1, 0))
+    }
+
+    OnlyCellsTouchingTheOpenOnesCanBeBought()
+    {
+        HellfeatherRuneBoard board
+        board.Stock()
+        T.IsFalse(board.Expand(3, 4, 0))
+        T.IsFalse(board.Expand(3, 3, 1))
+        T.IsFalse(board.Expand(0, 0, 1))
+        T.IsFalse(board.Expand(4, 4, 1))
+        T.IsTrue(board.Expand(3, 4, 1))
+        T.IsTrue(board.Expand(2, 4, 1))
+        T.AreEqual(board.Bought, 2)
+        T.AreEqual(board.OpenCount(), 6)
+    }
+
+    RunesNeedOpenCellsAndSwapWithOneOther()
+    {
+        HellfeatherRuneBoard board
+        board.Stock()
+        T.IsFalse(board.CanPlace(HellfeatherItems.HealthPotion, 4, 4))
+        T.IsFalse(board.CanPlace(HellfeatherItems.RuneCleave, 5, 4))
+        T.IsTrue(board.CanPlace(HellfeatherItems.RuneCleave, 4, 4))
+        T.AreEqual(board.Place(HellfeatherItems.RuneCleave, 4, 4), HellfeatherItems.None)
+        T.AreEqual(board.SocketAt(5, 4), 0)
+        T.AreEqual(board.Place(HellfeatherItems.RuneWarCry, 4, 4), HellfeatherItems.RuneCleave)
+        T.AreEqual(board.Sockets.Len, 1)
+        T.AreEqual(board.Lift(5, 5), HellfeatherItems.RuneWarCry)
+        T.AreEqual(board.Lift(5, 5), HellfeatherItems.None)
+    }
+
+    TouchingRunesOfOneSkillAddPower()
+    {
+        HellfeatherRuneBoard board
+        board.Stock()
+        T.AreEqual(board.PowerOf(HellfeatherAction.Cleave), 0)
+        board.Place(HellfeatherItems.RuneCleave, 4, 4)
+        T.AreEqual(board.PowerOf(HellfeatherAction.Cleave), 100)
+        board.Place(HellfeatherItems.RuneCleave, 4, 5)
+        found : board.Skill(HellfeatherAction.Cleave)
+        T.AreEqual(found.Runes, 2)
+        T.AreEqual(found.Power, 100 + HellfeatherRuneBoard.PerRune)
+    }
+
+    RunesApartDoNotAddUp()
+    {
+        HellfeatherRuneBoard board
+        board.Stock()
+        for x : 1; x <= 3; x++ { board.Expand(4 - x, 4, 1) }
+        board.Expand(1, 5, 1)
+        board.Place(HellfeatherItems.RuneCleave, 4, 4)
+        // A cell lies between them, so they are two groups of one.
+        board.Place(HellfeatherItems.RuneCleave, 1, 4)
+        T.AreEqual(board.PowerOf(HellfeatherAction.Cleave), 100)
+    }
+
+    KinOfTheSameThemeAddPowerButOtherThemesDoNot()
+    {
+        HellfeatherRuneBoard board
+        board.Stock()
+        board.Expand(6, 4, 1)
+        board.Expand(6, 5, 1)
+        board.Place(HellfeatherItems.RuneWarCry, 4, 4)
+        board.Place(HellfeatherItems.RuneDash, 6, 4)
+        T.AreEqual(board.PowerOf(HellfeatherAction.WarCry), 100)
+        T.AreEqual(board.PowerOf(HellfeatherAction.Dash), 100)
+        board.Lift(6, 4)
+        board.Expand(3, 4, 1)
+        board.Expand(2, 4, 1)
+        board.Place(HellfeatherItems.RuneCleave, 2, 4)
+        T.AreEqual(board.PowerOf(HellfeatherAction.WarCry), 100 + HellfeatherRuneBoard.PerKin)
+        T.AreEqual(board.PowerOf(HellfeatherAction.Cleave), 100 + HellfeatherRuneBoard.PerKin)
+    }
+
+    EveryChangeMovesTheVersion()
+    {
+        HellfeatherRuneBoard board
+        board.Stock()
+        int before = board.Version
+        board.Expand(3, 4, 1)
+        board.Place(HellfeatherItems.RuneCleave, 3, 4)
+        board.Lift(3, 4)
+        T.AreEqual(board.Version, before + 3)
+    }
+}

@@ -1,0 +1,420 @@
+// How special an item is. Common items have no mods, magic items one or two,
+// and rare items three to five.
+HellfeatherRarity : int
+#@{
+    Common,
+    Magic,
+    Rare
+}
+
+// What one mod adds. Percent mods are whole percents, and ManaRegen is in tenths
+// of mana per second.
+HellfeatherModKind : int
+#@{
+    None,
+    Damage,
+    DamagePercent,
+    Strength,
+    Agility,
+    HitChance,
+    Defense,
+    Health,
+    Mana,
+    ManaRegen,
+    FireResist,
+    ColdResist,
+    LightningResist,
+    MoveSpeed
+}
+
+// Which pool of mods an item rolls from.
+HellfeatherModGroup : int
+#@{
+    None,
+    Weapon,
+    Armor,
+    Accessory
+}
+
+// The mods on one item, at most five and never two of a kind. It travels with
+// the item wherever it goes: the bag, the cursor, a worn slot, the ground and the
+// shop's shelves.
+HellfeatherItemMods
+{
+    HellfeatherRarity Rarity
+    int Count
+    HellfeatherModKind [5] Kinds
+    int [5] Values
+
+    bool Has(HellfeatherModKind kind)
+    {
+        for i : 0; i < Count; i++ { if Kinds[i] == kind { return true } }
+        return false
+    }
+
+    // Adds a mod unless the item already has one of that kind or is full.
+    bool Add(HellfeatherModKind kind, int value)
+    {
+        if kind == HellfeatherModKind.None || Count >= HellfeatherItemMods.MaxMods || Has(kind) { return false }
+        Kinds[Count] = kind
+        Values[Count] = value
+        Count++
+        return true
+    }
+
+    Clear()
+    {
+        Rarity = HellfeatherRarity.Common
+        Count = 0
+    }
+
+    // Adds every mod to the warrior's stats.
+    ApplyTo(HellfeatherStats& stats)
+    {
+        for i : 0; i < Count; i++ {
+            kind : Kinds[i]
+            int value = Values[i]
+            if kind == HellfeatherModKind.Damage { stats.WeaponDamage += value }
+            if kind == HellfeatherModKind.DamagePercent { stats.DamagePercent += value }
+            if kind == HellfeatherModKind.Strength { stats.Strength += value }
+            if kind == HellfeatherModKind.Agility { stats.Agility += value }
+            if kind == HellfeatherModKind.HitChance { stats.HitBonus += value }
+            if kind == HellfeatherModKind.Defense { stats.Defense += value }
+            if kind == HellfeatherModKind.Health { stats.MaxHealth += value }
+            if kind == HellfeatherModKind.Mana { stats.MaxMana += value }
+            if kind == HellfeatherModKind.ManaRegen { stats.ManaPerSecond += (float)value * 0.1 }
+            if kind == HellfeatherModKind.FireResist { stats.FireResist += value }
+            if kind == HellfeatherModKind.ColdResist { stats.ColdResist += value }
+            if kind == HellfeatherModKind.LightningResist { stats.LightningResist += value }
+            if kind == HellfeatherModKind.MoveSpeed { stats.MoveSpeed += value }
+        }
+    }
+
+    // A line such as "+12% move speed" for the mod at an index.
+    string Line(int index) { return HellfeatherItemMods.Describe(Kinds[index], Values[index]) }
+}
+#{
+    #int MaxMods = 5
+    // The share of mod-bearing drops that come out magic or rare.
+    #float MagicChance = 0.22
+    #float RareChance = 0.08
+
+    HellfeatherModGroup GroupOf(HellfeatherItems item)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        gear : kind.Gear
+        if gear == HellfeatherGear.Weapon { return HellfeatherModGroup.Weapon }
+        if gear == HellfeatherGear.Ring || gear == HellfeatherGear.Neck { return HellfeatherModGroup.Accessory }
+        if gear == HellfeatherGear.None { return HellfeatherModGroup.None }
+        return HellfeatherModGroup.Armor
+    }
+
+    // Whether an item can roll a mod. Move speed comes only on boots.
+    bool Allows(HellfeatherItems item, HellfeatherModKind kind)
+    {
+        group : GroupOf(item)
+        if group == HellfeatherModGroup.Weapon {
+            return kind == HellfeatherModKind.Damage || kind == HellfeatherModKind.DamagePercent || kind == HellfeatherModKind.Strength || kind == HellfeatherModKind.Agility || kind == HellfeatherModKind.HitChance
+        }
+        if group == HellfeatherModGroup.Armor {
+            if kind == HellfeatherModKind.MoveSpeed {
+                HellfeatherItemKind itemKind = HellfeatherItems.Get(item)
+                return itemKind.Gear == HellfeatherGear.Feet
+            }
+            return kind == HellfeatherModKind.Defense || kind == HellfeatherModKind.Health || kind == HellfeatherModKind.FireResist || kind == HellfeatherModKind.ColdResist || kind == HellfeatherModKind.LightningResist
+        }
+        if group == HellfeatherModGroup.Accessory {
+            return kind == HellfeatherModKind.Strength || kind == HellfeatherModKind.Agility || kind == HellfeatherModKind.Health || kind == HellfeatherModKind.Mana || kind == HellfeatherModKind.ManaRegen || kind == HellfeatherModKind.HitChance || kind == HellfeatherModKind.FireResist || kind == HellfeatherModKind.ColdResist || kind == HellfeatherModKind.LightningResist
+        }
+        return false
+    }
+
+    // The lowest and highest value a mod rolls.
+    Range(HellfeatherModKind kind, int& low, int& high)
+    {
+        low = 1
+        high = 1
+        if kind == HellfeatherModKind.Damage { Set(2, 8, low, high) }
+        if kind == HellfeatherModKind.DamagePercent { Set(5, 20, low, high) }
+        if kind == HellfeatherModKind.Strength || kind == HellfeatherModKind.Agility { Set(1, 5, low, high) }
+        if kind == HellfeatherModKind.HitChance { Set(2, 8, low, high) }
+        if kind == HellfeatherModKind.Defense { Set(2, 10, low, high) }
+        if kind == HellfeatherModKind.Health { Set(5, 25, low, high) }
+        if kind == HellfeatherModKind.Mana { Set(5, 20, low, high) }
+        if kind == HellfeatherModKind.ManaRegen { Set(2, 10, low, high) }
+        if kind == HellfeatherModKind.FireResist || kind == HellfeatherModKind.ColdResist || kind == HellfeatherModKind.LightningResist { Set(3, 12, low, high) }
+        if kind == HellfeatherModKind.MoveSpeed { Set(4, 12, low, high) }
+    }
+
+    -Set(int a, int b, int& low, int& high)
+    {
+        low = a
+        high = b
+    }
+
+    string Describe(HellfeatherModKind kind, int value)
+    {
+        if kind == HellfeatherModKind.ManaRegen { return "+" + HellfeatherStats.FormatTenths((float)value * 0.1) + " mana per second" }
+        string amount = "+" + QuaxelUi.FormatInt(value)
+        if kind == HellfeatherModKind.Damage { return amount + " damage" }
+        if kind == HellfeatherModKind.DamagePercent { return amount + "% damage" }
+        if kind == HellfeatherModKind.Strength { return amount + " strength" }
+        if kind == HellfeatherModKind.Agility { return amount + " agility" }
+        if kind == HellfeatherModKind.HitChance { return amount + "% hit chance" }
+        if kind == HellfeatherModKind.Defense { return amount + " defense" }
+        if kind == HellfeatherModKind.Health { return amount + " maximum health" }
+        if kind == HellfeatherModKind.Mana { return amount + " maximum mana" }
+        if kind == HellfeatherModKind.FireResist { return amount + "% fire resist" }
+        if kind == HellfeatherModKind.ColdResist { return amount + "% cold resist" }
+        if kind == HellfeatherModKind.LightningResist { return amount + "% lightning resist" }
+        if kind == HellfeatherModKind.MoveSpeed { return amount + "% move speed" }
+        return ""
+    }
+
+    // White, blue and gold names.
+    uint ColorOf(HellfeatherRarity rarity)
+    {
+        if rarity == HellfeatherRarity.Magic { return 0xFF6E9CFF }
+        if rarity == HellfeatherRarity.Rare { return 0xFFE8C04A }
+        return 0xFFEDE6D8
+    }
+
+    // The wash over a magic or rare item's cells in the bag and on the shelves.
+    uint TintOf(HellfeatherRarity rarity)
+    {
+        if rarity == HellfeatherRarity.Magic { return 0x383868D0 }
+        if rarity == HellfeatherRarity.Rare { return 0x38D0A040 }
+        return 0x28385070
+    }
+
+    // What rarity does to an item's price.
+    int PriceFactor(HellfeatherRarity rarity)
+    {
+        if rarity == HellfeatherRarity.Magic { return 2 }
+        if rarity == HellfeatherRarity.Rare { return 4 }
+        return 1
+    }
+
+    // Rolls rarity and mods for a dropped item from a seed. Items that cannot be
+    // worn stay common.
+    HellfeatherItemMods Roll(HellfeatherItems item, uint seed)
+    {
+        QuaxelRandom random
+        random.Begin(seed)
+        float rarity = random.Unit()
+        if rarity < RareChance { return RollAs(item, HellfeatherRarity.Rare, random.Below(1000000)) }
+        if rarity < RareChance + MagicChance { return RollAs(item, HellfeatherRarity.Magic, random.Below(1000000)) }
+        HellfeatherItemMods common
+        common.Clear()
+        return common
+    }
+
+    // Rolls the mods for an item of a chosen rarity: one or two for magic, three
+    // to five for rare, each a different kind from the item's pool.
+    HellfeatherItemMods RollAs(HellfeatherItems item, HellfeatherRarity rarity, int seed)
+    {
+        HellfeatherItemMods mods
+        mods.Clear()
+        if GroupOf(item) == HellfeatherModGroup.None || rarity == HellfeatherRarity.Common { return mods }
+        QuaxelRandom random
+        random.Begin((uint)seed)
+        int [] pool
+        for kind : HellfeatherModKind { if Allows(item, kind) { pool += (int)kind } }
+        int wanted = rarity == HellfeatherRarity.Rare ? 3 + random.Below(3) | 1 + random.Below(2)
+        mods.Rarity = rarity
+        while mods.Count < wanted && pool.Len > 0 {
+            int pick = random.Below((int)pool.Len)
+            kind : (HellfeatherModKind)pool[pick]
+            pool -= [pick]
+            int low = 0
+            int high = 0
+            Range(kind, low, high)
+            mods.Add(kind, low + random.Below(high - low + 1))
+        }
+        return mods
+    }
+}
+T{
+    ModsAddUpOnceEachAndStopAtFive()
+    {
+        HellfeatherItemMods mods
+        mods.Clear()
+        T.IsTrue(mods.Add(HellfeatherModKind.Defense, 4))
+        T.IsFalse(mods.Add(HellfeatherModKind.Defense, 6))
+        T.IsTrue(mods.Add(HellfeatherModKind.Health, 10))
+        T.IsTrue(mods.Add(HellfeatherModKind.FireResist, 5))
+        T.IsTrue(mods.Add(HellfeatherModKind.ColdResist, 5))
+        T.IsTrue(mods.Add(HellfeatherModKind.LightningResist, 5))
+        T.IsFalse(mods.Add(HellfeatherModKind.MoveSpeed, 5))
+        T.AreEqual(mods.Count, 5)
+        T.AreEqual(mods.Line(1), "+10 maximum health")
+    }
+
+    MoveSpeedComesOnlyOnBoots()
+    {
+        for item : HellfeatherItems {
+            HellfeatherItemKind kind = HellfeatherItems.Get(item)
+            T.AreEqual(HellfeatherItemMods.Allows(item, HellfeatherModKind.MoveSpeed), kind.Gear == HellfeatherGear.Feet)
+        }
+        T.IsTrue(HellfeatherItemMods.Allows(HellfeatherItems.Boots, HellfeatherModKind.MoveSpeed))
+        T.IsFalse(HellfeatherItemMods.Allows(HellfeatherItems.Gloves, HellfeatherModKind.MoveSpeed))
+        T.IsFalse(HellfeatherItemMods.Allows(HellfeatherItems.Ring, HellfeatherModKind.MoveSpeed))
+    }
+
+    EachGroupRollsFromItsOwnPool()
+    {
+        T.IsTrue(HellfeatherItemMods.Allows(HellfeatherItems.BattleAxe, HellfeatherModKind.Damage))
+        T.IsFalse(HellfeatherItemMods.Allows(HellfeatherItems.BattleAxe, HellfeatherModKind.Defense))
+        T.IsTrue(HellfeatherItemMods.Allows(HellfeatherItems.LeatherArmor, HellfeatherModKind.Defense))
+        T.IsFalse(HellfeatherItemMods.Allows(HellfeatherItems.LeatherArmor, HellfeatherModKind.Damage))
+        T.IsTrue(HellfeatherItemMods.Allows(HellfeatherItems.Amulet, HellfeatherModKind.ManaRegen))
+        T.IsFalse(HellfeatherItemMods.Allows(HellfeatherItems.Amulet, HellfeatherModKind.Defense))
+        T.IsFalse(HellfeatherItemMods.Allows(HellfeatherItems.HealthPotion, HellfeatherModKind.Health))
+        T.IsFalse(HellfeatherItemMods.Allows(HellfeatherItems.RuneCleave, HellfeatherModKind.Strength))
+    }
+
+    MagicHasOneOrTwoAndRareThreeToFiveInRange()
+    {
+        for seed : 0; seed < 200; seed++ {
+            magic : HellfeatherItemMods.RollAs(HellfeatherItems.Boots, HellfeatherRarity.Magic, seed)
+            T.IsTrue(magic.Count >= 1 && magic.Count <= 2)
+            rare : HellfeatherItemMods.RollAs(HellfeatherItems.Boots, HellfeatherRarity.Rare, seed)
+            T.IsTrue(rare.Count >= 3 && rare.Count <= 5)
+            for i : 0; i < rare.Count; i++ {
+                T.IsTrue(HellfeatherItemMods.Allows(HellfeatherItems.Boots, rare.Kinds[i]))
+                int low = 0
+                int high = 0
+                HellfeatherItemMods.Range(rare.Kinds[i], low, high)
+                T.IsTrue(rare.Values[i] >= low && rare.Values[i] <= high)
+            }
+        }
+    }
+
+    PotionsAndRunesStayCommon()
+    {
+        for seed : 0; seed < 100; seed++ {
+            potion : HellfeatherItemMods.Roll(HellfeatherItems.HealthPotion, (uint)seed)
+            T.AreEqual(potion.Count, 0)
+            T.AreEqual(potion.Rarity, HellfeatherRarity.Common)
+            rune : HellfeatherItemMods.RollAs(HellfeatherItems.RuneDash, HellfeatherRarity.Rare, seed)
+            T.AreEqual(rune.Count, 0)
+        }
+    }
+
+    MostDropsAreCommonSomeMagicAFewRare()
+    {
+        int common = 0
+        int magic = 0
+        int rare = 0
+        for seed : 0; seed < 2000; seed++ {
+            mods : HellfeatherItemMods.Roll(HellfeatherItems.Gloves, (uint)(seed * 7919 + 13))
+            if mods.Rarity == HellfeatherRarity.Common { common++ }
+            if mods.Rarity == HellfeatherRarity.Magic { magic++ }
+            if mods.Rarity == HellfeatherRarity.Rare { rare++ }
+        }
+        T.IsTrue(common > magic && magic > rare && rare > 0)
+    }
+
+    ModsTravelThroughTheBagTheCursorAndASlot()
+    {
+        HellfeatherInventory items
+        boots : HellfeatherItemMods.RollAs(HellfeatherItems.Boots, HellfeatherRarity.Rare, 4)
+        boots.Clear()
+        boots.Rarity = HellfeatherRarity.Magic
+        boots.Add(HellfeatherModKind.MoveSpeed, 10)
+        T.IsTrue(items.AddWith(HellfeatherItems.Boots, boots))
+        T.IsTrue(items.PickUp(0, 0))
+        T.AreEqual(items.HeldMods.Count, 1)
+        T.IsTrue(items.ClickSlot(HellfeatherSlot.Feet))
+        T.AreEqual(items.EquippedMods[HellfeatherSlot.Feet].Rarity, HellfeatherRarity.Magic)
+        T.AreEqual(items.HeldMods.Count, 0)
+        worn : items.Stats()
+        T.AreEqual(worn.MoveSpeed, 110)
+        // Plain boots swapped in give the magic ones back to the cursor.
+        items.Held = HellfeatherItems.Boots
+        T.IsTrue(items.ClickSlot(HellfeatherSlot.Feet))
+        T.AreEqual(items.HeldMods.Kinds[0], HellfeatherModKind.MoveSpeed)
+        plain : items.Stats()
+        T.AreEqual(plain.MoveSpeed, 100)
+        // Dropping onto another item in the bag swaps mods with it too.
+        T.IsTrue(items.Drop(3, 0))
+        T.AreEqual(items.Bag[0].Mods.Count, 1)
+        items.StowHeld()
+        T.AreEqual(items.Held, HellfeatherItems.None)
+    }
+
+    TheShopKeepsModsAndPaysMoreForThem()
+    {
+        HellfeatherShop shop
+        HellfeatherItemMods rare
+        rare.Clear()
+        rare.Rarity = HellfeatherRarity.Rare
+        rare.Add(HellfeatherModKind.Defense, 5)
+        T.AreEqual(shop.SellPriceWith(HellfeatherItems.Gloves, rare), shop.BuyPrice(HellfeatherItems.Gloves) * 4 / 4)
+        // He never stocks rare items, but one sold to him can be bought back.
+        T.IsTrue(shop.ReceiveWith(HellfeatherItems.Gloves, rare) > 0)
+        T.AreEqual(shop.Stock.Len, 1)
+        T.AreEqual(shop.Stock[0].Mods.Rarity, HellfeatherRarity.Rare)
+        T.AreEqual(shop.PriceOf(0), shop.SellPriceWith(HellfeatherItems.Gloves, rare) * 4)
+        shop.Take(0)
+        HellfeatherItemMods magic
+        magic.Clear()
+        magic.Rarity = HellfeatherRarity.Magic
+        magic.Add(HellfeatherModKind.Health, 9)
+        shop.ReceiveWith(HellfeatherItems.Gloves, magic)
+        T.AreEqual(shop.Stock[0].Mods.Rarity, HellfeatherRarity.Magic)
+        T.AreEqual(shop.PriceOf(0), shop.SellPriceWith(HellfeatherItems.Gloves, magic) * 4)
+    }
+
+    BuyingBackCostsExactlyFourTimesTheSale()
+    {
+        HellfeatherShop shop
+        for item : HellfeatherItems {
+            if item == HellfeatherItems.None || item == HellfeatherItems.Gold { continue }
+            for rarity : HellfeatherRarity {
+                HellfeatherItemMods mods
+                mods.Clear()
+                mods.Rarity = rarity
+                if rarity != HellfeatherRarity.Common { mods.Add(HellfeatherModKind.Health, 5) }
+                shop.Stock.Clear()
+                int paid = shop.ReceiveWith(item, mods)
+                if shop.Stock.Len == 0 { continue }
+                int last = (int)shop.Stock.Len - 1
+                T.AreEqual(shop.PriceOf(last), paid * 4)
+            }
+        }
+    }
+
+    TheShelvesHoldOnlyCommonAndMagicGear()
+    {
+        int magic = 0
+        for seed : 1; seed <= 40; seed++ {
+            HellfeatherShop shop
+            shop.RestockSeeded((uint)seed)
+            for entry : shop.Stock {
+                T.AreNotEqual(entry.Mods.Rarity, HellfeatherRarity.Rare)
+                if entry.Mods.Rarity == HellfeatherRarity.Magic {
+                    magic++
+                    T.IsTrue(entry.Mods.Count >= 1 && entry.Mods.Count <= 2)
+                    T.IsFalse(entry.Endless)
+                }
+            }
+        }
+        T.IsTrue(magic > 40)
+    }
+
+    ModsAddToTheWarriorsStats()
+    {
+        HellfeatherInventory items
+        stats : items.Stats()
+        HellfeatherItemMods mods
+        mods.Clear()
+        mods.Add(HellfeatherModKind.MoveSpeed, 10)
+        mods.Add(HellfeatherModKind.Damage, 3)
+        mods.Add(HellfeatherModKind.ManaRegen, 5)
+        mods.ApplyTo(stats)
+        T.AreEqual(stats.MoveSpeed, 110)
+        T.AreEqual(stats.WeaponDamage, 3)
+        T.AreEqual(stats.ManaPerSecond, HellfeatherStats.BaseManaPerSecond + 0.5)
+    }
+}

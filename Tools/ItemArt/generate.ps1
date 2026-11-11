@@ -13,7 +13,10 @@ $ErrorActionPreference = 'Stop'
 $config = Get-Content -Raw (Join-Path $PSScriptRoot 'items.json') | ConvertFrom-Json
 $assets = Join-Path $PSScriptRoot '../../Assets/ItemArt'
 New-Item -ItemType Directory -Force $assets | Out-Null
-foreach ($property in $config.items.PSObject.Properties) {
+# Rune stones and symbols are generated like items; the converter lays each
+# symbol over its stone.
+$entries = @($config.items.PSObject.Properties) + @($config.parts.PSObject.Properties)
+foreach ($property in $entries) {
     $name = $property.Name
     if ($Only -and $Only -notcontains $name) { continue }
     $itemSeed = if ($Seed -ge 0) { $Seed } elseif ($property.Value.seed) { $property.Value.seed } else { $config.seed }

@@ -1,12 +1,17 @@
 // The action bar along the bottom of the window. Clicking a slot opens a picker
 // above the bar that lists every action. Clicking a learned one puts it in the
-// slot, and locked agilities show how many more kills they need. All of its
+// slot, and locked agilities point to the rune board. All of its
 // coordinates are on the UI pixel grid.
 HellfeatherActionBar
 {
     HellfeatherActionSlots Slots
     // The slot whose picker is open, or -1.
     int Picking = -1
+    // Screen pixels from the left that a panel on that side covers.
+    int CoveredLeft
+    // How far she is toward the next level, from 0 to 1, and her unspent passive points.
+    float ExperienceShare
+    int UnspentPoints
     -bool MouseWasDown
     -bool Placed
     -int Scale = 1
@@ -47,14 +52,18 @@ HellfeatherActionBar
         Draw(ui, pointerX, pointerY, means)
     }
 
-    // Centered in the uncovered part of the window when the bar fits there.
+    // Centered in the uncovered part of the window when the bar fits there,
+    // between a panel on the left and one on the right.
     -Place(QuaxelUi& ui, int width, int height, int clearWidth)
     {
         Scale = ui.ScaleFor(width, height)
         GridWide = width / Scale
         int clear = clearWidth / Scale
-        int room = clear >= HellfeatherActionArt.BarWidth + 4 ? clear | GridWide
-        BarX = Math.Max(0, (room - HellfeatherActionArt.BarWidth) / 2)
+        int left = Math.Max(0, CoveredLeft / Scale)
+        int fit = HellfeatherActionArt.BarWidth + 4
+        if clear - left < fit { left = 0 }
+        if clear < fit { clear = GridWide }
+        BarX = left + Math.Max(0, (clear - left - HellfeatherActionArt.BarWidth) / 2)
         BarY = Math.Max(0, height / Scale - HellfeatherActionArt.BarHeight - Margin)
         Placed = true
     }
@@ -108,9 +117,24 @@ HellfeatherActionBar
         ui.OverlaySprite(BarX, BarY, 0, HellfeatherActionArt.BarAtlasY, HellfeatherActionArt.BarWidth, HellfeatherActionArt.BarHeight)
         for slot : HellfeatherActionSlot { DrawSlot(ui, slot, pointerX, pointerY, means) }
         DrawKeys(ui)
+        DrawExperience(ui)
         if Picking >= 0 { DrawPicker(ui, pointerX, pointerY) }
         else if Slots.LearnedSeconds > 0.0 { DrawLearned(ui) }
+        else if UnspentPoints > 0 {
+            string prompt = "Passive points: P"
+            ui.OverlayText(BarX + (HellfeatherActionArt.BarWidth - (int)Length(prompt) * 6) / 2, BarY - 14, prompt, 0xFFE8C850)
+        }
         DrawTooltip(ui, pointerX, pointerY)
+    }
+
+    // A thin bar along the top of the body that fills toward the next level.
+    -DrawExperience(QuaxelUi& ui)
+    {
+        int left = BarX + HellfeatherActionArt.BodyLeft
+        int wide = HellfeatherActionArt.BodyRight - HellfeatherActionArt.BodyLeft
+        int filled = (int)(Math.Clamp(ExperienceShare, 0.0, 1.0) * (float)wide)
+        ui.OverlayRect(left, BarY - 4, wide, 3, 0xE0100C0A)
+        if filled > 0 { ui.OverlayRect(left, BarY - 3, filled, 1, 0xFFD8A93A) }
     }
 
     -Icon(QuaxelUi& ui, int action, int x, int y)
@@ -213,7 +237,7 @@ HellfeatherActionBar
         if action < 0 { return }
         HellfeatherActionKind kind = HellfeatherAction.Get((HellfeatherAction)action)
         string detail = kind.Detail
-        if !Slots.Known[action] { detail = "Slay " + QuaxelUi.FormatInt(kind.LearnKills - Slots.Kills) + " more to learn" }
+        if !Slots.Known[action] && kind.Agility { detail = "Socket its rune: R" }
         int characters = (int)Math.Max(Length(kind.Name), Length(detail))
         int boxWidth = characters * 6 + 12
         int boxHeight = 26

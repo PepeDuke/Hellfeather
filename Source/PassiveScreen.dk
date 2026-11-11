@@ -1,0 +1,416 @@
+// Paints the passive tree panel into the sprite atlas below the character panel:
+// the shared stone and frame, a recess tinted by corner, dim links and an empty
+// socket for every passive, and beside the panel the gems that fill the sockets
+// once taken. Coordinates are logical pixels.
+HellfeatherPassiveArt
+#{
+    #int Top = 1024
+    #int TreeX = 8
+    #int TreeY = 36
+    #int TreeWidth = 160
+    #int TreeHeight = 174
+    #int CenterX = 88
+    #int CenterY = 123
+    // Logical pixels between neighboring cells.
+    #int Spacing = 14
+    #int HintY = 214
+    #int HintHeight = 28
+    // Gems sit to the right of the panel, a row for each corner.
+    #int GemsX = 180
+    #int GemStep = 14
+
+    int NodeX(int index) { return CenterX + HellfeatherPassiveTree.GridX(index) * Spacing }
+
+    int NodeY(int index) { return CenterY + HellfeatherPassiveTree.GridY(index) * Spacing }
+
+    // Width and height of a passive's gem: larger passives are larger gems.
+    int Size(HellfeatherPassiveTier tier)
+    {
+        if tier == HellfeatherPassiveTier.Minor { return 7 }
+        if tier == HellfeatherPassiveTier.Notable { return 9 }
+        return 11
+    }
+
+    int GemX(HellfeatherPassiveTier tier) { return GemsX + (int)tier * GemStep }
+
+    int GemY(HellfeatherPassiveQuadrant quadrant) { return Top + 2 + (int)quadrant * GemStep }
+
+    int Color(HellfeatherPassiveQuadrant quadrant)
+    {
+        if quadrant == HellfeatherPassiveQuadrant.Vitality { return 0xc0302a }
+        if quadrant == HellfeatherPassiveQuadrant.Mana { return 0x3a6ad8 }
+        if quadrant == HellfeatherPassiveQuadrant.Agility { return 0x46a850 }
+        return 0xd8802c
+    }
+
+    // The recess behind a corner, darkened most of the way to black.
+    int Backdrop(HellfeatherPassiveQuadrant quadrant)
+    {
+        if quadrant == HellfeatherPassiveQuadrant.Vitality { return 0x1e1312 }
+        if quadrant == HellfeatherPassiveQuadrant.Mana { return 0x121621 }
+        if quadrant == HellfeatherPassiveQuadrant.Agility { return 0x121c14 }
+        return 0x211811
+    }
+
+    Paint(QuaxelUi& ui)
+    {
+        HellfeatherInventoryArt.PaintStone(ui, Top)
+        HellfeatherInventoryArt.PaintFrame(ui, Top)
+        HellfeatherInventoryArt.PaintClose(ui, Top)
+        HellfeatherInventoryArt.Well(ui, TreeX, Top + TreeY, TreeWidth, TreeHeight)
+        int halfWidth = CenterX - TreeX
+        int halfHeight = CenterY - TreeY
+        HellfeatherInventoryArt.Fill(ui, TreeX + 1, Top + TreeY + 1, halfWidth - 1, halfHeight - 1, Backdrop(HellfeatherPassiveQuadrant.Vitality))
+        HellfeatherInventoryArt.Fill(ui, CenterX + 1, Top + TreeY + 1, TreeX + TreeWidth - CenterX - 1, halfHeight - 1, Backdrop(HellfeatherPassiveQuadrant.Mana))
+        HellfeatherInventoryArt.Fill(ui, TreeX + 1, Top + CenterY + 1, halfWidth - 1, TreeY + TreeHeight - CenterY - 1, Backdrop(HellfeatherPassiveQuadrant.Agility))
+        HellfeatherInventoryArt.Fill(ui, CenterX + 1, Top + CenterY + 1, TreeX + TreeWidth - CenterX - 1, TreeY + TreeHeight - CenterY - 1, Backdrop(HellfeatherPassiveQuadrant.Strength))
+        for a : 0; a < HellfeatherPassiveTree.Count; a++ {
+            for b : a + 1; b < HellfeatherPassiveTree.Count; b++ {
+                if HellfeatherPassiveTree.Linked(a, b) { Link(ui, a, b, 0x3d352d) }
+            }
+        }
+        for i : 0; i < HellfeatherPassiveTree.Count; i++ { Socket(ui, i) }
+        HellfeatherInventoryArt.Well(ui, TreeX, Top + HintY, TreeWidth, HintHeight)
+        for quadrant : HellfeatherPassiveQuadrant {
+            for tier : HellfeatherPassiveTier {
+                if tier != HellfeatherPassiveTier.Start { Gem(ui, GemX(tier), GemY(quadrant), Size(tier), Color(quadrant)) }
+            }
+        }
+        Gem(ui, GemX(HellfeatherPassiveTier.Start), GemY(HellfeatherPassiveQuadrant.Vitality), Size(HellfeatherPassiveTier.Start), 0xd8a93a)
+    }
+
+    // A one-pixel line between two passives, painted into the atlas. Links to the
+    // start run diagonally, in single-pixel steps.
+    -Link(QuaxelUi& ui, int a, int b, int rgb)
+    {
+        int x0 = NodeX(a)
+        int y0 = NodeY(a)
+        int x1 = NodeX(b)
+        int y1 = NodeY(b)
+        int steps = Math.Max(Math.Abs(x1 - x0), Math.Abs(y1 - y0))
+        for i : 0; i <= steps; i++ {
+            HellfeatherInventoryArt.Put(ui, x0 + (x1 - x0) * i / steps, Top + y0 + (y1 - y0) * i / steps, rgb)
+        }
+    }
+
+    -Socket(QuaxelUi& ui, int index)
+    {
+        int size = Size(HellfeatherPassiveTree.TierOf(index)) + 2
+        int x = NodeX(index) - size / 2
+        int y = Top + NodeY(index) - size / 2
+        // An empty socket is a dim rim of its corner's color around a dark pit,
+        // so a gem set in it stands out.
+        int rim = index == 0 ? 0xd8a93a | Color(HellfeatherPassiveTree.QuadrantOf(index))
+        Round(ui, x, y, size, 0x0a0908)
+        Round(ui, x + 1, y + 1, size - 2, HellfeatherArt.Shade(rim, 18))
+        Round(ui, x + 2, y + 2, size - 4, 0x0d0b0a)
+    }
+
+    // A disc of one color, as round as so few pixels allow.
+    -Round(QuaxelUi& ui, int x, int y, int size, int rgb)
+    {
+        int c = size - 1
+        for py : 0; py < size; py++ {
+            for px : 0; px < size; px++ {
+                int dx = px * 2 - c
+                int dy = py * 2 - c
+                if dx * dx + dy * dy <= size * size + 1 { HellfeatherInventoryArt.Put(ui, x + px, y + py, rgb) }
+            }
+        }
+    }
+
+    // A round gem lit from the top left, with a dark rim.
+    -Gem(QuaxelUi& ui, int x, int y, int size, int rgb)
+    {
+        Round(ui, x, y, size, 0x0a0908)
+        Round(ui, x + 1, y + 1, size - 2, HellfeatherArt.Shade(rgb, 70))
+        Round(ui, x + 1, y + 1, size - 3, rgb)
+        Round(ui, x + 2, y + 2, Math.Max(1, size / 3), HellfeatherArt.Shade(rgb, 170))
+    }
+}
+T{
+    TheTreeFitsInsideItsRecessAndTheAtlas()
+    {
+        for i : 0; i < HellfeatherPassiveTree.Count; i++ {
+            int half = HellfeatherPassiveArt.Size(HellfeatherPassiveTree.TierOf(i)) / 2 + 1
+            T.IsTrue(HellfeatherPassiveArt.NodeX(i) - half > HellfeatherPassiveArt.TreeX)
+            T.IsTrue(HellfeatherPassiveArt.NodeX(i) + half < HellfeatherPassiveArt.TreeX + HellfeatherPassiveArt.TreeWidth)
+            T.IsTrue(HellfeatherPassiveArt.NodeY(i) - half > HellfeatherPassiveArt.TreeY)
+            T.IsTrue(HellfeatherPassiveArt.NodeY(i) + half < HellfeatherPassiveArt.TreeY + HellfeatherPassiveArt.TreeHeight)
+        }
+        T.IsTrue(HellfeatherPassiveArt.TreeY + HellfeatherPassiveArt.TreeHeight < HellfeatherPassiveArt.HintY)
+        T.IsTrue(HellfeatherPassiveArt.HintY + HellfeatherPassiveArt.HintHeight <= HellfeatherInventoryArt.PanelHeight - 6)
+        T.IsTrue(HellfeatherPassiveArt.Top + HellfeatherInventoryArt.PanelHeight <= HellfeatherInventoryArt.AtlasHeight)
+        T.IsTrue(HellfeatherPassiveArt.GemX(HellfeatherPassiveTier.Keystone) + 11 <= HellfeatherInventoryArt.AtlasWidth)
+    }
+
+    SocketsAndGemsArePainted()
+    {
+        QuaxelUi ui()
+        HellfeatherInventoryArt.EnsurePainted(ui)
+        T.IsTrue(ui.AtlasTexel(HellfeatherPassiveArt.NodeX(0), HellfeatherPassiveArt.Top + HellfeatherPassiveArt.NodeY(0)) != (uint)0)
+        int gemX = HellfeatherPassiveArt.GemX(HellfeatherPassiveTier.Minor) + 3
+        int gemY = HellfeatherPassiveArt.GemY(HellfeatherPassiveQuadrant.Strength) + 3
+        T.IsTrue(ui.AtlasTexel(gemX, gemY) != (uint)0)
+    }
+}
+
+// The passive tree window: opens with the P key against the left edge. Clicking a
+// passive within reach takes it for a point; right-clicking one gives it back
+// when nothing else hangs from it. It also holds the warrior's level, which is
+// where the points come from.
+HellfeatherPassiveScreen
+{
+    HellfeatherPassiveTree Tree
+    HellfeatherLevel Level
+    bool Open
+    -bool MouseWasDown
+    -bool RightWasDown
+    -int Scale = 1
+    -int PanelX
+    -int PanelY
+    -int Hovered = -1
+
+    Toggle() { Open = !Open }
+
+    // One point per level past the first, less those spent.
+    int Points() { return Level.Level - 1 - Tree.Spent() }
+
+    bool Captures(int mouseX, int mouseY) { return OverPanel(mouseX, mouseY) }
+
+    bool OverPanel(int mouseX, int mouseY)
+    {
+        if !Open { return false }
+        int x = mouseX / Scale
+        int y = mouseY / Scale
+        return x >= PanelX && y >= PanelY && x < PanelX + HellfeatherInventoryArt.PanelWidth && y < PanelY + HellfeatherInventoryArt.PanelHeight
+    }
+
+    // Runs once per frame after the overlay is cleared.
+    Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool down, bool rightDown)
+    {
+        HellfeatherInventoryArt.EnsurePainted(ui)
+        bool pressed = down && !MouseWasDown
+        bool rightPressed = rightDown && !RightWasDown
+        MouseWasDown = down
+        RightWasDown = rightDown
+        Hovered = -1
+        if !Open { return }
+        Scale = ui.ScaleFor(width, height)
+        PanelX = HellfeatherPassiveScreen.Margin
+        PanelY = Math.Max(0, (height / Scale - HellfeatherInventoryArt.PanelHeight) / 2)
+        int pointerX = mouseX / Scale - PanelX
+        int pointerY = mouseY / Scale - PanelY
+        Hovered = NodeAt(pointerX, pointerY)
+        if pressed {
+            if OnClose(pointerX, pointerY) {
+                Open = false
+                return
+            }
+            if Hovered >= 0 { Tree.Allocate(Hovered, Points()) }
+        }
+        if rightPressed && Hovered >= 0 { Tree.Refund(Hovered) }
+        Draw(ui)
+    }
+
+    // The passive under a point on the panel, or -1.
+    int NodeAt(int pointerX, int pointerY)
+    {
+        for i : 0; i < HellfeatherPassiveTree.Count; i++ {
+            int reach = HellfeatherPassiveArt.Spacing / 2
+            if Math.Abs(pointerX - HellfeatherPassiveArt.NodeX(i)) <= reach && Math.Abs(pointerY - HellfeatherPassiveArt.NodeY(i)) <= reach { return i }
+        }
+        return -1
+    }
+
+    -bool OnClose(int pointerX, int pointerY)
+    {
+        return pointerX >= HellfeatherInventoryArt.CloseX && pointerY >= HellfeatherInventoryArt.CloseY && pointerX < HellfeatherInventoryArt.CloseX + HellfeatherInventoryArt.CloseSize && pointerY < HellfeatherInventoryArt.CloseY + HellfeatherInventoryArt.CloseSize
+    }
+
+    -Draw(QuaxelUi& ui)
+    {
+        ui.OverlaySprite(PanelX, PanelY, 0, HellfeatherPassiveArt.Top, HellfeatherInventoryArt.PanelWidth, HellfeatherInventoryArt.PanelHeight)
+        string title = "PASSIVES"
+        ui.OverlayText(PanelX + (HellfeatherInventoryArt.PanelWidth - (int)Length(title) * 6) / 2, PanelY + 9, title, 0xFFE8B070)
+        int points = Points()
+        ui.OverlayText(PanelX + HellfeatherPassiveArt.TreeX + 1, PanelY + 25, "Level " + QuaxelUi.FormatInt(Level.Level), 0xFFC8CCD4)
+        string spare = "Points " + QuaxelUi.FormatInt(points)
+        ui.OverlayText(PanelX + HellfeatherPassiveArt.TreeX + HellfeatherPassiveArt.TreeWidth - (int)Length(spare) * 6, PanelY + 25, spare, points > 0 ? 0xFFE8C850 | 0xFF8A8278)
+        DrawLabels(ui)
+        DrawLinks(ui)
+        for i : 0; i < HellfeatherPassiveTree.Count; i++ { DrawNode(ui, i, points) }
+        DrawHint(ui)
+    }
+
+    // Each corner names what it builds.
+    -DrawLabels(QuaxelUi& ui)
+    {
+        int left = PanelX + HellfeatherPassiveArt.TreeX + 3
+        int right = PanelX + HellfeatherPassiveArt.TreeX + HellfeatherPassiveArt.TreeWidth - 3
+        int top = PanelY + HellfeatherPassiveArt.TreeY + 3
+        int bottom = PanelY + HellfeatherPassiveArt.TreeY + HellfeatherPassiveArt.TreeHeight - 10
+        ui.OverlayText(left, top, "VITALITY", Dim(HellfeatherPassiveQuadrant.Vitality))
+        ui.OverlayText(right - 4 * 6, top, "MANA", Dim(HellfeatherPassiveQuadrant.Mana))
+        ui.OverlayText(left, bottom, "AGILITY", Dim(HellfeatherPassiveQuadrant.Agility))
+        ui.OverlayText(right - 8 * 6, bottom, "STRENGTH", Dim(HellfeatherPassiveQuadrant.Strength))
+    }
+
+    -uint Dim(HellfeatherPassiveQuadrant quadrant) { return (uint)0xFF000000 | (uint)HellfeatherArt.Shade(HellfeatherPassiveArt.Color(quadrant), 90) }
+
+    -uint Bright(HellfeatherPassiveQuadrant quadrant) { return (uint)0xFF000000 | (uint)HellfeatherArt.Shade(HellfeatherPassiveArt.Color(quadrant), 150) }
+
+    // Links between two taken passives light up in their corner's color.
+    -DrawLinks(QuaxelUi& ui)
+    {
+        for a : 0; a < HellfeatherPassiveTree.Count; a++ {
+            if !Tree.IsAllocated(a) { continue }
+            for b : a + 1; b < HellfeatherPassiveTree.Count; b++ {
+                if !Tree.Allocated[b] || !HellfeatherPassiveTree.Linked(a, b) { continue }
+                uint color = Bright(HellfeatherPassiveTree.QuadrantOf(b))
+                int x0 = HellfeatherPassiveArt.NodeX(a)
+                int y0 = HellfeatherPassiveArt.NodeY(a)
+                int x1 = HellfeatherPassiveArt.NodeX(b)
+                int y1 = HellfeatherPassiveArt.NodeY(b)
+                if x0 == x1 || y0 == y1 {
+                    ui.OverlayRect(PanelX + Math.Min(x0, x1), PanelY + Math.Min(y0, y1), Math.Abs(x1 - x0) + 1, Math.Abs(y1 - y0) + 1, color)
+                    continue
+                }
+                // A link to the start: one pixel for each step of the diagonal.
+                int steps = Math.Abs(x1 - x0)
+                for i : 0; i <= steps; i++ {
+                    ui.OverlayRect(PanelX + x0 + (x1 - x0) * i / steps, PanelY + y0 + (y1 - y0) * i / steps, 1, 1, color)
+                }
+            }
+        }
+    }
+
+    -DrawNode(QuaxelUi& ui, int index, int points)
+    {
+        tier : HellfeatherPassiveTree.TierOf(index)
+        int size = HellfeatherPassiveArt.Size(tier)
+        int x = PanelX + HellfeatherPassiveArt.NodeX(index) - size / 2
+        int y = PanelY + HellfeatherPassiveArt.NodeY(index) - size / 2
+        if Tree.IsAllocated(index) {
+            quadrant : index == 0 ? HellfeatherPassiveQuadrant.Vitality | HellfeatherPassiveTree.QuadrantOf(index)
+            ui.OverlaySprite(x, y, HellfeatherPassiveArt.GemX(tier), HellfeatherPassiveArt.GemY(quadrant), size, size)
+        }
+        else if Tree.CanAllocate(index, points) {
+            // A frame around the socket marks what a point can buy.
+            uint ready = 0xC0E8C850
+            ui.OverlayRect(x - 2, y - 2, size + 4, 1, ready)
+            ui.OverlayRect(x - 2, y + size + 1, size + 4, 1, ready)
+            ui.OverlayRect(x - 2, y - 1, 1, size + 2, ready)
+            ui.OverlayRect(x + size + 1, y - 1, 1, size + 2, ready)
+        }
+        if index == Hovered { ui.OverlayRect(x - 1, y - 1, size + 2, size + 2, 0x38FFFFFF) }
+    }
+
+    // The passive under the mouse: its name, and what it gives.
+    -DrawHint(QuaxelUi& ui)
+    {
+        int x = PanelX + HellfeatherPassiveArt.TreeX + 5
+        int y = PanelY + HellfeatherPassiveArt.HintY
+        if Hovered < 0 {
+            ui.OverlayText(x, y + 10, Points() > 0 ? "Click a lit socket" | "Gain levels for points", 0xFF8A8278)
+            return
+        }
+        node : HellfeatherPassiveTree.Node(Hovered)
+        ui.OverlayText(x, y + 4, node.Name, node.Tier == HellfeatherPassiveTier.Minor ? 0xFFC8CCD4 | 0xFFE8B070)
+        ui.OverlayText(x, y + 15, node.Effect, 0xFFDCAE3E)
+    }
+}
+@{
+    PanelScale: Scale
+    PanelLeft: PanelX
+    PanelTop: PanelY
+    HoveredNode: Hovered
+}
+#{
+    // UI pixels between the panel and the left edge of the window.
+    #int Margin = 4
+}
+T{
+    ClosedPassivesDrawNothingAndIgnoreTheMouse()
+    {
+        HellfeatherPassiveScreen screen
+        QuaxelUi ui()
+        screen.Update(ui, 960, 540, 100, 100, true, false)
+        ui.Layout(960, 540, 0, 0, false)
+        T.AreEqual(ui.CommandCount, 0)
+        T.IsFalse(screen.Captures(100, 100))
+    }
+
+    PointsComeFromLevels()
+    {
+        HellfeatherPassiveScreen screen
+        T.AreEqual(screen.Points(), 0)
+        screen.Level.Gain(40 + 80)
+        T.AreEqual(screen.Points(), 2)
+        screen.Tree.Allocate(1, screen.Points())
+        T.AreEqual(screen.Points(), 1)
+    }
+
+    ClickingTakesAPassiveAndRightClickingGivesItBack()
+    {
+        HellfeatherPassiveScreen screen
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Level.Gain(40)
+        screen.Toggle()
+        screen.Update(ui, 960, 540, 0, 0, false, false)
+        int s = screen.PanelScale
+        int strength = 1 + 3 * HellfeatherPassiveTree.PerQuadrant
+        int x = (screen.PanelLeft + HellfeatherPassiveArt.NodeX(strength)) * s
+        int y = (screen.PanelTop + HellfeatherPassiveArt.NodeY(strength)) * s
+        screen.Update(ui, 960, 540, x, y, true, false)
+        T.AreEqual(screen.HoveredNode, strength)
+        T.IsTrue(screen.Tree.Allocated[strength])
+        T.AreEqual(screen.Points(), 0)
+        // A passive out of reach cannot be bought, even with a point.
+        screen.Level.Gain(80)
+        int far = strength + 14
+        screen.Update(ui, 960, 540, x, y, false, false)
+        x = (screen.PanelLeft + HellfeatherPassiveArt.NodeX(far)) * s
+        y = (screen.PanelTop + HellfeatherPassiveArt.NodeY(far)) * s
+        screen.Update(ui, 960, 540, x, y, true, false)
+        T.IsFalse(screen.Tree.Allocated[far])
+        x = (screen.PanelLeft + HellfeatherPassiveArt.NodeX(strength)) * s
+        y = (screen.PanelTop + HellfeatherPassiveArt.NodeY(strength)) * s
+        screen.Update(ui, 960, 540, x, y, false, true)
+        T.IsFalse(screen.Tree.Allocated[strength])
+        T.AreEqual(screen.Points(), 2)
+    }
+
+    EveryPassivesPixelMatchesTheFontPixel()
+    {
+        HellfeatherPassiveScreen screen
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Level.Gain(400)
+        screen.Tree.Allocate(1, 9)
+        screen.Tree.Allocate(2, 9)
+        screen.Toggle()
+        screen.Update(ui, 1920, 1080, 300, 400, false, false)
+        ui.Layout(1920, 1080, 300, 400, false)
+        T.IsTrue(ui.CommandCount > 20)
+        for i : 0; i < ui.CommandCount; i++ {
+            QuaxelUiCommand command = ui.GetCommand(i)
+            T.AreEqual(command.X % 4, 0)
+            T.AreEqual(command.Y % 4, 0)
+        }
+    }
+
+    TheCloseButtonClosesThePassives()
+    {
+        HellfeatherPassiveScreen screen
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Toggle()
+        screen.Update(ui, 960, 540, 0, 0, false, false)
+        int x = (screen.PanelLeft + HellfeatherInventoryArt.CloseX + 2) * screen.PanelScale
+        int y = (screen.PanelTop + HellfeatherInventoryArt.CloseY + 2) * screen.PanelScale
+        screen.Update(ui, 960, 540, x, y, true, false)
+        T.IsFalse(screen.Open)
+    }
+}

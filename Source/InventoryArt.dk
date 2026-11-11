@@ -3,8 +3,9 @@
 HellfeatherInventoryArt
 #{
     #int AtlasWidth = 512
-    // The inventory uses the top half, the action bar the bottom.
-    #int AtlasHeight = 512
+    // The inventory uses the top rows, the action bar the next, then the shop
+    // panel, the character panel, the passive tree and the rune board at the bottom.
+    #int AtlasHeight = 1536
     #int PanelWidth = 176
     #int PanelHeight = 256
     #int Cell = 16
@@ -34,11 +35,15 @@ HellfeatherInventoryArt
     Paint(QuaxelUi& ui)
     {
         ui.ConfigureAtlas(AtlasWidth, AtlasHeight)
-        PaintStone(ui)
-        PaintFrame(ui)
+        PaintStone(ui, 0)
+        PaintFrame(ui, 0)
         PaintWells(ui)
-        PaintClose(ui)
+        PaintClose(ui, 0)
         PaintCoins(ui, GoldX + 3, GoldY + 3)
+        HellfeatherShopArt.Paint(ui)
+        HellfeatherStatsArt.Paint(ui)
+        HellfeatherPassiveArt.Paint(ui)
+        HellfeatherRuneArt.Paint(ui)
         for item : HellfeatherItems { if item != HellfeatherItems.None { PaintIcon(ui, item, IconX(item), IconY(item)) } }
         HellfeatherActionArt.Paint(ui)
     }
@@ -50,7 +55,8 @@ HellfeatherInventoryArt
     }
 
     // Courses of six-pixel blocks, each lit from the top left like a voxel.
-    -PaintStone(QuaxelUi& ui)
+    // A panel's stone background, with its top row at `top` in the atlas.
+    PaintStone(QuaxelUi& ui, int top)
     {
         for y : 0; y < PanelHeight; y++ {
             int course = y / 6
@@ -61,7 +67,7 @@ HellfeatherInventoryArt
                 int tone = HellfeatherArt.Shade(0x34302b, 84 + HellfeatherArt.Hash(along / 6, course, 17) % 32)
                 if ex == 5 || ey == 5 { tone = HellfeatherArt.Shade(tone, 52) }
                 else if ex == 0 || ey == 0 { tone = HellfeatherArt.Shade(tone, 128) }
-                Put(ui, x, y, tone)
+                Put(ui, x, top + y, tone)
             }
         }
     }
@@ -83,25 +89,26 @@ HellfeatherInventoryArt
         Fill(ui, x + width - 1, y, 1, height, HellfeatherArt.Shade(rgb, 60))
     }
 
-    -PaintFrame(QuaxelUi& ui)
+    // A panel's metal frame and title band, with its top row at `top` in the atlas.
+    PaintFrame(QuaxelUi& ui, int top)
     {
         int metal = 0x4b3b2d
         for i : 0; i < PanelWidth / 8; i++ {
-            Raised(ui, i * 8, 0, 8, 5, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 1, 2) % 26))
-            Raised(ui, i * 8, PanelHeight - 5, 8, 5, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 2, 2) % 26))
+            Raised(ui, i * 8, top, 8, 5, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 1, 2) % 26))
+            Raised(ui, i * 8, top + PanelHeight - 5, 8, 5, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 2, 2) % 26))
         }
         for i : 0; i < PanelHeight / 8; i++ {
-            Raised(ui, 0, i * 8, 5, 8, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 3, 2) % 26))
-            Raised(ui, PanelWidth - 5, i * 8, 5, 8, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 4, 2) % 26))
+            Raised(ui, 0, top + i * 8, 5, 8, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 3, 2) % 26))
+            Raised(ui, PanelWidth - 5, top + i * 8, 5, 8, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 4, 2) % 26))
         }
-        Stud(ui, 0, 0)
-        Stud(ui, PanelWidth - 13, 0)
-        Stud(ui, 0, PanelHeight - 13)
-        Stud(ui, PanelWidth - 13, PanelHeight - 13)
+        Stud(ui, 0, top)
+        Stud(ui, PanelWidth - 13, top)
+        Stud(ui, 0, top + PanelHeight - 13)
+        Stud(ui, PanelWidth - 13, top + PanelHeight - 13)
         // The title band, closed off by a line of ember.
-        Fill(ui, 13, 6, PanelWidth - 26, 13, 0x1a1715)
-        Fill(ui, 13, 19, PanelWidth - 26, 1, 0x8a2f12)
-        Fill(ui, 13, 20, PanelWidth - 26, 1, 0x3c170b)
+        Fill(ui, 13, top + 6, PanelWidth - 26, 13, 0x1a1715)
+        Fill(ui, 13, top + 19, PanelWidth - 26, 1, 0x8a2f12)
+        Fill(ui, 13, top + 20, PanelWidth - 26, 1, 0x3c170b)
     }
 
     -Stud(QuaxelUi& ui, int x, int y)
@@ -145,16 +152,16 @@ HellfeatherInventoryArt
         Well(ui, GoldX, GoldY, GoldWidth, GoldHeight)
     }
 
-    -PaintClose(QuaxelUi& ui)
+    PaintClose(QuaxelUi& ui, int top)
     {
-        Raised(ui, CloseX, CloseY, CloseSize, CloseSize, 0x6b1c12)
+        Raised(ui, CloseX, top + CloseY, CloseSize, CloseSize, 0x6b1c12)
         for i : 2; i < CloseSize - 2; i++ {
-            Put(ui, CloseX + i, CloseY + i, 0xe8c9a0)
-            Put(ui, CloseX + CloseSize - 1 - i, CloseY + i, 0xe8c9a0)
+            Put(ui, CloseX + i, top + CloseY + i, 0xe8c9a0)
+            Put(ui, CloseX + CloseSize - 1 - i, top + CloseY + i, 0xe8c9a0)
         }
     }
 
-    -PaintCoins(QuaxelUi& ui, int x, int y)
+    PaintCoins(QuaxelUi& ui, int x, int y)
     {
         V(ui, x, y, 0, "..kkkk..")
         V(ui, x, y, 1, ".kgggGk.")
@@ -271,6 +278,8 @@ HellfeatherInventoryScreen
 {
     HellfeatherInventory Items
     bool Open
+    // Against the left edge instead of the right, to leave the right for a shop.
+    bool OnLeft
     -bool MouseWasDown
     -int Scale = 1
     -int PanelX
@@ -282,10 +291,11 @@ HellfeatherInventoryScreen
         if !Open { Items.StowHeld() }
     }
 
-    // The warrior's starting kit.
+    // The warrior's starting kit: her axe, and one rune to learn the board with.
     Stock()
     {
         Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.BattleAxe
+        Items.Add(HellfeatherItems.RuneCleave)
     }
 
     // True when the mouse is over the panel or carrying an item, so the world
@@ -313,7 +323,7 @@ HellfeatherInventoryScreen
         MouseWasDown = down
         if !Open { return }
         Scale = ui.ScaleFor(width, height)
-        PanelX = Math.Max(0, width / Scale - HellfeatherInventoryArt.PanelWidth - Margin)
+        PanelX = OnLeft ? Margin | Math.Max(0, width / Scale - HellfeatherInventoryArt.PanelWidth - Margin)
         PanelY = Math.Max(0, (height / Scale - HellfeatherInventoryArt.PanelHeight) / 2)
         int gridMouseX = mouseX / Scale
         int gridMouseY = mouseY / Scale
@@ -436,7 +446,7 @@ HellfeatherInventoryScreen
             HellfeatherItemKind kind = HellfeatherItems.Get(item)
             bool hovered = Items.Held == HellfeatherItems.None && InGrid(pointerX, pointerY) && Items.EntryAt((pointerX - gridX) / cell, (pointerY - gridY) / cell) == i
             // A soft tint marks which cells an item fills.
-            Highlight(ui, x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, hovered ? 0x40FFFFFF | 0x28385070)
+            Highlight(ui, x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, hovered ? 0x40FFFFFF | HellfeatherItemMods.TintOf(Items.Bag[i].Mods.Rarity))
             Icon(ui, item, OnGridX(x), OnGridY(y))
         }
     }
@@ -445,24 +455,35 @@ HellfeatherInventoryScreen
     {
         if Items.Held != HellfeatherItems.None { return }
         item : HellfeatherItems.None
+        HellfeatherItemMods mods
+        mods.Clear()
         int slot = HellfeatherInventoryLayout.SlotAt(pointerX, pointerY)
-        if slot >= 0 { item = Items.Equipped[slot] }
+        if slot >= 0 {
+            item = Items.Equipped[slot]
+            mods = Items.EquippedMods[slot]
+        }
         else if InGrid(pointerX, pointerY) {
             int entry = Items.EntryAt((pointerX - HellfeatherInventoryArt.GridX) / HellfeatherInventoryArt.Cell, (pointerY - HellfeatherInventoryArt.GridY) / HellfeatherInventoryArt.Cell)
-            if entry >= 0 { item = Items.Bag[entry].Item }
+            if entry >= 0 {
+                item = Items.Bag[entry].Item
+                mods = Items.Bag[entry].Mods
+            }
         }
         if item == HellfeatherItems.None { return }
         HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        // The name in its rarity's color, the base stat, then one line per mod.
         int characters = (int)Math.Max(Length(kind.Name), Length(kind.Detail))
+        for i : 0; i < mods.Count; i++ { characters = Math.Max(characters, (int)Length(mods.Line(i))) }
         int boxWidth = characters * 6 + 12
-        int boxHeight = 26
-        // To the left of the cursor, since the panel sits against the right edge.
-        int x = Math.Max(2, mouseX - boxWidth - 6)
+        int boxHeight = 26 + mods.Count * 11
+        // Toward the middle of the window, away from the edge the panel sits on.
+        int x = OnLeft ? mouseX + 10 | Math.Max(2, mouseX - boxWidth - 6)
         int y = Math.Max(2, mouseY - boxHeight - 3)
         ui.OverlayRect(x - 1, y - 1, boxWidth + 2, boxHeight + 2, 0xFF625749)
         ui.OverlayRect(x, y, boxWidth, boxHeight, 0xF0120F0D)
-        ui.OverlayText(x + 6, y + 4, kind.Name, 0xFFE8B070)
+        ui.OverlayText(x + 6, y + 4, kind.Name, HellfeatherItemMods.ColorOf(mods.Rarity))
         ui.OverlayText(x + 6, y + 15, kind.Detail, 0xFFC8CCD4)
+        for i : 0; i < mods.Count; i++ { ui.OverlayText(x + 6, y + 26 + i * 11, mods.Line(i), 0xFF8FB4FF) }
     }
 }
 @{
@@ -576,11 +597,12 @@ T{
         T.AreEqual(screen.Items.Bag.Len, 1)
     }
 
-    TheWarriorStartsWithOnlyHerAxe()
+    TheWarriorStartsWithHerAxeAndACleaveRune()
     {
         HellfeatherInventoryScreen screen
         screen.Stock()
-        T.AreEqual(screen.Items.Bag.Len, 0)
+        T.AreEqual(screen.Items.Bag.Len, 1)
+        T.AreEqual(screen.Items.CountOf(HellfeatherItems.RuneCleave), 1)
         T.AreEqual(screen.Items.Gold, 0)
         for slot : HellfeatherSlot {
             T.AreEqual(screen.Items.Equipped[slot], slot == HellfeatherSlot.MainHand ? HellfeatherItems.BattleAxe | HellfeatherItems.None)

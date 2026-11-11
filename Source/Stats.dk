@@ -1,0 +1,156 @@
+// The warrior's numbers: her base attributes plus everything she wears.
+// Chances, resistances and move speed are whole percents.
+HellfeatherStats
+{
+    int Strength
+    int Agility
+    int MaxHealth
+    int MaxMana
+    // The equipped weapon's own damage, before any attribute adds to it.
+    int WeaponDamage
+    bool Ranged
+    int Defense
+    int FireResist
+    int ColdResist
+    int LightningResist
+    // Percent of normal walking speed.
+    int MoveSpeed = 100
+    float ManaPerSecond
+    // Percent more damage on top of the flat amount, from passives.
+    int DamagePercent
+    // Hit chance from passives, on top of what agility gives.
+    int HitBonus
+
+    // Strength adds to every weapon, and agility to ranged weapons as well.
+    // Percent bonuses apply after the flat ones.
+    int Damage() { return Scaled(WeaponDamage + Strength + (Ranged ? Agility | 0)) }
+
+    // Cleave hits half as hard again as the weapon, and attributes add the same.
+    int CleaveDamage() { return Scaled(WeaponDamage * 3 / 2 + Strength + (Ranged ? Agility | 0)) }
+
+    -int Scaled(int flat) { return flat * (100 + DamagePercent) / 100 }
+
+    // Agility makes every attack more accurate.
+    int HitChance() { return Math.Min(HellfeatherStats.MaxHitChance, HellfeatherStats.BaseHitChance + Agility * HellfeatherStats.HitPerAgility + HitBonus) }
+}
+#{
+    #int BaseStrength = 5
+    #int BaseAgility = 5
+    #int BaseHealth = 100
+    #int BaseMana = 60
+    #float BaseManaPerSecond = 2.0
+    #int BaseHitChance = 75
+    #int HitPerAgility = 1
+    #int MaxHitChance = 95
+
+    // What the warrior has with nothing on.
+    HellfeatherStats Base()
+    {
+        HellfeatherStats stats
+        stats.Strength = BaseStrength
+        stats.Agility = BaseAgility
+        stats.MaxHealth = BaseHealth
+        stats.MaxMana = BaseMana
+        stats.ManaPerSecond = BaseManaPerSecond
+        return stats
+    }
+
+    // What one worn item gives. These match the items' detail lines.
+    AddItem(HellfeatherStats& stats, HellfeatherItems item)
+    {
+        if item == HellfeatherItems.BattleAxe { stats.WeaponDamage += 20 }
+        if item == HellfeatherItems.ShortSword { stats.WeaponDamage += 12 }
+        if item == HellfeatherItems.RoundShield { stats.Defense += 8 }
+        if item == HellfeatherItems.IronHelm { stats.Defense += 5 }
+        if item == HellfeatherItems.LeatherArmor { stats.Defense += 12 }
+        if item == HellfeatherItems.Gloves { stats.Defense += 2 }
+        if item == HellfeatherItems.Boots { stats.Defense += 2 }
+        if item == HellfeatherItems.Belt { stats.Defense += 1 }
+        if item == HellfeatherItems.Amulet { stats.FireResist += 3 }
+    }
+
+    // A rate with one decimal, such as "2.0".
+    string FormatTenths(float value)
+    {
+        int tenths = (int)(value * 10.0 + 0.5)
+        return QuaxelUi.FormatInt(tenths / 10) + "." + QuaxelUi.FormatInt(tenths % 10)
+    }
+}
+
+HellfeatherInventory
+{
+    // What the warrior has with this gear on. The bag gives nothing.
+    HellfeatherStats Stats()
+    {
+        stats : HellfeatherStats.Base()
+        for slot : HellfeatherSlot {
+            HellfeatherStats.AddItem(stats, Equipped[slot])
+            if Equipped[slot] != HellfeatherItems.None { EquippedMods[slot].ApplyTo(stats) }
+        }
+        return stats
+    }
+}
+T{
+    TheWarriorStartsWithHerBaseAttributes()
+    {
+        HellfeatherInventory items
+        stats : items.Stats()
+        T.AreEqual(stats.Strength, HellfeatherStats.BaseStrength)
+        T.AreEqual(stats.Agility, HellfeatherStats.BaseAgility)
+        T.AreEqual(stats.MaxHealth, 100)
+        T.AreEqual(stats.MaxMana, 60)
+        T.AreEqual(stats.Defense, 0)
+        T.AreEqual(stats.MoveSpeed, 100)
+        // Bare hands still hit with her strength.
+        T.AreEqual(stats.Damage(), HellfeatherStats.BaseStrength)
+    }
+
+    StrengthAddsFlatDamageToTheWeapon()
+    {
+        HellfeatherInventory items
+        items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.BattleAxe
+        stats : items.Stats()
+        T.AreEqual(stats.Damage(), 20 + stats.Strength)
+        T.AreEqual(stats.CleaveDamage(), 30 + stats.Strength)
+        stats.Strength += 4
+        T.AreEqual(stats.Damage(), 24 + HellfeatherStats.BaseStrength)
+    }
+
+    AgilityAddsToRangedDamageAndToHitChance()
+    {
+        HellfeatherInventory items
+        stats : items.Stats()
+        stats.WeaponDamage = 10
+        T.AreEqual(stats.Damage(), 10 + stats.Strength)
+        stats.Ranged = true
+        T.AreEqual(stats.Damage(), 10 + stats.Strength + stats.Agility)
+        T.AreEqual(stats.HitChance(), 75 + stats.Agility)
+        stats.Agility = 100
+        T.AreEqual(stats.HitChance(), HellfeatherStats.MaxHitChance)
+    }
+
+    WornArmorAndWardsAddUp()
+    {
+        HellfeatherInventory items
+        items.Equipped[HellfeatherSlot.Body] = HellfeatherItems.LeatherArmor
+        items.Equipped[HellfeatherSlot.Head] = HellfeatherItems.IronHelm
+        items.Equipped[HellfeatherSlot.Neck] = HellfeatherItems.Amulet
+        stats : items.Stats()
+        T.AreEqual(stats.Defense, 17)
+        T.AreEqual(stats.FireResist, 3)
+        T.AreEqual(stats.ColdResist, 0)
+        T.AreEqual(stats.LightningResist, 0)
+        // Items in the bag give nothing.
+        items.Equipped[HellfeatherSlot.Body] = HellfeatherItems.None
+        T.IsTrue(items.Add(HellfeatherItems.LeatherArmor))
+        after : items.Stats()
+        T.AreEqual(after.Defense, 5)
+    }
+
+    RatesShowOneDecimal()
+    {
+        T.AreEqual(HellfeatherStats.FormatTenths(2.0), "2.0")
+        T.AreEqual(HellfeatherStats.FormatTenths(1.25), "1.3")
+        T.AreEqual(HellfeatherStats.FormatTenths(0.0), "0.0")
+    }
+}

@@ -1,0 +1,475 @@
+// An item on the shop's shelves. X and Y are its top-left cell. An endless item
+// is restocked as soon as it is sold, so it never runs out.
+HellfeatherShopEntry
+{
+    HellfeatherItems Item
+    HellfeatherItemMods Mods
+    int X
+    int Y
+    bool Endless
+}
+
+// What the shopkeeper sells and buys. Prices come from HellfeatherItems.Get.
+HellfeatherShop
+{
+    HellfeatherShopEntry [] Stock
+    // Moves on with each shelved piece of gear, so each rolls differently.
+    -uint RollSeed = 1
+
+    // Potions and scrolls never run out. Each piece of gear is a single one, and
+    // some of it is magic. He never stocks rare items himself, though one the
+    // player sells him stays on the shelf to be bought back.
+    Restock() { RestockSeeded((uint)1) }
+
+    RestockSeeded(uint seed)
+    {
+        Stock.Clear()
+        RollSeed = seed
+        Add(HellfeatherItems.HealthPotion, true)
+        Add(HellfeatherItems.ManaPotion, true)
+        Add(HellfeatherItems.Scroll, true)
+        Add(HellfeatherItems.LeatherArmor, false)
+        Add(HellfeatherItems.ShortSword, false)
+        Add(HellfeatherItems.RoundShield, false)
+        Add(HellfeatherItems.IronHelm, false)
+        Add(HellfeatherItems.Gloves, false)
+        Add(HellfeatherItems.Boots, false)
+        Add(HellfeatherItems.Belt, false)
+        Add(HellfeatherItems.Ring, false)
+        Add(HellfeatherItems.Amulet, false)
+        Add(HellfeatherItems.RuneCleave, false)
+        Add(HellfeatherItems.RuneWarCry, false)
+        Add(HellfeatherItems.RuneDash, false)
+    }
+
+    // The index of the entry covering a cell, or -1.
+    int EntryAt(int x, int y)
+    {
+        for i : 0; i < Stock.Len; i++ {
+            HellfeatherItemKind kind = HellfeatherItems.Get(Stock[i].Item)
+            if x >= Stock[i].X && y >= Stock[i].Y && x < Stock[i].X + kind.Width && y < Stock[i].Y + kind.Height { return i }
+        }
+        return -1
+    }
+
+    -bool IsFree(HellfeatherItems item, int x, int y)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        if x < 0 || y < 0 || x + kind.Width > Columns || y + kind.Height > Rows { return false }
+        for i : 0; i < Stock.Len; i++ {
+            HellfeatherItemKind other = HellfeatherItems.Get(Stock[i].Item)
+            if x < Stock[i].X + other.Width && Stock[i].X < x + kind.Width && y < Stock[i].Y + other.Height && Stock[i].Y < y + kind.Height { return false }
+        }
+        return true
+    }
+
+    // Shelves an item in the first space that fits, row by row from the top left.
+    bool Add(HellfeatherItems item, bool endless)
+    {
+        HellfeatherItemMods none
+        none.Clear()
+        if !endless { none = RollStock(item) }
+        return AddWith(item, none, endless)
+    }
+
+    // A piece of shelf gear comes out magic MagicShare of the time, else common.
+    -HellfeatherItemMods RollStock(HellfeatherItems item)
+    {
+        QuaxelRandom random
+        random.Begin(RollSeed + (uint)item * (uint)2654435761)
+        RollSeed += (uint)7919
+        if random.Unit() >= HellfeatherShop.MagicShare {
+            HellfeatherItemMods common
+            common.Clear()
+            return common
+        }
+        return HellfeatherItemMods.RollAs(item, HellfeatherRarity.Magic, random.Below(1000000))
+    }
+
+    bool AddWith(HellfeatherItems item, HellfeatherItemMods mods, bool endless)
+    {
+        for y : 0; y < Rows; y++ {
+            for x : 0; x < Columns; x++ {
+                if IsFree(item, x, y) {
+                    HellfeatherShopEntry entry
+                    entry.Item = item
+                    entry.Mods = mods
+                    entry.X = x
+                    entry.Y = y
+                    entry.Endless = endless
+                    Stock += entry
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    bool HasEndless(HellfeatherItems item)
+    {
+        for entry : Stock {
+            if entry.Endless && entry.Item == item { return true }
+        }
+        return false
+    }
+
+    int BuyPrice(HellfeatherItems item)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        return kind.Price
+    }
+
+    int SellPrice(HellfeatherItems item) { return Math.Max(1, BuyPrice(item) / 4) }
+
+    // Magic items cost twice as much and rare ones four times, either way.
+    // What he pays for an item: a quarter of its listed price, more for magic and rare.
+    int SellPriceWith(HellfeatherItems item, HellfeatherItemMods mods) { return Math.Max(1, BuyPrice(item) * HellfeatherItemMods.PriceFactor(mods.Rarity) / 4) }
+
+    // What he asks for it: always exactly four times what he pays.
+    int BuyPriceWith(HellfeatherItems item, HellfeatherItemMods mods) { return SellPriceWith(item, mods) * BuyBackFactor }
+
+    // What a shelved item costs.
+    int PriceOf(int index) { return BuyPriceWith(Stock[index].Item, Stock[index].Mods) }
+
+    // Whether the shelved item at index can be bought with this much gold.
+    HellfeatherShopResult Quote(int index, int gold)
+    {
+        if index < 0 || index >= Stock.Len { return HellfeatherShopResult.Nothing }
+        return gold < PriceOf(index) ? HellfeatherShopResult.TooPoor | HellfeatherShopResult.Done
+    }
+
+    // Hands over a shelved item. Endless items stay on the shelf.
+    HellfeatherItems Take(int index)
+    {
+        item : Stock[index].Item
+        if !Stock[index].Endless { Stock -= [index] }
+        return item
+    }
+
+    // Buys an item from the player and returns what he pays, or 0 if he will
+    // not take it. It goes on the shelves unless they already carry it without
+    // end, or are full.
+    int Receive(HellfeatherItems item)
+    {
+        HellfeatherItemMods none
+        none.Clear()
+        return ReceiveWith(item, none)
+    }
+
+    // As Receive, for an item with mods. They stay with it on the shelf.
+    int ReceiveWith(HellfeatherItems item, HellfeatherItemMods mods)
+    {
+        if item == HellfeatherItems.None || item == HellfeatherItems.Gold { return 0 }
+        if mods.Count > 0 || !HasEndless(item) { AddWith(item, mods, false) }
+        return SellPriceWith(item, mods)
+    }
+}
+#{
+    #int Columns = 10
+    // How many times what he pays the shopkeeper asks for the same item.
+    #int BuyBackFactor = 4
+    // The share of shelved gear that comes out magic.
+    #float MagicShare = 0.35
+    #int Rows = 7
+}
+T{
+    StockFitsTheShelvesWithPotionsAndGear()
+    {
+        HellfeatherShop shop
+        shop.Restock()
+        T.AreEqual(shop.Stock.Len, 15)
+        T.IsTrue(shop.HasEndless(HellfeatherItems.HealthPotion))
+        T.IsTrue(shop.HasEndless(HellfeatherItems.ManaPotion))
+        T.IsTrue(shop.HasEndless(HellfeatherItems.Scroll))
+        T.IsFalse(shop.HasEndless(HellfeatherItems.Ring))
+    }
+
+    GearSellsOnceAndPotionsNeverRunOut()
+    {
+        HellfeatherShop shop
+        shop.Restock()
+        int helm = -1
+        for i : 0; i < shop.Stock.Len; i++ {
+            if shop.Stock[i].Item == HellfeatherItems.IronHelm { helm = i }
+        }
+        T.AreEqual(shop.Quote(helm, 500), HellfeatherShopResult.Done)
+        T.AreEqual(shop.Take(helm), HellfeatherItems.IronHelm)
+        T.AreEqual(shop.Stock.Len, 14)
+        for i : 0; i < 5; i++ { T.AreEqual(shop.Take(0), HellfeatherItems.HealthPotion) }
+        T.AreEqual(shop.Stock.Len, 14)
+    }
+
+    QuotesTurnAwayThePoor()
+    {
+        HellfeatherShop shop
+        shop.Restock()
+        T.AreEqual(shop.Quote(0, 10), HellfeatherShopResult.TooPoor)
+        T.AreEqual(shop.Quote(0, 30), HellfeatherShopResult.Done)
+        T.AreEqual(shop.Quote(99, 1000), HellfeatherShopResult.Nothing)
+    }
+
+    SellingPaysAQuarterAndShelvesTheItem()
+    {
+        HellfeatherShop shop
+        shop.Restock()
+        T.AreEqual(shop.Receive(HellfeatherItems.BattleAxe), 75)
+        T.AreEqual(shop.Stock.Len, 16)
+        // He already has endless potions, so one more does not take shelf space.
+        T.AreEqual(shop.Receive(HellfeatherItems.HealthPotion), 7)
+        T.AreEqual(shop.Stock.Len, 16)
+        T.AreEqual(shop.Receive(HellfeatherItems.None), 0)
+        T.AreEqual(shop.Receive(HellfeatherItems.Gold), 0)
+    }
+}
+
+HellfeatherShopResult : int
+#@{
+    Done,
+    Nothing,
+    TooPoor,
+    NoRoom
+}
+
+// Paints the shop panel into the atlas below the action bar art. It shares the
+// inventory panel's size, stone and frame.
+HellfeatherShopArt
+#{
+    #int Top = 512
+    #int GridX = 8
+    #int GridY = 28
+    #int InfoX = 8
+    #int InfoY = 150
+    #int InfoWidth = 160
+    #int InfoHeight = 74
+
+    Paint(QuaxelUi& ui)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        HellfeatherInventoryArt.PaintStone(ui, Top)
+        HellfeatherInventoryArt.PaintFrame(ui, Top)
+        HellfeatherInventoryArt.PaintClose(ui, Top)
+        HellfeatherInventoryArt.Well(ui, GridX, Top + GridY, HellfeatherShop.Columns * cell, HellfeatherShop.Rows * cell)
+        for row : 0; row < HellfeatherShop.Rows; row++ {
+            for column : 0; column < HellfeatherShop.Columns; column++ {
+                int x = GridX + column * cell
+                int y = Top + GridY + row * cell
+                HellfeatherInventoryArt.Fill(ui, x, y, cell, 1, 0x2d2823)
+                HellfeatherInventoryArt.Fill(ui, x, y, 1, cell, 0x2d2823)
+                HellfeatherInventoryArt.Fill(ui, x + 1, y + 1, cell - 1, cell - 1, (column + row) % 2 == 0 ? 0x161310 | 0x1a1612)
+            }
+        }
+        HellfeatherInventoryArt.Well(ui, InfoX, Top + InfoY, InfoWidth, InfoHeight)
+        HellfeatherInventoryArt.Well(ui, HellfeatherInventoryArt.GoldX, Top + HellfeatherInventoryArt.GoldY, HellfeatherInventoryArt.GoldWidth, HellfeatherInventoryArt.GoldHeight)
+        HellfeatherInventoryArt.PaintCoins(ui, HellfeatherInventoryArt.GoldX + 3, Top + HellfeatherInventoryArt.GoldY + 3)
+    }
+}
+
+// The shop window: against the right edge while the inventory takes the left.
+// Clicking a shelved item buys it, and clicking the panel with an item on the
+// cursor sells that item. All coordinates are on the UI pixel grid.
+HellfeatherShopScreen
+{
+    HellfeatherShop Shop
+    bool Open
+    -bool MouseWasDown
+    -int Scale = 1
+    -int PanelX
+    -int PanelY
+    -string Notice
+    -int NoticeFrames
+    // What this frame's click asked for. The game carries it out, since it owns
+    // the bag, and clears it.
+    int BuyRequest = -1
+    bool SellRequest
+    // The mods of the item on the cursor, set by the game before each update.
+    HellfeatherItemMods HeldMods
+
+    bool OverPanel(int mouseX, int mouseY)
+    {
+        if !Open { return false }
+        int x = mouseX / Scale
+        int y = mouseY / Scale
+        return x >= PanelX && y >= PanelY && x < PanelX + HellfeatherInventoryArt.PanelWidth && y < PanelY + HellfeatherInventoryArt.PanelHeight
+    }
+
+    bool Captures(int mouseX, int mouseY) { return OverPanel(mouseX, mouseY) }
+
+    // Runs once per frame, before the inventory, so the item on the cursor is
+    // drawn over this panel too.
+    // Gold and Held describe the player's purse and the item on the cursor.
+    Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool down, int gold, HellfeatherItems held)
+    {
+        HellfeatherInventoryArt.EnsurePainted(ui)
+        bool pressed = down && !MouseWasDown
+        MouseWasDown = down
+        if !Open { return }
+        Scale = ui.ScaleFor(width, height)
+        PanelX = Math.Max(0, width / Scale - HellfeatherInventoryArt.PanelWidth - HellfeatherInventoryScreen.Margin)
+        PanelY = Math.Max(0, (height / Scale - HellfeatherInventoryArt.PanelHeight) / 2)
+        int pointerX = mouseX / Scale - PanelX
+        int pointerY = mouseY / Scale - PanelY
+        if NoticeFrames > 0 { NoticeFrames-- }
+        if pressed && OverPanel(mouseX, mouseY) { Click(pointerX, pointerY, held) }
+        if Open { Draw(ui, pointerX, pointerY, gold, held) }
+    }
+
+    -bool OnClose(int pointerX, int pointerY)
+    {
+        int x = HellfeatherInventoryArt.CloseX
+        int y = HellfeatherInventoryArt.CloseY
+        int size = HellfeatherInventoryArt.CloseSize
+        return pointerX >= x && pointerY >= y && pointerX < x + size && pointerY < y + size
+    }
+
+    -bool InGrid(int pointerX, int pointerY)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        return pointerX >= HellfeatherShopArt.GridX && pointerY >= HellfeatherShopArt.GridY && pointerX < HellfeatherShopArt.GridX + HellfeatherShop.Columns * cell && pointerY < HellfeatherShopArt.GridY + HellfeatherShop.Rows * cell
+    }
+
+    -int Hovered(int pointerX, int pointerY)
+    {
+        if !InGrid(pointerX, pointerY) { return -1 }
+        int cell = HellfeatherInventoryArt.Cell
+        return Shop.EntryAt((pointerX - HellfeatherShopArt.GridX) / cell, (pointerY - HellfeatherShopArt.GridY) / cell)
+    }
+
+    -Click(int pointerX, int pointerY, HellfeatherItems held)
+    {
+        if OnClose(pointerX, pointerY) {
+            Open = false
+            return
+        }
+        if held != HellfeatherItems.None {
+            SellRequest = true
+            return
+        }
+        BuyRequest = Hovered(pointerX, pointerY)
+    }
+
+    // Shows a short message under the item's price.
+    Say(string text)
+    {
+        Notice = text
+        NoticeFrames = 150
+    }
+
+    -Draw(QuaxelUi& ui, int pointerX, int pointerY, int gold, HellfeatherItems held)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        ui.OverlaySprite(PanelX, PanelY, 0, HellfeatherShopArt.Top, HellfeatherInventoryArt.PanelWidth, HellfeatherInventoryArt.PanelHeight)
+        string title = "SHOPKEEPER"
+        ui.OverlayText(PanelX + (HellfeatherInventoryArt.PanelWidth - (int)Length(title) * 6) / 2, PanelY + 9, title, 0xFFE8B070)
+        int hovered = held == HellfeatherItems.None ? Hovered(pointerX, pointerY) | -1
+        for i : 0; i < Shop.Stock.Len; i++ {
+            HellfeatherItemKind kind = HellfeatherItems.Get(Shop.Stock[i].Item)
+            int x = PanelX + HellfeatherShopArt.GridX + Shop.Stock[i].X * cell
+            int y = PanelY + HellfeatherShopArt.GridY + Shop.Stock[i].Y * cell
+            uint tint = 0x28385070
+            if Shop.Stock[i].Mods.Rarity != HellfeatherRarity.Common { tint = HellfeatherItemMods.TintOf(Shop.Stock[i].Mods.Rarity) }
+            if i == hovered { tint = gold >= Shop.PriceOf(i) ? 0x40FFFFFF | 0x50C04030 }
+            ui.OverlayRect(x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, tint)
+            ui.OverlayOutlinedSprite(x, y, HellfeatherInventoryArt.IconX(Shop.Stock[i].Item), HellfeatherInventoryArt.IconY(Shop.Stock[i].Item), kind.Width * cell, kind.Height * cell, HellfeatherInventoryArt.IconOutline)
+        }
+        bool selling = held != HellfeatherItems.None && pointerX >= 0 && pointerY >= 0 && pointerX < HellfeatherInventoryArt.PanelWidth && pointerY < HellfeatherInventoryArt.PanelHeight
+        if selling { ui.OverlayRect(PanelX + HellfeatherShopArt.GridX, PanelY + HellfeatherShopArt.GridY, HellfeatherShop.Columns * cell, HellfeatherShop.Rows * cell, 0x3040C060) }
+        DrawInfo(ui, hovered, selling, gold, held)
+        string purse = QuaxelUi.FormatInt(gold)
+        ui.OverlayText(PanelX + HellfeatherInventoryArt.GoldX + HellfeatherInventoryArt.GoldWidth - 4 - (int)Length(purse) * 6, PanelY + HellfeatherInventoryArt.GoldY + 5, purse, 0xFFDCAE3E)
+    }
+
+    -Line(QuaxelUi& ui, int row, string text, uint color)
+    {
+        ui.OverlayText(PanelX + HellfeatherShopArt.InfoX + 5, PanelY + HellfeatherShopArt.InfoY + 5 + row * 11, text, color)
+    }
+
+    -DrawInfo(QuaxelUi& ui, int hovered, bool selling, int gold, HellfeatherItems held)
+    {
+        if selling {
+            HellfeatherItemKind carried = HellfeatherItems.Get(held)
+            Line(ui, 0, carried.Name, HellfeatherItemMods.ColorOf(HeldMods.Rarity))
+            Line(ui, 2, "Sell for " + QuaxelUi.FormatInt(Shop.SellPriceWith(held, HeldMods)) + " gold", 0xFFDCAE3E)
+            Line(ui, 4, "Click to sell", 0xFF8C8880)
+            return
+        }
+        if hovered >= 0 {
+            HellfeatherItemKind kind = HellfeatherItems.Get(Shop.Stock[hovered].Item)
+            mods : Shop.Stock[hovered].Mods
+            int price = Shop.PriceOf(hovered)
+            Line(ui, 0, kind.Name, HellfeatherItemMods.ColorOf(mods.Rarity))
+            if mods.Count > 0 {
+                // The price goes beside the name, leaving a row for each of up to five mods.
+                string tag = QuaxelUi.FormatInt(price) + "g"
+                ui.OverlayText(PanelX + HellfeatherShopArt.InfoX + HellfeatherShopArt.InfoWidth - 5 - (int)Length(tag) * 6, PanelY + HellfeatherShopArt.InfoY + 5, tag, gold >= price ? 0xFFDCAE3E | 0xFFD05A40)
+                for i : 0; i < mods.Count; i++ { Line(ui, 1 + i, mods.Line(i), 0xFF8FB4FF) }
+                return
+            }
+            Line(ui, 1, kind.Detail, 0xFFC8CCD4)
+            Line(ui, 3, "Price " + QuaxelUi.FormatInt(price) + " gold", gold >= price ? 0xFFDCAE3E | 0xFFD05A40)
+            Line(ui, 4, "Click to buy", 0xFF8C8880)
+            if NoticeFrames > 0 { Line(ui, 5, Notice, 0xFFD05A40) }
+            return
+        }
+        Line(ui, 0, "Potions, scrolls and", 0xFFC8CCD4)
+        Line(ui, 1, "gear for the road.", 0xFFC8CCD4)
+        Line(ui, 3, "Click an item to buy.", 0xFF8C8880)
+        Line(ui, 4, "Bring one from your", 0xFF8C8880)
+        Line(ui, 5, "bag here to sell it.", 0xFF8C8880)
+    }
+}
+@{
+    PanelScale: Scale
+    PanelLeft: PanelX
+    PanelTop: PanelY
+}
+T{
+    ClickingAShelvedItemAsksToBuyIt()
+    {
+        HellfeatherShopScreen screen
+        screen.Shop.Restock()
+        screen.Open = true
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Update(ui, 960, 540, 0, 0, false, 100, HellfeatherItems.None)
+        int s = screen.PanelScale
+        // The first shelf cell holds a health potion.
+        int x = (screen.PanelLeft + HellfeatherShopArt.GridX + 4) * s
+        int y = (screen.PanelTop + HellfeatherShopArt.GridY + 4) * s
+        T.IsTrue(screen.Captures(x, y))
+        screen.Update(ui, 960, 540, x, y, true, 100, HellfeatherItems.None)
+        T.AreEqual(screen.BuyRequest, 0)
+        T.IsFalse(screen.SellRequest)
+        // Holding the button does not ask again.
+        screen.BuyRequest = -1
+        screen.Update(ui, 960, 540, x, y, true, 100, HellfeatherItems.None)
+        T.AreEqual(screen.BuyRequest, -1)
+    }
+
+    ClickingThePanelWithAnItemAsksToSellIt()
+    {
+        HellfeatherShopScreen screen
+        screen.Shop.Restock()
+        screen.Open = true
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Update(ui, 960, 540, 0, 0, false, 0, HellfeatherItems.Ring)
+        int x = (screen.PanelLeft + 60) * screen.PanelScale
+        int y = (screen.PanelTop + 200) * screen.PanelScale
+        screen.Update(ui, 960, 540, x, y, true, 0, HellfeatherItems.Ring)
+        T.IsTrue(screen.SellRequest)
+    }
+
+    TheCloseButtonClosesTheShop()
+    {
+        HellfeatherShopScreen screen
+        screen.Open = true
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        screen.Update(ui, 960, 540, 0, 0, false, 0, HellfeatherItems.None)
+        int x = (screen.PanelLeft + HellfeatherInventoryArt.CloseX + 2) * screen.PanelScale
+        int y = (screen.PanelTop + HellfeatherInventoryArt.CloseY + 2) * screen.PanelScale
+        screen.Update(ui, 960, 540, x, y, true, 0, HellfeatherItems.None)
+        T.IsFalse(screen.Open)
+        T.IsFalse(screen.Captures(x, y))
+    }
+}

@@ -19,6 +19,9 @@ HellfeatherItemArt
         else if item == HellfeatherItems.RustyKey { PictureRustyKey(p) }
         else if item == HellfeatherItems.Scroll { PictureScroll(p) }
         else if item == HellfeatherItems.Gold { PictureGold(p) }
+        else if item == HellfeatherItems.RuneCleave { PictureRuneCleave(p) }
+        else if item == HellfeatherItems.RuneWarCry { PictureRuneWarCry(p) }
+        else if item == HellfeatherItems.RuneDash { PictureRuneDash(p) }
     }
 
     -PictureBattleAxe(HellfeatherItemPicture& p)
@@ -427,5 +430,91 @@ HellfeatherItemArt
         p.Row(12, "..GGccccccGGGG..")
         p.Row(13, "....GGGGGGGG....")
         p.Row(14, "......ggggG.....")
+    }
+
+    -PictureRuneCleave(HellfeatherItemPicture& p)
+    {
+        p.Row(1, "..tttt.tttt.tXXXXX.tttt.x.tttt..")
+        p.Row(2, ".ttttttttttXXXooooXXXtk.k.ttttt.")
+        p.Row(3, ".tttttttttXXooooooooXXkkkkktttt.")
+        p.Row(4, ".ttttttttXXorXXoXXXooXXxxtttttt.")
+        p.Row(5, ".jtttttttXooXXXoXtXXooXtttttttt.")
+        p.Row(6, ".jtttttttXoXXtXXXttXXoXtttttttt.")
+        p.Row(7, "..tttttttXoXttttttttXoXttxttttt.")
+        p.Row(8, ".ttttttttXoXttttttttXoXttxttttt.")
+        p.Row(9, ".ttttttttXoXttttttttXoXtttttttt.")
+        p.Row(10, ".ttttttttXrXXttttttXXoXjttttttt.")
+        p.Row(11, ".jtttttjjXrrXtttttXXooXtttttttt.")
+        p.Row(12, "..xxxxxkjXXrXxxxxXXrrXXxxxxxxxx.")
+        p.Row(13, ".xxxxxxxxxXX.xjjxXrXXXxjjxxxxxt.")
+        p.Row(14, "..xxx..xxxxx..xxxXXXx..xx..xxx..")
+    }
+
+    -PictureRuneWarCry(HellfeatherItemPicture& p)
+    {
+        p.Row(1, "...ttt.t....xx.....tTTTT..ttt...")
+        p.Row(2, "..tTTTTTtjjjxxxxxtTTTTTTTTTTTTt.")
+        p.Row(3, "..ttttttjjjxjtktjtttjjjjjttTTTt.")
+        p.Row(4, "..tttttxxXjxjtXXXtjjxxjxxtTTTTt.")
+        p.Row(5, "..tttttxjxxxjxXrXXtjkxkxxttTTTt.")
+        p.Row(6, "..tttttxjXkXXXXroXXXXxkkkxttTTt.")
+        p.Row(7, ".TttttjjjxxXrXrooXrrXxxxxxttTTt.")
+        p.Row(8, ".ttTTtttjxXXrrroooroXXxxttttTTt.")
+        p.Row(9, ".ttTttttttXrrorooooorXttttttTTt.")
+        p.Row(10, ".ttTTttttXXrroooooorrXXttttttTt.")
+        p.Row(11, ".TjTTTtttXrroooyoyooorXTTttttTt.")
+        p.Row(12, ".TtTTttttXrrooyyoyoorrXTtttttTt.")
+        p.Row(13, ".TtttttttXormoooyyyorrXTttttTTt.")
+        p.Row(14, ".TtjtttttXooroyyyyyoorXTTTttttt.")
+        p.Row(15, ".TtjTTTttXroroooooooorXtttTTttt.")
+        p.Row(16, ".TttTTTttXrroooooooooXXttttTTTt.")
+        p.Row(17, ".ttttttttXXrmrooooomXXttttttTTt.")
+        p.Row(18, ".tttttttttXXRrrmmrrXXttttttttTt.")
+        p.Row(19, ".tttttttttTXXrrroorXTtttttTTTTt.")
+        p.Row(20, ".ttttttttTTtXrroooXXtTttttttttt.")
+        p.Row(21, ".tttttttttTTXrroooXXTTttttTTttt.")
+        p.Row(22, ".tttttttttttXroooorXtjttttttttt.")
+        p.Row(23, ".ttTTtttttttXrroorXXxxxxxjtttTt.")
+        p.Row(24, ".ttttttttttTXXroorXxxtjxxxtTTTt.")
+        p.Row(25, ".tTTtttttttTTXRrrXXttttttttttTt.")
+        p.Row(26, ".ttTTttTtTTTTXXrXXttttTtTtttTTt.")
+        p.Row(27, ".ttTTTTTTTTTTTXXXTTTTTTTTTTTTTt.")
+        p.Row(28, ".txttttxttttttxxjtttttttttttttt.")
+        p.Row(29, ".txxxxxxxxxxxxxxxxxxxxxtxxxxxjt.")
+        p.Row(30, "..txxxxxxxxxxxjtxxxxxxxxxxxxxx..")
+    }
+
+    -PictureRuneDash(HellfeatherItemPicture& p)
+    {
+        p.Row(1, "....t.tttT......")
+        p.Row(2, "...TttkjxtT.....")
+        p.Row(3, "..TttkkkktTt....")
+        p.Row(4, "..tttttttttt....")
+        p.Row(5, "..xxtttxttt.....")
+        p.Row(6, ".ttttttxtttj....")
+        p.Row(7, ".ttttttjtttt....")
+        p.Row(8, ".xxjtxXXXXtt....")
+        p.Row(9, ".tjjtxXbBXtt....")
+        p.Row(10, ".tXXXXXbBXXX....")
+        p.Row(11, ".XXBBBBbBBBBBB..")
+        p.Row(12, ".XbbbbBBBBBbbb..")
+        p.Row(13, "..bbBbbBBbbbb...")
+        p.Row(14, "...bBBbbBXbbb...")
+        p.Row(15, "...bbbbbBBBbXX..")
+        p.Row(16, "..XXbbbbBBbXXx..")
+        p.Row(17, ".txXXbbbBbXXtx..")
+        p.Row(18, ".txxXbbbBXbXt...")
+        p.Row(19, "..xXXbbbBbBXtt..")
+        p.Row(20, "....bBBbBbBXttt.")
+        p.Row(21, "..jXXbBBBBbXtxt.")
+        p.Row(22, "..txXXbbBXXXtxj.")
+        p.Row(23, "...xxXXbXXtjtx..")
+        p.Row(24, "..xxxtXXXttxxtt.")
+        p.Row(25, "..jjxtttjjxtttt.")
+        p.Row(26, "...txtttjtjttxx.")
+        p.Row(27, "..TtxtttttTttxt.")
+        p.Row(28, ".TTxkttttTTtttT.")
+        p.Row(29, "..TxxtttttttkjT.")
+        p.Row(30, "...TTttj.jxtT...")
     }
 }

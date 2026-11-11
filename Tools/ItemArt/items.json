@@ -66,5 +66,81 @@
       "prompt": "three gold coins lying in a small pile",
       "colors": "gGHc"
     }
+  },
+  "parts": {
+    "RuneStone1x1": {
+      "prompt": "a single loose small square block of cracked ancient weathered grey stone, isolated object with white space all around it, rough chipped broken edges, deep dark cracks, a little green moss, smooth plain surface with no carving and no pattern",
+      "colors": "TtxXj",
+      "cells": [
+        1,
+        1
+      ],
+      "fill": true
+    },
+    "RuneStone2x1": {
+      "prompt": "a single loose wide flat rectangular slab, twice as wide as tall, of cracked ancient weathered grey stone, isolated object with white space all around it, rough chipped broken edges, deep dark cracks, a little green moss, smooth plain surface with no carving and no pattern",
+      "colors": "TtxXj",
+      "cells": [
+        2,
+        1
+      ],
+      "fill": true
+    },
+    "RuneStone1x2": {
+      "prompt": "cracked ancient weathered grey stone standing stone, tall and narrow, upright, chipped broken edges, deep dark cracks across the face, a little green moss in the cracks, worn and old, blank face with no carving, front view",
+      "colors": "TtxXj",
+      "cells": [
+        1,
+        2
+      ],
+      "fill": true
+    },
+    "RuneStone2x2": {
+      "prompt": "a single small loose square tablet of cracked ancient weathered grey stone lying on white ground, isolated object centered with wide white space all around it, rough chipped broken corners, deep dark cracks, a little green moss, smooth plain surface with no carving and no pattern",
+      "colors": "TtxXj",
+      "cells": [
+        2,
+        2
+      ],
+      "fill": true
+    },
+    "RuneGlyphCleave": {
+      "prompt": "a bold glowing orange rune glyph of a wide curved crescent sweeping slash arc, simple flat symbol, no weapon, no fire",
+      "colors": "oyrmR",
+      "size": [
+        24,
+        12
+      ]
+    },
+    "RuneGlyphWarCry": {
+      "prompt": "a single glowing orange fire rune symbol, a roaring open mouth with three curved sound waves, flat emblem, no stone",
+      "colors": "oyrmR",
+      "size": [
+        22,
+        22
+      ]
+    },
+    "RuneGlyphDash": {
+      "prompt": "a single glowing pale blue wind rune symbol, three stacked upward chevron arrows, flat emblem, no stone",
+      "colors": "aAbB",
+      "size": [
+        12,
+        24
+      ]
+    }
+  },
+  "runes": {
+    "RuneCleave": {
+      "stone": "RuneStone2x1",
+      "glyph": "RuneGlyphCleave"
+    },
+    "RuneWarCry": {
+      "stone": "RuneStone2x2",
+      "glyph": "RuneGlyphWarCry"
+    },
+    "RuneDash": {
+      "stone": "RuneStone1x2",
+      "glyph": "RuneGlyphDash"
+    }
   }
 }

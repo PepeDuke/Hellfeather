@@ -1,0 +1,74 @@
+// The warrior's level. Experience counts up from zero within the current level,
+// and each level past the first gives one passive point.
+HellfeatherLevel
+{
+    int Level = 1
+    int Experience
+
+    // Experience still needed to finish this level.
+    int ToNext() { return HellfeatherLevel.Needed(Level) }
+
+    // How far through this level she is, from 0 to 1.
+    float Share()
+    {
+        if Level >= HellfeatherLevel.MaxLevel { return 1.0 }
+        return (float)Experience / (float)ToNext()
+    }
+
+    // Adds experience and returns how many levels it gained.
+    int Gain(int amount)
+    {
+        if Level >= HellfeatherLevel.MaxLevel || amount <= 0 { return 0 }
+        int gained = 0
+        Experience += amount
+        while Level < HellfeatherLevel.MaxLevel && Experience >= ToNext() {
+            Experience -= ToNext()
+            Level++
+            gained++
+        }
+        if Level >= HellfeatherLevel.MaxLevel { Experience = 0 }
+        return gained
+    }
+}
+#{
+    // Enough levels to fill most, but not all, of the passive tree.
+    #int MaxLevel = 50
+    #int PerLevel = 40
+
+    // Experience to go from this level to the next: 40, 80, 120 and so on.
+    int Needed(int level) { return PerLevel * level }
+}
+T{
+    TheWarriorStartsAtLevelOne()
+    {
+        HellfeatherLevel level
+        T.AreEqual(level.Level, 1)
+        T.AreEqual(level.Experience, 0)
+        T.AreEqual(level.ToNext(), 40)
+        T.AreEqual(level.Share(), 0.0)
+    }
+
+    ExperienceCarriesOverIntoTheNextLevel()
+    {
+        HellfeatherLevel level
+        T.AreEqual(level.Gain(30), 0)
+        T.AreEqual(level.Share(), 0.75)
+        T.AreEqual(level.Gain(15), 1)
+        T.AreEqual(level.Level, 2)
+        T.AreEqual(level.Experience, 5)
+        // Enough at once for several levels.
+        T.AreEqual(level.Gain(80 + 120), 2)
+        T.AreEqual(level.Level, 4)
+        T.AreEqual(level.Experience, 5)
+    }
+
+    LevelsStopAtTheMaximum()
+    {
+        HellfeatherLevel level
+        level.Gain(1000000)
+        T.AreEqual(level.Level, HellfeatherLevel.MaxLevel)
+        T.AreEqual(level.Experience, 0)
+        T.AreEqual(level.Gain(500), 0)
+        T.AreEqual(level.Share(), 1.0)
+    }
+}
