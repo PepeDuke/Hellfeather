@@ -79,7 +79,19 @@ HellfeatherItems : int
     // Runes sit on the rune board, where each grants an active skill.
     RuneCleave,
     RuneWarCry,
-    RuneDash
+    RuneDash,
+    // Act I. Black feathers are a count, as gold is, and go to Edda.
+    BlackFeather,
+    TitheBracelet,
+    BlackHoney,
+    LanternToken,
+    GreyKey,
+    EddasQuillCharm,
+    JessasWaterwalkers,
+    MarrasThimble,
+    MardrasRingShards,
+    GreyneckQuill,
+    MillstoneMaul
 }
 
 HellfeatherItems
@@ -116,6 +128,17 @@ HellfeatherItems
         if item == HellfeatherItems.RuneCleave { return Make("Cleave Rune", "War rune: Cleave", 2, 1, HellfeatherGear.None, 180) }
         if item == HellfeatherItems.RuneWarCry { return Make("War Cry Rune", "War rune: War Cry", 2, 2, HellfeatherGear.None, 260) }
         if item == HellfeatherItems.RuneDash { return Make("Dash Rune", "Wind rune: Dash", 1, 2, HellfeatherGear.None, 180) }
+        if item == HellfeatherItems.BlackFeather { return Make("Black Feather", "For Edda's ravens", 1, 1, HellfeatherGear.None, 0) }
+        if item == HellfeatherItems.TitheBracelet { return Make("Tithe Bracelet", "Tin. Warm, somehow", 1, 1, HellfeatherGear.None, 5) }
+        if item == HellfeatherItems.BlackHoney { return Make("Black Honey", "Double damage, 20 s", 1, 1, HellfeatherGear.None, 0) }
+        if item == HellfeatherItems.LanternToken { return Make("Lantern Token", "Lantern & Moth", 1, 1, HellfeatherGear.None, 0) }
+        if item == HellfeatherItems.GreyKey { return Make("Grey Key", "The Ringwright's ring", 1, 1, HellfeatherGear.None, 0) }
+        if item == HellfeatherItems.EddasQuillCharm { return Make("Edda's Quill Charm", "Health 15, Defense 3", 1, 1, HellfeatherGear.Neck, 400) }
+        if item == HellfeatherItems.JessasWaterwalkers { return Make("Jessa's Waterwalkers", "Defense 4, Speed 15%", 2, 2, HellfeatherGear.Feet, 450) }
+        if item == HellfeatherItems.MarrasThimble { return Make("Marra's Thimble", "Defense 6, Strength 3", 1, 1, HellfeatherGear.Ring, 420) }
+        if item == HellfeatherItems.MardrasRingShards { return Make("Mardra's Ring Shards", "Heal 2 per hit", 1, 1, HellfeatherGear.Neck, 600) }
+        if item == HellfeatherItems.GreyneckQuill { return Make("Greyneck's Quill", "Agility 6", 1, 1, HellfeatherGear.Neck, 380) }
+        if item == HellfeatherItems.MillstoneMaul { return Make("Millstone Maul", "Damage 32", 2, 3, HellfeatherGear.Weapon, 520) }
         return Make("", "", 1, 1, HellfeatherGear.None, 0)
     }
 }
@@ -139,6 +162,8 @@ HellfeatherInventory
     HellfeatherItems Held
     HellfeatherItemMods HeldMods
     int Gold
+    // Black feathers for Edda, kept in a pouch rather than the bag.
+    int Feathers
 
     // The index of the bag entry covering a cell, or -1.
     int EntryAt(int x, int y)

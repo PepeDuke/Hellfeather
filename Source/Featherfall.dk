@@ -1,0 +1,215 @@
+// Featherfall: every few minutes in the wild, black feathers rain down for a
+// while. Birds of the Moult grow frenzied as long as it lasts, and slain ones
+// drop more feathers for Edda. With Edda's Quill Charm on, the falling feathers
+// heal instead. Mardra's Moult is the same storm, gathered around her.
+HellfeatherFeatherfall
+{
+    bool Active
+    // Seconds until the next one starts, or until this one ends.
+    float Timer = 150.0
+    -float EffectTimer
+    -int Effect = -1
+    -float HealCarry
+
+    // Runs the clock. Wild is false in Ravenford and below ground, where no
+    // feathers fall and a fall under way stops. Returns health to give back.
+    int Step(QuaxelWorld& world, vec3 player, bool wild, bool charm, float deltaSeconds)
+    {
+        if !wild {
+            if Active { Stop(world) }
+            return 0
+        }
+        Timer -= deltaSeconds
+        if !Active {
+            if Timer <= 0.0 {
+                Active = true
+                Timer = Seconds
+                EffectTimer = 0.0
+            }
+            return 0
+        }
+        if Timer <= 0.0 {
+            Stop(world)
+            return 0
+        }
+        // A new burst over her every few seconds, so the storm follows her.
+        EffectTimer -= deltaSeconds
+        if EffectTimer <= 0.0 {
+            Effect = world.StartEffect(Style(), player + vec3(0.0, 6.0, 0.0), vec3(0.0, -1.0, 0.0))
+            EffectTimer = 3.5
+        }
+        if !charm { return 0 }
+        HealCarry += deltaSeconds * HealPerSecond
+        int heal = (int)HealCarry
+        HealCarry -= (float)heal
+        return heal
+    }
+
+    Stop(QuaxelWorld& world)
+    {
+        Active = false
+        Timer = Between
+        if Effect >= 0 { world.StopEffect(Effect) }
+        Effect = -1
+    }
+}
+#{
+    #float Seconds = 40.0
+    #float Between = 210.0
+    // Speed and pace of a frenzied bird, against its usual.
+    #float Frenzy = 1.35
+    #float HealPerSecond = 2.0
+
+    // Black feathers drifting down over a wide square, settling on what they hit.
+    QuaxelEffectStyle Style()
+    {
+        QuaxelEffectStyle style
+        style.VoxelSize = 0.22
+        style.Floor = 0.95
+        style.MaxParticles = 500
+        style.Rate = 70.0
+        style.EmitSeconds = 4.0
+        style.SpawnRadius = 6.5
+        style.SpawnFlat = true
+        style.SpeedMin = 0.4
+        style.SpeedMax = 1.0
+        style.Spread = 30.0
+        style.Gravity = -0.9
+        style.Drag = 0.6
+        style.Wander = 2.5
+        style.LifeMin = 4.0
+        style.LifeMax = 6.5
+        style.ColorStart = 0x16131c
+        style.ColorMiddle = 0x221d2a
+        style.ColorEnd = 0x0e0c10
+        style.Shade = 0.25
+        style.Contact = QuaxelEffectContact.Stick
+        style.StainRadius = 0.8
+        style.StainSeconds = 6.0
+        style.StainColor = 0x15121a
+        style.StainDryColor = 0x221e26
+        return style
+    }
+}
+
+// Goodwife Mardra Hobb, Brood-Mother of the Millpond, at the bottom of the
+// Undercroft. She stalks and buffets, and every few seconds either channels
+// her ring to drag the warrior in, or calls ducklings that grow into drakes if
+// left alive. Below half health she moults: feathers storm the hall and she
+// quickens. Striking her while the ring channels staggers her.
+HellfeatherGame : QuaxelGameInstance
+{
+    -float MardraEffectTimer
+
+    -StepMardra(QuaxelWorld& world, int i, vec3 direction, float distance, float deltaSeconds)
+    {
+        int visual = Enemies[i].VisualNode
+        float pace = Enemies[i].Health * 2 < Enemies[i].MaxHealth ? 1.3 | 1.0
+        if Enemies[i].Health * 2 < Enemies[i].MaxHealth {
+            if !Quests.MardraMoulted {
+                Quests.MardraMoulted = true
+                Banner.Show("The Moult", 3.0)
+            }
+            MardraEffectTimer -= deltaSeconds
+            if MardraEffectTimer <= 0.0 {
+                world.StartEffect(HellfeatherFeatherfall.Style(), world.GetPosition(Enemies[i].Node) + vec3(0.0, 5.0, 0.0), vec3(0.0, -1.0, 0.0))
+                MardraEffectTimer = 3.0
+            }
+        }
+        int phase = Enemies[i].Phase
+        if phase == 1 {
+            // Ring Pull, channelled. A hit now staggers her; see StrikeEnemies.
+            FaceAlong(world, visual, direction)
+            if Enemies[i].PhaseTime < 1.6 { return }
+            Knock(world, world.GetPosition(Enemies[i].Node), -Math.Max(0.0, Math.Min(4.0, distance - Enemies[i].Reach * 0.8)))
+            NextPhase(i, 0)
+            WindUp(world, i, 0.35)
+            return
+        }
+        if phase == 2 {
+            // Brood Call.
+            if Enemies[i].PhaseTime < 1.0 { return }
+            vec3 at = world.GetPosition(Enemies[i].Node)
+            for n : 0; n < 3; n++ {
+                float angle = (float)n * 2.094 + Enemies[i].PhaseTime
+                int duckling = AddScripted(world, "Duckling", at.X + Math.Cos(angle) * 2.5, at.Z + Math.Sin(angle) * 2.5)
+                if duckling >= 0 { Enemies[duckling].GrowTimer = 12.0 }
+            }
+            NextPhase(i, 0)
+            return
+        }
+        Enemies[i].Strikes++
+        if Enemies[i].PhaseTime > 7.0 / pace && !Attacking(world, i) {
+            // Alternates between the ring and the brood.
+            bool ring = (Enemies[i].Aim.X == 0.0)
+            Enemies[i].Aim = ring ? vec3(1.0, 0.0, 0.0) | vec3(0.0, 0.0, 0.0)
+            if ring {
+                NextPhase(i, 1)
+                WindUp(world, i, 1.6)
+                world.StartEffect(QuaxelEffectStyle.Sparks(), world.GetPosition(Enemies[i].Node) + vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0))
+                Banner.Show("Mardra pulls at the ring", 1.5)
+            } else {
+                NextPhase(i, 2)
+                world.PlayClip(visual, "idle")
+                Banner.Show("Mardra calls her brood", 1.5)
+            }
+            return
+        }
+        if Attacking(world, i) {
+            if StrikeNow(world, i) { Land(world, i, Enemies[i].Reach, Enemies[i].Damage, 1.0) }
+            return
+        }
+        FaceAlong(world, visual, direction)
+        if distance > Enemies[i].Reach {
+            Stride(world, i, direction, Enemies[i].Speed * pace, deltaSeconds)
+            world.PlayClip(visual, "walk")
+        } else if Enemies[i].Cooldown > 0.0 {
+            world.PlayClip(visual, "idle")
+        } else {
+            WindUp(world, i, 0.55)
+            Enemies[i].Cooldown = 1.4
+        }
+    }
+
+    // A duckling of the brood left alive too long becomes a Brood Drake.
+    -GrowDuckling(QuaxelWorld& world, int i)
+    {
+        if Enemies[i].Health <= 0 || !Enemies[i].Awake { return }
+        vec3 at = world.GetPosition(Enemies[i].Node)
+        Enemies[i].Health = 0
+        Enemies[i].LootDropped = true
+        world.DestroyNode(Enemies[i].Node)
+        Enemies[i].Awake = false
+        Enemies[i].Node = 0
+        Enemies[i].VisualNode = 0
+        AddScripted(world, "BroodDrake", at.X, at.Z)
+    }
+
+    // Adds one enemy of a kind at a world point, outside the rolled groups, and
+    // wakes it at once. Returns its index, or -1.
+    int AddScripted(QuaxelWorld& world, string kindName, float x, float z)
+    {
+        int kind = Spawner.Table.KindNamed(kindName)
+        if kind < 0 { return -1 }
+        EnemyEncounter encounter
+        encounter.Center = vec3(x, 0.0, z)
+        encounter.First = (int)Enemies.Len
+        encounter.Count = 1
+        encounter.Group = -1
+        Enemies += MakeEnemy(kind, x, z)
+        int index = (int)Enemies.Len - 1
+        Spawner.Encounters += encounter
+        int encounterIndex = (int)Spawner.Encounters.Len - 1
+        if GroundReady(encounterIndex) && WakeEncounter(world, encounterIndex) { Spawner.Encounters[encounterIndex].Awake = true }
+        return index
+    }
+
+    // Whether every enemy added by AddScripted from index on is dead or gone.
+    bool AllFallenFrom(int first)
+    {
+        for i : first; i < Enemies.Len; i++ {
+            if Enemies[i].Health > 0 { return false }
+        }
+        return true
+    }
+}

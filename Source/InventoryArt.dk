@@ -189,7 +189,7 @@ HellfeatherInventoryArt
     Picture(QuaxelUi& ui, HellfeatherItems item, int x, int y)
     {
         HellfeatherItemPicture picture
-        HellfeatherItemArt.Draw(item, picture)
+        HellfeatherItemArt.Picture(item, picture)
         for row : 0; row < picture.Rows.Len; row++ { Cells(ui, x, y, row, picture.Rows[row], ItemPixels) }
     }
 

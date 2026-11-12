@@ -1,0 +1,687 @@
+// What an enemy does once it has noticed the warrior. Act I's enemies have one
+// move each, elites two, and every move has a wind-up she can see coming: the
+// attack clip plays slowly up to its strike frame, then at full speed.
+HellfeatherMove : int
+#@{
+    // Closes in and pecks. The Evil Duck's move, and the default.
+    Peck,
+    // Puffs up for a second, then a short straight charge. Hit it while it turns.
+    Charge,
+    // Hops in, pecks once, hops back out.
+    HopPeck,
+    // Walks its own way and only fights back once hit.
+    Passive,
+    // Rears back, then a frontal slam that knocks her back.
+    WingSlam,
+    // A slow overhead swing with a long wind-up and a long reach.
+    PoleSwing,
+    // Sprints in, slashes twice, then stops to catch its breath.
+    Rush,
+    // Caws from its perch, then swoops along a straight line and flies back.
+    Dive,
+    // Keeps its distance and spits slow glowing water.
+    Spit,
+    // A slow heavy swing. Badly hurt, it drops its sack and runs.
+    SackSwing,
+    // A plain cut behind a shield that turns half of what hits it from the front.
+    Shield,
+    // Keeps 8 to 10 units away, aims for a second along a red line, then shoots.
+    Bolt,
+    // Chained in its frame: swipes at her if she stands beside it. Can be freed.
+    Chained,
+    // Slides back and forth along the floor wires and zaps what it touches.
+    Spark,
+    // The ring glows, pulls her in, and a cleaver comes down.
+    RingPull,
+    // Mardra: ring pull, brood call and the moult.
+    Brood
+}
+
+// What each enemy is in the middle of. Phase 0 is closing in or standing; each
+// move numbers its own later phases. PhaseTime counts seconds in the phase.
+EnemyController
+{
+    HellfeatherMove Move
+    int Phase
+    float PhaseTime
+    vec3 Aim
+    int Strikes
+    bool Provoked
+    bool Freed
+    bool Fled
+    float Stagger
+    // Seconds until a duckling of Mardra's brood grows into a drake, or 0.
+    float GrowTimer
+}
+
+// A shot in flight: the Pond Drake's spit or a Bladelock's bolt.
+HellfeatherShot
+{
+    int Node
+    vec3 Position
+    vec3 Velocity
+    float Life
+    int Damage
+    float Radius
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherShot [] Shots
+    // Black feathers, the Featherfall and the Moult share these.
+    HellfeatherFeatherfall Featherfall
+
+    // Speed and pace of a bird of the Moult while feathers fall.
+    -float Frenzy(int i)
+    {
+        if !Featherfall.Active || Spawner.Table.Kinds[Enemies[i].Kind].Feathers == 0 { return 1.0 }
+        return HellfeatherFeatherfall.Frenzy
+    }
+
+    -float PlayerGap(QuaxelWorld& world, int i)
+    {
+        vec3 at = world.GetPosition(Enemies[i].Node)
+        vec3 player = world.GetPosition(PlayerNode)
+        return Math.Hypot(player.X - at.X, player.Z - at.Z)
+    }
+
+    // Walks an enemy along a direction over the terrain.
+    -Stride(QuaxelWorld& world, int i, vec3 direction, float speed, float deltaSeconds)
+    {
+        QuaxelTransform transform = world.GetTransform(Enemies[i].Node)
+        transform.Position = Walk(transform.Position, direction, speed, Enemies[i].Radius, deltaSeconds)
+        world.SetTransform(Enemies[i].Node, transform)
+    }
+
+    // Starts the attack clip slowly enough that its strike frame comes after
+    // windup seconds. Strike frames of the generated models come 0.27 s in.
+    -WindUp(QuaxelWorld& world, int i, float windup)
+    {
+        int visual = Enemies[i].VisualNode
+        world.PlayClip(visual, "attack")
+        world.SetAnimationSpeed(visual, Math.Min(1.0, 0.27 / Math.Max(0.05, windup)))
+        Enemies[i].PeckLanded = false
+    }
+
+    // True once, when the attack clip reaches the kind's strike frame.
+    -bool StrikeNow(QuaxelWorld& world, int i)
+    {
+        int visual = Enemies[i].VisualNode
+        if Enemies[i].PeckLanded || world.CurrentClipName(visual) != "attack" { return false }
+        QuaxelAnimator animator = world.GetAnimator(visual)
+        if animator.Frame < Spawner.Table.Kinds[Enemies[i].Kind].StrikeFrame { return false }
+        Enemies[i].PeckLanded = true
+        world.SetAnimationSpeed(visual, 1.0)
+        return true
+    }
+
+    -bool Attacking(QuaxelWorld& world, int i)
+    {
+        int visual = Enemies[i].VisualNode
+        QuaxelAnimator animator = world.GetAnimator(visual)
+        return world.CurrentClipName(visual) == "attack" && animator.Playing
+    }
+
+    // Hurts her if she is still within reach, and can push her back.
+    -Land(QuaxelWorld& world, int i, float reach, int damage, float knock)
+    {
+        if PlayerGap(world, i) > reach + PeckDodgeMargin() { return }
+        DamagePlayer(world, damage)
+        if knock > 0.0 { Knock(world, world.GetPosition(Enemies[i].Node), knock) }
+    }
+
+    // Moves the warrior away from a point, or toward it for a negative distance.
+    Knock(QuaxelWorld& world, vec3 from, float distance)
+    {
+        QuaxelTransform transform = world.GetTransform(PlayerNode)
+        vec3 away = Math.Normalize(vec3(transform.Position.X - from.X, 0.0, transform.Position.Z - from.Z))
+        if away.X == 0.0 && away.Z == 0.0 { return }
+        float step = Math.Abs(distance)
+        vec3 direction = distance < 0.0 ? away * -1.0 | away
+        transform.Position = Terrain.MoveCircle(transform.Position, direction * step, PlayerRadius())
+        transform.Position.Y = Terrain.GroundY(transform.Position.X, transform.Position.Z) + PlayerRadius()
+        world.SetTransform(PlayerNode, transform)
+    }
+
+    -NextPhase(int i, int phase)
+    {
+        Enemies[i].Phase = phase
+        Enemies[i].PhaseTime = 0.0
+    }
+
+    // One step of one living, awake enemy.
+    -StepEnemy(QuaxelWorld& world, int i, vec3 player, float deltaSeconds)
+    {
+        int node = Enemies[i].Node
+        int visual = Enemies[i].VisualNode
+        Enemies[i].PhaseTime += deltaSeconds
+        if Enemies[i].Cooldown > 0.0 { Enemies[i].Cooldown -= deltaSeconds * (2.0 - Frenzy(i)) }
+        if Enemies[i].GrowTimer > 0.0 {
+            Enemies[i].GrowTimer -= deltaSeconds
+            if Enemies[i].GrowTimer <= 0.0 { GrowDuckling(world, i) }
+        }
+        if Enemies[i].Stagger > 0.0 {
+            Enemies[i].Stagger -= deltaSeconds
+            world.SetAnimationSpeed(visual, 1.0)
+            world.PlayClip(visual, "hit")
+            return
+        }
+        HellfeatherMove move = Enemies[i].Move
+        if move == HellfeatherMove.Spark {
+            StepSpark(world, i, player, deltaSeconds)
+            return
+        }
+        if move == HellfeatherMove.Passive && !Enemies[i].Provoked {
+            StepWander(world, i, deltaSeconds)
+            return
+        }
+        if Enemies[i].Fled {
+            StepFlee(world, i, player, deltaSeconds)
+            return
+        }
+        if move == HellfeatherMove.Dive {
+            StepDive(world, i, player, deltaSeconds)
+            return
+        }
+        vec3 at = world.GetPosition(node)
+        vec3 offset = vec3(player.X - at.X, 0.0, player.Z - at.Z)
+        float distance = offset.Length()
+        // Too far to notice the player, so it stands guard where it is. A move
+        // under way finishes first.
+        if distance > Enemies[i].Notice && Enemies[i].Phase == 0 && !Attacking(world, i) {
+            world.PlayClip(visual, "idle")
+            return
+        }
+        vec3 direction = Math.Normalize(offset)
+        QuaxelAnimator animator = world.GetAnimator(visual)
+        if world.CurrentClipName(visual) == "hit" && animator.Playing { return }
+        if move == HellfeatherMove.Charge { StepCharge(world, i, direction, distance, deltaSeconds) }
+        else if move == HellfeatherMove.HopPeck { StepHop(world, i, direction, distance, deltaSeconds) }
+        else if move == HellfeatherMove.Rush { StepRush(world, i, direction, distance, deltaSeconds) }
+        else if move == HellfeatherMove.Spit { StepRanged(world, i, direction, distance, deltaSeconds, 3.5, 7.0, false) }
+        else if move == HellfeatherMove.Bolt { StepRanged(world, i, direction, distance, deltaSeconds, 7.0, 10.5, true) }
+        else if move == HellfeatherMove.RingPull { StepRingPull(world, i, direction, distance, deltaSeconds) }
+        else if move == HellfeatherMove.Brood { StepMardra(world, i, direction, distance, deltaSeconds) }
+        else if move == HellfeatherMove.Chained {
+            FaceAlong(world, visual, direction)
+            StepMelee(world, i, direction, distance, deltaSeconds, 0.7, 0.0, false)
+        }
+        else if move == HellfeatherMove.WingSlam { StepMelee(world, i, direction, distance, deltaSeconds, 0.8, 1.4, true) }
+        else if move == HellfeatherMove.PoleSwing { StepMelee(world, i, direction, distance, deltaSeconds, 1.2, 0.0, true) }
+        else if move == HellfeatherMove.SackSwing {
+            if Enemies[i].Health * 4 < Enemies[i].MaxHealth {
+                // Drops the sack and runs, mouthing apologies.
+                Enemies[i].Fled = true
+                NextPhase(i, 0)
+                return
+            }
+            StepMelee(world, i, direction, distance, deltaSeconds, 0.8, 0.0, true)
+        }
+        else if move == HellfeatherMove.Shield { StepMelee(world, i, direction, distance, deltaSeconds, 0.45, 0.0, true) }
+        else { StepPeck(world, i, direction, distance, deltaSeconds) }
+    }
+
+    // The Evil Duck's chase and peck, as it has always been.
+    -StepPeck(QuaxelWorld& world, int i, vec3 direction, float distance, float deltaSeconds)
+    {
+        int visual = Enemies[i].VisualNode
+        FaceAlong(world, visual, direction)
+        if Attacking(world, i) {
+            if StrikeNow(world, i) { Land(world, i, Enemies[i].Reach, Enemies[i].Damage, 0.0) }
+            return
+        }
+        if distance > Enemies[i].Reach {
+            Stride(world, i, direction, Enemies[i].Speed * Frenzy(i), deltaSeconds)
+            world.PlayClip(visual, "walk")
+        } else if Enemies[i].Cooldown > 0.0 {
+            world.PlayClip(visual, "idle")
+        } else {
+            world.PlayClip(visual, "attack")
+            world.SetAnimationSpeed(visual, 1.0)
+            Enemies[i].PeckLanded = false
+            Enemies[i].Cooldown = EnemyPeckCooldown()
+        }
+    }
+
+    // Closes to reach, then a telegraphed blow. Mobile enemies give chase.
+    -StepMelee(QuaxelWorld& world, int i, vec3 direction, float distance, float deltaSeconds, float windup, float knock, bool mobile)
+    {
+        int visual = Enemies[i].VisualNode
+        if Attacking(world, i) {
+            if StrikeNow(world, i) { Land(world, i, Enemies[i].Reach, Enemies[i].Damage, knock) }
+            return
+        }
+        FaceAlong(world, visual, direction)
+        if distance > Enemies[i].Reach {
+            if mobile {
+                Stride(world, i, direction, Enemies[i].Speed * Frenzy(i), deltaSeconds)
+                world.PlayClip(visual, "walk")
+            } else { world.PlayClip(visual, "idle") }
+        } else if Enemies[i].Cooldown > 0.0 {
+            world.PlayClip(visual, "idle")
+        } else {
+            WindUp(world, i, windup)
+            Enemies[i].Cooldown = EnemyPeckCooldown() + windup
+        }
+    }
+
+    // The Road Drake: puff up, then a straight charge along a locked line.
+    -StepCharge(QuaxelWorld& world, int i, vec3 direction, float distance, float deltaSeconds)
+    {
+        int visual = Enemies[i].VisualNode
+        int phase = Enemies[i].Phase
+        if phase == 0 {
+            FaceAlong(world, visual, direction)
+            if distance > 5.5 || Enemies[i].Cooldown > 0.0 {
+                if distance > Enemies[i].Reach {
+                    Stride(world, i, direction, Enemies[i].Speed * Frenzy(i), deltaSeconds)
+                    world.PlayClip(visual, "walk")
+                } else { world.PlayClip(visual, "idle") }
+                return
+            }
+            NextPhase(i, 1)
+            WindUp(world, i, 1.0)
+            vec3 feet = world.GetPosition(Enemies[i].Node)
+            world.StartEffect(QuaxelEffectStyle.Dust(), feet, vec3(0.0, 1.0, 0.0))
+            return
+        }
+        if phase == 1 {
+            // Puffed up and holding the lean-back pose.
+            QuaxelAnimator animator = world.GetAnimator(visual)
+            if animator.Frame >= 1 { world.SetAnimationSpeed(visual, 0.0) }
+            if Enemies[i].PhaseTime < 1.0 {
+                FaceAlong(world, visual, direction)
+                Enemies[i].Aim = direction
+                return
+            }
+            NextPhase(i, 2)
+            Enemies[i].Strikes = 0
+            world.SetAnimationSpeed(visual, 2.0)
+            world.PlayClip(visual, "walk")
+            return
+        }
+        if phase == 2 {
+            vec3 before = world.GetPosition(Enemies[i].Node)
+            Stride(world, i, Enemies[i].Aim, HellfeatherMoves.ChargeSpeed, deltaSeconds)
+            vec3 after = world.GetPosition(Enemies[i].Node)
+            if Enemies[i].Strikes == 0 && PlayerGap(world, i) < Enemies[i].Radius + PlayerRadius() + 0.3 {
+                Enemies[i].Strikes = 1
+                DamagePlayer(world, Enemies[i].Damage)
+                Knock(world, after, 1.2)
+            }
+            bool blocked = Math.Hypot(after.X - before.X, after.Z - before.Z) < 0.01
+            if Enemies[i].PhaseTime >= 0.6 || blocked {
+                NextPhase(i, 3)
+                world.SetAnimationSpeed(visual, 1.0)
+                world.PlayClip(visual, "idle")
+            }
+            return
+        }
+        // Turning around: the moment to hit it.
+        if Enemies[i].PhaseTime >= 1.2 {
+            NextPhase(i, 0)
+            Enemies[i].Cooldown = 1.0
+        }
+    }
+
+    // Rooks and brood drakes: hop in, peck once, hop back out.
+    -StepHop(QuaxelWorld& world, int i, vec3 direction, float distance, float deltaSeconds)
+    {
+        int visual = Enemies[i].VisualNode
+        int phase = Enemies[i].Phase
+        if phase == 0 {
+            FaceAlong(world, visual, direction)
+            if distance > 2.8 {
+                Stride(world, i, direction, Enemies[i].Speed * Frenzy(i), deltaSeconds)
+                world.PlayClip(visual, "walk")
+                return
+            }
+            if Enemies[i].Cooldown > 0.0 {
+                world.PlayClip(visual, "idle")
+                return
+            }
+            NextPhase(i, 1)
+            world.PlayClip(visual, "walk")
+            return
+        }
+        if phase == 1 {
+            FaceAlong(world, visual, direction)
+            Stride(world, i, direction, HellfeatherMoves.HopSpeed, deltaSeconds)
+            if distance <= Enemies[i].Reach || Enemies[i].PhaseTime > 0.45 {
+                NextPhase(i, 2)
+                WindUp(world, i, 0.2)
+            }
+            return
+        }
+        if phase == 2 {
+            if StrikeNow(world, i) { Land(world, i, Enemies[i].Reach, Enemies[i].Damage, 0.0) }
+            if !Attacking(world, i) { NextPhase(i, 3) }
+            return
+        }
+        // Back out of reach, facing her still.
+        Stride(world, i, direction * -1.0, HellfeatherMoves.HopSpeed * 0.8, deltaSeconds)
+        world.PlayClip(visual, "walk")
+        if Enemies[i].PhaseTime > 0.35 {
+            NextPhase(i, 0)
+            Enemies[i].Cooldown = 1.1
+        }
+    }
+
+    // The Black-Honey Fiend: a sprint, two slashes, then a pause for breath.
+    -StepRush(QuaxelWorld& world, int i, vec3 direction, float distance, float deltaSeconds)
+    {
+        int visual = Enemies[i].VisualNode
+        int phase = Enemies[i].Phase
+        if phase == 0 {
+            FaceAlong(world, visual, direction)
+            if distance > 8.0 || Enemies[i].Cooldown > 0.0 {
+                world.PlayClip(visual, "idle")
+                return
+            }
+            NextPhase(i, 1)
+            return
+        }
+        if phase == 1 {
+            FaceAlong(world, visual, direction)
+            world.SetAnimationSpeed(visual, 1.8)
+            world.PlayClip(visual, "walk")
+            Stride(world, i, direction, HellfeatherMoves.RushSpeed, deltaSeconds)
+            if distance <= Enemies[i].Reach || Enemies[i].PhaseTime > 2.0 {
+                NextPhase(i, 2)
+                Enemies[i].Strikes = 0
+                WindUp(world, i, 0.25)
+            }
+            return
+        }
+        if phase == 2 {
+            if StrikeNow(world, i) {
+                Land(world, i, Enemies[i].Reach, Enemies[i].Damage, 0.0)
+                Enemies[i].Strikes++
+            }
+            if !Attacking(world, i) {
+                if Enemies[i].Strikes < 2 {
+                    FaceAlong(world, visual, direction)
+                    WindUp(world, i, 0.15)
+                } else {
+                    NextPhase(i, 3)
+                    world.PlayClip(visual, "idle")
+                }
+            }
+            return
+        }
+        // Doubled over, catching its breath.
+        if Enemies[i].PhaseTime >= 1.6 {
+            NextPhase(i, 0)
+            Enemies[i].Cooldown = 0.5
+        }
+    }
+
+    // The Gallows Rook: caws from its perch, swoops along a line, flies back.
+    -StepDive(QuaxelWorld& world, int i, vec3 player, float deltaSeconds)
+    {
+        int visual = Enemies[i].VisualNode
+        QuaxelTransform transform = world.GetTransform(Enemies[i].Node)
+        vec3 at = transform.Position
+        vec3 offset = vec3(player.X - at.X, 0.0, player.Z - at.Z)
+        float distance = offset.Length()
+        int phase = Enemies[i].Phase
+        if phase == 0 {
+            world.PlayClip(visual, "idle")
+            if distance > Enemies[i].Notice || Enemies[i].Cooldown > 0.0 { return }
+            FaceAlong(world, visual, Math.Normalize(offset))
+            NextPhase(i, 1)
+            WindUp(world, i, 0.7)
+            return
+        }
+        if phase == 1 {
+            // The caw. The line is set where she stands when it ends.
+            Enemies[i].Aim = vec3(player.X, 0.0, player.Z)
+            FaceAlong(world, visual, Math.Normalize(offset))
+            if Enemies[i].PhaseTime < 0.7 { return }
+            vec3 line = Math.Normalize(vec3(Enemies[i].Aim.X - at.X, 0.0, Enemies[i].Aim.Z - at.Z))
+            Enemies[i].Aim = vec3(Enemies[i].Aim.X + line.X * 2.0, 0.0, Enemies[i].Aim.Z + line.Z * 2.0)
+            Enemies[i].Strikes = 0
+            NextPhase(i, 2)
+            world.SetAnimationSpeed(visual, 1.0)
+            world.PlayClip(visual, "walk")
+            return
+        }
+        // Swooping to the end of the line, then home along the ground.
+        vec3 target = phase == 2 ? Enemies[i].Aim | Enemies[i].Home
+        vec3 toward = vec3(target.X - at.X, 0.0, target.Z - at.Z)
+        float left = toward.Length()
+        float speed = phase == 2 ? HellfeatherMoves.DiveSpeed | 4.0
+        if left > 0.05 {
+            vec3 along = toward * (1.0 / left)
+            float step = Math.Min(left, speed * deltaSeconds)
+            transform.Position = vec3(at.X + along.X * step, 0.0, at.Z + along.Z * step)
+            transform.Position.Y = Terrain.GroundY(transform.Position.X, transform.Position.Z) + Enemies[i].Radius
+            world.SetTransform(Enemies[i].Node, transform)
+            FaceAlong(world, visual, along)
+        }
+        if phase == 2 && Enemies[i].Strikes == 0 && PlayerGap(world, i) < 0.9 {
+            Enemies[i].Strikes = 1
+            DamagePlayer(world, Enemies[i].Damage)
+        }
+        if left <= 0.05 || Enemies[i].PhaseTime > 4.0 {
+            if phase == 2 { NextPhase(i, 3) }
+            else {
+                NextPhase(i, 0)
+                Enemies[i].Cooldown = 1.5
+            }
+        }
+    }
+
+    // Pond Drakes and Bladelock Arbalists: hold a band of distance, wind up, shoot.
+    -StepRanged(QuaxelWorld& world, int i, vec3 direction, float distance, float deltaSeconds, float nearest, float farthest, bool bolt)
+    {
+        int visual = Enemies[i].VisualNode
+        FaceAlong(world, visual, direction)
+        if Enemies[i].Phase == 1 {
+            // Aiming. The line follows her until just before the shot.
+            float aimSeconds = bolt ? 1.0 | 0.6
+            if Enemies[i].PhaseTime < aimSeconds - 0.2 { Enemies[i].Aim = direction }
+            if Enemies[i].PhaseTime < aimSeconds { return }
+            vec3 from = world.GetPosition(Enemies[i].Node)
+            Fire(world, from + Enemies[i].Aim * 0.6, Enemies[i].Aim, bolt)
+            world.SetAnimationSpeed(visual, 1.0)
+            NextPhase(i, 0)
+            Enemies[i].Cooldown = bolt ? 2.5 | 2.6
+            return
+        }
+        if distance < nearest {
+            Stride(world, i, direction * -1.0, Enemies[i].Speed, deltaSeconds)
+            world.PlayClip(visual, "walk")
+        } else if distance > farthest {
+            Stride(world, i, direction, Enemies[i].Speed, deltaSeconds)
+            world.PlayClip(visual, "walk")
+        } else if Enemies[i].Cooldown > 0.0 {
+            world.PlayClip(visual, "idle")
+        } else {
+            NextPhase(i, 1)
+            Enemies[i].Aim = direction
+            WindUp(world, i, bolt ? 1.0 | 0.6)
+        }
+    }
+
+    // The Ring-Keeper Warden: the ring glows, she is pulled in, the cleaver falls.
+    -StepRingPull(QuaxelWorld& world, int i, vec3 direction, float distance, float deltaSeconds)
+    {
+        int visual = Enemies[i].VisualNode
+        int phase = Enemies[i].Phase
+        if phase == 1 {
+            FaceAlong(world, visual, direction)
+            if Enemies[i].PhaseTime < 0.9 { return }
+            // Pulls her to just inside his reach.
+            Knock(world, world.GetPosition(Enemies[i].Node), -Math.Max(0.0, Math.Min(3.0, distance - Enemies[i].Reach * 0.7)))
+            NextPhase(i, 2)
+            WindUp(world, i, 0.5)
+            return
+        }
+        if phase == 2 {
+            if StrikeNow(world, i) { Land(world, i, Enemies[i].Reach + 0.2, Enemies[i].Damage, 0.0) }
+            if !Attacking(world, i) {
+                NextPhase(i, 0)
+                Enemies[i].Cooldown = 1.2
+                Enemies[i].Strikes = 0
+            }
+            return
+        }
+        // Every so often the ring, otherwise an ordinary chop.
+        Enemies[i].Strikes++
+        if distance > Enemies[i].Reach && distance < 7.0 && Enemies[i].PhaseTime > 6.0 && !Attacking(world, i) {
+            NextPhase(i, 1)
+            WindUp(world, i, 0.9)
+            world.StartEffect(QuaxelEffectStyle.Sparks(), world.GetPosition(Enemies[i].Node) + vec3(0.0, 0.6, 0.0), vec3(0.0, 1.0, 0.0))
+            return
+        }
+        StepMelee(world, i, direction, distance, deltaSeconds, 0.5, 0.0, true)
+    }
+
+    // A Tithe-Stray, walking the road toward the mill until something hurts it.
+    -StepWander(QuaxelWorld& world, int i, float deltaSeconds)
+    {
+        int visual = Enemies[i].VisualNode
+        if Enemies[i].Aim.X == 0.0 && Enemies[i].Aim.Z == 0.0 || Enemies[i].PhaseTime > 5.0 {
+            float turn = Spawner.LootRandom.Range(0.0, 6.2831853)
+            Enemies[i].Aim = vec3(Math.Cos(turn), 0.0, Math.Sin(turn))
+            Enemies[i].PhaseTime = 0.0
+        }
+        vec3 before = world.GetPosition(Enemies[i].Node)
+        // A stray stays near where it was found.
+        vec3 home = Enemies[i].Home
+        if Math.Hypot(before.X - home.X, before.Z - home.Z) > 5.0 { Enemies[i].Aim = Math.Normalize(vec3(home.X - before.X, 0.0, home.Z - before.Z)) }
+        Stride(world, i, Enemies[i].Aim, Enemies[i].Speed * 0.6, deltaSeconds)
+        FaceAlong(world, visual, Enemies[i].Aim)
+        world.PlayClip(visual, "walk")
+    }
+
+    // A Millhand Thrall that dropped its sack, running until out of sight.
+    -StepFlee(QuaxelWorld& world, int i, vec3 player, float deltaSeconds)
+    {
+        int visual = Enemies[i].VisualNode
+        vec3 at = world.GetPosition(Enemies[i].Node)
+        vec3 away = Math.Normalize(vec3(at.X - player.X, 0.0, at.Z - player.Z))
+        Stride(world, i, away, Enemies[i].Speed * 2.0, deltaSeconds)
+        FaceAlong(world, visual, away)
+        world.SetAnimationSpeed(visual, 1.8)
+        world.PlayClip(visual, "walk")
+        if Math.Hypot(at.X - player.X, at.Z - player.Z) > 13.0 || Enemies[i].PhaseTime > 8.0 {
+            // Gone. Old Hobb hears of it.
+            Quests.ThrallsSpared++
+            Enemies[i].Health = 0
+            Enemies[i].LootDropped = true
+            world.DestroyNode(Enemies[i].Node)
+            Enemies[i].Awake = false
+            Enemies[i].Node = 0
+            Enemies[i].VisualNode = 0
+        }
+    }
+
+    // A Silver Spark: back and forth along its wire, zapping on touch.
+    -StepSpark(QuaxelWorld& world, int i, vec3 player, float deltaSeconds)
+    {
+        int visual = Enemies[i].VisualNode
+        if Enemies[i].Aim.X == 0.0 && Enemies[i].Aim.Z == 0.0 {
+            float turn = Spawner.LootRandom.Range(0.0, 6.2831853)
+            Enemies[i].Aim = vec3(Math.Cos(turn), 0.0, Math.Sin(turn))
+        }
+        float along = Math.Sin(Enemies[i].PhaseTime * 0.6) * 3.5
+        vec3 home = Enemies[i].Home
+        QuaxelTransform transform = world.GetTransform(Enemies[i].Node)
+        vec3 want = vec3(home.X + Enemies[i].Aim.X * along, transform.Position.Y, home.Z + Enemies[i].Aim.Z * along)
+        if !Terrain.CircleBlocked(want.X, want.Z, Enemies[i].Radius) {
+            transform.Position = want
+            world.SetTransform(Enemies[i].Node, transform)
+        }
+        if Attacking(world, i) { return }
+        world.PlayClip(visual, "walk")
+        if Enemies[i].Cooldown <= 0.0 && PlayerGap(world, i) < Enemies[i].Reach + PlayerRadius() * 0.5 {
+            world.PlayClip(visual, "attack")
+            DamagePlayer(world, Enemies[i].Damage)
+            Enemies[i].Cooldown = 1.0
+        }
+    }
+
+    // Starts a shot along a direction.
+    -Fire(QuaxelWorld& world, vec3 from, vec3 direction, bool bolt)
+    {
+        int volume = bolt ? Landmarks.Bolt | Landmarks.Spit
+        if volume < 0 { return }
+        HellfeatherShot shot
+        shot.Node = world.CreateNode()
+        float cell = bolt ? 0.04 | 0.06
+        QuaxelTransform pose = QuaxelTransform.Make(from + vec3(0.0, 0.3, 0.0), vec3(cell, cell, cell))
+        pose.FacingX = direction.X
+        pose.FacingZ = direction.Z
+        world.AttachTransform(shot.Node, pose)
+        world.SetCatchesEffects(shot.Node, false)
+        world.AttachVoxels(shot.Node, volume)
+        shot.Position = from + vec3(0.0, 0.3, 0.0)
+        shot.Velocity = direction * (bolt ? HellfeatherMoves.BoltSpeed | HellfeatherMoves.SpitSpeed)
+        shot.Life = bolt ? 1.4 | 3.0
+        shot.Damage = bolt ? 20 | 14
+        shot.Radius = bolt ? 0.3 | 0.4
+        Shots += shot
+    }
+
+    // Moves every shot and ends those that hit her, a wall or their range.
+    StepShots(QuaxelWorld& world, float deltaSeconds)
+    {
+        vec3 player = world.GetPosition(PlayerNode)
+        for -shot : Shots {
+            shot.Life -= deltaSeconds
+            shot.Position = shot.Position + shot.Velocity * deltaSeconds
+            bool hit = Math.Hypot(shot.Position.X - player.X, shot.Position.Z - player.Z) < shot.Radius + PlayerRadius()
+            if hit && PlayerHealth > 0 { DamagePlayer(world, shot.Damage) }
+            if hit || shot.Life <= 0.0 || Terrain.IsBlocked(shot.Position.X, shot.Position.Z) {
+                world.DestroyNode(shot.Node)
+                Shots -= shot
+                continue
+            }
+            QuaxelTransform pose = world.GetTransform(shot.Node)
+            pose.Position = shot.Position
+            world.SetTransform(shot.Node, pose)
+        }
+    }
+
+    ClearShots(QuaxelWorld& world)
+    {
+        for shot : Shots { world.DestroyNode(shot.Node) }
+        Shots.Clear()
+    }
+
+    // The red lines of Bladelocks taking aim, drawn over the world.
+    DrawAimLines(QuaxelUi& ui, QuaxelWorld& world, int width, int height)
+    {
+        QuaxelCamera camera = world.GetCamera(CameraNode)
+        camera.UpdateBounds(width, height)
+        mat4 screen = camera.ViewProjection(world.WorldPosition(CameraNode))
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        for i : 0; i < Enemies.Len; i++ {
+            if !Enemies[i].Awake || Enemies[i].Health <= 0 || Enemies[i].Phase != 1 { continue }
+            if Enemies[i].Move != HellfeatherMove.Bolt { continue }
+            vec3 from = world.GetPosition(Enemies[i].Node) + vec3(0.0, 0.3, 0.0)
+            for n : 1; n <= 24; n++ {
+                vec3 point = from + Enemies[i].Aim * ((float)n * 0.5)
+                vec4 clip = screen * vec4(point, 1.0)
+                int x = (int)((clip.X + 1.0) * 0.5 * (float)gridWidth)
+                int y = (int)((clip.Y + 1.0) * 0.5 * (float)gridHeight)
+                ui.OverlayRect(x, y, 1, 1, 0xD0E02018)
+            }
+        }
+    }
+}
+
+HellfeatherMoves
+#{
+    // World units per second.
+    #float ChargeSpeed = 8.0
+    #float HopSpeed = 6.0
+    #float RushSpeed = 6.5
+    #float DiveSpeed = 9.0
+    #float SpitSpeed = 5.0
+    #float BoltSpeed = 14.0
+}

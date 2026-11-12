@@ -92,10 +92,19 @@ HellfeatherGroundItems
         return true
     }
 
+    // A handful of black feathers, counted rather than carried.
+    bool PlaceFeathers(QuaxelWorld& world, int amount, vec3 ground)
+    {
+        if !Place(world, HellfeatherItems.BlackFeather, ground) { return false }
+        Entries[(int)Entries.Len - 1].Amount = amount
+        return true
+    }
+
     // The words shown over an entry.
     string Title(int index)
     {
         if Entries[index].Item == HellfeatherItems.Gold { return QuaxelUi.FormatInt(Entries[index].Amount) + " Gold" }
+        if Entries[index].Item == HellfeatherItems.BlackFeather { return QuaxelUi.FormatInt(Entries[index].Amount) + (Entries[index].Amount == 1 ? " Black Feather" | " Black Feathers") }
         HellfeatherItemKind kind = HellfeatherItems.Get(Entries[index].Item)
         return kind.Name
     }
@@ -211,7 +220,7 @@ T{
         for item : HellfeatherItems {
             if item == HellfeatherItems.None { continue }
             HellfeatherItemPicture picture
-            HellfeatherItemArt.Draw(item, picture)
+            HellfeatherItemArt.Picture(item, picture)
             T.IsTrue(picture.Rows.Len > 0 && picture.Width() > 0)
             int height = 0
             int volume = HellfeatherItemArt.BuildModel(world, item, height)

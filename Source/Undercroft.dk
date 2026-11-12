@@ -1,0 +1,134 @@
+// Which level the warrior is on. The Fenmarch is the overworld. The Millrace
+// Undercroft beneath Hobb's Mill is two sub-levels down; each is a layout of its
+// own, built by configuring the terrain again far from the Fenmarch, and she is
+// moved there through a door or a stair.
+HellfeatherRealm : int
+#@{
+    Fenmarch,
+    Undercroft,
+    UndercroftDeep
+}
+
+// A hall of the Undercroft: flagstones, silver wire run across the floor toward
+// the frames, and in some halls a millrace channel the brood climbs out of.
+// Empty iron frames stand along the walls, braziers keep it from total dark.
+UndercroftHall : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    HellfeatherLandmarks Landmarks
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.Share = 1.0
+        return rules
+    }
+
+    Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        if Math.Hypot(x, z) >= site.Radius + 2.0 { return }
+        column.Surface = HellfeatherSurface.Flagstone
+        float across = x * site.AxisX + z * site.AxisZ
+        float along = z * site.AxisX - x * site.AxisZ
+        // Every other hall has a channel of the millrace along its axis.
+        if (site.Seed & (uint)1) == (uint)0 && Math.Abs(across - 3.0) < 0.9 && Math.Abs(along) < site.Radius - 1.5 {
+            column.MakeWater(3)
+            column.Surface = HellfeatherSurface.Millpond
+            return
+        }
+        // Wires run from the middle toward each frame.
+        float angle = Math.Atan2(z, x)
+        float spoke = Math.Mod(angle + 6.2831853, 6.2831853 / (float)UndercroftHall.Frames)
+        float width = 0.12 / Math.Max(1.0, Math.Hypot(x, z))
+        if Math.Hypot(x, z) > 1.5 && Math.Hypot(x, z) < site.Radius - 1.2 && spoke < width * 6.0 { column.Surface = HellfeatherSurface.Wire }
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        int group = 1
+        for n : 0; n < UndercroftHall.Frames; n++ {
+            float angle = ((float)n + 0.5) * 6.2831853 / (float)UndercroftHall.Frames
+            float distance = site.Radius - 1.8
+            if Landmarks.IronFrame >= 0 {
+                placer.OfferProp(group, Landmarks.IronFrame, Math.Cos(angle) * distance, Math.Sin(angle) * distance, 3, 24, HellfeatherArt.FineVoxel)
+            }
+            group++
+        }
+        for n : 0; n < 2; n++ {
+            float angle = (float)n * 3.14159265 + 0.9
+            float distance = site.Radius - 3.0
+            placer.OfferProp(group, Props.Brazier, Math.Cos(angle) * distance, Math.Sin(angle) * distance, 4, 20, HellfeatherArt.FineVoxel)
+            placer.AddLight(0, 0, 56)
+            group++
+        }
+    }
+}
+#{
+    // Iron frames around each hall, and the wires running to them.
+    #int Frames = 5
+}
+
+// Where the stairs come down: a bare landing with a brazier either side.
+UndercroftLanding : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = 7.0
+        return rules
+    }
+
+    Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        if Math.Hypot(x, z) < site.Radius + 2.0 { column.Surface = HellfeatherSurface.Flagstone }
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        for n : 0; n < 2; n++ {
+            float x = n == 0 ? -3.5 | 3.5
+            placer.OfferProp(n, Props.Brazier, x, -2.5, 4, 20, HellfeatherArt.FineVoxel)
+            placer.AddLight(0, 0, 60)
+        }
+    }
+}
+
+HellfeatherRealm
+#{
+    // World columns between levels, so nothing of one is near another.
+    #int Apart = 8000
+
+    // The terrain of a level. The Fenmarch's comes from the game; the two below
+    // are small mazes of halls joined by passages, walled in rock.
+    QuaxelTerrainConfig Undercroft(HellfeatherRealm realm)
+    {
+        QuaxelTerrainConfig config
+        int level = realm + 0
+        config.Seed = (uint)(40 + level)
+        config.SiteGrid = 3
+        config.SiteSpacing = 24.0
+        config.ActiveChance = 0.95
+        config.MinClearingRadius = 6.5
+        config.MaxClearingRadius = 9.0
+        config.MinPassRadius = 2.6
+        config.MaxPassRadius = 3.0
+        config.LoopFraction = 0.3
+        config.DetailWarp = 0.6
+        config.ShapeWarp = 4.0
+        config.PlainsAmplitude = 0
+        config.Lip = 8
+        config.Peak = 28
+        config.Ridge = 12
+        config.RampWidth = 1.0
+        config.ReservedPath = 1.6
+        config.TerraceStep = 14
+        config.EntryRadius = 7.5
+        config.OffsetColumns = Apart * level
+        return config
+    }
+
+    // Where a level's landing is, in world units.
+    vec3 Landing(HellfeatherRealm realm) { return vec3((float)(Apart * (realm + 0)) * QuaxelTerrain.Cell, 0.0, 0.0) }
+}

@@ -1,0 +1,279 @@
+// Tests of Act I as a whole: its quests, its levels, its ravens and its moves.
+HellfeatherActOne
+#{
+    // Stands the warrior at a point and lets the world catch up.
+    Stand(HellfeatherGame& game, QuaxelWorld& world, float x, float z, int steps)
+    {
+        QuaxelTransform pose = world.GetTransform(game.PlayerNode)
+        pose.Position = vec3(x, game.Terrain.GroundY(x, z) + game.PlayerRadius(), z)
+        world.SetTransform(game.PlayerNode, pose)
+        QuaxelInputState input
+        game.Simulate(world, input, steps)
+    }
+}
+T{
+    TheDeadWomansReasonRunsFromMatthewToJessaAndBack()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int matthew = game.People.FindPerson(HellfeatherPerson.Matthew)
+        int carmine = game.People.FindPerson(HellfeatherPerson.Carmine)
+        int jessa = game.People.FindPerson(HellfeatherPerson.Jessa)
+        T.IsTrue(matthew >= 0 && carmine >= 0 && jessa >= 0)
+        T.IsTrue(game.HasNews(matthew))
+        T.IsFalse(game.HasNews(carmine))
+        game.Use(world, matthew)
+        T.IsTrue(game.Talk.Open)
+        int gold = game.Inventory.Items.Gold
+        game.Answer(world, HellfeatherReply.TakeCommission)
+        T.IsFalse(game.Talk.Open)
+        T.AreEqual(game.Quests.Moult, 1)
+        T.AreEqual(game.Inventory.Items.Gold, gold + 25)
+        T.IsTrue(game.HasNews(carmine))
+        game.Use(world, carmine)
+        game.Answer(world, HellfeatherReply.GoToJessa)
+        game.Use(world, jessa)
+        game.Answer(world, HellfeatherReply.JessaDies)
+        T.IsTrue(game.Quests.TitheMark)
+        T.AreEqual(game.Quests.Moult, 3)
+        game.Use(world, matthew)
+        game.Answer(world, HellfeatherReply.MatthewPays)
+        T.AreEqual(game.Quests.Moult, 4)
+        T.AreEqual(game.Quests.Rooms, 1)
+        T.AreEqual(game.Inventory.Items.Gold, gold + 50)
+    }
+
+    // The hospice's people stand at its gate, and the mill's at its door.
+    HospiceAndMillPeopleStandByTheirBuildings()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int hospice = -1
+        int mill = -1
+        for i : 0; i < game.Terrain.Placements.Len; i++ {
+            if game.Terrain.Placements[i].Volume == game.Terrain.Hill.Hospice { hospice = i }
+            if game.Terrain.Placements[i].Volume == game.Terrain.Mill.Mill { mill = i }
+        }
+        T.IsTrue(hospice >= 0 && mill >= 0)
+        vec3 gate = game.Terrain.PlacementPosition(hospice)
+        vec3 carmine = game.People.Spots[game.People.FindPerson(HellfeatherPerson.Carmine)].Feet
+        T.IsTrue(Math.Hypot(carmine.X - gate.X, carmine.Z - gate.Z) < 9.0)
+        vec3 door = game.MillDoor
+        vec3 millAt = game.Terrain.PlacementPosition(mill)
+        T.IsTrue(Math.Hypot(door.X - millAt.X, door.Z - millAt.Z) < 5.0)
+    }
+
+    // Jessa's garret gives her things, Vale warns her, and the Red Cuffs come.
+    RoomsRememberEndsWhenTheAmbushIsBeaten()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Quests.Moult = 4
+        game.Quests.Rooms = 1
+        int garret = game.People.FindKind(HellfeatherSpotKind.Garret, HellfeatherRealm.Fenmarch)
+        game.Use(world, garret)
+        game.Answer(world, HellfeatherReply.SearchGarret)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.JessasWaterwalkers), 1)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.LanternToken), 1)
+        int vale = game.People.FindPerson(HellfeatherPerson.Vale)
+        T.IsTrue(game.People.Spots[vale].Shown)
+        int before = (int)game.Enemies.Len
+        game.Use(world, vale)
+        game.Answer(world, HellfeatherReply.ValeWarns)
+        T.AreEqual(game.Quests.Rooms, 3)
+        T.AreEqual((int)game.Enemies.Len, before + 3)
+        T.IsTrue(game.Spawner.Table.Kinds[game.Enemies[before].Kind].Name == "SergeantOttar")
+        for i : before; i < game.Enemies.Len; i++ { game.Enemies[i].Health = 0 }
+        game.StepQuests(world)
+        T.AreEqual(game.Quests.Rooms, 4)
+    }
+
+    // Down through the millrace door, down the stairs to Mardra, and back up.
+    TheMillraceDoorLeadsDownTwoLevelsAndBackUp()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Quests.Millrace = 1
+        T.IsTrue(game.Travel(world, HellfeatherRealm.Undercroft, true))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Undercroft)
+        vec3 at = world.GetPosition(game.PlayerNode)
+        vec3 landing = HellfeatherRealm.Landing(HellfeatherRealm.Undercroft)
+        T.IsTrue(Math.Hypot(at.X - landing.X, at.Z - landing.Z) < 4.0)
+        T.IsFalse(game.Terrain.CircleBlocked(at.X, at.Z, game.PlayerRadius()))
+        T.IsTrue(game.Quests.PondWoke)
+        T.AreEqual(game.Quests.Millrace, 2)
+        int zoned = 0
+        for encounter : game.Spawner.Encounters {
+            if encounter.Group < 0 { continue }
+            T.AreEqual(game.Spawner.Table.Groups[encounter.Group].Zone, HellfeatherZone.Undercroft + 0)
+            zoned++
+        }
+        T.IsTrue(zoned > 0)
+        T.IsTrue(game.People.FindKind(HellfeatherSpotKind.StairsDown, HellfeatherRealm.Undercroft) >= 0)
+
+        T.IsTrue(game.Travel(world, HellfeatherRealm.UndercroftDeep, true))
+        int mardra = -1
+        for i : 0; i < game.Enemies.Len; i++ {
+            if game.Enemies[i].Move == HellfeatherMove.Brood { mardra = i }
+        }
+        T.IsTrue(mardra >= 0)
+        int pedestal = game.People.FindKind(HellfeatherSpotKind.Pedestal, HellfeatherRealm.UndercroftDeep)
+        T.IsFalse(game.People.Spots[pedestal].Shown)
+        game.Enemies[mardra].Health = 0
+        game.CountKill(world, mardra)
+        T.AreEqual(game.Quests.Millrace, 3)
+        T.IsTrue(game.People.Spots[pedestal].Shown)
+        game.Use(world, pedestal)
+        game.Answer(world, HellfeatherReply.Sever)
+        T.AreEqual(game.Quests.Millrace, 4)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.RuneDash), 1)
+
+        T.IsTrue(game.Travel(world, HellfeatherRealm.Undercroft, false))
+        at = world.GetPosition(game.PlayerNode)
+        T.IsTrue(Math.Hypot(at.X - game.StairsDown.X, at.Z - game.StairsDown.Z) < 4.0)
+        T.IsTrue(game.Travel(world, HellfeatherRealm.Fenmarch, false))
+        at = world.GetPosition(game.PlayerNode)
+        T.IsTrue(Math.Hypot(at.X - game.MillDoor.X, at.Z - game.MillDoor.Z) < 4.0)
+        T.IsTrue(game.Ravens.Spots.Len > 0)
+        int lise = game.People.FindPerson(HellfeatherPerson.Lise)
+        T.IsTrue(game.People.Spots[lise].Shown)
+    }
+
+    // Ravens sit on every roof of Ravenford and take off when she comes close.
+    RavensPerchOnTheRoofsAndFlyFromTheWarrior()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(game.Ravens.Spots.Len >= 18)
+        int bird = -1
+        for i : 0; i < game.Ravens.Birds.Len; i++ {
+            if bird < 0 && game.Ravens.Birds[i].Spot >= 0 { bird = i }
+        }
+        T.IsTrue(bird >= 0)
+        vec3 perch = game.Ravens.Spots[game.Ravens.Birds[bird].Spot].Feet
+        HellfeatherActOne.Stand(game, world, perch.X + 6.0, perch.Z, 3)
+        T.IsTrue(game.Ravens.Birds[bird].Awake)
+        T.AreEqual(game.Ravens.Birds[bird].State, 0)
+        // Over the perch she cannot stand on, but the bird is startled all the same.
+        QuaxelTransform pose = world.GetTransform(game.PlayerNode)
+        pose.Position = vec3(perch.X + 1.0, pose.Position.Y, perch.Z)
+        world.SetTransform(game.PlayerNode, pose)
+        QuaxelInputState input
+        game.Simulate(world, input, 3)
+        T.AreNotEqual(game.Ravens.Birds[bird].State, 0)
+        vec3 flying = world.GetPosition(game.Ravens.Birds[bird].Node)
+        T.IsTrue(flying.Y > perch.Y)
+    }
+
+    // The Road Drake puffs up for a second where it stands, then charges.
+    TheRoadDrakeWindsUpThenCharges()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = {
+            <EnemyKind Name="RoadDrake" Model="Assets/RoadDrake.qvox" Height=72 VoxelSize=0.0319 Radius=0.75 Speed=1.6 Reach=1.5 Notice=14.0 MaxHealth=140 Damage=18 Move=HellfeatherMove.Charge/>
+            <EnemyPlacement Kind="RoadDrake" X=4.0 Z=-3.0/>
+        }
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(game.Enemies[0].Awake)
+        vec3 start = world.GetPosition(game.Enemies[0].Node)
+        int health = game.PlayerHealth
+        QuaxelInputState input
+        game.Simulate(world, input, 30)
+        vec3 puffed = world.GetPosition(game.Enemies[0].Node)
+        T.AreEqual(game.Enemies[0].Phase, 1)
+        T.IsTrue(Math.Hypot(puffed.X - start.X, puffed.Z - start.Z) < 0.01)
+        T.AreEqual(game.PlayerHealth, health)
+        game.Simulate(world, input, 66)
+        vec3 charged = world.GetPosition(game.Enemies[0].Node)
+        T.IsTrue(Math.Hypot(charged.X - start.X, charged.Z - start.Z) > 2.0)
+        T.IsTrue(game.PlayerHealth < health)
+    }
+
+    // A Bladelock aims along a line, then a bolt flies and hurts her.
+    TheBladelockAimsThenShoots()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Spawner.Data = {
+            <EnemyKind Name="BladelockArbalist" Model="Assets/BladelockArbalist.qvox" Height=72 VoxelSize=0.0264 Radius=0.5 Speed=1.8 Reach=9.0 Notice=16.0 MaxHealth=80 Damage=20 Move=HellfeatherMove.Bolt/>
+            <EnemyPlacement Kind="BladelockArbalist" X=6.0 Z=-6.0/>
+        }
+        T.IsTrue(game.Prepare(world))
+        int health = game.PlayerHealth
+        QuaxelInputState input
+        game.Simulate(world, input, 20)
+        T.AreEqual(game.Enemies[0].Phase, 1)
+        T.AreEqual(game.Shots.Len, (long)0)
+        bool shot = false
+        for n : 0; n < 120 && game.PlayerHealth == health; n++ {
+            game.Simulate(world, input, 1)
+            if game.Shots.Len > 0 { shot = true }
+        }
+        T.IsTrue(shot)
+        T.IsTrue(game.PlayerHealth < health)
+    }
+
+    // Feathers fall only out in the wild, and frenzy only the birds.
+    FeatherfallComesInTheWildAndPasses()
+    {
+        QuaxelWorld world()
+        HellfeatherFeatherfall fall
+        fall.Timer = 0.5
+        T.AreEqual(fall.Step(world, vec3(0.0, 0.0, 0.0), false, false, 1.0), 0)
+        T.IsFalse(fall.Active)
+        fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0)
+        T.IsTrue(fall.Active)
+        int healed = 0
+        for n : 0; n < 10; n++ { healed += fall.Step(world, vec3(80.0, 0.0, 0.0), true, true, 1.0) }
+        T.AreEqual(healed, 20)
+        for n : 0; n < 40; n++ { fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0) }
+        T.IsFalse(fall.Active)
+    }
+
+    // Edda takes twenty feathers for her charm, and the Ford's bounty pays.
+    FeathersOnTheFordPaysTwice()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int reeve = game.People.FindPerson(HellfeatherPerson.Reeve)
+        int edda = game.People.FindPerson(HellfeatherPerson.Edda)
+        game.Use(world, reeve)
+        game.Answer(world, HellfeatherReply.TakeBounty)
+        T.AreEqual(game.Quests.Ford, 1)
+        game.Inventory.Items.Feathers = 23
+        T.IsTrue(game.HasNews(edda))
+        game.Use(world, edda)
+        game.Answer(world, HellfeatherReply.GiveFeathers)
+        T.AreEqual(game.Inventory.Items.Feathers, 3)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.EddasQuillCharm), 1)
+        game.Quests.DucksCleared = HellfeatherQuests.DucksWanted
+        T.IsTrue(game.HasNews(reeve))
+        game.Use(world, reeve)
+        game.Answer(world, HellfeatherReply.ClaimBounty)
+        T.AreEqual(game.Quests.Ford, 2)
+    }
+}
+T{
+    // A start point from the command line puts her by the hospice gate.
+    StartingAtTheHospicePutsHerByItsGate()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "hospice"
+        T.IsTrue(game.Prepare(world))
+        vec3 at = world.GetPosition(game.PlayerNode)
+        vec3 carmine = game.People.Spots[game.People.FindPerson(HellfeatherPerson.Carmine)].Feet
+        Print(at.X)
+        Print(at.Z)
+        Print(carmine.X)
+        Print(carmine.Z)
+        T.IsTrue(Math.Hypot(at.X - carmine.X, at.Z - carmine.Z) < 4.0)
+    }
+}

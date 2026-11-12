@@ -168,12 +168,28 @@ HellfeatherItemArt
         return volume
     }
 
+    // Act I's items borrow the drawing of the plain item they look most like,
+    // until they have pictures of their own in Assets/ItemArt.
+    HellfeatherItems Likeness(HellfeatherItems item)
+    {
+        if item == HellfeatherItems.BlackFeather || item == HellfeatherItems.LanternToken { return HellfeatherItems.Scroll }
+        if item == HellfeatherItems.TitheBracelet || item == HellfeatherItems.MarrasThimble || item == HellfeatherItems.GreyKey { return HellfeatherItems.Ring }
+        if item == HellfeatherItems.BlackHoney { return HellfeatherItems.ManaPotion }
+        if item == HellfeatherItems.EddasQuillCharm || item == HellfeatherItems.MardrasRingShards || item == HellfeatherItems.GreyneckQuill { return HellfeatherItems.Amulet }
+        if item == HellfeatherItems.JessasWaterwalkers { return HellfeatherItems.Boots }
+        if item == HellfeatherItems.MillstoneMaul { return HellfeatherItems.BattleAxe }
+        return item
+    }
+
+    // Draws an item, or the item it borrows its looks from.
+    Picture(HellfeatherItems item, HellfeatherItemPicture& p) { Draw(Likeness(item), p) }
+
     // The volume for an item, or -1. Height is its size in voxels along Y.
     int BuildModel(QuaxelWorld& world, HellfeatherItems item, int& height)
     {
         HellfeatherItemPicture picture
-        Draw(item, picture)
-        if Stands(item) { return Revolve(world, picture, height) }
+        Picture(item, picture)
+        if Stands(Likeness(item)) { return Revolve(world, picture, height) }
         return Lay(world, picture, height)
     }
 }

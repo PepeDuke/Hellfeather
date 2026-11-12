@@ -356,7 +356,7 @@ HellfeatherChurch
     }
 }
 
-// The props scattered through the vale. Each holds a shared volume.
+// The props scattered through the Fenmarch. Each holds a shared volume.
 HellfeatherProps
 {
     int [3] Trees
@@ -364,6 +364,9 @@ HellfeatherProps
     int [2] Walls
     int Banner
     int Brazier
+    int [2] Reeds
+    int Shrine
+    int Gibbet
 }
 #{
     #int TreeWidth = 64
@@ -390,6 +393,21 @@ HellfeatherProps
         BuildBanner(world, props.Banner)
         props.Brazier = world.CreateVolume(16, 40, 16)
         HellfeatherArt.BrazierStand(world, props.Brazier, 8, 8)
+        // The models cut from the concept sheets, or the code-built ones without them.
+        props.Reeds[0] = QuaxelAssets.LoadVoxelModel(world, "Assets/WetlandReeds.qvox")
+        props.Reeds[1] = QuaxelAssets.LoadVoxelModel(world, "Assets/CattailReeds.qvox")
+        for i : 0; i < 2; i++ {
+            if props.Reeds[i] >= 0 { continue }
+            props.Reeds[i] = world.CreateVolume(FenmarchArt.ReedsWidth, FenmarchArt.ReedsHeight, FenmarchArt.ReedsWidth)
+            FenmarchArt.BuildReeds(world, props.Reeds[i], i)
+        }
+        props.Shrine = QuaxelAssets.LoadVoxelModel(world, "Assets/FeatherShrine.qvox")
+        if props.Shrine < 0 {
+            props.Shrine = world.CreateVolume(FenmarchArt.ShrineWidth, FenmarchArt.ShrineHeight, 12)
+            FenmarchArt.BuildShrine(world, props.Shrine)
+        }
+        props.Gibbet = QuaxelAssets.LoadVoxelModel(world, "Assets/Gibbet.qvox")
+        if props.Gibbet < 0 { props.Gibbet = props.Shrine }
         return props
     }
 

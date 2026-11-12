@@ -1,0 +1,296 @@
+// Where Act I's people stand, and how the warrior goes between the Fenmarch and
+// the Undercroft's two levels. Ravenford's people stand outside their doors;
+// the hospice's and the mill's are placed from where the terrain put those
+// buildings. People's models come from Tools/Models/act1.py; tall ones have
+// coarser voxels, so each has its own voxel size.
+HellfeatherCast
+#{
+    // In world units from Ravenford's middle.
+    vec3 MatthewAt() { return vec3(1.5, 0.0, -12.2) }
+    vec3 EddaAt() { return vec3(-11.0, 0.0, -8.6) }
+    vec3 ReeveAt() { return vec3(17.0, 0.0, 7.4) }
+    vec3 MarraAt() { return vec3(10.0, 0.0, -13.9) }
+    vec3 MothAt() { return vec3(12.5, 0.0, -3.6) }
+    vec3 GarretAt() { return vec3(22.6, 0.0, -14.2) }
+    vec3 ValeOnTheStair() { return vec3(23.6, 0.0, -12.9) }
+    vec3 ValeAtTheMoth() { return vec3(14.0, 0.0, -3.0) }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherLandmarks Landmarks
+    HellfeatherRavens Ravens
+    // Where the millrace door stands, found when the Fenmarch is first built.
+    vec3 MillDoor
+    // Where the stair down from the Undercroft's first level is, once known.
+    vec3 StairsDown
+    -float FeatherDrift
+
+    -vec3 Flat(vec3 point) { return vec3(point.X, 0.0, point.Z) }
+
+    // The first placement of a volume, or -1.
+    -int PlacementOf(int volume)
+    {
+        if volume < 0 { return -1 }
+        for i : 0; i < Terrain.Placements.Len; i++ {
+            if Terrain.Placements[i].Volume == volume { return i }
+        }
+        return -1
+    }
+
+    // The middle of the first clearing of a zone, or the origin.
+    -vec3 ZoneMiddle(HellfeatherZone zone)
+    {
+        for site : Terrain.Layout.Sites {
+            if site.Module == zone + 0 { return Terrain.WorldPoint(site.X, site.Z) }
+        }
+        return vec3(0.0, 0.0, 0.0)
+    }
+
+    // Places Act I's people, once, after the Fenmarch's layout is known.
+    SetUpCast()
+    {
+        HellfeatherRealm fen = HellfeatherRealm.Fenmarch
+        People.AddPerson(HellfeatherPerson.Matthew, "Matthew", fen, HellfeatherCast.MatthewAt(), "Assets/Matthew.qvox", 0.0264, 72)
+        People.AddPerson(HellfeatherPerson.Edda, "Edda the Ravenkeeper", fen, HellfeatherCast.EddaAt(), "Assets/Edda.qvox", 0.025, 70)
+        People.AddPerson(HellfeatherPerson.Reeve, "Reeve Hollan", fen, HellfeatherCast.ReeveAt(), "Assets/ReeveHollan.qvox", 0.0257, 72)
+        People.AddPerson(HellfeatherPerson.Marra, "Marra Senn", fen, HellfeatherCast.MarraAt(), "Assets/MarraSenn.qvox", 0.025, 72)
+        People.AddPerson(HellfeatherPerson.Moth, "Moth", fen, HellfeatherCast.MothAt(), "Assets/Moth.qvox", 0.0264, 72)
+        int vale = People.AddPerson(HellfeatherPerson.Vale, "Sister Vale", fen, HellfeatherCast.ValeOnTheStair(), "Assets/SisterVale.qvox", 0.0271, 72)
+        People.Spots[vale].Shown = false
+        People.Add(HellfeatherSpotKind.Garret, "Jessa's garret", fen, HellfeatherCast.GarretAt())
+
+        // The hospice gate faces +Z, and Jessa's bed stands in the outer ward.
+        int hospice = PlacementOf(Terrain.Hill.Hospice)
+        vec3 gate = hospice >= 0 ? Terrain.PlacementPosition(hospice) | ZoneMiddle(HellfeatherZone.OrrasHill)
+        float front = (float)Terrain.Hill.HospiceHalf * QuaxelTerrain.Cell
+        People.AddPerson(HellfeatherPerson.Carmine, "Sister Carmine", fen, Flat(gate) + vec3(-2.2, 0.0, front + 1.4), "Assets/SisterCarmine.qvox", 0.025, 72)
+        int bed = People.AddModel(HellfeatherSpotKind.Person, "Jessa Brune", fen, Flat(gate) + vec3(2.6, 0.0, front + 1.9), Landmarks.JessaBed, 0.025, 40)
+        People.Spots[bed].Person = HellfeatherPerson.Jessa
+        People.Spots[bed].FacingX = 0.0
+        People.Spots[bed].FacingZ = 1.0
+
+        // Old Hobb outside his mill, the low door at the water, Lise on the stair.
+        int mill = PlacementOf(Terrain.Mill.Mill)
+        vec3 millAt = mill >= 0 ? Terrain.PlacementPosition(mill) | ZoneMiddle(HellfeatherZone.HobbsMill)
+        float face = (float)Terrain.Mill.MillHalf * QuaxelTerrain.Cell
+        People.AddPerson(HellfeatherPerson.OldHobb, "Old Hobb", fen, Flat(millAt) + vec3(-2.8, 0.0, face + 1.0), "Assets/OldHobb.qvox", 0.025, 66)
+        MillDoor = Flat(millAt) + vec3(1.4, 0.0, face + 0.4)
+        int door = People.AddModel(HellfeatherSpotKind.Door, "Millrace door", fen, MillDoor, Landmarks.Doorway, HellfeatherArt.FineVoxel, HellfeatherLandmarks.DoorHeight)
+        People.Spots[door].FacingX = 0.0
+        People.Spots[door].FacingZ = 1.0
+        int lise = People.AddPerson(HellfeatherPerson.Lise, "Lise Hobb", fen, Flat(millAt) + vec3(face + 0.9, 0.0, 1.0), "Assets/LiseHobb.qvox", 0.025, 72)
+        People.Spots[lise].Shown = false
+    }
+
+    // Ravens on Ravenford's roofs and perches, the hill's shrines and gibbets,
+    // and the mill and hospice roofs.
+    SetUpRavens(QuaxelWorld& world)
+    {
+        Ravens.Clear(world)
+        if !Ravens.Load(world) { return }
+        for i : 0; i < Terrain.Placements.Len; i++ {
+            int volume = Terrain.Placements[i].Volume
+            bool roof = volume == Landmarks.CrookedRaven || volume == Landmarks.RookeryTower || volume == Landmarks.ReevesHall
+            roof = roof || volume == Landmarks.PellsChandlery || volume == Landmarks.SennsNeedlehouse || volume == Landmarks.LanternAndMoth
+            roof = roof || volume == Landmarks.HobbsMill || volume == Landmarks.OrrasHospice
+            if roof && volume >= 0 { Ravens.AddRoof(world, volume, Terrain.Placements[i].VoxelSize, Terrain.PlacementPosition(i), 3) }
+            else if volume >= 0 && (volume == Landmarks.RavenPerch || volume == Terrain.Hill.Props.Gibbet || volume == Terrain.Hill.Props.Shrine) { Ravens.AddRoof(world, volume, Terrain.Placements[i].VoxelSize, Terrain.PlacementPosition(i), 1) }
+        }
+    }
+
+    // The nearest open ground to a point, in rings outward, once the terrain
+    // there has been built. The point itself if nothing is open.
+    vec3 OpenNear(vec3 point)
+    {
+        if !Terrain.CircleBlocked(point.X, point.Z, PlayerRadius() + 0.1) { return point }
+        for ring : 1; ring <= 24; ring++ {
+            float distance = (float)ring * 0.5
+            for step : 0; step < 16; step++ {
+                float angle = (float)step * 0.39269908
+                float x = point.X + Math.Cos(angle) * distance
+                float z = point.Z + Math.Sin(angle) * distance
+                if !Terrain.CircleBlocked(x, z, PlayerRadius() + 0.1) { return vec3(x, 0.0, z) }
+            }
+        }
+        return point
+    }
+
+    // The farthest clearing from the landing, by passes.
+    -vec3 Deepest()
+    {
+        int best = 0
+        for i : 0; i < Terrain.Layout.Sites.Len; i++ {
+            if Terrain.Layout.Sites[i].Depth > Terrain.Layout.Sites[best].Depth { best = i }
+        }
+        return Terrain.WorldPoint(Terrain.Layout.Sites[best].X, Terrain.Layout.Sites[best].Z)
+    }
+
+    // The stairs and the boss of a level below, made each time it is built.
+    -SetUpUndercroft(QuaxelWorld& world, HellfeatherRealm realm)
+    {
+        People.RemoveRealm(world, realm)
+        vec3 landing = HellfeatherRealm.Landing(realm)
+        People.AddModel(HellfeatherSpotKind.StairsUp, "Stairs up", realm, landing + vec3(0.0, 0.0, -2.0), Landmarks.Stairs, HellfeatherArt.FineVoxel, HellfeatherLandmarks.StairsHeight)
+        People.Add(HellfeatherSpotKind.Bearer, "Hollowed Bearer", realm, landing)
+        int bearer = People.FindKind(HellfeatherSpotKind.Bearer, realm)
+        People.Spots[bearer].Shown = false
+        vec3 deepest = Deepest()
+        if realm == HellfeatherRealm.Undercroft {
+            StairsDown = deepest
+            People.AddModel(HellfeatherSpotKind.StairsDown, "Stairs down", realm, deepest, Landmarks.Stairs, HellfeatherArt.FineVoxel, HellfeatherLandmarks.StairsHeight)
+            return
+        }
+        int pedestal = People.AddModel(HellfeatherSpotKind.Pedestal, "Ring pedestal", realm, deepest + vec3(0.0, 0.0, -2.0), Landmarks.RingPedestal, HellfeatherArt.FineVoxel, 28)
+        People.Spots[pedestal].Shown = Quests.Millrace >= 3
+    }
+
+    // Moves her to another level: the old one's enemies, shots and ravens go,
+    // the terrain is built again around where she arrives, and the new one is
+    // filled. Down is true when she came by a way down.
+    bool Travel(QuaxelWorld& world, HellfeatherRealm realm, bool down)
+    {
+        Talk.Close()
+        Shop.Open = false
+        for i : 0; i < Spawner.Encounters.Len; i++ {
+            if Spawner.Encounters[i].Awake { SleepEncounter(world, i) }
+        }
+        Spawner.Encounters.Clear()
+        Enemies.Clear()
+        ClearShots(world)
+        Ravens.Clear(world)
+        Featherfall.Stop(world)
+        vec3 arrival = HellfeatherRealm.Landing(realm) + vec3(0.0, 0.0, 1.5)
+        if realm == HellfeatherRealm.Fenmarch { arrival = MillDoor + vec3(0.0, 0.0, 1.6) }
+        else if realm == HellfeatherRealm.Undercroft && !down { arrival = StairsDown + vec3(0.0, 0.0, 2.0) }
+        Terrain.Realm = realm
+        QuaxelTerrainConfig config = realm == HellfeatherRealm.Fenmarch ? FenmarchConfig() | HellfeatherRealm.Undercroft(realm)
+        if !Terrain.Reconfigure(world, config, arrival) { return false }
+        arrival = OpenNear(arrival)
+        QuaxelTransform transform = world.GetTransform(PlayerNode)
+        transform.Position = StandingAt(arrival.X, arrival.Z, PlayerRadius())
+        world.SetTransform(PlayerNode, transform)
+        if realm == HellfeatherRealm.Fenmarch { SetUpRavens(world) }
+        else { SetUpUndercroft(world, realm) }
+        PopulateEnemies()
+        AddUniques()
+        if realm == HellfeatherRealm.Undercroft && !Quests.PondWoke {
+            // The pond wakes behind her: brood climbs out of the channel.
+            Quests.PondWoke = true
+            Quests.Millrace = Math.Max(Quests.Millrace, 2)
+            for n : 0; n < 3; n++ { AddScripted(world, "BroodDrake", arrival.X - 2.0 + (float)n * 2.0, arrival.Z - 3.5) }
+            Banner.Show("The pond wakes", 3.0)
+        }
+        if realm == HellfeatherRealm.UndercroftDeep && Quests.Millrace < 3 {
+            vec3 deepest = Deepest()
+            AddScripted(world, "Mardra", deepest.X, deepest.Z + 1.5)
+        }
+        Banner.Show(realm == HellfeatherRealm.Fenmarch ? "Hobb's Mill" | (realm == HellfeatherRealm.Undercroft ? "The Millrace Undercroft" | "The Undercroft, deeper"), 2.5)
+        return UpdateSpawns(world, world.GetPosition(PlayerNode))
+    }
+
+    // Old Greyneck and two of his flock, in the biggest clearing of Fennick
+    // Water, until he is slain. He does not come back.
+    AddUniques()
+    {
+        if Terrain.Realm != HellfeatherRealm.Fenmarch || Quests.GreyneckSlain { return }
+        int gander = Spawner.Table.KindNamed("OldGreyneck")
+        int duck = Spawner.Table.KindNamed("ReedDuck")
+        if gander < 0 || duck < 0 { return }
+        int best = -1
+        for i : 0; i < Terrain.Layout.Sites.Len; i++ {
+            if Terrain.Layout.Sites[i].Module != HellfeatherZone.FennickWater + 0 { continue }
+            if best < 0 || Terrain.Layout.Sites[i].Radius > Terrain.Layout.Sites[best].Radius { best = i }
+        }
+        if best < 0 { return }
+        vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[best].X, Terrain.Layout.Sites[best].Z)
+        EnemyEncounter encounter
+        encounter.Center = middle
+        encounter.First = (int)Enemies.Len
+        encounter.Count = 3
+        encounter.Group = -1
+        Enemies += MakeEnemy(gander, middle.X, middle.Z)
+        Enemies += MakeEnemy(duck, middle.X + 2.0, middle.Z + 1.0)
+        Enemies += MakeEnemy(duck, middle.X - 2.0, middle.Z + 1.0)
+        Spawner.Encounters += encounter
+    }
+
+    // Where to start instead of Ravenford, from the command line. Empty starts
+    // in Ravenford as usual.
+    string StartAt
+
+    // Moves her to StartAt at the start of a run, with the quests that lead
+    // there taken, so a place can be looked at without walking to it.
+    bool GoToStart(QuaxelWorld& world)
+    {
+        if Length(StartAt) == 0 { return true }
+        if StartAt == "undercroft" || StartAt == "deep" {
+            Quests.Millrace = 1
+            if !Travel(world, HellfeatherRealm.Undercroft, true) { return false }
+            if StartAt == "deep" { return Travel(world, HellfeatherRealm.UndercroftDeep, true) }
+            return true
+        }
+        vec3 there = vec3(0.0, 0.0, 0.0)
+        if StartAt == "mill" { there = MillDoor + vec3(0.0, 0.0, 2.5) }
+        else if StartAt == "matthew" { there = HellfeatherCast.MatthewAt() + vec3(-1.5, 0.0, 1.5) }
+        else if StartAt == "hospice" {
+            int carmine = People.FindPerson(HellfeatherPerson.Carmine)
+            there = People.Spots[carmine].Feet + vec3(0.0, 0.0, 2.5)
+        }
+        else if StartAt == "marsh" { there = ZoneMiddle(HellfeatherZone.FennickWater) }
+        if !Terrain.Reconfigure(world, FenmarchConfig(), there) { return false }
+        there = OpenNear(there)
+        QuaxelTransform transform = world.GetTransform(PlayerNode)
+        transform.Position = StandingAt(there.X, there.Z, PlayerRadius())
+        world.SetTransform(PlayerNode, transform)
+        return UpdateSpawns(world, transform.Position)
+    }
+
+    // Whether the warrior is out in the wild, where feathers fall.
+    -bool InTheWild(vec3 player) { return Terrain.Realm == HellfeatherRealm.Fenmarch && Math.Hypot(player.X, player.Z) > Ravenford.Wall + 6.0 }
+
+    // The bits of Act I that run every step.
+    StepAct(QuaxelWorld& world, float deltaSeconds)
+    {
+        vec3 player = world.GetPosition(PlayerNode)
+        // A spot's ground is only known once it has streamed in, which it has this near.
+        for spot : People.Spots {
+            if spot.Node == 0 && spot.Realm == Terrain.Realm && Math.Hypot(spot.Feet.X - player.X, spot.Feet.Z - player.Z) < HellfeatherSpots.WakeRadius {
+                spot.Feet.Y = Terrain.GroundY(spot.Feet.X, spot.Feet.Z)
+            }
+        }
+        if !People.Step(world, player, Terrain.Realm) { Print("People failed to spawn") }
+        if !Ravens.Step(world, player, deltaSeconds) { Print("Ravens failed to spawn") }
+        bool charm = Inventory.Items.Equipped[HellfeatherSlot.Neck] == HellfeatherItems.EddasQuillCharm
+        int heal = Featherfall.Step(world, player, InTheWild(player), charm, deltaSeconds)
+        if heal > 0 && PlayerHealth > 0 { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + heal) }
+        if Featherfall.Active && Featherfall.Timer > HellfeatherFeatherfall.Seconds - deltaSeconds * 1.5 { Banner.Show("Featherfall", 3.0) }
+        // Some of what falls settles where it can be picked up for Edda.
+        if Featherfall.Active {
+            FeatherDrift -= deltaSeconds
+            if FeatherDrift <= 0.0 {
+                FeatherDrift = 6.0
+                float angle = Spawner.LootRandom.Range(0.0, 6.2831853)
+                float distance = Spawner.LootRandom.Range(3.0, 6.0)
+                vec3 spot = vec3(player.X + Math.Cos(angle) * distance, 0.0, player.Z + Math.Sin(angle) * distance)
+                if !Terrain.CircleBlocked(spot.X, spot.Z, 0.3) { Ground.PlaceFeathers(world, 1 + Spawner.LootRandom.Below(2), vec3(spot.X, RestingY(spot.X, spot.Z), spot.Z)) }
+            }
+        }
+        Banner.Step(deltaSeconds)
+        StepShots(world, deltaSeconds)
+        StepQuests(world)
+        // Walking away ends a conversation.
+        if Talk.Open && Talk.Spot >= 0 && Talk.Spot < People.Spots.Len && Math.Hypot(People.Spots[Talk.Spot].Feet.X - player.X, People.Spots[Talk.Spot].Feet.Z - player.Z) > HellfeatherSpots.Reach + 1.5 {
+            Talk.Close()
+            People.SetTalking(world, -1)
+        }
+    }
+
+    // Names over people and things, with the news marks.
+    DrawPeople(QuaxelUi& ui, QuaxelWorld& world, int width, int height, int mouseX, int mouseY, bool mouseFree)
+    {
+        bool [] news
+        for i : 0; i < People.Spots.Len; i++ { news += HasNews(i) }
+        People.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), Terrain.Realm, news, width, height, mouseX, mouseY, mouseFree)
+    }
+}

@@ -1,11 +1,18 @@
-// Ground surfaces that only Ravenford uses, colored in HellfeatherTerrain.
+// Hellfeather's own ground surfaces, colored in HellfeatherTerrain.
 HellfeatherSurface
 #{
     #int Cobble = 16
     #int Earth = 17
+    // Fennick Water and Hobb's Mill, colored in HellfeatherTerrain.
+    #int Mud = 18
+    #int Millpond = 19
+    // The Undercroft's floor, and the silver wire run across it.
+    #int Flagstone = 20
+    #int Wire = 21
 }
 
-// Act I's walled town, where the player starts. The clearing is straight and
+// Ravenford, Act I's walled river town, where the player starts. Its ravens
+// eat the black feathers, so the moult never settles inside the walls. The clearing is straight and
 // level, so offsets from its center are world offsets. The gate is in the +Z
 // wall, the side the camera faces, and the single road to the rest of the level
 // runs out of it. The engine keeps that road open through anything the module
@@ -132,19 +139,33 @@ Ravenford : QuaxelTerrainModule
 
     // Half and sight are in terrain columns. A building's box, its body plus the
     // strip behind it, must stop short of the wall lines.
+    //
+    // Act I gives each building a story role, and a model cut from its concept
+    // sheet. Without the model it wears the code-built one named in the comment.
     -Town(QuaxelTerrainPlacer& placer, int& group)
     {
-        Building(placer, group, Church, -13.0, -13.0, HellfeatherChurch.Half, HellfeatherChurch.Height, HellfeatherChurch.Sight)
+        // The Rookery Tower, Edda's, on the church's corner. The town's landmark.
+        if Landmarks.RookeryTower >= 0 { Building(placer, group, Landmarks.RookeryTower, -13.0, -13.0, 29, 88, 60) }
+        else { Building(placer, group, Church, -13.0, -13.0, HellfeatherChurch.Half, HellfeatherChurch.Height, HellfeatherChurch.Sight) }
         placer.AddLight(HellfeatherChurch.Half + 8, 0, 72)
-        Building(placer, group, Volumes.Tavern, 0.0, -16.5, 26, 60, 34)
+        // The Crooked Raven, the tavern: Matthew's table and the rumour board.
+        Building(placer, group, Pick(Landmarks.CrookedRaven, Volumes.Tavern), 0.0, -16.5, 26, 60, 34)
         placer.AddLight(0, 34, 44)
-        Building(placer, group, Volumes.Blacksmith, 10.0, -17.0, 26, 48, 30)
+        // Senn's Needlehouse, the blacksmith's: Marra Senn, repairs and mending.
+        if Landmarks.SennsNeedlehouse >= 0 { Building(placer, group, Landmarks.SennsNeedlehouse, 10.0, -17.0, 18, 48, 30) }
+        else { Building(placer, group, Volumes.Blacksmith, 10.0, -17.0, 26, 48, 30) }
         placer.AddLight(0, 22, 40)
-        Building(placer, group, Volumes.Store, 20.0, -17.0, 24, 44, 30)
+        // Pell's Chandlery, the store, with Jessa's garret up its outside stair.
+        if Landmarks.PellsChandlery >= 0 { Building(placer, group, Landmarks.PellsChandlery, 20.0, -17.0, 18, 52, 32) }
+        else { Building(placer, group, Volumes.Store, 20.0, -17.0, 24, 44, 30) }
         placer.AddLight(0, 26, 30)
-        Building(placer, group, Volumes.Alchemist, 12.0, -6.5, 22, 44, 30)
+        // The Lantern & Moth, the alchemist's: the stair down to Moth's fence shop.
+        if Landmarks.LanternAndMoth >= 0 { Building(placer, group, Landmarks.LanternAndMoth, 12.0, -6.5, 17, 44, 30) }
+        else { Building(placer, group, Volumes.Alchemist, 12.0, -6.5, 22, 44, 30) }
         placer.AddLight(0, 24, 30)
-        Building(placer, group, Volumes.Warehouse, 18.0, 3.5, 26, 44, 30)
+        // Reeve's Hall, the warehouse: Reeve Hollan, bounties and the town stash.
+        if Landmarks.ReevesHall >= 0 { Building(placer, group, Landmarks.ReevesHall, 18.0, 3.5, 24, 44, 30) }
+        else { Building(placer, group, Volumes.Warehouse, 18.0, 3.5, 26, 44, 30) }
         Building(placer, group, Volumes.Stable, 17.0, 14.0, 26, 40, 26)
         placer.AddLight(0, 26, 26)
         Building(placer, group, Volumes.Houses[0], -9.0, 2.0, 18, 38, 26)
@@ -160,7 +181,15 @@ Ravenford : QuaxelTerrainModule
         placer.AddLight(0, 14, 24)
         Clutter(placer, group, Volumes.Campfire, -1.0, -6.0, 8, 20)
         placer.AddLight(0, 0, 84)
+        // Raven perches about the square, where the town's ravens come down.
+        if Landmarks.RavenPerch >= 0 {
+            for n : 0; n < HellfeatherRavens.TownPerches; n++ {
+                Clutter(placer, group, Landmarks.RavenPerch, HellfeatherRavens.PerchX(n), HellfeatherRavens.PerchZ(n), 3, 12)
+            }
+        }
     }
+
+    -int Pick(int model, int fallback) { return model >= 0 ? model | fallback }
 
     // Lights along the road, odds and ends along the walls, and wild ground outside.
     -Dressing(QuaxelTerrainPlacer& placer, int& group)
@@ -200,6 +229,7 @@ Ravenford : QuaxelTerrainModule
     }
 
     int Church
+    HellfeatherLandmarks Landmarks
 }
 #{
     // Must be enough to contain the wall's corners and towers.

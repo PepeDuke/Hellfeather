@@ -36,7 +36,7 @@ HellfeatherScatter
     }
 }
 
-// The default clearing: bare earth, dead trees and old stones.
+// The default clearing, plain Fenmarch lowland: bare earth, dead trees and old stones.
 AshenValley : QuaxelTerrainModule
 {
     HellfeatherProps Props
@@ -44,7 +44,7 @@ AshenValley : QuaxelTerrainModule
     Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer) { HellfeatherScatter.Place(Props, site, placer) }
 }
 
-// A river across the clearing. It only paints water; the generator turns the
+// The Ford Road: a river across the clearing, close to Ravenford. It only paints water; the generator turns the
 // parts on a reserved path into a bridge.
 RiverCrossing : QuaxelTerrainModule
 {
@@ -56,7 +56,9 @@ RiverCrossing : QuaxelTerrainModule
         rules.MinRadius = 14.0
         rules.MinPorts = 2
         rules.Isolated = true
-        rules.Share = 0.25
+        rules.Share = 0.2
+        rules.MinDepth = 1
+        rules.MaxDepth = 3
         return rules
     }
 
@@ -90,7 +92,7 @@ RiverCrossing : QuaxelTerrainModule
     }
 }
 
-// A clearing with one ruined cottage, placed somewhere off the paths.
+// A croft: one ruined cottage, placed somewhere off the paths.
 ValleyHouse : QuaxelTerrainModule
 {
     HellfeatherProps Props
@@ -101,7 +103,8 @@ ValleyHouse : QuaxelTerrainModule
         QuaxelTerrainModuleRules rules
         rules.MinRadius = 15.0
         rules.Isolated = true
-        rules.Share = 0.25
+        rules.Share = 0.15
+        rules.MinDepth = 2
         return rules
     }
 
@@ -118,40 +121,75 @@ ValleyHouse : QuaxelTerrainModule
     }
 }
 
-// Routes clearings to Hellfeather's modules and colors the vale. To change the
-// default clearing, change the Valley field's type.
+// Routes clearings to Hellfeather's modules and colors the vale. Module IDs are
+// the values of HellfeatherZone. To change the default clearing, change the
+// Valley field's type.
 HellfeatherTerrain : QuaxelTerrain
 {
     AshenValley Valley
+    HobbsMill Mill
+    OrrasHill Hill
     RiverCrossing River
+    FennickWater Marsh
     ValleyHouse House
     Ravenford Town
+    UndercroftHall Hall
+    UndercroftLanding Landing
+    // The level being built. Below the Fenmarch, only the Undercroft's modules
+    // claim clearings: its halls take every one but the landing.
+    HellfeatherRealm Realm
 
-    int ModuleCount() { return 4 }
+    int ModuleCount() { return HellfeatherZone.Count - 1 }
 
-    int SpawnModule() { return 3 }
+    int SpawnModule() { return Realm == HellfeatherRealm.Fenmarch ? HellfeatherZone.Ravenford + 0 | HellfeatherZone.UndercroftLanding + 0 }
+
+    // The zone the Undercroft's halls count as on the current level.
+    int HallZone() { return Realm == HellfeatherRealm.UndercroftDeep ? HellfeatherZone.UndercroftDeep + 0 | HellfeatherZone.Undercroft + 0 }
 
     QuaxelTerrainModuleRules ModuleRules(int id)
     {
-        if id == 1 { return River.Rules() }
-        if id == 2 { return House.Rules() }
-        if id == 3 { return Town.Rules() }
+        if Realm != HellfeatherRealm.Fenmarch {
+            if id == HallZone() { return Hall.Rules() }
+            if id == HellfeatherZone.UndercroftLanding + 0 { return Landing.Rules() }
+            QuaxelTerrainModuleRules none
+            return none
+        }
+        if id >= HellfeatherZone.Undercroft + 0 {
+            QuaxelTerrainModuleRules none
+            return none
+        }
+        if id == HellfeatherZone.HobbsMill + 0 { return Mill.Rules() }
+        if id == HellfeatherZone.OrrasHill + 0 { return Hill.Rules() }
+        if id == HellfeatherZone.FordRoad + 0 { return River.Rules() }
+        if id == HellfeatherZone.FennickWater + 0 { return Marsh.Rules() }
+        if id == HellfeatherZone.Croft + 0 { return House.Rules() }
+        if id == HellfeatherZone.Ravenford + 0 { return Town.Rules() }
         return Valley.Rules()
     }
 
     ModuleColumn(int id, QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
     {
-        if id == 1 { River.Column(site, x, z, column) }
-        else if id == 2 { House.Column(site, x, z, column) }
-        else if id == 3 { Town.Column(site, x, z, column) }
+        if id == HellfeatherZone.Undercroft + 0 || id == HellfeatherZone.UndercroftDeep + 0 { Hall.Column(site, x, z, column) }
+        else if id == HellfeatherZone.UndercroftLanding + 0 { Landing.Column(site, x, z, column) }
+        else if id == HellfeatherZone.HobbsMill + 0 { Mill.Column(site, x, z, column) }
+        else if id == HellfeatherZone.OrrasHill + 0 { Hill.Column(site, x, z, column) }
+        else if id == HellfeatherZone.FordRoad + 0 { River.Column(site, x, z, column) }
+        else if id == HellfeatherZone.FennickWater + 0 { Marsh.Column(site, x, z, column) }
+        else if id == HellfeatherZone.Croft + 0 { House.Column(site, x, z, column) }
+        else if id == HellfeatherZone.Ravenford + 0 { Town.Column(site, x, z, column) }
         else { Valley.Column(site, x, z, column) }
     }
 
     ModulePlace(int id, QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
     {
-        if id == 1 { River.Place(site, placer) }
-        else if id == 2 { House.Place(site, placer) }
-        else if id == 3 { Town.Place(site, placer) }
+        if id == HellfeatherZone.Undercroft + 0 || id == HellfeatherZone.UndercroftDeep + 0 { Hall.Place(site, placer) }
+        else if id == HellfeatherZone.UndercroftLanding + 0 { Landing.Place(site, placer) }
+        else if id == HellfeatherZone.HobbsMill + 0 { Mill.Place(site, placer) }
+        else if id == HellfeatherZone.OrrasHill + 0 { Hill.Place(site, placer) }
+        else if id == HellfeatherZone.FordRoad + 0 { River.Place(site, placer) }
+        else if id == HellfeatherZone.FennickWater + 0 { Marsh.Place(site, placer) }
+        else if id == HellfeatherZone.Croft + 0 { House.Place(site, placer) }
+        else if id == HellfeatherZone.Ravenford + 0 { Town.Place(site, placer) }
         else { Valley.Place(site, placer) }
     }
 
@@ -159,13 +197,18 @@ HellfeatherTerrain : QuaxelTerrain
     int SurfaceColor(QuaxelTerrainCell cell)
     {
         int color = 0x3b3128
-        if cell.Surface == QuaxelTerrainSurface.Rock { color = RockColor(cell) }
+        if Realm != HellfeatherRealm.Fenmarch && cell.Surface == QuaxelTerrainSurface.Rock { color = CryptColor(cell) }
+        else if Realm != HellfeatherRealm.Fenmarch && cell.Surface != HellfeatherSurface.Wire && cell.Surface != HellfeatherSurface.Millpond { color = FlagstoneColor(cell) }
+        else if cell.Surface == HellfeatherSurface.Wire { color = WireColor(cell) }
+        else if cell.Surface == QuaxelTerrainSurface.Rock { color = RockColor(cell) }
         else if cell.Surface == QuaxelTerrainSurface.Water { color = (cell.Hash % 13) == 0 ? 0x39505a | 0x1e2d36 }
         else if cell.Surface == QuaxelTerrainSurface.Bridge { color = BridgeColor(cell) }
         else if cell.Surface == QuaxelTerrainSurface.Yard { color = EarthColor(cell) }
         else if cell.Surface == QuaxelTerrainSurface.Path { color = RoadColor(cell) }
         else if cell.Surface == HellfeatherSurface.Cobble { color = CobbleColor(cell) }
         else if cell.Surface == HellfeatherSurface.Earth { color = EarthColor(cell) }
+        else if cell.Surface == HellfeatherSurface.Mud { color = MudColor(cell) }
+        else if cell.Surface == HellfeatherSurface.Millpond { color = MillpondColor(cell) }
         else { color = GroundColor(cell) }
         int light = 100 - (int)(cell.Wall * 42.0)
         return HellfeatherArt.Rgb(HellfeatherArt.Shade(color, light))
@@ -188,6 +231,23 @@ HellfeatherTerrain : QuaxelTerrain
         if !cell.Top { return 0x352b21 }
         float patch = QuaxelNoise.Fbm((uint)419, (float)cell.Column / 9.0, (float)cell.Row / 9.0, 2)
         return HellfeatherArt.Shade(0x5f4c38, 70 + (int)(patch * 44.0) + cell.Hash % 8)
+    }
+
+    // Wet black earth around Fennick's ponds, with standing water in the hollows.
+    -int MudColor(QuaxelTerrainCell cell)
+    {
+        if !cell.Top { return 0x2a241c }
+        if cell.Hash % 7 == 0 { return 0x26322f }
+        return HellfeatherArt.Shade(0x3d3326, 72 + cell.Hash % 24)
+    }
+
+    // The millpond is fed by the bearers below. Its water carries a faint
+    // silver sheen that the plain river does not.
+    -int MillpondColor(QuaxelTerrainCell cell)
+    {
+        if cell.Hash % 9 == 0 { return 0x8fa5ae }
+        if cell.Hash % 4 == 0 { return 0x3b5560 }
+        return 0x24363d
     }
 
     -int RoadColor(QuaxelTerrainCell cell)
@@ -227,6 +287,32 @@ HellfeatherTerrain : QuaxelTerrain
         if (band & 3) == 1 { tone = 0x3a342e }
         if (band & 3) == 3 { tone = 0x25211f }
         return HellfeatherArt.Shade(tone, 90 + cell.Hash % 22)
+    }
+
+    // Square flags two columns wide, worn and damp, in the Undercroft.
+    -int FlagstoneColor(QuaxelTerrainCell cell)
+    {
+        if !cell.Top { return 0x1d1a17 }
+        if cell.Column % 4 == 0 || cell.Row % 4 == 0 { return 0x141210 }
+        int stone = HellfeatherArt.Hash(cell.Column / 4, cell.Row / 4, 17)
+        int tone = (stone & 3) == 0 ? 0x3a3530 | 0x302c28
+        return HellfeatherArt.Shade(tone, 80 + stone % 24 + cell.Hash % 6)
+    }
+
+    // Silver wire stapled to the floor. It glints.
+    -int WireColor(QuaxelTerrainCell cell)
+    {
+        if !cell.Top { return 0x1d1a17 }
+        return cell.Hash % 5 == 0 ? 0xdfe8ee | 0x8e9aa2
+    }
+
+    // The Undercroft's walls: dressed stone low down, bare rock above.
+    -int CryptColor(QuaxelTerrainCell cell)
+    {
+        if cell.Top { return HellfeatherArt.Shade(0x1c1917, 80 + cell.Hash % 20) }
+        int course = (cell.Y / 3) & 1
+        if cell.Y % 3 == 0 || (cell.Column + cell.Row + course * 3) % 6 == 0 { return 0x0f0d0c }
+        return HellfeatherArt.Shade(0x34302b, 74 + cell.Hash % 24)
     }
 
     -int BridgeColor(QuaxelTerrainCell cell)

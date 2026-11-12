@@ -60,6 +60,20 @@ EnemyKind
     string Loot
     int LootIndex = -1
     int Animation = -1
+    // Another EnemyKind to borrow the model of while Model has not been made.
+    // Its voxels are scaled by StandInScale, so a stand-in can be sized to
+    // what it stands for.
+    string StandIn
+    float StandInScale = 1.0
+    bool UsesStandIn
+    // The enemy's move; see HellfeatherMove.
+    HellfeatherMove Move = HellfeatherMove.Peck
+    // The frame of the attack clip on which a blow lands. -1 picks 3 for the
+    // Evil Duck's hand-made clip and 2 for the generated ones.
+    int StrikeFrame = -1
+    // Most black feathers it drops when slain. Birds of the Moult drop them, and
+    // grow frenzied during a Featherfall.
+    int Feathers
 
     AddTo(EnemyTable& table)
     {
@@ -153,6 +167,8 @@ LootTable
 EnemyGroupEntry
 {
     string Name
+    // A HellfeatherZone value, or -1 for any clearing.
+    int Zone = -1
     int Weight
     float Spread
     int FirstMember
@@ -162,6 +178,8 @@ EnemyGroupEntry
 EnemyGroup
 {
     string Name
+    // The zone whose clearings roll this group. Any rolls it everywhere.
+    HellfeatherZone Zone = HellfeatherZone.Any
     int Weight = 1
     float Spread = 2.0
 
@@ -173,6 +191,7 @@ EnemyGroup
         if Weight <= 0 { table.Fail("EnemyGroup " + Name + " needs a Weight above 0") }
         EnemyGroupEntry entry
         entry.Name = Name
+        entry.Zone = Zone + 0
         entry.Weight = Weight
         entry.Spread = Spread
         entry.FirstMember = (int)table.Members.Len
@@ -236,14 +255,43 @@ EnemyTable
     }
 
     // Which group a roll chose, each with a chance in proportion to its weight.
-    int PickGroup(QuaxelRandom& random)
+    int PickGroup(QuaxelRandom& random) { return PickGroupIn(random, HellfeatherZone.Any + 0) }
+
+    bool GroupFits(int group, int zone) { return zone < 0 || Groups[group].Zone < 0 || Groups[group].Zone == zone }
+
+    // As PickGroup, among the groups that fit a zone. -1 when none fits.
+    int PickGroupIn(QuaxelRandom& random, int zone)
     {
-        int roll = random.Below(TotalWeight)
+        int total = 0
         for i : 0; i < Groups.Len; i++ {
+            if GroupFits(i, zone) { total += Groups[i].Weight }
+        }
+        if total == 0 { return -1 }
+        int roll = random.Below(total)
+        for i : 0; i < Groups.Len; i++ {
+            if !GroupFits(i, zone) { continue }
             roll -= Groups[i].Weight
             if roll < 0 { return i }
         }
-        return 0
+        return -1
+    }
+
+    // Points kinds whose model is missing at their stand-in's model.
+    ResolveStandIns()
+    {
+        for i : 0; i < Kinds.Len; i++ {
+            if Length(Kinds[i].StandIn) == 0 || QuaxelAssets.Exists(Kinds[i].Model) { continue }
+            int other = KindNamed(Kinds[i].StandIn)
+            if other < 0 {
+                Fail("no EnemyKind is named " + Kinds[i].StandIn)
+                continue
+            }
+            if Length(Kinds[other].StandIn) > 0 { Fail("stand-in " + Kinds[other].Name + " has a stand-in of its own") }
+            Kinds[i].Model = Kinds[other].Model
+            Kinds[i].Height = Kinds[other].Height
+            Kinds[i].VoxelSize = Kinds[other].VoxelSize * Kinds[i].StandInScale
+            Kinds[i].UsesStandIn = true
+        }
     }
 }
 
@@ -274,6 +322,10 @@ HellfeatherEnemySpawner
         for child : Data { ?child..AddTo(table) }
         // Kinds are all known by now, whatever order the tags came in.
         for child : Data { ?child..Link(table) }
+        table.ResolveStandIns()
+        for kind : table.Kinds {
+            if kind.StrikeFrame < 0 { kind.StrikeFrame = kind.Model == "Assets/EvilDuck.qvox" ? 3 | 2 }
+        }
         for i : 0; i < table.Kinds.Len; i++ {
             if Length(table.Kinds[i].Loot) == 0 { continue }
             table.Kinds[i].LootIndex = table.LootNamed(table.Kinds[i].Loot)
@@ -284,8 +336,9 @@ HellfeatherEnemySpawner
         return table
     }
 
-    // Reads the table and loads each kind's model once, for every enemy to share.
-    // Fails after printing what went wrong.
+    // Reads the table. Fails after printing what went wrong. Models load later,
+    // the first time an enemy of their kind wakes, since a level holds far more
+    // kinds than any one place shows.
     bool Load(QuaxelWorld& world)
     {
         Table = ReadTable()
@@ -293,11 +346,22 @@ HellfeatherEnemySpawner
             Print("Enemy data: " + Table.Error)
             return false
         }
-        for i : 0; i < Table.Kinds.Len; i++ {
-            Table.Kinds[i].Animation = QuaxelAssets.LoadVoxelAnimation(world, Table.Kinds[i].Model)
-            if Table.Kinds[i].Animation < 0 { return false }
-        }
         return true
+    }
+
+    // Loads a kind's model once, for every enemy of it to share. Kinds on the
+    // same model, as stand-ins are, share its animation.
+    bool EnsureModel(QuaxelWorld& world, int kind)
+    {
+        if Table.Kinds[kind].Animation >= 0 { return true }
+        for other : 0; other < Table.Kinds.Len; other++ {
+            if Table.Kinds[other].Animation >= 0 && Table.Kinds[other].Model == Table.Kinds[kind].Model {
+                Table.Kinds[kind].Animation = Table.Kinds[other].Animation
+                return true
+            }
+        }
+        Table.Kinds[kind].Animation = QuaxelAssets.LoadVoxelAnimation(world, Table.Kinds[kind].Model)
+        return Table.Kinds[kind].Animation >= 0
     }
 
     // One roll of a loot table. Returns an item, or HellfeatherItems.None for no drop.
@@ -678,6 +742,7 @@ HellfeatherGame : QuaxelGameInstance
         enemy.Damage = Spawner.Table.Kinds[kind].Damage
         enemy.Health = Spawner.Table.Kinds[kind].MaxHealth
         enemy.MaxHealth = Spawner.Table.Kinds[kind].MaxHealth
+        enemy.Move = Spawner.Table.Kinds[kind].Move
         enemy.Home = vec3(x, 0.0, z)
         return enemy
     }
@@ -712,7 +777,8 @@ HellfeatherGame : QuaxelGameInstance
         for n : 0; n < groups; n++ {
             vec3 center = vec3(0.0, 0.0, 0.0)
             if FindGroupCenter(site, random, firstHere, center) {
-                AddGroup(Spawner.Table.PickGroup(random), center, random)
+                int group = Spawner.Table.PickGroupIn(random, site.Module)
+                if group >= 0 { AddGroup(group, center, random) }
             }
         }
     }
@@ -840,6 +906,7 @@ HellfeatherGame : QuaxelGameInstance
             // A member with nowhere to stand sits this visit out.
             if !FindOpenSpot(x, z, radius) { continue }
             Enemies[i].Home = vec3(x, Terrain.GroundY(x, z) + radius, z)
+            if !Spawner.EnsureModel(world, Enemies[i].Kind) { return false }
             int node = world.CreateNode()
             world.AttachTransform(node, QuaxelTransform.Make(Enemies[i].Home, vec3(1.0, 1.0, 1.0)))
             world.SetCatchesEffects(node, false)

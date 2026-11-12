@@ -1,0 +1,251 @@
+// Ravens that give the Fenmarch some life. They are not enemies: they sit on
+// roofs, perches, shrines and gibbets, caw now and then, and take off when the
+// warrior comes close, to land on another free spot nearby. Ravenford has ravens
+// on every roof. The model in Assets/Raven.qvox comes from the raven's sprite
+// atlas, with idle, caw, fly and land clips.
+HellfeatherRavenSpot
+{
+    // Where the raven's feet go, in world units.
+    vec3 Feet
+    // Whether a raven sits there or is flying in to it.
+    bool Taken
+}
+
+HellfeatherRaven
+{
+    int Node
+    int Visual
+    int Spot = -1
+    // 0 perched, 1 flying off, 2 flying to a spot.
+    int State
+    float Timer
+    vec3 Velocity
+    bool Awake
+}
+
+HellfeatherRavens
+{
+    HellfeatherRavenSpot [] Spots
+    HellfeatherRaven [] Birds
+    int Animation = -1
+    QuaxelRandom Random
+
+    bool Load(QuaxelWorld& world)
+    {
+        if Animation >= 0 { return true }
+        Animation = QuaxelAssets.LoadVoxelAnimation(world, "Assets/Raven.qvox")
+        Random.Begin((uint)0x5EED7A4E)
+        return Animation >= 0
+    }
+
+    // Forgets every spot and bird, as when the level changes.
+    Clear(QuaxelWorld& world)
+    {
+        for bird : Birds {
+            if bird.Awake { world.DestroyNode(bird.Node) }
+        }
+        Birds.Clear()
+        Spots.Clear()
+    }
+
+    // A spot for a raven to sit, and whether one starts there.
+    AddSpot(vec3 feet, bool occupied)
+    {
+        HellfeatherRavenSpot spot
+        spot.Feet = feet
+        int index = (int)Spots.Len
+        Spots += spot
+        if !occupied { return }
+        HellfeatherRaven bird
+        bird.Spot = index
+        bird.Timer = Random.Range(1.0, 8.0)
+        Birds += bird
+        Spots[index].Taken = true
+    }
+
+    // Spots on the top of a model placed by the terrain: the highest voxel at a
+    // few points along its middle, for roofs, perches and gibbets.
+    AddRoof(QuaxelWorld& world, int volume, float voxel, vec3 base, int count)
+    {
+        ivec3 size = world.VolumeSize(volume)
+        for n : 0; n < count; n++ {
+            int x = size.X / 2 + (count == 1 ? 0 | (n - count / 2) * size.X / (count + 2))
+            int z = size.Z / 2
+            for y : size.Y - 1; y >= 0; y-- {
+                if world.GetVoxel(volume, x, y, z) < 0 { continue }
+                vec3 feet = vec3(base.X + ((float)x - (float)size.X * 0.5) * voxel, base.Y + (float)(y + 1) * voxel, base.Z)
+                AddSpot(feet, Random.Unit() < 0.8)
+                break
+            }
+        }
+    }
+
+    // Wakes birds near the player and sleeps distant ones, then moves them.
+    bool Step(QuaxelWorld& world, vec3 player, float deltaSeconds)
+    {
+        for i : 0; i < Birds.Len; i++ {
+            vec3 at = Birds[i].Awake ? world.GetPosition(Birds[i].Node) | Spots[Math.Max(0, Birds[i].Spot)].Feet
+            float distance = Math.Hypot(at.X - player.X, at.Z - player.Z)
+            if !Birds[i].Awake {
+                if Birds[i].Spot >= 0 && distance < WakeRadius && !Wake(world, i) { return false }
+                continue
+            }
+            if distance > SleepRadius && Birds[i].State == 0 {
+                world.DestroyNode(Birds[i].Node)
+                Birds[i].Awake = false
+                continue
+            }
+            Fly(world, i, player, deltaSeconds)
+        }
+        return true
+    }
+
+    -bool Wake(QuaxelWorld& world, int i)
+    {
+        Birds[i].Node = world.CreateNode()
+        world.AttachTransform(Birds[i].Node, QuaxelTransform.Make(Spots[Birds[i].Spot].Feet, vec3(1.0, 1.0, 1.0)))
+        world.SetCatchesEffects(Birds[i].Node, false)
+        Birds[i].Visual = world.CreateChild(Birds[i].Node)
+        QuaxelTransform pose = QuaxelTransform.Make(vec3(0.0, (float)Height * Voxel * 0.5, 0.0), vec3(Voxel, Voxel, Voxel))
+        float turn = Random.Range(0.0, 6.2831853)
+        pose.FacingX = Math.Cos(turn)
+        pose.FacingZ = Math.Sin(turn)
+        world.AttachTransform(Birds[i].Visual, pose)
+        if !world.AttachAnimator(Birds[i].Visual, Animation) || !world.PlayClip(Birds[i].Visual, "idle") { return false }
+        Birds[i].Awake = true
+        Birds[i].State = 0
+        return true
+    }
+
+    -bool Playing(QuaxelWorld& world, int visual)
+    {
+        QuaxelAnimator animator = world.GetAnimator(visual)
+        return animator.Playing
+    }
+
+    -Face(QuaxelWorld& world, int visual, vec3 direction)
+    {
+        if direction.X == 0.0 && direction.Z == 0.0 { return }
+        QuaxelTransform pose = world.GetTransform(visual)
+        vec3 flat = Math.Normalize(vec3(direction.X, 0.0, direction.Z))
+        pose.FacingX = flat.X
+        pose.FacingZ = flat.Z
+        world.SetTransform(visual, pose)
+    }
+
+    -Fly(QuaxelWorld& world, int i, vec3 player, float deltaSeconds)
+    {
+        int visual = Birds[i].Visual
+        QuaxelTransform transform = world.GetTransform(Birds[i].Node)
+        vec3 at = transform.Position
+        if Birds[i].State == 0 {
+            // Perched: caw now and then, and leave when she comes too close.
+            Birds[i].Timer -= deltaSeconds
+            if Birds[i].Timer <= 0.0 {
+                world.PlayClip(visual, "caw")
+                Birds[i].Timer = Random.Range(4.0, 11.0)
+            } else if world.CurrentClipName(visual) == "caw" && !Playing(world, visual) {
+                world.PlayClip(visual, "idle")
+            }
+            if Math.Hypot(at.X - player.X, at.Z - player.Z) < Startle {
+                vec3 away = Math.Normalize(vec3(at.X - player.X, 0.0, at.Z - player.Z) + vec3(Random.Range(-0.4, 0.4), 0.0, Random.Range(-0.4, 0.4)))
+                Birds[i].Velocity = vec3(away.X * FlySpeed, ClimbSpeed, away.Z * FlySpeed)
+                Spots[Birds[i].Spot].Taken = false
+                Birds[i].Spot = -1
+                Birds[i].State = 1
+                Birds[i].Timer = Random.Range(1.6, 2.6)
+                world.PlayClip(visual, "fly")
+                Face(world, visual, away)
+            }
+            return
+        }
+        if Birds[i].State == 1 {
+            // Climbing away, then choosing somewhere to come down.
+            Birds[i].Timer -= deltaSeconds
+            transform.Position = at + Birds[i].Velocity * deltaSeconds
+            world.SetTransform(Birds[i].Node, transform)
+            if Birds[i].Timer > 0.0 { return }
+            int spot = FreeSpotNear(transform.Position, player)
+            if spot < 0 {
+                // Nowhere to land: keep going, and come back to the first free spot later.
+                Birds[i].Timer = 3.0
+                return
+            }
+            Spots[spot].Taken = true
+            Birds[i].Spot = spot
+            Birds[i].State = 2
+            return
+        }
+        // Gliding in to the spot, and landing on it.
+        vec3 target = Spots[Birds[i].Spot].Feet
+        vec3 offset = target - at
+        float distance = offset.Length()
+        if distance < 0.05 {
+            transform.Position = target
+            world.SetTransform(Birds[i].Node, transform)
+            Birds[i].State = 0
+            Birds[i].Timer = Random.Range(3.0, 9.0)
+            world.PlayClip(visual, "idle")
+            return
+        }
+        float step = Math.Min(distance, FlySpeed * deltaSeconds)
+        transform.Position = at + offset * (step / distance)
+        world.SetTransform(Birds[i].Node, transform)
+        Face(world, visual, offset)
+        if distance < 1.2 { world.PlayClip(visual, "land") }
+        else { world.PlayClip(visual, "fly") }
+    }
+
+    // The nearest free spot that is not too close to the player.
+    -int FreeSpotNear(vec3 from, vec3 player)
+    {
+        int best = -1
+        float bestDistance = 1000000.0
+        for s : 0; s < Spots.Len; s++ {
+            if Spots[s].Taken { continue }
+            vec3 feet = Spots[s].Feet
+            if Math.Hypot(feet.X - player.X, feet.Z - player.Z) < Startle * 2.0 { continue }
+            float distance = Math.Hypot(feet.X - from.X, feet.Z - from.Z)
+            if distance < bestDistance && distance < 30.0 {
+                best = s
+                bestDistance = distance
+            }
+        }
+        return best
+    }
+
+    // How many ravens are in the air.
+    int Flying()
+    {
+        int count = 0
+        for bird : Birds {
+            if bird.Awake && bird.State != 0 { count++ }
+        }
+        return count
+    }
+}
+#{
+    #int Height = 20
+    // Larger than life, so they read at the camera's distance.
+    #float Voxel = 0.04
+    // World units.
+    #float Startle = 3.0
+    #float FlySpeed = 5.0
+    #float ClimbSpeed = 2.4
+    #float WakeRadius = 24.0
+    #float SleepRadius = 30.0
+
+    // Perches standing about Ravenford's square, in world units from its middle.
+    #int TownPerches = 6
+    float PerchX(int n)
+    {
+        float [6] xs = {-5.0, 5.0, -4.5, 3.5, -22.0, 23.0}
+        return xs[n]
+    }
+
+    float PerchZ(int n)
+    {
+        float [6] zs = {-9.5, -10.5, 6.5, 15.5, -6.0, -6.0}
+        return zs[n]
+    }
+}

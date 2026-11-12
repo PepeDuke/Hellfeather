@@ -1,0 +1,138 @@
+// A conversation: who speaks, a few lines, and the replies to choose from. The
+// panel sits at the top of the screen, over the world, and a click on a reply
+// hands its code to the quests. Lines are written short enough not to wrap.
+HellfeatherDialogue
+{
+    bool Open
+    string Speaker
+    string [] Lines
+    string [] Options
+    HellfeatherReply [] Replies
+    // The spot being talked to, or -1.
+    int Spot = -1
+    // The reply picked by the last Update, or None.
+    HellfeatherReply Chosen = HellfeatherReply.None
+    -int Hovered = -1
+    -bool MouseWasDown = true
+    -int PanelX
+    -int PanelY
+    -int PanelWidth
+    -int PanelHeight
+    -int Scale = 1
+
+    Begin(string speaker, int spot)
+    {
+        Open = true
+        Speaker = speaker
+        Lines.Clear()
+        Options.Clear()
+        Replies.Clear()
+        Spot = spot
+        Chosen = HellfeatherReply.None
+        // A click that opened it must be let go before a reply can be clicked.
+        MouseWasDown = true
+    }
+
+    Say(string line) { Lines += line }
+
+    Offer(string text, HellfeatherReply reply)
+    {
+        Options += text
+        Replies += reply
+    }
+
+    Close()
+    {
+        Open = false
+        Spot = -1
+    }
+
+    Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool mouseDown)
+    {
+        Chosen = HellfeatherReply.None
+        if !Open {
+            MouseWasDown = mouseDown
+            return
+        }
+        Scale = ui.ScaleFor(width, height)
+        int gridWidth = width / Scale
+        PanelWidth = Math.Min(gridWidth - 8, 292)
+        PanelHeight = 16 + (int)Lines.Len * 9 + 4 + (int)Options.Len * 10 + 4
+        PanelX = (gridWidth - PanelWidth) / 2
+        PanelY = 22
+        ui.OverlayRect(PanelX, PanelY, PanelWidth, PanelHeight, 0xE8100C0A)
+        ui.OverlayRect(PanelX, PanelY, PanelWidth, 1, 0xFF6A5236)
+        ui.OverlayRect(PanelX, PanelY + PanelHeight - 1, PanelWidth, 1, 0xFF6A5236)
+        ui.OverlayRect(PanelX, PanelY, 1, PanelHeight, 0xFF6A5236)
+        ui.OverlayRect(PanelX + PanelWidth - 1, PanelY, 1, PanelHeight, 0xFF6A5236)
+        ui.OverlayText(PanelX + 6, PanelY + 5, Speaker, 0xFFE0B860)
+        for n : 0; n < Lines.Len; n++ { ui.OverlayText(PanelX + 6, PanelY + 16 + n * 9, Lines[n], 0xFFE6DED0) }
+        int x = mouseX / Scale
+        int y = mouseY / Scale
+        Hovered = -1
+        int top = PanelY + 20 + (int)Lines.Len * 9
+        for n : 0; n < Options.Len; n++ {
+            int rowY = top + n * 10
+            bool over = x >= PanelX + 3 && x < PanelX + PanelWidth - 3 && y >= rowY - 1 && y < rowY + 9
+            if over {
+                Hovered = n
+                ui.OverlayRect(PanelX + 3, rowY - 1, PanelWidth - 6, 10, 0x60A07840)
+            }
+            ui.OverlayText(PanelX + 8, rowY, QuaxelUi.FormatInt(n + 1) + ". " + Options[n], over ? 0xFFFFD27A | 0xFFC9B48A)
+        }
+        bool pressed = mouseDown && !MouseWasDown
+        if pressed && Hovered >= 0 { Chosen = Replies[Hovered] }
+        MouseWasDown = mouseDown
+    }
+
+    // Whether the panel is under a point in window pixels.
+    bool Captures(int mouseX, int mouseY)
+    {
+        if !Open { return false }
+        int x = mouseX / Scale
+        int y = mouseY / Scale
+        return x >= PanelX && y >= PanelY && x < PanelX + PanelWidth && y < PanelY + PanelHeight
+    }
+}
+
+// A line across the screen for a moment: a quest taken, an event begun.
+HellfeatherBanner
+{
+    string Text
+    float Seconds
+
+    Show(string text, float seconds)
+    {
+        Text = text
+        Seconds = seconds
+    }
+
+    Step(float deltaSeconds) { Seconds = Math.Max(0.0, Seconds - deltaSeconds) }
+
+    Draw(QuaxelUi& ui, int width, int height)
+    {
+        if Seconds <= 0.0 || Length(Text) == 0 { return }
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        int textWidth = (int)Length(Text) * 6 - 1
+        int x = (gridWidth - textWidth) / 2
+        int y = gridHeight / 3
+        ui.OverlayRect(x - 6, y - 4, textWidth + 12, 15, 0xA0000000)
+        uint alpha = Seconds > 0.5 ? (uint)0xFF000000 | (uint)((int)(Seconds * 2.0 * 255.0) << 24)
+        ui.OverlayText(x, y, Text, alpha | (uint)0x00E8C878)
+    }
+}
+
+// What the quests want next, in the top left corner.
+HellfeatherTracker
+#{
+    Draw(QuaxelUi& ui, string []& lines)
+    {
+        for n : 0; n < lines.Len; n++ {
+            uint color = n == 0 ? 0xFFE0B860 | 0xFFCFC6B6
+            ui.OverlayRect(4, 6 + n * 9, (int)Length(lines[n]) * 6 + 5, 9, 0x80000000)
+            ui.OverlayText(6, 7 + n * 9, lines[n], color)
+        }
+    }
+}

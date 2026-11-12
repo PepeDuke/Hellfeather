@@ -1,8 +1,14 @@
 // Hellfeather supplies the game. Quaxel owns the main loop.
-Main()
+//
+//     Hellfeather.exe --start mill    starts somewhere else, for looking at it:
+//                                     matthew, hospice, marsh, mill, undercroft or deep
+Main(string [] args)
 {
     Print("Hellfeather / Quaxel")
     HellfeatherGame game()
+    for i : 0; i + 1 < args.Len; i++ {
+        if args[i] == "--start" { game.StartAt = args[i + 1] }
+    }
     if !QuaxelEngine.Run(game) { return }
     if !QuaxelPlatform.SupportsWindowing() {
         Print("Frames")

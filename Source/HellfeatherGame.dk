@@ -138,7 +138,7 @@ HellfeatherGame : QuaxelGameInstance
         long clock = 0
         QuaxelPlatform.ReadClock(clock)
         Shop.Shop.RestockSeeded((uint)(clock & (long)0x7FFFFFFF))
-        return SpawnTerrain(world) && SpawnPlayer(world) && SpawnKeeper(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world)
+        return SpawnTerrain(world) && SpawnPlayer(world) && SpawnKeeper(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world) && GoToStart(world)
     }
 
     -bool SpawnKeeper(QuaxelWorld& world)
@@ -152,6 +152,7 @@ HellfeatherGame : QuaxelGameInstance
     OpenShop()
     {
         Shop.Open = true
+        ShopIsMoth = false
         // The inventory takes the left side while trading.
         StatsScreen.Open = false
         Passives.Open = false
@@ -199,17 +200,53 @@ HellfeatherGame : QuaxelGameInstance
         }
     }
 
+    // Moth keeps a shop too; it closes when she walks away from him instead.
+    bool ShopIsMoth
+
     -bool FarFromKeeper(QuaxelWorld& world)
     {
         vec3 feet = Keeper.Feet(world)
+        int moth = People.FindPerson(HellfeatherPerson.Moth)
+        if ShopIsMoth && moth >= 0 { feet = People.Spots[moth].Feet }
         vec3 player = world.GetPosition(PlayerNode)
         return Math.Hypot(feet.X - player.X, feet.Z - player.Z) > HellfeatherShopKeeper.LeaveReach
+    }
+
+    // The Fenmarch's terrain. The Undercroft's levels have their own.
+    QuaxelTerrainConfig FenmarchConfig()
+    {
+        QuaxelTerrainConfig config
+        config.Seed = (uint)TerrainSeed()
+        config.RoadWidth = 1.6
+        config.GroundRoughness = 1
+        config.TerraceStep = 5
+        config.EntryRadius = Ravenford.Radius
+        return config
     }
 
     -bool SpawnTerrain(QuaxelWorld& world)
     {
         Terrain.House.Volume = HellfeatherHouse.Build(world)
         Terrain.Town.Church = HellfeatherChurch.Build(world)
+        Landmarks = HellfeatherLandmarks.Load(world)
+        Terrain.Town.Landmarks = Landmarks
+        Terrain.Hall.Landmarks = Landmarks
+        // The code-built church and cottage stand in for missing models.
+        Terrain.Hill.Hospice = Landmarks.OrrasHospice
+        if Landmarks.OrrasHospice < 0 {
+            Terrain.Hill.Hospice = Terrain.Town.Church
+            Terrain.Hill.HospiceHalf = HellfeatherChurch.Half
+            Terrain.Hill.HospiceHeight = HellfeatherChurch.Height
+            Terrain.Hill.HospiceSight = HellfeatherChurch.Sight
+        }
+        Terrain.Mill.Mill = Landmarks.HobbsMill
+        if Landmarks.HobbsMill < 0 {
+            Terrain.Mill.Mill = Terrain.House.Volume
+            Terrain.Mill.MillHalf = HellfeatherHouse.Half
+            Terrain.Mill.MillHeight = HellfeatherHouse.Height
+            Terrain.Mill.MillSight = HellfeatherHouse.Height
+            Terrain.Mill.MillVoxel = 0.125
+        }
         Terrain.Town.Volumes = RavenfordVolumes.Build(world)
         if Terrain.House.Volume < 0 || Terrain.Town.Church < 0 || !Terrain.Town.Volumes.Complete { return false }
         HellfeatherProps props = HellfeatherProps.Build(world)
@@ -217,13 +254,15 @@ HellfeatherGame : QuaxelGameInstance
         Terrain.River.Props = props
         Terrain.House.Props = props
         Terrain.Town.Props = props
-        QuaxelTerrainConfig config
-        config.Seed = (uint)TerrainSeed()
-        config.RoadWidth = 1.6
-        config.GroundRoughness = 1
-        config.TerraceStep = 5
-        config.EntryRadius = Ravenford.Radius
-        return Terrain.Configure(config) && Terrain.Start(world, vec3(0.0, 0.0, 0.0))
+        Terrain.Marsh.Props = props
+        Terrain.Hill.Props = props
+        Terrain.Mill.Props = props
+        Terrain.Hall.Props = props
+        Terrain.Landing.Props = props
+        if !Terrain.Configure(FenmarchConfig()) || !Terrain.Start(world, vec3(0.0, 0.0, 0.0)) { return false }
+        SetUpCast()
+        SetUpRavens(world)
+        return true
     }
 
     // Where a walker of this radius stands at a point on the ground.
@@ -277,6 +316,7 @@ HellfeatherGame : QuaxelGameInstance
         QuaxelPlatform.ReadClock(now)
         Spawner.LootRandom.Begin((uint)(now & (long)0x7FFFFFFF))
         PopulateEnemies()
+        AddUniques()
         return UpdateSpawns(world, world.GetPosition(PlayerNode))
     }
 
@@ -359,6 +399,7 @@ HellfeatherGame : QuaxelGameInstance
         Fires.Step(world, Terrain.Valley.Props.Brazier, Terrain.Town.Volumes.Campfire, world.GetPosition(PlayerNode), deltaSeconds)
         if !UpdateSpawns(world, world.GetPosition(PlayerNode)) { Print("Enemy spawning failed") }
         Globes.Step(world, (float)PlayerHealth / (float)PlayerMaxHealth(), (float)PlayerMana / (float)PlayerMaxMana(), deltaSeconds)
+        StepAct(world, deltaSeconds)
         if PlayerHealth <= 0 {
             StepFallenPlayer(world, deltaSeconds)
             RequestedAction = HellfeatherAction.None
@@ -545,10 +586,13 @@ HellfeatherGame : QuaxelGameInstance
         float reach = cleave ? CleaveReach() | AxeReach()
         int damage = cleave ? CleaveDamage() | AxeDamage()
         if WarCrySeconds > 0.0 { damage *= 2 }
+        bool shards = Inventory.Items.Equipped[HellfeatherSlot.Neck] == HellfeatherItems.MardrasRingShards
         for i : 0; i < Enemies.Len; i++ {
             if !Enemies[i].Awake || Enemies[i].Health <= 0 { continue }
             if GroundDistance(origin, world.GetPosition(Enemies[i].Node)) > reach { continue }
-            Enemies[i].Health -= damage
+            Enemies[i].Health -= Taken(world, i, origin, damage)
+            Enemies[i].Provoked = true
+            if shards { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + 2) }
             bool slain = Enemies[i].Health <= 0
             Bleed(world, Enemies[i].Node, origin, slain)
             if slain {
@@ -557,9 +601,41 @@ HellfeatherGame : QuaxelGameInstance
                 Enemies[i].Health = 0
                 Enemies[i].RespawnTimer = RespawnSeconds()
                 DropLoot(world, i)
+                DropFeathers(world, i)
+                CountKill(world, i)
             }
             world.PlayClip(Enemies[i].VisualNode, slain ? "death" | "hit")
         }
+    }
+
+    // What a blow does to an enemy. A shield turns half of a blow from the front,
+    // and a blow while Mardra channels her ring staggers her and lands twice over.
+    -int Taken(QuaxelWorld& world, int i, vec3 origin, int damage)
+    {
+        HellfeatherMove move = Enemies[i].Move
+        if move == HellfeatherMove.Shield && Enemies[i].VisualNode != 0 {
+            QuaxelTransform pose = world.GetTransform(Enemies[i].VisualNode)
+            vec3 at = world.GetPosition(Enemies[i].Node)
+            vec3 toward = Math.Normalize(vec3(origin.X - at.X, 0.0, origin.Z - at.Z))
+            if pose.FacingX * toward.X + pose.FacingZ * toward.Z > 0.5 { return damage / 2 }
+        }
+        if move == HellfeatherMove.Brood && Enemies[i].Phase == 1 {
+            Enemies[i].Stagger = 2.5
+            NextPhase(i, 0)
+            Banner.Show("The ring flares. Mardra staggers", 2.0)
+            return damage * 2
+        }
+        return damage
+    }
+
+    // Black feathers from a slain bird of the Moult, more in a Featherfall.
+    -DropFeathers(QuaxelWorld& world, int index)
+    {
+        int most = Spawner.Table.Kinds[Enemies[index].Kind].Feathers
+        if most <= 0 { return }
+        int amount = 1 + Spawner.LootRandom.Below(most)
+        if Featherfall.Active { amount += 2 }
+        Ground.PlaceFeathers(world, amount, DropSpotAround(world.GetPosition(Enemies[index].Node)))
     }
 
     // Rolls the enemy's loot onto the ground around it, the first time it falls.
@@ -646,9 +722,13 @@ HellfeatherGame : QuaxelGameInstance
         PlayerHealth = PlayerMaxHealth()
         PlayerMana = PlayerMaxMana()
         FallenSeconds = 0.0
+        // Back to Ravenford, or to the landing of the level she fell on.
+        vec3 home = vec3(0.0, 0.0, 0.0)
+        if Terrain.Realm != HellfeatherRealm.Fenmarch { home = HellfeatherRealm.Landing(Terrain.Realm) + vec3(0.0, 0.0, 1.5) }
         QuaxelTransform transform = world.GetTransform(PlayerNode)
-        transform.Position = StandingAt(0.0, 0.0, PlayerRadius())
+        transform.Position = StandingAt(home.X, home.Z, PlayerRadius())
         world.SetTransform(PlayerNode, transform)
+        ClearShots(world)
         for controller : Controllers { SetFall(world, controller.VisualNode, 0.0) }
         for i : 0; i < Enemies.Len; i++ {
             if Enemies[i].Health > 0 || Enemies[i].Respawns { RespawnEnemy(world, i) }
@@ -659,6 +739,9 @@ HellfeatherGame : QuaxelGameInstance
     {
         Enemies[index].Health = Enemies[index].MaxHealth
         Enemies[index].Cooldown = 0.0
+        Enemies[index].Phase = 0
+        Enemies[index].PhaseTime = 0.0
+        Enemies[index].Stagger = 0.0
         if !Enemies[index].Awake { return }
         QuaxelTransform transform = world.GetTransform(Enemies[index].Node)
         transform.Position = Enemies[index].Home
@@ -678,42 +761,13 @@ HellfeatherGame : QuaxelGameInstance
                 }
                 continue
             }
-            if Enemies[i].Cooldown > 0.0 { Enemies[i].Cooldown -= deltaSeconds }
-            int node = Enemies[i].Node
-            int visual = Enemies[i].VisualNode
             if PlayerHealth <= 0 {
-                world.PlayClip(visual, "idle")
+                if Enemies[i].Cooldown > 0.0 { Enemies[i].Cooldown -= deltaSeconds }
+                world.SetAnimationSpeed(Enemies[i].VisualNode, 1.0)
+                world.PlayClip(Enemies[i].VisualNode, "idle")
                 continue
             }
-            QuaxelTransform transform = world.GetTransform(node)
-            vec3 offset = vec3(player.X - transform.Position.X, 0.0, player.Z - transform.Position.Z)
-            // Too far to notice the player, so it stands guard where it is.
-            if offset.Length() > Enemies[i].Notice {
-                world.PlayClip(visual, "idle")
-                continue
-            }
-            vec3 direction = Math.Normalize(offset)
-            FaceAlong(world, visual, direction)
-            QuaxelAnimator animator = world.GetAnimator(visual)
-            if world.CurrentClipName(visual) == "hit" && animator.Playing { continue }
-            if world.CurrentClipName(visual) == "attack" && animator.Playing {
-                if !Enemies[i].PeckLanded && animator.Frame >= PeckStrikeFrame() {
-                    Enemies[i].PeckLanded = true
-                    if offset.Length() <= Enemies[i].Reach + PeckDodgeMargin() { DamagePlayer(world, Enemies[i].Damage) }
-                }
-                continue
-            }
-            if offset.Length() > Enemies[i].Reach {
-                transform.Position = Walk(transform.Position, direction, Enemies[i].Speed, Enemies[i].Radius, deltaSeconds)
-                world.SetTransform(node, transform)
-                world.PlayClip(visual, "walk")
-            } else if Enemies[i].Cooldown > 0.0 {
-                world.PlayClip(visual, "idle")
-            } else {
-                world.PlayClip(visual, "attack")
-                Enemies[i].PeckLanded = false
-                Enemies[i].Cooldown = EnemyPeckCooldown()
-            }
+            StepEnemy(world, i, player, deltaSeconds)
         }
     }
 
@@ -736,7 +790,7 @@ HellfeatherGame : QuaxelGameInstance
 
     -bool ClickTaken(int mouseX, int mouseY)
     {
-        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || Ground.Hovered >= 0 || Keeper.Hovered
+        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || Ground.Hovered >= 0 || Keeper.Hovered || People.Hovered >= 0 || Talk.Captures(mouseX, mouseY)
     }
 
     // Moves the item on the cursor to the ground beside the warrior.
@@ -783,6 +837,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         if !Ground.InReach(index, world.GetPosition(PlayerNode)) { return false }
         if Ground.Entries[index].Item == HellfeatherItems.Gold { Inventory.Items.Gold += Ground.Entries[index].Amount }
+        else if Ground.Entries[index].Item == HellfeatherItems.BlackFeather { Inventory.Items.Feathers += Ground.Entries[index].Amount }
         else if !Inventory.Items.AddWith(Ground.Entries[index].Item, Ground.Entries[index].Mods) { return false }
         Ground.Remove(world, index)
         return true
@@ -799,8 +854,10 @@ HellfeatherGame : QuaxelGameInstance
             if !Inventory.OverPanel(mouseX, mouseY) && !StatsScreen.OverPanel(mouseX, mouseY) && !Passives.OverPanel(mouseX, mouseY) && !Runes.OverPanel(mouseX, mouseY) && !Shop.OverPanel(mouseX, mouseY) && !Actions.OverBar(mouseX, mouseY) { DropHeld(world) }
             return
         }
+        if Talk.Captures(mouseX, mouseY) { return }
         if Ground.Hovered >= 0 { TakeFromGround(world, Ground.Hovered) }
         else if Keeper.Hovered && Keeper.InReach(world, world.GetPosition(PlayerNode)) { OpenShop() }
+        else if People.Hovered >= 0 && People.InReach(People.Hovered, world.GetPosition(PlayerNode)) { Use(world, People.Hovered) }
     }
 
     UpdateUi(QuaxelUi& ui, QuaxelWorld& world)
@@ -818,9 +875,21 @@ HellfeatherGame : QuaxelGameInstance
         if hasWindow {
             bool panelsFree = !Inventory.Captures(mouseX, mouseY) && !StatsScreen.Captures(mouseX, mouseY) && !Passives.Captures(mouseX, mouseY) && !Runes.Captures(mouseX, mouseY) && !Shop.Captures(mouseX, mouseY) && !Actions.Captures(mouseX, mouseY)
             Keeper.DrawLabel(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, panelsFree)
+            DrawPeople(ui, world, windowWidth, windowHeight, mouseX, mouseY, panelsFree && !Keeper.Hovered && !Talk.Captures(mouseX, mouseY))
             Ground.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, panelsFree)
             // An item's title wins over the shopkeeper behind it.
-            if Ground.Hovered >= 0 { Keeper.Hovered = false }
+            if Ground.Hovered >= 0 {
+                Keeper.Hovered = false
+                People.Hovered = -1
+            }
+            DrawAimLines(ui, world, windowWidth, windowHeight)
+            Talk.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
+            if Talk.Chosen != HellfeatherReply.None { Answer(world, Talk.Chosen) }
+            Banner.Draw(ui, windowWidth, windowHeight)
+            if !StatsScreen.Open && !Passives.Open && !Runes.Open && !Shop.Open {
+                lines : Quests.Objectives()
+                HellfeatherTracker.Draw(ui, lines)
+            }
         }
         // Before the panels handle this click, so closing one cannot also swing the axe.
         ClickWorld(world, mouseX, mouseY, mouseDown)
@@ -899,20 +968,21 @@ T{
         int rivers = 0
         int houses = 0
         for i : 0; i < game.Terrain.Layout.Sites.Len; i++ {
-            if game.Terrain.Layout.Sites[i].Module == 1 {
+            if game.Terrain.Layout.Sites[i].Module == HellfeatherZone.FordRoad + 0 {
                 rivers++
                 T.IsTrue(game.Terrain.Layout.Sites[i].PortCount >= 2)
             }
-            if game.Terrain.Layout.Sites[i].Module == 2 { houses++ }
+            if game.Terrain.Layout.Sites[i].Module == HellfeatherZone.Croft + 0 { houses++ }
         }
         T.IsTrue(rivers > 0 && houses > 0)
-        T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, 3)
+        T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, HellfeatherZone.Ravenford + 0)
         int buildings = 0
         for i : 0; i < game.Terrain.Placements.Len; i++ {
             if !game.Terrain.Placements[i].Prop { buildings++ }
         }
-        // Ravenford's buildings plus at most one cottage per house clearing.
-        T.IsTrue(buildings >= 15 && buildings <= houses + 15)
+        // Ravenford's buildings, at most one cottage per house clearing, and at
+        // most the hospice and the mill.
+        T.IsTrue(buildings >= 15 && buildings <= houses + 17)
     }
 
     TheIKeyTogglesTheInventoryOncePerPress()
@@ -1164,7 +1234,8 @@ T{
             if game.Terrain.Placements[i].Half == 0 { fixtures++ }
             if !game.Terrain.Placements[i].Prop {
                 buildings++
-                if game.Terrain.Placements[i].Volume == game.Terrain.Town.Church { foundChurch = true }
+                // The Rookery Tower stands on the church's corner.
+                if game.Terrain.Placements[i].Volume == game.Landmarks.RookeryTower { foundChurch = true }
             }
         }
         T.IsTrue(foundChurch)
@@ -1217,7 +1288,7 @@ T{
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
         for i : 0; i < game.Terrain.Layout.Sites.Len; i++ {
-            if game.Terrain.Layout.Sites[i].Module != 1 { continue }
+            if game.Terrain.Layout.Sites[i].Module != HellfeatherZone.FordRoad + 0 { continue }
             QuaxelTerrainSite site = game.Terrain.Layout.Sites[i]
             vec3 center = game.Terrain.WorldPoint(site.X, site.Z)
             int calls = 0

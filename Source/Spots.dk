@@ -1,0 +1,238 @@
+// The people of Act I and the things in the world that can be clicked: doors,
+// stairs, Jessa's garret, Mardra's ring pedestal and chained bearers. Each spot
+// shows a name over itself, like the shopkeeper's, and a click on it within
+// reach is handed to the quests. Spots belong to one level and only have nodes
+// while the warrior is near.
+HellfeatherSpotKind : int
+#@{
+    Person,
+    // Through it to another level.
+    Door,
+    StairsUp,
+    StairsDown,
+    Garret,
+    Pedestal,
+    // The nearest chained Hollowed Bearer, which the Tithe-mark can free.
+    Bearer
+}
+
+HellfeatherPerson : int
+#@{
+    None: -1,
+    Matthew,
+    Edda,
+    Reeve,
+    Marra,
+    Moth,
+    Carmine,
+    Jessa,
+    Vale,
+    OldHobb,
+    Lise
+}
+
+HellfeatherSpot
+{
+    HellfeatherSpotKind Kind
+    HellfeatherPerson Person = HellfeatherPerson.None
+    string Title
+    HellfeatherRealm Realm
+    vec3 Feet
+    // How high the name sits over the feet, in world units.
+    float Top = 1.9
+    float FacingX = 0.70710678
+    float FacingZ = 0.70710678
+    // An animated model to load, or empty to show Volume, or neither.
+    string Model
+    int Volume = -1
+    float Voxel = 0.025
+    int Height = 72
+    bool Shown = true
+    int Node
+    int Visual
+    // The enemy a Bearer spot stands for.
+    int Enemy = -1
+}
+
+HellfeatherSpots
+{
+    HellfeatherSpot [] Spots
+    // The spot under the mouse as of the last DrawLabels, or -1.
+    int Hovered = -1
+    -string [] Paths
+    -int [] Animations
+
+    int Add(HellfeatherSpotKind kind, string title, HellfeatherRealm realm, vec3 feet)
+    {
+        HellfeatherSpot spot
+        spot.Kind = kind
+        spot.Title = title
+        spot.Realm = realm
+        spot.Feet = feet
+        Spots += spot
+        return (int)Spots.Len - 1
+    }
+
+    int AddPerson(HellfeatherPerson person, string title, HellfeatherRealm realm, vec3 feet, string model, float voxel, int height)
+    {
+        int index = Add(HellfeatherSpotKind.Person, title, realm, feet)
+        Spots[index].Person = person
+        Spots[index].Model = model
+        Spots[index].Voxel = voxel
+        Spots[index].Height = height
+        Spots[index].Top = (float)height * voxel + 0.15
+        return index
+    }
+
+    int AddModel(HellfeatherSpotKind kind, string title, HellfeatherRealm realm, vec3 feet, int volume, float voxel, int height)
+    {
+        int index = Add(kind, title, realm, feet)
+        Spots[index].Volume = volume
+        Spots[index].Voxel = voxel
+        Spots[index].Height = height
+        Spots[index].Top = (float)height * voxel + 0.2
+        return index
+    }
+
+    int FindPerson(HellfeatherPerson person)
+    {
+        for i : 0; i < Spots.Len; i++ {
+            if Spots[i].Person == person { return i }
+        }
+        return -1
+    }
+
+    int FindKind(HellfeatherSpotKind kind, HellfeatherRealm realm)
+    {
+        for i : 0; i < Spots.Len; i++ {
+            if Spots[i].Kind == kind && Spots[i].Realm == realm { return i }
+        }
+        return -1
+    }
+
+    // Drops every spot of a level, as when it is built again.
+    RemoveRealm(QuaxelWorld& world, HellfeatherRealm realm)
+    {
+        for -spot : Spots {
+            if spot.Realm != realm { continue }
+            if spot.Node != 0 { world.DestroyNode(spot.Node) }
+            Spots -= spot
+        }
+        Hovered = -1
+    }
+
+    // Gives nodes to shown spots near the player on her level, and takes them
+    // from the rest. Returns false on a failed world call.
+    bool Step(QuaxelWorld& world, vec3 player, HellfeatherRealm realm)
+    {
+        for spot : Spots {
+            bool near = spot.Shown && spot.Realm == realm && Math.Hypot(spot.Feet.X - player.X, spot.Feet.Z - player.Z) < WakeRadius
+            if !near {
+                if spot.Node != 0 {
+                    world.DestroyNode(spot.Node)
+                    spot.Node = 0
+                    spot.Visual = 0
+                }
+                continue
+            }
+            if spot.Node != 0 || (Length(spot.Model) == 0 && spot.Volume < 0) { continue }
+            spot.Node = world.CreateNode()
+            world.AttachTransform(spot.Node, QuaxelTransform.Make(spot.Feet, vec3(1.0, 1.0, 1.0)))
+            world.SetCatchesEffects(spot.Node, false)
+            spot.Visual = world.CreateChild(spot.Node)
+            QuaxelTransform pose = QuaxelTransform.Make(vec3(0.0, (float)spot.Height * spot.Voxel * 0.5, 0.0), vec3(spot.Voxel, spot.Voxel, spot.Voxel))
+            pose.FacingX = spot.FacingX
+            pose.FacingZ = spot.FacingZ
+            world.AttachTransform(spot.Visual, pose)
+            if Length(spot.Model) > 0 {
+                int animation = AnimationFor(world, spot.Model)
+                if animation < 0 || !world.AttachAnimator(spot.Visual, animation) { return false }
+                world.PlayClip(spot.Visual, "idle")
+            } else if !world.AttachVoxels(spot.Visual, spot.Volume) { return false }
+        }
+        return true
+    }
+
+    // A person's model, loaded once.
+    -int AnimationFor(QuaxelWorld& world, string path)
+    {
+        for i : 0; i < Paths.Len; i++ {
+            if Paths[i] == path { return Animations[i] }
+        }
+        int animation = QuaxelAssets.LoadVoxelAnimation(world, path)
+        Paths += path
+        Animations += animation
+        return animation
+    }
+
+    // Plays talk on one person and idle on the rest.
+    SetTalking(QuaxelWorld& world, int talking)
+    {
+        for i : 0; i < Spots.Len; i++ {
+            if Spots[i].Visual == 0 || Length(Spots[i].Model) == 0 { continue }
+            world.PlayClip(Spots[i].Visual, i == talking ? "talk" | "idle")
+        }
+    }
+
+    bool InReach(int index, vec3 player)
+    {
+        vec3 feet = Spots[index].Feet
+        return Math.Hypot(feet.X - player.X, feet.Z - player.Z) <= Reach
+    }
+
+    // Draws the names of shown spots on her level and finds which the mouse is
+    // on. News marks spots that have something new to say. MouseFree is false
+    // while a panel owns the mouse.
+    DrawLabels(QuaxelUi& ui, QuaxelWorld& world, int cameraNode, vec3 player, HellfeatherRealm realm, bool []& news, int width, int height, int mouseX, int mouseY, bool mouseFree)
+    {
+        Hovered = -1
+        QuaxelCamera camera = world.GetCamera(cameraNode)
+        camera.UpdateBounds(width, height)
+        mat4 screen = camera.ViewProjection(world.WorldPosition(cameraNode))
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        for i : 0; i < Spots.Len; i++ {
+            if !Spots[i].Shown || Spots[i].Realm != realm { continue }
+            vec3 feet = Spots[i].Feet
+            if Math.Hypot(feet.X - player.X, feet.Z - player.Z) > WakeRadius { continue }
+            vec4 low = screen * vec4(feet, 1.0)
+            vec4 high = screen * vec4(feet + vec3(0.0, Spots[i].Top, 0.0), 1.0)
+            if Math.Abs(low.X) > 1.1 || Math.Abs(low.Y) > 1.1 { continue }
+            int footX = (int)((low.X + 1.0) * 0.5 * (float)gridWidth)
+            int footY = (int)((low.Y + 1.0) * 0.5 * (float)gridHeight)
+            int headY = (int)((high.Y + 1.0) * 0.5 * (float)gridHeight)
+            int halfWide = Math.Max(4, (footY - headY) / 3)
+            string title = Spots[i].Title
+            bool marked = i < news.Len && news[i]
+            if marked { title = "! " + title }
+            int boxWidth = (int)Length(title) * 6 - 1 + 8
+            int boxHeight = 11
+            int boxX = Math.Clamp(footX - boxWidth / 2, 1, Math.Max(gridWidth - boxWidth - 1, 1))
+            int boxY = headY - 4 - boxHeight
+            bool hovered = false
+            if mouseFree && Hovered < 0 {
+                int x = mouseX / scale
+                int y = mouseY / scale
+                bool onBody = Math.Abs(x - footX) <= halfWide && y >= headY && y <= footY
+                bool onName = x >= boxX && y >= boxY && x < boxX + boxWidth && y < boxY + boxHeight
+                hovered = onBody || onName
+                if hovered { Hovered = i }
+            }
+            ui.OverlayRect(boxX + 1, boxY + 1, boxWidth - 2, boxHeight - 2, 0x90000000)
+            ui.OverlayRect(boxX, boxY, boxWidth, 1, 0xD0000000)
+            ui.OverlayRect(boxX, boxY + boxHeight - 1, boxWidth, 1, 0xD0000000)
+            ui.OverlayRect(boxX, boxY + 1, 1, boxHeight - 2, 0xD0000000)
+            ui.OverlayRect(boxX + boxWidth - 1, boxY + 1, 1, boxHeight - 2, 0xD0000000)
+            uint color = 0xFF8C8880
+            if InReach(i, player) { color = hovered ? 0xFFFFD27A | 0xFFEDE6D8 }
+            else if marked { color = 0xFFC9A75A }
+            ui.OverlayText(boxX + 4, boxY + 2, title, color)
+        }
+    }
+}
+#{
+    // World units.
+    #float Reach = 3.0
+    #float WakeRadius = 16.0
+}

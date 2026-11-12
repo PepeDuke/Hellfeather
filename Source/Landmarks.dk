@@ -1,0 +1,137 @@
+// Ravenford's story buildings and the landmarks of the wild zones, as cut from
+// the Act I concept sheets by Tools/Models/act1.py. Each is -1 while its file is
+// missing, and whatever uses it falls back to a code-built model. All of them
+// have voxels a sixteenth of a unit across, and fronts that face +Z.
+HellfeatherLandmarks
+{
+    int CrookedRaven = -1
+    int RookeryTower = -1
+    int ReevesHall = -1
+    int PellsChandlery = -1
+    int SennsNeedlehouse = -1
+    int LanternAndMoth = -1
+    int OrrasHospice = -1
+    int HobbsMill = -1
+    int RavenPerch = -1
+    int IronFrame = -1
+    int RingPedestal = -1
+    int JessaBed = -1
+    // Code-built: the millrace door, the stairs of the Undercroft, and what
+    // enemies spit and shoot.
+    int Doorway = -1
+    int Stairs = -1
+    int Spit = -1
+    int Bolt = -1
+}
+#{
+    HellfeatherLandmarks Load(QuaxelWorld& world)
+    {
+        HellfeatherLandmarks made
+        made.CrookedRaven = QuaxelAssets.LoadVoxelModel(world, "Assets/CrookedRaven.qvox")
+        made.RookeryTower = QuaxelAssets.LoadVoxelModel(world, "Assets/RookeryTower.qvox")
+        made.ReevesHall = QuaxelAssets.LoadVoxelModel(world, "Assets/ReevesHall.qvox")
+        made.PellsChandlery = QuaxelAssets.LoadVoxelModel(world, "Assets/PellsChandlery.qvox")
+        made.SennsNeedlehouse = QuaxelAssets.LoadVoxelModel(world, "Assets/SennsNeedlehouse.qvox")
+        made.LanternAndMoth = QuaxelAssets.LoadVoxelModel(world, "Assets/LanternAndMoth.qvox")
+        made.OrrasHospice = QuaxelAssets.LoadVoxelModel(world, "Assets/OrrasHospice.qvox")
+        made.HobbsMill = QuaxelAssets.LoadVoxelModel(world, "Assets/HobbsMill.qvox")
+        made.RavenPerch = QuaxelAssets.LoadVoxelModel(world, "Assets/RavenPerch.qvox")
+        made.IronFrame = QuaxelAssets.LoadVoxelModel(world, "Assets/IronFrame.qvox")
+        made.RingPedestal = QuaxelAssets.LoadVoxelModel(world, "Assets/RingPedestal.qvox")
+        made.JessaBed = QuaxelAssets.LoadVoxelModel(world, "Assets/JessaBed.qvox")
+        made.Doorway = BuildDoorway(world)
+        made.Stairs = BuildStairs(world)
+        made.Spit = BuildSpit(world)
+        made.Bolt = BuildBolt(world)
+        return made
+    }
+
+    // Sizes in voxels of the code-built models.
+    #int DoorWidth = 28
+    #int DoorHeight = 40
+    #int StairsWidth = 32
+    #int StairsHeight = 12
+
+    // A low door with iron bands in a stone frame, the way down under the mill.
+    -int BuildDoorway(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(DoorWidth, DoorHeight, 8)
+        if volume < 0 { return -1 }
+        for x : 0; x < DoorWidth; x++ {
+            for y : 0; y < DoorHeight; y++ {
+                // An arch: the opening narrows toward the top.
+                float middle = (float)(DoorWidth - 1) * 0.5
+                float across = Math.Abs((float)x - middle)
+                bool opening = across < 9.0 && (float)y < 30.0 - across * across / 14.0
+                bool frame = !opening && across < 13.5 && (float)y < 36.0 - across * across / 14.0
+                for z : 0; z < 8; z++ {
+                    if frame {
+                        int stone = (x / 4 + y / 3) % 2 == 0 ? 0x4a4642 | 0x3c3936
+                        world.SetVoxel(volume, x, y, z, HellfeatherArt.Rgb(HellfeatherArt.Shade(stone, 80 + HellfeatherArt.Hash(x, y, z) % 30)))
+                    } else if opening && z == 2 {
+                        // Planks with two iron bands.
+                        int wood = (y == 8 || y == 20) ? 0x2a2a2c | (x % 3 == 0 ? 0x2e2014 | 0x3b2a1a)
+                        world.SetVoxel(volume, x, y, z, HellfeatherArt.Rgb(wood))
+                    }
+                }
+            }
+        }
+        return volume
+    }
+
+    // Worn steps with a dark well beside them, for going up or down a level.
+    -int BuildStairs(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(StairsWidth, StairsHeight, StairsWidth)
+        if volume < 0 { return -1 }
+        for x : 0; x < StairsWidth; x++ {
+            for z : 0; z < StairsWidth; z++ {
+                bool rim = x < 3 || z < 3 || x >= StairsWidth - 3 || z >= StairsWidth - 3
+                int step = z / 4
+                for y : 0; y < StairsHeight; y++ {
+                    int color = 0
+                    if rim {
+                        if y < StairsHeight - 2 { color = HellfeatherArt.Shade(0x47423c, 75 + HellfeatherArt.Hash(x, y, z) % 30) }
+                    } else if y < Math.Max(1, StairsHeight - 2 - step * 2) {
+                        color = HellfeatherArt.Shade(0x5a544c, 70 + HellfeatherArt.Hash(x, y, z) % 25 - step * 6)
+                    } else if y == 0 {
+                        color = 0x0b0a09
+                    }
+                    if color != 0 { world.SetVoxel(volume, x, y, z, HellfeatherArt.Rgb(color)) }
+                }
+            }
+        }
+        return volume
+    }
+
+    // A ball of silver pond water.
+    -int BuildSpit(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(6, 6, 6)
+        if volume < 0 { return -1 }
+        for x : 0; x < 6; x++ {
+            for y : 0; y < 6; y++ {
+                for z : 0; z < 6; z++ {
+                    float d = Math.Sqrt((float)((x - 2) * (x - 2) + (y - 2) * (y - 2) + (z - 2) * (z - 2)))
+                    if d <= 2.6 { world.SetVoxel(volume, x, y, z, HellfeatherArt.Rgb(d < 1.5 ? 0xe8f4ff | 0x8fb4cc)) }
+                }
+            }
+        }
+        return volume
+    }
+
+    // A crossbow bolt along +Z, its head etched dark and its fletching red.
+    -int BuildBolt(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(3, 3, 14)
+        if volume < 0 { return -1 }
+        for z : 0; z < 14; z++ {
+            world.SetVoxel(volume, 1, 1, z, HellfeatherArt.Rgb(z >= 11 ? 0x6a6e72 | 0x5a3e24))
+            if z < 3 {
+                world.SetVoxel(volume, 0, 1, z, HellfeatherArt.Rgb(0x8a1e18))
+                world.SetVoxel(volume, 2, 1, z, HellfeatherArt.Rgb(0x8a1e18))
+            }
+        }
+        return volume
+    }
+}

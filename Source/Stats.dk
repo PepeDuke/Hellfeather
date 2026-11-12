@@ -67,6 +67,20 @@ HellfeatherStats
         if item == HellfeatherItems.Boots { stats.Defense += 2 }
         if item == HellfeatherItems.Belt { stats.Defense += 1 }
         if item == HellfeatherItems.Amulet { stats.FireResist += 3 }
+        if item == HellfeatherItems.EddasQuillCharm {
+            stats.MaxHealth += 15
+            stats.Defense += 3
+        }
+        if item == HellfeatherItems.JessasWaterwalkers {
+            stats.Defense += 4
+            stats.MoveSpeed += 15
+        }
+        if item == HellfeatherItems.MarrasThimble {
+            stats.Defense += 6
+            stats.Strength += 3
+        }
+        if item == HellfeatherItems.GreyneckQuill { stats.Agility += 6 }
+        if item == HellfeatherItems.MillstoneMaul { stats.WeaponDamage += 32 }
     }
 
     // A rate with one decimal, such as "2.0".

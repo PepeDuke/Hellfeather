@@ -1,0 +1,377 @@
+// Act I's zones, laid out from Ravenford outward as the story walks them: the
+// Ford Road just past the gate, the reed marsh of Fennick Water beyond it, the
+// pilgrim path up Orra's Hill, and Hobb's Mill farthest out. Each zone is a
+// terrain module, and its value is the module's ID in HellfeatherTerrain's
+// router. Unclaimed clearings are plain Fenmarch lowland.
+//
+// The router hands clearings to the lowest ID first, so the zones there must be
+// exactly once come first. Any is for data that fits every zone.
+HellfeatherZone : int
+#@{
+    Any: -1,
+    Fenmarch,
+    HobbsMill,
+    OrrasHill,
+    FordRoad,
+    FennickWater,
+    Croft,
+    Ravenford,
+    // The two levels of the Millrace Undercroft, and the landing of each.
+    Undercroft,
+    UndercroftDeep,
+    UndercroftLanding
+}
+
+// Reed marsh and duck ponds. Ponds and the mud around them follow one noise
+// field, so Place can find the pond edges that Column painted.
+FennickWater : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = 13.0
+        rules.MinDepth = 2
+        rules.MaxDepth = 9
+        rules.Share = 0.3
+        return rules
+    }
+
+    -float Wetness(QuaxelTerrainSite site, float x, float z)
+    {
+        return QuaxelNoise.Fbm(site.Seed, x / 6.0, z / 6.0, 2)
+    }
+
+    Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        if Math.Hypot(x, z) >= site.Radius + 2.0 { return }
+        float wet = Wetness(site, x, z)
+        if wet > FennickWater.Pond { column.MakeWater(3) }
+        else if wet > FennickWater.Mud { column.Surface = HellfeatherSurface.Mud }
+    }
+
+    // Reeds along the pond edges, then a few dead trees and stones on dry ground.
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        QuaxelRandom random
+        random.Begin(site.Seed ^ (uint)0x6E1D4C2B)
+        int group = 100
+        int reeds = 0
+        for attempt : 0; attempt < 160 && reeds < 22; attempt++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float distance = random.Range(3.0, site.Radius - 1.0)
+            float x = Math.Cos(angle) * distance
+            float z = Math.Sin(angle) * distance
+            float wet = Wetness(site, x, z)
+            if wet <= FennickWater.Mud - 0.03 || wet > FennickWater.Pond { continue }
+            placer.OfferProp(group, Props.Reeds[reeds % 2], x, z, 3, FenmarchArt.ReedsHeight / 2, HellfeatherArt.FineVoxel)
+            group++
+            reeds++
+        }
+        for n : 0; n < 8; n++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float distance = random.Range(6.0, site.Radius - 1.5)
+            float x = Math.Cos(angle) * distance
+            float z = Math.Sin(angle) * distance
+            if Wetness(site, x, z) > FennickWater.Mud { continue }
+            if n < 4 { placer.OfferProp(group, Props.Trees[n % 3], x, z, 5, 40, HellfeatherArt.FineVoxel) }
+            else { placer.OfferProp(group, Props.Rocks[n % 3], x, z, 7, 10, HellfeatherArt.FineVoxel) }
+            group++
+        }
+    }
+}
+#{
+    // Wetness above which the ground is pond, and above which it is mud.
+    #float Pond = 0.6
+    #float Mud = 0.53
+}
+
+// The pilgrim path up to Saint Orra's Hospice. Feather-hung shrines and the odd
+// gibbet line every road through the clearing, and the hospice stands off to
+// one side. Half and height are in columns, and fit Assets/OrrasHospice.qvox.
+OrrasHill : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    int Hospice
+    int HospiceHalf = 34
+    int HospiceHeight = 50
+    // How tall it counts when working out what it hides. Its strip of hidden
+    // ground behind it must fit in the clearing too.
+    int HospiceSight = 30
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = 17.0
+        rules.Isolated = true
+        rules.Share = 0.01
+        rules.MaxCount = 1
+        rules.MinDepth = 3
+        rules.MaxDepth = 6
+        return rules
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        HellfeatherRoads.OfferBetween(placer, 0, site, Hospice, HospiceHalf, HospiceHeight, HospiceSight, HellfeatherArt.FineVoxel)
+        // Shrines in pairs along each road, just off the reserved path.
+        int group = 1
+        for port : 0; port < site.PortCount; port++ {
+            float alongX = site.PortX[port]
+            float alongZ = site.PortZ[port]
+            for step : 1; step <= 3; step++ {
+                float along = (float)step * 4.0
+                for side : 0; side < 2; side++ {
+                    float off = side == 0 ? -OrrasHill.ShrineOffset | OrrasHill.ShrineOffset
+                    float x = alongX * along - alongZ * off
+                    float z = alongZ * along + alongX * off
+                    // Every third post is a gibbet, where the Gallows Rooks perch.
+                    int post = step == 2 && side == 1 ? Props.Gibbet | Props.Shrine
+                    placer.OfferProp(group, post, x, z, 2, FenmarchArt.ShrineHeight / 2, HellfeatherArt.FineVoxel)
+                    group++
+                }
+            }
+        }
+        HellfeatherScatter.Place(Props, site, placer)
+    }
+}
+#{
+    // World units from a road's centerline to its shrines.
+    #float ShrineOffset = 3.4
+}
+
+// The watermill on the Fen River, farthest from Ravenford. The river runs
+// across the clearing and widens into the millpond, and the mill stands on its
+// bank. Half and height are in columns; the mill's voxels are a sixteenth.
+HobbsMill : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    int Mill
+    int MillHalf = 20
+    int MillHeight = 48
+    float MillVoxel = 0.0625
+    int MillSight = 26
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = 17.0
+        rules.Isolated = true
+        rules.Share = 0.01
+        rules.MaxCount = 1
+        rules.MinDepth = 5
+        return rules
+    }
+
+    // Distance from the pond's middle; under PondRadius is pond.
+    -float PondReach(QuaxelTerrainSite site, float across, float along)
+    {
+        float wobble = QuaxelNoise.SignedFbm(site.Seed + (uint)3, across / 4.0, along / 4.0, 2) * 1.2
+        return Math.Hypot(across, along - HobbsMill.PondAlong) + wobble
+    }
+
+    Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        if Math.Hypot(x, z) >= site.Radius + 3.0 { return }
+        float across = x * site.AxisX + z * site.AxisZ
+        float along = z * site.AxisX - x * site.AxisZ
+        if PondReach(site, across, along) < HobbsMill.PondRadius {
+            column.MakeWater(4)
+            column.Surface = HellfeatherSurface.Millpond
+            return
+        }
+        float meander = QuaxelNoise.SignedFbm(site.Seed, along / 9.0, 0.0, 2) * 2.0
+        if Math.Abs(across + meander) < 1.8 { column.MakeWater(5) }
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        // The mill on the bank of the pond, as near as the paths allow, and
+        // failing that anywhere between the roads.
+        float reach = (float)MillHalf * QuaxelTerrain.Cell * 1.45
+        for ring : 0; ring < 4; ring++ {
+            for step : 0; step < 16; step++ {
+                float angle = ((float)step + (float)ring * 0.5) * 0.39269908
+                float distance = HobbsMill.PondRadius + reach + 0.6 + (float)ring * 1.0
+                float across = Math.Cos(angle) * distance
+                float along = HobbsMill.PondAlong + Math.Sin(angle) * distance
+                float x = across * site.AxisX - along * site.AxisZ
+                float z = across * site.AxisZ + along * site.AxisX
+                if Math.Hypot(x, z) + reach < site.Radius - 0.5 { placer.OfferBuilding(0, Mill, x, z, MillHalf, MillHeight, MillSight, MillVoxel) }
+            }
+        }
+        HellfeatherRoads.OfferBetween(placer, 0, site, Mill, MillHalf, MillHeight, MillSight, MillVoxel)
+        QuaxelRandom random
+        random.Begin(site.Seed ^ (uint)0x3B11D0A5)
+        int group = 100
+        for n : 0; n < 14; n++ {
+            float side = (n & 1) == 0 ? 1.0 | -1.0
+            float across = side * random.Range(6.0, site.Radius - 1.5)
+            float along = random.Range(-site.Radius + 2.0, 0.0)
+            float x = across * site.AxisX - along * site.AxisZ
+            float z = across * site.AxisZ + along * site.AxisX
+            if n < 6 { placer.OfferProp(group, Props.Reeds[n % 2], x, z, 3, FenmarchArt.ReedsHeight / 2, HellfeatherArt.FineVoxel) }
+            else if n < 10 { placer.OfferProp(group, Props.Trees[n % 3], x, z, 5, 40, HellfeatherArt.FineVoxel) }
+            else { placer.OfferProp(group, Props.Rocks[n % 3], x, z, 7, 10, HellfeatherArt.FineVoxel) }
+            group++
+        }
+    }
+}
+#{
+    // World units along the river from the clearing's middle to the pond's.
+    #float PondAlong = 6.0
+    #float PondRadius = 4.5
+}
+
+// Code-built props of the Fenmarch. They join the shared HellfeatherProps.
+FenmarchArt
+#{
+    #int ReedsWidth = 24
+    #int ReedsHeight = 40
+    #int ShrineWidth = 32
+    #int ShrineHeight = 64
+
+    // A clump of reeds and cattails with a black feather or two caught in it.
+    BuildReeds(QuaxelWorld& world, int volume, int variant)
+    {
+        QuaxelRandom random
+        random.Begin((uint)(variant + 11) * (uint)7919)
+        for stalk : 0; stalk < 26; stalk++ {
+            int x = 12 + (int)random.Range(-9.0, 9.0)
+            int z = 12 + (int)random.Range(-9.0, 9.0)
+            int height = 16 + random.Below(ReedsHeight - 18)
+            // Stalks lean a little, one voxel per lean steps.
+            int lean = 5 + random.Below(8)
+            int dx = random.Below(3) - 1
+            int dz = random.Below(3) - 1
+            int tone = (stalk % 3) == 0 ? 0x5b5f30 | 0x6f6a3c
+            for y : 0; y < height; y++ {
+                int shade = y < 4 ? 70 | (85 + HellfeatherArt.Hash(x, y, z) % 25)
+                int sx = Math.Clamp(x + dx * (y / lean), 0, ReedsWidth - 1)
+                int sz = Math.Clamp(z + dz * (y / lean), 0, ReedsWidth - 1)
+                world.SetVoxel(volume, sx, y, sz, HellfeatherArt.Rgb(HellfeatherArt.Shade(tone, shade)))
+                // Every third stalk carries a cattail head near its top.
+                if stalk % 3 == 1 && y >= height - 6 && y < height - 1 && sx + 1 < ReedsWidth {
+                    world.SetVoxel(volume, sx + 1, y, sz, HellfeatherArt.Rgb(0x3a2416))
+                }
+            }
+        }
+        // A black feather snagged across the stalks.
+        int fx = 6 + variant * 6
+        for n : 0; n < 6; n++ {
+            int color = n == 0 ? 0x2a2540 | 0x121016
+            world.SetVoxel(volume, fx + n, 18 + n / 2, 12, HellfeatherArt.Rgb(color))
+        }
+    }
+
+    // A wooden shrine post with a little slate roof, hung with grey cloth and
+    // black feathers. The beam runs along X.
+    BuildShrine(QuaxelWorld& world, int volume)
+    {
+        int wood = HellfeatherArt.Rgb(0x2e2117)
+        HellfeatherArt.Box(world, volume, 14, 0, 4, 18, 52, 8, wood)
+        HellfeatherArt.Box(world, volume, 3, 44, 5, 29, 47, 7, wood)
+        // Roof over the post top.
+        for y : 52; y < 60; y++ {
+            int inset = (y - 52)
+            for x : 10 + inset; x < 22 - inset; x++ {
+                for z : 2; z < 10; z++ { world.SetVoxel(volume, x, y, z, HellfeatherArt.SlateColor(x * 2, (y - 52) * 5 + 1)) }
+            }
+        }
+        // Strings from the beam, alternately a grey cloth strip and a feather.
+        for n : 0; n < 6; n++ {
+            int x = 5 + n * 4
+            int length = 6 + HellfeatherArt.Hash(n, 3, 9) % 8
+            for y : 44 - length; y < 44; y++ {
+                int color = 0x8a857c
+                if n % 2 == 1 {
+                    color = y < 44 - length + 5 ? 0x121016 | 0x3b3730
+                    if y == 44 - length + 2 { color = 0x2a2540 }
+                }
+                world.SetVoxel(volume, x, y, 6, HellfeatherArt.Rgb(HellfeatherArt.Shade(color, 85 + HellfeatherArt.Hash(x, y, 2) % 25)))
+            }
+        }
+        // Offerings at its foot: a grey stone and a tallow stub.
+        HellfeatherArt.StoneBox(world, volume, 10, 0, 1, 14, 3, 4)
+        HellfeatherArt.Box(world, volume, 19, 0, 2, 21, 4, 4, HellfeatherArt.Rgb(0xc9bfa3))
+    }
+}
+T{
+    // The story's order: the Ford Road is just outside, the mill is farthest out,
+    // and the hill and the mill are each a single clearing.
+    ActOneZonesLieInStoryOrder()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int mills = 0
+        int hills = 0
+        int marshes = 0
+        int roads = 0
+        int millDepth = 0
+        int roadDepth = 1000
+        int deepest = 0
+        for site : game.Terrain.Layout.Sites {
+            deepest = Math.Max(deepest, site.Depth)
+            if site.Module == HellfeatherZone.HobbsMill + 0 {
+                mills++
+                millDepth = site.Depth
+            }
+            if site.Module == HellfeatherZone.OrrasHill + 0 { hills++ }
+            if site.Module == HellfeatherZone.FennickWater + 0 { marshes++ }
+            if site.Module == HellfeatherZone.FordRoad + 0 {
+                roads++
+                roadDepth = Math.Min(roadDepth, site.Depth)
+            }
+        }
+        T.AreEqual(mills, 1)
+        T.AreEqual(hills, 1)
+        T.IsTrue(marshes >= 2)
+        T.IsTrue(roads >= 1)
+        T.IsTrue(roadDepth <= 2)
+        T.IsTrue(millDepth >= 5)
+        T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, HellfeatherZone.Ravenford + 0)
+    }
+}
+
+// Where a big building can stand in a clearing without sitting on a road.
+HellfeatherRoads
+#{
+    // Offers a building in the widest gap between the clearing's roads, as far
+    // out as it fits first, then nearer the middle and to either side.
+    OfferBetween(QuaxelTerrainPlacer& placer, int group, QuaxelTerrainSite site, int volume, int half, int height, int sight, float voxel)
+    {
+        float [] angles
+        for port : 0; port < site.PortCount; port++ { angles += Math.Atan2(site.PortZ[port], site.PortX[port]) }
+        // Sorted, so neighbors in the list are neighbors around the circle.
+        for i : 1; i < angles.Len; i++ {
+            for j : i; j > 0 && angles[j] < angles[j - 1]; j-- {
+                float swap = angles[j]
+                angles[j] = angles[j - 1]
+                angles[j - 1] = swap
+            }
+        }
+        float middle = 0.0
+        float widest = 6.2831853
+        if angles.Len > 0 {
+            widest = -1.0
+            for i : 0; i < angles.Len; i++ {
+                float next = i + 1 < angles.Len ? angles[i + 1] | angles[0] + 6.2831853
+                if next - angles[i] > widest {
+                    widest = next - angles[i]
+                    middle = angles[i] + widest * 0.5
+                }
+            }
+        }
+        float corner = (float)half * QuaxelTerrain.Cell * 1.42
+        for ring : 0; ring < 12; ring++ {
+            float distance = site.Radius - corner - 0.6 - (float)ring * 0.7
+            if distance < 0.0 { continue }
+            for side : 0; side < 7; side++ {
+                float angle = middle + (float)(side - 3) * widest * 0.06
+                placer.OfferBuilding(group, volume, Math.Cos(angle) * distance, Math.Sin(angle) * distance, half, height, sight, voxel)
+            }
+        }
+    }
+}
