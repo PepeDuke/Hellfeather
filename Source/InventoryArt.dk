@@ -4,8 +4,9 @@ HellfeatherInventoryArt
 #{
     #int AtlasWidth = 512
     // The inventory uses the top rows, the action bar the next, then the shop
-    // panel, the character panel, the passive tree and the rune board at the bottom.
-    #int AtlasHeight = 1536
+    // panel, the character panel, the passive tree, the rune board and the quest
+    // log at the bottom.
+    #int AtlasHeight = 1792
     #int PanelWidth = 176
     #int PanelHeight = 256
     #int Cell = 16
@@ -44,6 +45,7 @@ HellfeatherInventoryArt
         HellfeatherStatsArt.Paint(ui)
         HellfeatherPassiveArt.Paint(ui)
         HellfeatherRuneArt.Paint(ui)
+        HellfeatherQuestLogArt.Paint(ui)
         for item : HellfeatherItems { if item != HellfeatherItems.None { PaintIcon(ui, item, IconX(item), IconY(item)) } }
         HellfeatherActionArt.Paint(ui)
     }

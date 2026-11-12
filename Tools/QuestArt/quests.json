@@ -1,0 +1,40 @@
+{
+  "style": "item icon, centered, dark fantasy RPG, isolated on a plain white background, no shadow",
+  "seed": 7,
+  "quests": {
+    "Moult": {
+      "prompt": "a lit white wax candle with a bright orange flame standing on a small round iron candle holder, vertical",
+      "colors": "eEyoHRrSsdD"
+    },
+    "Ford": {
+      "prompt": "a single jet black crow feather, dark grey and black, pale bone quill, diagonal",
+      "colors": "xDdsSeEk",
+      "seed": 11
+    },
+    "Rooms": {
+      "prompt": "an open old journal book with handwritten pages and a red ribbon bookmark hanging down, front view",
+      "colors": "eELlQcnrRX"
+    },
+    "Seamstress": {
+      "prompt": "a silver sewing thimble beside a steel sewing needle threaded with red thread",
+      "colors": "SsdDrRPm",
+      "shadow": false
+    },
+    "Dark": {
+      "prompt": "a glowing brass hanging lantern with a pale white moth resting on its glass",
+      "colors": "gGHyoeEnwdDvVI"
+    },
+    "Millrace": {
+      "prompt": "a round wooden water mill wheel with paddles, splashing blue water at the bottom, front view",
+      "colors": "WwnLlcBbAuDd"
+    }
+  },
+  "parts": {
+    "Niche": {
+      "prompt": "a square gothic stone window frame with a thin carved grey stone border and a pointed arch top with a small gold keystone, a very wide pitch black opening fills most of the frame, front view, flat",
+      "colors": "TtxXDdwnWgG",
+      "fill": true,
+      "seed": 11
+    }
+  }
+}

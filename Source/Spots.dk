@@ -234,5 +234,8 @@ HellfeatherSpots
 #{
     // World units.
     #float Reach = 3.0
-    #float WakeRadius = 16.0
+    // Must reach past the screen corners, or people vanish while in view. The
+    // camera sees about 18 along the ground to the sides and up and down at
+    // 16:9, so 25 at the corners, and 30 at 21:9. Terrain stays loaded to 32.
+    #float WakeRadius = 30.0
 }

@@ -41,7 +41,7 @@ HellfeatherEnemyData
             <EnemyKind Name="BlackHoneyLeech" Model="Assets/BlackHoneyLeech.qvox" StandIn="EvilDuck" StandInScale=0.35 Height=14 VoxelSize=0.025 Radius=0.35 Speed=0.6 Reach=0.9 Notice=8.0 MaxHealth=30 Damage=8 Experience=5/>
             <EnemyKind Name="OldGreyneck" Model="Assets/OldGreyneck.qvox" StandIn="EvilDuck" StandInScale=1.5 Height=72 VoxelSize=0.0347 Radius=0.8 Speed=1.9 Reach=1.8 Notice=16.0 MaxHealth=420 Damage=22 Experience=150 Move=HellfeatherMove.WingSlam Feathers=12 Loot="Greyneck"/>
 
-            <EnemyKind Name="PilgrimPenitent" Model="Assets/PilgrimPenitent.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=72 VoxelSize=0.0306 Radius=0.45 Speed=1.3 Reach=2.0 Notice=12.0 MaxHealth=70 Damage=17 Experience=14 Move=HellfeatherMove.PoleSwing Loot="Duck drops"/>
+            <EnemyKind Name="PilgrimPenitent" Model="Assets/PilgrimPenitent.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=72 VoxelSize=0.0306 Radius=0.45 Speed=1.3 Reach=2.0 Notice=12.0 MaxHealth=70 Damage=17 Experience=14 Move=HellfeatherMove.PoleSwing StrikeFrame=4 Loot="Duck drops"/>
             <EnemyKind Name="BlackHoneyFiend" Model="Assets/BlackHoneyFiend.qvox" StandIn="EvilDuck" StandInScale=1.05 Height=70 VoxelSize=0.025 Radius=0.45 Speed=2.0 Reach=1.2 Notice=16.0 MaxHealth=55 Damage=10 Experience=16 Move=HellfeatherMove.Rush Loot="Duck drops"/>
             <EnemyKind Name="GallowsRook" Model="Assets/GallowsRook.qvox" StandIn="EvilDuck" StandInScale=0.65 Height=44 VoxelSize=0.025 Radius=0.35 Speed=3.0 Reach=1.0 Notice=10.0 MaxHealth=28 Damage=10 Experience=10 Move=HellfeatherMove.Dive Feathers=1/>
 

@@ -80,10 +80,222 @@ HellfeatherQuests
         }
         return lines
     }
+
+    // Where a quest of the act stands in the log. A quest shows up once it is
+    // taken, or once something found points to it.
+    HellfeatherQuestState State(int quest)
+    {
+        if quest == 0 { return Moult == 0 ? HellfeatherQuestState.Unknown | (Moult >= 4 ? HellfeatherQuestState.Done | HellfeatherQuestState.Active) }
+        if quest == 1 {
+            if Ford == 0 && !FeathersGiven { return HellfeatherQuestState.Unknown }
+            return Ford >= 2 ? HellfeatherQuestState.Done | HellfeatherQuestState.Active
+        }
+        if quest == 2 { return Rooms == 0 ? HellfeatherQuestState.Unknown | (Rooms >= 4 ? HellfeatherQuestState.Done | HellfeatherQuestState.Active) }
+        // Jessa's death points to the seamstress, and her token to Moth.
+        if quest == 3 {
+            if Seamstress >= 1 { return HellfeatherQuestState.Done }
+            return Moult >= 3 ? HellfeatherQuestState.Active | HellfeatherQuestState.Unknown
+        }
+        if quest == 4 {
+            if Dark >= 3 { return HellfeatherQuestState.Done }
+            return Dark >= 1 || Rooms >= 2 ? HellfeatherQuestState.Active | HellfeatherQuestState.Unknown
+        }
+        if quest == 5 {
+            if Millrace >= 5 { return HellfeatherQuestState.Done }
+            return Millrace >= 1 || Dark >= 3 ? HellfeatherQuestState.Active | HellfeatherQuestState.Unknown
+        }
+        return HellfeatherQuestState.Unknown
+    }
+
+    // What the log says about a quest as it stands. Lines are at most
+    // HellfeatherQuestLogArt.LineChars long, and there are at most LineCount of them.
+    string [] Journal(int quest)
+    {
+        string [] lines
+        if quest == 0 {
+            if Moult == 1 {
+                lines += "Matthew, a journeyman at"
+                lines += "the Crooked Raven, paid"
+                lines += "half to see a dying"
+                lines += "weaver, Jessa Brune."
+                lines += ""
+                lines += "Ask for Sister Carmine at"
+                lines += "Saint Orra's Hospice, up"
+                lines += "the pilgrim road."
+            } else if Moult == 2 {
+                lines += "Sister Carmine let you in"
+                lines += "for ten minutes."
+                lines += ""
+                lines += "Jessa lies in the outer"
+                lines += "ward, by the window."
+            } else if Moult == 3 {
+                lines += "Jessa died holding your"
+                lines += "arm. Her mark lives in"
+                lines += "you now: silver threads"
+                lines += "running to the mountains."
+                lines += ""
+                lines += "Return to Matthew at the"
+                lines += "Crooked Raven."
+            } else if Moult >= 4 {
+                lines += "Jessa gave you her reason"
+                lines += "and Matthew paid the"
+                lines += "rest. Her garret above"
+                lines += "Pell's stands open."
+            }
+        } else if quest == 1 {
+            if Ford >= 2 {
+                lines += "The Ford Road is clear"
+                lines += "and the ravens are fed."
+            } else {
+                if Ford == 0 {
+                    lines += "Reeve Hollan wants the"
+                    lines += "Ford Road cleared of"
+                    lines += "ducks. Ask him."
+                } else {
+                    lines += "Reeve Hollan pays for"
+                    lines += "ducks cleared off the"
+                    lines += "Ford Road."
+                    if ReevePaid { lines += "The Reeve has paid." }
+                    else if DucksCleared < DucksWanted { lines += "Ducks cleared: " + QuaxelUi.FormatInt(DucksCleared) + "/" + QuaxelUi.FormatInt(DucksWanted) }
+                    else {
+                        lines += "The road is clear. Tell"
+                        lines += "the Reeve."
+                    }
+                }
+                lines += ""
+                if FeathersGiven { lines += "Edda has her feathers." }
+                else {
+                    lines += "Edda at the Rookery wants"
+                    lines += "twenty black feathers."
+                }
+            }
+        } else if quest == 2 {
+            if Rooms == 1 {
+                lines += "Matthew says Jessa kept a"
+                lines += "garret above Pell's."
+                lines += ""
+                lines += "Search it."
+            } else if Rooms == 2 {
+                lines += "In the garret: a journal,"
+                lines += "black honey and a token"
+                lines += "stamped with a lantern"
+                lines += "and a moth."
+                lines += ""
+                lines += "Someone waits on the"
+                lines += "stair outside."
+            } else if Rooms == 3 {
+                lines += "Sister Vale warned you"
+                lines += "not to drink the honey."
+                lines += ""
+                lines += "The Red Cuffs have come"
+                lines += "for you. Survive them."
+            } else if Rooms >= 4 {
+                lines += "The Red Cuffs lie dead."
+                lines += "The rooms remember what"
+                lines += "Jessa left in them."
+            }
+        } else if quest == 3 {
+            if Seamstress >= 1 {
+                lines += "Marra gave you Jessa's"
+                lines += "thimble, and a warning:"
+                lines += ""
+                lines += "When you sever, the"
+                lines += "closing stroke faces the"
+                lines += "bearer. Never the heart."
+            } else {
+                lines += "Jessa Brune was a weaver."
+                lines += "Marra Senn, who mends"
+                lines += "clothes in town, may have"
+                lines += "known her."
+            }
+        } else if quest == 4 {
+            if Dark == 0 {
+                lines += "Jessa's token bears a"
+                lines += "lantern and a moth."
+                lines += ""
+                lines += "Moth, a dealer in town,"
+                lines += "might know what it opens."
+            } else if Dark == 1 {
+                lines += "Red Cuffs raided Moth's"
+                lines += "shop while you talked."
+                lines += ""
+                lines += "Fight off the raiders."
+            } else if Dark == 2 {
+                lines += "The raiders are down."
+                lines += ""
+                lines += "Moth is waiting to talk."
+            } else {
+                lines += "Moth gave you a grey"
+                lines += "ring. It opens what the"
+                lines += "Tithe keeps shut."
+            }
+        } else if quest == 5 {
+            if Millrace == 0 {
+                lines += "Moth's grey ring opens"
+                lines += "doors the Tithe keeps"
+                lines += "shut."
+                lines += ""
+                lines += "Old Hobb at the mill"
+                lines += "knows a low door at the"
+                lines += "water."
+            } else if Millrace == 1 {
+                lines += "Old Hobb opened the"
+                lines += "millrace door."
+                lines += ""
+                lines += "Go down beneath the mill."
+            } else if Millrace == 2 {
+                lines += "The Undercroft runs deep"
+                lines += "under Hobb's Mill."
+                lines += ""
+                lines += "Find Mardra below."
+            } else if Millrace == 3 {
+                lines += "Mardra is dead and her"
+                lines += "ring cracked through."
+                lines += ""
+                lines += "Sever the ring on its"
+                lines += "pedestal."
+            } else if Millrace == 4 {
+                lines += "The first Severing is"
+                lines += "done."
+                lines += ""
+                lines += "Someone watches from the"
+                lines += "mill stair."
+            } else {
+                lines += "Lise Hobb knew you from"
+                lines += "an inn window, two years"
+                lines += "ago."
+                lines += ""
+                lines += "Act I is over."
+            }
+            if Millrace >= 1 && BearersFreed > 0 {
+                lines += ""
+                lines += "Bearers freed: " + QuaxelUi.FormatInt(BearersFreed)
+            }
+        }
+        return lines
+    }
 }
 #{
     #int DucksWanted = 12
     #int FeathersWanted = 20
+    // Every act has this many quests, one for each slot of the log.
+    #int PerAct = 6
+
+    string Title(int quest)
+    {
+        if quest == 0 { return "The Dead Woman's Reason" }
+        if quest == 1 { return "Feathers on the Ford" }
+        if quest == 2 { return "Rooms Remember" }
+        if quest == 3 { return "The Seamstress's Grudge" }
+        if quest == 4 { return "Things Sold in the Dark" }
+        if quest == 5 { return "The Millrace Door" }
+        return ""
+    }
+}
+
+HellfeatherQuestState : int
+#@{
+    Unknown, Active, Done
 }
 
 HellfeatherGame : QuaxelGameInstance

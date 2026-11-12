@@ -21,8 +21,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import act1  # noqa: E402
 from kit import (BRASS, BURLAP, CANDLE, CLOTH_GREY, CLOTH_PALE, CLOTH_RED, FRAME, GLOW, GUANO, IRON, IVY,  # noqa: E402
-                 MOSS, PALETTE, PAPER, PLASTER, RAVEN, SOOT, STONE, WATER, WOOD, WOOD_DARK, WOOD_LIT, Model, hash2,
-                 octagon_corners, octagon_distance, pick, planks, raven, shingles, stone_courses)
+                 MOSS, PAPER, PLASTER, RAVEN, SOOT, STONE, WATER, WOOD, WOOD_DARK, WOOD_LIT, Model, hash2,
+                 compact, octagon_corners, octagon_distance, pick, planks, raven, shingles, stone_courses)
 from house import (Gable, barrel, chimney, door, face_layer, falling_water, hanging_sign, lantern,  # noqa: E402
                    pent, plank_block, sack, stair, stone_block, timber_block, water_wheel, window)
 
@@ -587,8 +587,7 @@ RECIPES = {
 
 
 def build(name, preview):
-    grid = RECIPES[name]().trimmed()
-    palette = np.array(PALETTE)
+    (grid,), palette = compact([RECIPES[name]().trimmed()])
     act1.write(act1.ASSETS / f'{name}.qvox', palette, grid, [])
     if preview:
         act1.save_preview(name, palette, grid, [])

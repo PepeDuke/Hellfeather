@@ -7,8 +7,9 @@ HellfeatherFires
     -int [] Smokes
     -float Countdown
 
-    // Props farther than this along the ground from the player go out.
-    float Range() { return 16.0 }
+    // Props farther than this along the ground from the player go out. It
+    // matches HellfeatherSpots.WakeRadius, so fires stay lit to the screen corners.
+    float Range() { return HellfeatherSpots.WakeRadius }
 
     // Leaves most of the engine's 64 effects for blood and dust.
     int MaxFires() { return 12 }

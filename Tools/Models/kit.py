@@ -53,6 +53,57 @@ CANDLE = color('candle', (232, 218, 182))
 BURLAP = color('burlap', (162, 136, 98), (140, 116, 82))
 WATER = color('water', (150, 176, 186), (200, 216, 220), (88, 110, 120))
 IVY = color('ivy', (122, 34, 26), (92, 28, 22), (66, 72, 38))
+# People.
+SKIN = color('skin', (178, 132, 106), (160, 116, 92), (138, 98, 78))
+HAIR_GREY = color('hair grey', (158, 156, 150), (130, 128, 124), (184, 182, 176))
+LEATHER = color('leather', (128, 86, 52), (110, 72, 42), (86, 56, 34), (142, 100, 62))
+CLOTH_BROWN = color('cloth brown', (62, 48, 40), (55, 43, 36), (68, 53, 44))
+SCARF = color('scarf', (92, 82, 70), (76, 68, 58), (104, 94, 80))
+FACE_DARK = color('face dark', (44, 30, 28), (96, 50, 44))
+SKIN_PALE = color('skin pale', (190, 154, 132), (172, 138, 118), (152, 120, 102))
+HAIR_DARK = color('hair dark', (46, 35, 30), (60, 46, 38), (36, 28, 25))
+COAT_BROWN = color('coat brown', (98, 68, 46), (88, 60, 41), (110, 78, 54))
+TROUSERS = color('trousers', (54, 48, 44), (46, 41, 38))
+NAVY = color('navy', (46, 50, 76), (38, 42, 64), (58, 62, 90))
+VELVET = color('velvet', (94, 88, 86), (80, 75, 74), (106, 100, 96))
+WAISTCOAT = color('waistcoat', (112, 82, 46), (94, 68, 38))
+HABIT = color('habit', (112, 108, 102), (98, 94, 90), (124, 120, 112))
+WIMPLE = color('wimple', (214, 206, 190), (194, 186, 172))
+LIPS_RED = color('lips red', (156, 32, 34))
+SMOCK = color('smock', (108, 96, 80), (94, 84, 70), (124, 112, 94))
+FLOUR = color('flour', (198, 192, 178), (176, 170, 156))
+DRESS_MILL = color('dress mill', (104, 88, 72), (90, 76, 62), (116, 100, 82))
+TAPE = color('tape', (196, 160, 72))
+STRAW = color('straw', (176, 144, 72), (150, 120, 58))
+WOOL = color('wool', (96, 88, 82), (82, 76, 72), (108, 100, 92))
+ROPE = color('rope', (128, 108, 76), (106, 88, 60))
+# Birds and beasts.
+FEATHER_BROWN = color('feather brown', (70, 60, 52), (58, 50, 44), (84, 72, 60))
+FEATHER_GREY = color('feather grey', (128, 122, 116), (110, 105, 100), (146, 140, 132))
+FEATHER_PALE = color('feather pale', (170, 164, 154), (150, 144, 136), (188, 182, 172))
+BALD = color('bald', (156, 112, 104), (134, 94, 88))
+BILL = color('bill', (196, 150, 70), (168, 122, 54))
+BILL_DARK = color('bill dark', (72, 56, 48), (56, 44, 38))
+FEET = color('feet', (164, 100, 58), (134, 80, 46))
+SILVER = color('silver', (206, 214, 220), (172, 182, 190), (236, 240, 244))
+MUD = color('mud', (74, 60, 44), (60, 49, 37))
+EYE_WHITE = color('eye white', (214, 210, 198))
+HONEY = color('honey', (24, 18, 16), (40, 30, 24), (156, 100, 32))
+LEECH_MOUTH = color('leech mouth', (152, 92, 82), (120, 70, 62))
+GAMBESON = color('gambeson', (98, 94, 90), (84, 80, 78), (110, 106, 100))
+SHIELD = color('shield', (176, 154, 120), (152, 132, 102))
+BLOOD = color('blood', (112, 26, 22), (86, 20, 18))
+
+
+def compact(grids):
+    """Renumbers palette indexes so a model's file lists only the colors it
+    uses: the qvox writer has 92 one-character symbols, the kit more colors.
+    Returns the new grids and their palette."""
+    used = np.unique(np.concatenate([g[g >= 0] for g in grids]))
+    remap = np.full(len(PALETTE), -1, dtype=np.int32)
+    remap[used] = np.arange(len(used))
+    out = [np.where(g >= 0, remap[np.maximum(g, 0)], -1) for g in grids]
+    return out, np.array([PALETTE[i] for i in used])
 
 
 def hash2(a, b, seed=0):

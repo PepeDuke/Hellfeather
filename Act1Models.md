@@ -15,6 +15,14 @@ python Tools/Models/act1.py RoadDrake Moth                 rebuild some of them
   python Tools/Models/buildings.py RookeryTower --preview
   python Tools/Models/inspect_models.py RookeryTower
   ```
+- **People are moving to rigs.** `Tools/Models/figure.py` is a small rig: bones with body and clothing parts (stacked-ellipse torsos and skirts, capsule limbs, apron layers, hair caps, held things) painted from `kit.py` materials. Poses turn the bones, so `idle` and `talk` are real motion. Recipes are in `Tools/Models/people.py` (a shared `Body` builder does boots, legs, skirts and coat tails, torso, aprons, belts, arms, head, face and four hair styles), marked `recipe=True` in `act1.MODELS`. Done: `Edda`, `Matthew`, `ReeveHollan`, `MarraSenn`, `Moth`, `SisterCarmine`, `SisterVale`, `OldHobb`, `LiseHobb` and the static `JessaBed`. Everyone is authored 70 rig voxels tall and scaled to Cast.dk's height. Each model's file lists only the colours it uses, since the kit now has more colours than qvox's 92 one-character symbols. Each person must stay as tall as the height `Cast.dk` gives `AddPerson`.
+  ```
+  python Tools/Models/people.py Edda --preview
+  ```
+- **Enemies are moving to rigs too.** `Tools/Models/enemies.py` builds them on the same rig, with walking legs and the five clips the game plays. The attack's wind-up frames add up to 270 ms, because `EnemyMoves.WindUp` stretches them to the move's wind-up, and the blow lands on the kind's `StrikeFrame` in `EnemyData.dk`. Done: `PilgrimPenitent` (StrikeFrame 4: four wind-up frames, then the slam, follow-through and recovery). Done since: every other Act I enemy. People-shaped ones share `Body`, `legs` and `human_clips`; ducks, geese and corvids share `Bird` and `bird_clips` (peck, hop, charge, wing slam, spit, dive); the leech is a tail-to-head chain of segments. Their attacks land on frame 2, the default. Only the five clips the game plays are built: the sheets' extra clips (swim, flee, freed, emerge, ringpull, broodcall, moult, stagger) wait until the game can play them. Every frame is stored whole, so models whose clips reach far (wing slams, charges, death rolls) are big files: up to about 17 MB.
+  ```
+  python Tools/Models/enemies.py PilgrimPenitent --preview
+  ```
 - All of them are wired into the game: enemies in `EnemyData.dk`, people in `Cast.dk`, buildings in `Ravenford.dk` and `Fenmarch.dk`, Undercroft props in `Undercroft.dk`, everything else in `Landmarks.dk`.
 - Palettes are converted from the sheets' sRGB to linear light, because the engine reads qvox colors as linear.
 - Animated models taller than 72 voxels use coarser voxels so their files stay small. The tool prints each one's voxel size, and `EnemyData.dk` and `Cast.dk` use those sizes.

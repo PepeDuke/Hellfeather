@@ -25,12 +25,14 @@ HellfeatherGame : QuaxelGameInstance
     -bool StatsKeyHeld
     -bool PassivesKeyHeld
     -bool RunesKeyHeld
+    -bool QuestKeyHeld
     // The rune board's Version when the known skills last matched it.
     -int RunesSynced
     HellfeatherInventoryScreen Inventory
     HellfeatherStatsScreen StatsScreen
     HellfeatherPassiveScreen Passives
     HellfeatherRuneScreen Runes
+    HellfeatherQuestLog QuestLog
     HellfeatherActionBar Actions
     HellfeatherFpsCounter Fps
     HellfeatherTerrain Terrain
@@ -157,6 +159,7 @@ HellfeatherGame : QuaxelGameInstance
         StatsScreen.Open = false
         Passives.Open = false
         Runes.Open = false
+        QuestLog.Open = false
         Inventory.OnLeft = true
         if !Inventory.Open { Inventory.Toggle() }
     }
@@ -364,6 +367,7 @@ HellfeatherGame : QuaxelGameInstance
             if StatsScreen.Open {
                 Passives.Open = false
                 Runes.Open = false
+                QuestLog.Open = false
             }
         }
         StatsKeyHeld = statsKey
@@ -374,6 +378,7 @@ HellfeatherGame : QuaxelGameInstance
             if Passives.Open {
                 StatsScreen.Open = false
                 Runes.Open = false
+                QuestLog.Open = false
             }
         }
         PassivesKeyHeld = passivesKey
@@ -384,10 +389,22 @@ HellfeatherGame : QuaxelGameInstance
             if Runes.Open {
                 StatsScreen.Open = false
                 Passives.Open = false
+                QuestLog.Open = false
                 if !Inventory.Open { Inventory.Toggle() }
             }
         }
         RunesKeyHeld = runesKey
+        // The quest log takes the left side too.
+        bool questKey = input.IsDown(QuaxelKey.L)
+        if questKey && !QuestKeyHeld && !Shop.Open {
+            QuestLog.Toggle()
+            if QuestLog.Open {
+                StatsScreen.Open = false
+                Passives.Open = false
+                Runes.Open = false
+            }
+        }
+        QuestKeyHeld = questKey
         SyncRuneSkills()
         // Taking off gear can lower her maximums below what she has.
         PlayerHealth = Math.Min(PlayerHealth, PlayerMaxHealth())
@@ -790,7 +807,7 @@ HellfeatherGame : QuaxelGameInstance
 
     -bool ClickTaken(int mouseX, int mouseY)
     {
-        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || Ground.Hovered >= 0 || Keeper.Hovered || People.Hovered >= 0 || Talk.Captures(mouseX, mouseY)
+        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || QuestLog.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || Ground.Hovered >= 0 || Keeper.Hovered || People.Hovered >= 0 || Talk.Captures(mouseX, mouseY)
     }
 
     // Moves the item on the cursor to the ground beside the warrior.
@@ -851,7 +868,7 @@ HellfeatherGame : QuaxelGameInstance
         SampleAttack(mouseX, mouseY, held)
         if !pressed || PlayerHealth <= 0 { return }
         if Inventory.Items.Held != HellfeatherItems.None {
-            if !Inventory.OverPanel(mouseX, mouseY) && !StatsScreen.OverPanel(mouseX, mouseY) && !Passives.OverPanel(mouseX, mouseY) && !Runes.OverPanel(mouseX, mouseY) && !Shop.OverPanel(mouseX, mouseY) && !Actions.OverBar(mouseX, mouseY) { DropHeld(world) }
+            if !Inventory.OverPanel(mouseX, mouseY) && !StatsScreen.OverPanel(mouseX, mouseY) && !Passives.OverPanel(mouseX, mouseY) && !Runes.OverPanel(mouseX, mouseY) && !QuestLog.OverPanel(mouseX, mouseY) && !Shop.OverPanel(mouseX, mouseY) && !Actions.OverBar(mouseX, mouseY) { DropHeld(world) }
             return
         }
         if Talk.Captures(mouseX, mouseY) { return }
@@ -873,7 +890,7 @@ HellfeatherGame : QuaxelGameInstance
         ui.ClearOverlay()
         // Drawn first, so that the inventory panel covers the titles.
         if hasWindow {
-            bool panelsFree = !Inventory.Captures(mouseX, mouseY) && !StatsScreen.Captures(mouseX, mouseY) && !Passives.Captures(mouseX, mouseY) && !Runes.Captures(mouseX, mouseY) && !Shop.Captures(mouseX, mouseY) && !Actions.Captures(mouseX, mouseY)
+            bool panelsFree = !Inventory.Captures(mouseX, mouseY) && !StatsScreen.Captures(mouseX, mouseY) && !Passives.Captures(mouseX, mouseY) && !Runes.Captures(mouseX, mouseY) && !QuestLog.Captures(mouseX, mouseY) && !Shop.Captures(mouseX, mouseY) && !Actions.Captures(mouseX, mouseY)
             Keeper.DrawLabel(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, panelsFree)
             DrawPeople(ui, world, windowWidth, windowHeight, mouseX, mouseY, panelsFree && !Keeper.Hovered && !Talk.Captures(mouseX, mouseY))
             Ground.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, panelsFree)
@@ -886,8 +903,12 @@ HellfeatherGame : QuaxelGameInstance
             Talk.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
             if Talk.Chosen != HellfeatherReply.None { Answer(world, Talk.Chosen) }
             Banner.Draw(ui, windowWidth, windowHeight)
-            if !StatsScreen.Open && !Passives.Open && !Runes.Open && !Shop.Open {
+            // A copy, since the game's own fields cannot be lent by reference.
+            HellfeatherQuests quests = Quests
+            QuestLog.Notice(quests)
+            if !StatsScreen.Open && !Passives.Open && !Runes.Open && !QuestLog.Open && !Shop.Open {
                 lines : Quests.Objectives()
+                if QuestLog.AnyFresh() { lines += "New in the quest log (L)" }
                 HellfeatherTracker.Draw(ui, lines)
             }
         }
@@ -899,12 +920,12 @@ HellfeatherGame : QuaxelGameInstance
             int clearWidth = Inventory.Open ? Inventory.PanelLeft * Inventory.PanelScale | windowWidth
             if Shop.Open { clearWidth = Shop.PanelLeft * Shop.PanelScale }
             // Worked out here, since the stats panel places itself after the bar.
-            int coveredLeft = StatsScreen.Open || Passives.Open || Runes.Open ? (HellfeatherStatsScreen.Margin + HellfeatherInventoryArt.PanelWidth) * ui.ScaleFor(windowWidth, windowHeight) | 0
+            int coveredLeft = StatsScreen.Open || Passives.Open || Runes.Open || QuestLog.Open ? (HellfeatherStatsScreen.Margin + HellfeatherInventoryArt.PanelWidth) * ui.ScaleFor(windowWidth, windowHeight) | 0
             Actions.CoveredLeft = coveredLeft
             Actions.ExperienceShare = Passives.Level.Share()
             Actions.UnspentPoints = Passives.Open ? 0 | Passives.Points()
             Globes.CoveredLeft = coveredLeft
-            Actions.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, clearWidth, Inventory.OverPanel(mouseX, mouseY) || StatsScreen.OverPanel(mouseX, mouseY) || Passives.OverPanel(mouseX, mouseY) || Runes.OverPanel(mouseX, mouseY) || Shop.OverPanel(mouseX, mouseY), Means())
+            Actions.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, clearWidth, Inventory.OverPanel(mouseX, mouseY) || StatsScreen.OverPanel(mouseX, mouseY) || Passives.OverPanel(mouseX, mouseY) || Runes.OverPanel(mouseX, mouseY) || QuestLog.OverPanel(mouseX, mouseY) || Shop.OverPanel(mouseX, mouseY), Means())
             // Before the inventory, which draws the item on the cursor over every panel.
             Shop.HeldMods = Inventory.Items.HeldMods
             Shop.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, Inventory.Items.Gold, Inventory.Items.Held)
@@ -915,6 +936,8 @@ HellfeatherGame : QuaxelGameInstance
             StatsScreen.ToNext = Passives.Level.ToNext()
             StatsScreen.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, stats, PlayerHealth, PlayerMana)
             Passives.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, rightDown)
+            HellfeatherQuests progress = Quests
+            QuestLog.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, progress)
             // The board and the bag share the cursor's item.
             Runes.Level = Passives.Level.Level
             Runes.Held = Inventory.Items.Held
@@ -1043,6 +1066,27 @@ T{
         input.SetDown(QuaxelKey.P, true)
         game.Simulate(world, input, 2)
         T.IsFalse(game.Passives.Open)
+    }
+
+    TheLKeyOpensTheQuestLogInPlaceOfTheStats()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.C, true)
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.StatsScreen.Open)
+        input.Clear()
+        input.SetDown(QuaxelKey.L, true)
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.QuestLog.Open)
+        T.IsFalse(game.StatsScreen.Open)
+        input.Clear()
+        game.Simulate(world, input, 1)
+        input.SetDown(QuaxelKey.L, true)
+        game.Simulate(world, input, 2)
+        T.IsFalse(game.QuestLog.Open)
     }
 
     SlayingEnemiesLevelsTheWarriorUpAndRefillsHer()
