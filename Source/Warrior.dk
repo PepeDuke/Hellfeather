@@ -1,19 +1,113 @@
-// Solid voxel sculpt stored in Assets/Warrior.qvox. Local +Z is forward.
+// Wren Carrow, built by Tools/Models/player.py. Assets/Warrior.qvox is her in
+// her basic attire and Assets/WarriorLeatherArmor.qvox in Leather Armor; both
+// share one box, clips and sockets, so one can replace the other. Helmets,
+// weapons and shields are models of their own that ride her `head`, `hand_r`
+// and `hand_l` sockets (Tools/Models/gear.py). Local +Z is forward. Height is
+// the box height, which the game stands her by.
 HellfeatherWarrior
 #{
-    #int Height = 78
+    #int Height = 81
     #float VoxelSize = 0.025
-    // Height of the volume's center when she lies on her back.
-    #float LyingCenterHeight = 0.15
 
-    bool Attach(QuaxelWorld& world, int node)
+    // Height of the volume's center when she lies on her back: half the box's
+    // 70 cells less the depth of her back, which the coat brings out from cell
+    // 29 to 26.
+    float LyingCenterHeight(HellfeatherItems body)
     {
-        int animation = QuaxelAssets.LoadVoxelAnimation(world, "Assets/Warrior.qvox")
-        if !world.AttachAnimator(node, animation) || !world.PlayClip(node, "idle") { return false }
+        return body == HellfeatherItems.LeatherArmor ? 0.225 | 0.15
+    }
 
-        int volume = QuaxelAssets.LoadVoxelModel(world, "Assets/BattleAxe.qvox")
-        if volume < 0 { return false }
-        int axe = world.CreateNode()
-        return world.AttachVoxels(axe, volume) && world.AttachToSocket(axe, node, "hand_r")
+    // Her body model for what she wears.
+    string BodyModel(HellfeatherItems body)
+    {
+        if body == HellfeatherItems.LeatherArmor { return "Assets/WarriorLeatherArmor.qvox" }
+        return "Assets/Warrior.qvox"
+    }
+
+    // The model an item shows when worn or held, or "" for none.
+    string GearModel(HellfeatherItems item)
+    {
+        if item == HellfeatherItems.BattleAxe { return "Assets/BattleAxe.qvox" }
+        if item == HellfeatherItems.ShortSword { return "Assets/ShortSword.qvox" }
+        if item == HellfeatherItems.MillstoneMaul { return "Assets/MillstoneMaul.qvox" }
+        if item == HellfeatherItems.RoundShield { return "Assets/RoundShield.qvox" }
+        if item == HellfeatherItems.IronHelm { return "Assets/IronHelm.qvox" }
+        if item == HellfeatherItems.MinersHelmet { return "Assets/MinersHelmet.qvox" }
+        return ""
+    }
+}
+
+// What Wren shows of her gear: the body model for her armor and a node on a
+// socket for her weapon, shield and helmet. Dress puts on whatever changed.
+HellfeatherWardrobe
+{
+    -HellfeatherItems Body
+    -HellfeatherItems MainHand
+    -HellfeatherItems OffHand
+    -HellfeatherItems Head
+    -int MainHandNode
+    -int OffHandNode
+    -int HeadNode
+    -bool Dressed
+    // Each model is read once per world.
+    -string [] Paths
+    -int [] Loaded
+
+    // Dresses the visual node to match what is equipped. Returns false if a
+    // model would not load.
+    bool Dress(QuaxelWorld& world, int visual, HellfeatherItems body, HellfeatherItems mainHand, HellfeatherItems offHand, HellfeatherItems head)
+    {
+        if !Dressed || body != Body {
+            int animation = Load(world, HellfeatherWarrior.BodyModel(body), true)
+            if animation < 0 { return false }
+            // A new body starts on its first frame; carry on with the clip she was in.
+            string clip = Dressed ? world.CurrentClipName(visual) | "idle"
+            if !world.AttachAnimator(visual, animation) || !world.PlayClip(visual, clip) { return false }
+            Body = body
+        }
+        // The weapon first, so it is her first socket follower.
+        if !Dressed || mainHand != MainHand {
+            MainHandNode = Wear(world, visual, mainHand, "hand_r", MainHandNode)
+            if MainHandNode < 0 { return false }
+            MainHand = mainHand
+        }
+        if !Dressed || offHand != OffHand {
+            OffHandNode = Wear(world, visual, offHand, "hand_l", OffHandNode)
+            if OffHandNode < 0 { return false }
+            OffHand = offHand
+        }
+        if !Dressed || head != Head {
+            HeadNode = Wear(world, visual, head, "head", HeadNode)
+            if HeadNode < 0 { return false }
+            Head = head
+        }
+        Dressed = true
+        return true
+    }
+
+    // Takes the old node off the socket and puts the item's model there.
+    // Returns the new node, 0 when the item shows nothing, or -1 on failure.
+    -int Wear(QuaxelWorld& world, int visual, HellfeatherItems item, string socket, int old)
+    {
+        if old > 0 { world.DestroyNode(old) }
+        string path = HellfeatherWarrior.GearModel(item)
+        if Length(path) == 0 { return 0 }
+        int volume = Load(world, path, false)
+        if volume < 0 { return -1 }
+        int node = world.CreateNode()
+        if !world.AttachVoxels(node, volume) || !world.AttachToSocket(node, visual, socket) { return -1 }
+        return node
+    }
+
+    -int Load(QuaxelWorld& world, string path, bool animated)
+    {
+        for i : 0; i < Paths.Len; i++ {
+            if Paths[i] == path { return Loaded[i] }
+        }
+        int made = animated ? QuaxelAssets.LoadVoxelAnimation(world, path) | QuaxelAssets.LoadVoxelModel(world, path)
+        if made < 0 { return -1 }
+        Paths += path
+        Loaded += made
+        return made
     }
 }

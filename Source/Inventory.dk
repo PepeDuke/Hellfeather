@@ -91,7 +91,9 @@ HellfeatherItems : int
     MarrasThimble,
     MardrasRingShards,
     GreyneckQuill,
-    MillstoneMaul
+    MillstoneMaul,
+    // Wren's own cap from the mines, its lamp still lit. She starts in it.
+    MinersHelmet
 }
 
 HellfeatherItems
@@ -139,6 +141,7 @@ HellfeatherItems
         if item == HellfeatherItems.MardrasRingShards { return Make("Mardra's Ring Shards", "Heal 2 per hit", 1, 1, HellfeatherGear.Neck, 600) }
         if item == HellfeatherItems.GreyneckQuill { return Make("Greyneck's Quill", "Agility 6", 1, 1, HellfeatherGear.Neck, 380) }
         if item == HellfeatherItems.MillstoneMaul { return Make("Millstone Maul", "Damage 32", 2, 3, HellfeatherGear.Weapon, 520) }
+        if item == HellfeatherItems.MinersHelmet { return Make("Miner's Helmet", "Defense 2", 2, 2, HellfeatherGear.Head, 40) }
         return Make("", "", 1, 1, HellfeatherGear.None, 0)
     }
 }

@@ -93,6 +93,10 @@ LEECH_MOUTH = color('leech mouth', (152, 92, 82), (120, 70, 62))
 GAMBESON = color('gambeson', (98, 94, 90), (84, 80, 78), (110, 106, 100))
 SHIELD = color('shield', (176, 154, 120), (152, 132, 102))
 BLOOD = color('blood', (112, 26, 22), (86, 20, 18))
+# The ambient raven's blacks, lifted a little so it reads against dark roofs.
+RAVEN_LIT = color('raven lit', (20, 20, 25), (30, 31, 37), (48, 50, 60), (14, 14, 18))
+MALLARD = color('mallard', (40, 66, 46), (30, 52, 38), (54, 84, 58))
+CHESTNUT = color('chestnut', (104, 58, 40), (88, 48, 34))
 
 
 def compact(grids):
@@ -124,6 +128,8 @@ def pick(shades, value):
 class Model:
     def __init__(self, width, height, depth):
         self.grid = np.full((width, height, depth), -1, dtype=np.int32)
+        # Points where a live raven may land, (x, y, z) in the grid; see perch().
+        self.perches = []
         self.x, self.y, self.z = np.meshgrid(np.arange(width), np.arange(height), np.arange(depth), indexing='ij')
 
     def fill(self, where, colors):
@@ -218,6 +224,13 @@ def octagon_corners(center, radius, turn=0.0):
     corner = radius / math.cos(math.pi / 8.0)
     return [(cx + corner * math.cos(turn + math.pi / 8.0 + k * math.pi / 4.0),
              cz + corner * math.sin(turn + math.pi / 8.0 + k * math.pi / 4.0)) for k in range(8)]
+
+
+def perch(model, at):
+    """Marks a spot where the game's live ravens (Source/Ravens.dk) may land:
+    the cell above `at` that a bird's feet would stand in. buildings.py writes
+    these out as the model's sockets."""
+    model.perches.append(tuple(float(v) for v in at))
 
 
 def raven(model, at, facing, sitting=True):

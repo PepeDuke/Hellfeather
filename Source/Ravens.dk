@@ -2,7 +2,13 @@
 // roofs, perches, shrines and gibbets, caw now and then, and take off when the
 // warrior comes close, to land on another free spot nearby. Ravenford has ravens
 // on every roof. The model in Assets/Raven.qvox comes from the raven's sprite
-// atlas, with idle, caw, fly and land clips.
+// atlas, rebuilt on a rig by Tools/Models/raven.py: idle, caw, fly and land.
+//
+// They fly around what stands in the way. Every model the terrain placed is an
+// obstacle, solid wherever its voxels are, and a bird only flies along lines
+// that are clear of them: it takes off in the first clear direction away from
+// her, and comes in to a perch by climbing, crossing at the lowest clear height
+// and dropping onto it from above or from the side.
 HellfeatherRavenSpot
 {
     // Where the raven's feet go, in world units.
@@ -19,14 +25,28 @@ HellfeatherRaven
     // 0 perched, 1 flying off, 2 flying to a spot.
     int State
     float Timer
-    vec3 Velocity
     bool Awake
+    // The points it flies through in turn, in world units.
+    vec3 [4] Path
+    int PathLength
+    int PathAt
+}
+
+// A model the terrain placed, which birds fly around.
+HellfeatherRavenObstacle
+{
+    int Volume
+    float Voxel
+    // The middle of the model's footprint, at its base.
+    vec3 Base
+    ivec3 Size
 }
 
 HellfeatherRavens
 {
     HellfeatherRavenSpot [] Spots
     HellfeatherRaven [] Birds
+    HellfeatherRavenObstacle [] Obstacles
     int Animation = -1
     QuaxelRandom Random
 
@@ -46,6 +66,162 @@ HellfeatherRavens
         }
         Birds.Clear()
         Spots.Clear()
+        Obstacles.Clear()
+    }
+
+    // A placed model the birds must fly around, given as AddRoof's are.
+    AddObstacle(QuaxelWorld& world, int volume, float voxel, vec3 base)
+    {
+        HellfeatherRavenObstacle obstacle
+        obstacle.Volume = volume
+        obstacle.Voxel = voxel
+        obstacle.Base = base
+        obstacle.Size = world.VolumeSize(volume)
+        Obstacles += obstacle
+    }
+
+    // True where an obstacle has a voxel.
+    bool Solid(QuaxelWorld& world, vec3 point)
+    {
+        for o : 0; o < Obstacles.Len; o++ {
+            if SolidIn(world, o, point) { return true }
+        }
+        return false
+    }
+
+    // True where this one obstacle has a voxel.
+    -bool SolidIn(QuaxelWorld& world, int o, vec3 point)
+    {
+        float cell = Obstacles[o].Voxel
+        ivec3 size = Obstacles[o].Size
+        float dx = point.X - Obstacles[o].Base.X
+        float dy = point.Y - Obstacles[o].Base.Y
+        float dz = point.Z - Obstacles[o].Base.Z
+        if Math.Abs(dx) >= (float)size.X * cell * 0.5 || Math.Abs(dz) >= (float)size.Z * cell * 0.5 { return false }
+        if dy < 0.0 || dy >= (float)size.Y * cell { return false }
+        int x = (int)(dx / cell + (float)size.X * 0.5)
+        int z = (int)(dz / cell + (float)size.Z * 0.5)
+        return world.GetVoxel(Obstacles[o].Volume, x, (int)(dy / cell), z) >= 0
+    }
+
+    // True when a bird can fly the straight line from one point to another:
+    // nothing solid along it and, away from its ends, nothing within a wing's
+    // reach of it either. Points are where its feet are. Only the obstacles
+    // whose bounds touch the line's box are looked at, which is a handful of
+    // the town's hundreds.
+    bool Open(QuaxelWorld& world, vec3 from, vec3 to)
+    {
+        float reach = WingSpan + Probe
+        vec3 low = vec3(Math.Min(from.X, to.X) - reach, Math.Min(from.Y, to.Y) + BodyHeight - Probe, Math.Min(from.Z, to.Z) - reach)
+        vec3 high = vec3(Math.Max(from.X, to.X) + reach, Math.Max(from.Y, to.Y) + BodyHeight + Probe, Math.Max(from.Z, to.Z) + reach)
+        int [] near
+        for o : 0; o < Obstacles.Len; o++ {
+            float half = (float)Obstacles[o].Size.X * Obstacles[o].Voxel * 0.5
+            float deep = (float)Obstacles[o].Size.Z * Obstacles[o].Voxel * 0.5
+            float tall = (float)Obstacles[o].Size.Y * Obstacles[o].Voxel
+            vec3 base = Obstacles[o].Base
+            if base.X + half < low.X || base.X - half > high.X || base.Z + deep < low.Z || base.Z - deep > high.Z { continue }
+            if base.Y + tall < low.Y || base.Y > high.Y { continue }
+            near += o
+        }
+        if near.Len == 0 { return true }
+        vec3 along = to - from
+        float length = along.Length()
+        int steps = (int)(length / Probe) + 1
+        for s : 1; s <= steps; s++ {
+            float part = (float)s / (float)steps
+            float travelled = length * part
+            vec3 point = from + along * part + vec3(0.0, BodyHeight, 0.0)
+            bool wings = travelled >= WingClearance && length - travelled >= WingClearance
+            for o : near {
+                if SolidIn(world, o, point) { return false }
+                if !wings { continue }
+                if SolidIn(world, o, point + vec3(WingSpan, 0.0, 0.0)) || SolidIn(world, o, point - vec3(WingSpan, 0.0, 0.0)) { return false }
+                if SolidIn(world, o, point + vec3(0.0, 0.0, WingSpan)) || SolidIn(world, o, point - vec3(0.0, 0.0, WingSpan)) { return false }
+            }
+        }
+        return true
+    }
+
+    // A way off the perch, away from the player: the first clear line among
+    // directions fanning out from straight away, climbing as it goes, or else
+    // straight up. Returns false if even that is blocked.
+    bool PlanEscape(QuaxelWorld& world, int i, vec3 from, vec3 player)
+    {
+        float away = Math.Atan2(from.Z - player.Z, from.X - player.X)
+        float seconds = Random.Range(1.6, 2.6)
+        float [9] turns = {0.0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.3, -2.3}
+        for turn : turns {
+            float angle = away + turn
+            vec3 to = from + vec3(Math.Cos(angle) * FlySpeed * seconds, ClimbSpeed * seconds, Math.Sin(angle) * FlySpeed * seconds)
+            if Open(world, from, to) {
+                SetPath(i, to, to, to, to, 1)
+                return true
+            }
+        }
+        vec3 up = from + vec3(0.0, ClimbSpeed * seconds, 0.0)
+        if !Open(world, from, up) { return false }
+        SetPath(i, up, up, up, up, 1)
+        return true
+    }
+
+    // A way in to a perch: up from where it is to a cruising height, across to
+    // above an approach point, down to it, and onto the perch. The approach is
+    // from above if it can be, else from one of eight sides. The cruise is the
+    // lowest height that keeps every leg clear. Returns false if none works.
+    bool PlanLanding(QuaxelWorld& world, int i, vec3 from, vec3 target)
+    {
+        for a : 0; a < 9; a++ {
+            vec3 approach = target + vec3(0.0, Approach, 0.0)
+            if a > 0 {
+                float angle = (float)(a - 1) * 0.78539816
+                approach = target + vec3(Math.Cos(angle) * Approach, Approach * 0.5, Math.Sin(angle) * Approach)
+            }
+            if !Open(world, approach, target) { continue }
+            for k : 0; k < 24; k++ {
+                float cruise = Math.Max(from.Y, approach.Y) + 0.5 + (float)k * 0.5
+                vec3 up = vec3(from.X, cruise, from.Z)
+                vec3 over = vec3(approach.X, cruise, approach.Z)
+                if Open(world, from, up) && Open(world, up, over) && Open(world, over, approach) {
+                    SetPath(i, up, over, approach, target, 4)
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    -SetPath(int i, vec3 a, vec3 b, vec3 c, vec3 d, int length)
+    {
+        Birds[i].Path[0] = a
+        Birds[i].Path[1] = b
+        Birds[i].Path[2] = c
+        Birds[i].Path[3] = d
+        Birds[i].PathLength = length
+        Birds[i].PathAt = 0
+    }
+
+    // Moves the bird along its path. True once it has reached the end.
+    -bool FollowPath(QuaxelWorld& world, int i, float deltaSeconds)
+    {
+        QuaxelTransform transform = world.GetTransform(Birds[i].Node)
+        float budget = FlySpeed * deltaSeconds
+        while Birds[i].PathAt < Birds[i].PathLength && budget > 0.0 {
+            vec3 goal = Birds[i].Path[Birds[i].PathAt]
+            vec3 offset = goal - transform.Position
+            float distance = offset.Length()
+            if distance <= budget {
+                transform.Position = goal
+                budget -= distance
+                Birds[i].PathAt++
+                continue
+            }
+            transform.Position = transform.Position + offset * (budget / distance)
+            Face(world, Birds[i].Visual, offset)
+            budget = 0.0
+        }
+        world.SetTransform(Birds[i].Node, transform)
+        return Birds[i].PathAt >= Birds[i].PathLength
     }
 
     // A spot for a raven to sit, and whether one starts there.
@@ -61,6 +237,25 @@ HellfeatherRavens
         bird.Timer = Random.Range(1.0, 8.0)
         Birds += bird
         Spots[index].Taken = true
+    }
+
+    // Spots on a model placed by the terrain, from its sockets: the buildings
+    // built by Tools/Models/buildings.py mark each place a raven may sit with
+    // one, in the empty cell its feet stand in. Most start with a bird on
+    // them. Returns how many it found, so a model without any can fall back
+    // to AddRoof.
+    int AddPerches(QuaxelWorld& world, int volume, float voxel, vec3 base)
+    {
+        ivec3 size = world.VolumeSize(volume)
+        int count = world.VolumeSocketCount(volume)
+        for i : 0; i < count; i++ {
+            // Socket positions are cell centers from the volume's center; the
+            // feet go on the bottom of that cell.
+            vec3 at = world.VolumeSocketPosition(volume, i)
+            vec3 feet = vec3(base.X + at.X * voxel, base.Y + (at.Y + (float)size.Y * 0.5 - 0.5) * voxel, base.Z + at.Z * voxel)
+            AddSpot(feet, Random.Unit() < 0.6)
+        }
+        return count
     }
 
     // Spots on the top of a model placed by the terrain: the highest voxel at a
@@ -136,8 +331,7 @@ HellfeatherRavens
     -Fly(QuaxelWorld& world, int i, vec3 player, float deltaSeconds)
     {
         int visual = Birds[i].Visual
-        QuaxelTransform transform = world.GetTransform(Birds[i].Node)
-        vec3 at = transform.Position
+        vec3 at = world.GetPosition(Birds[i].Node)
         if Birds[i].State == 0 {
             // Perched: caw now and then, and leave when she comes too close.
             Birds[i].Timer -= deltaSeconds
@@ -147,52 +341,41 @@ HellfeatherRavens
             } else if world.CurrentClipName(visual) == "caw" && !Playing(world, visual) {
                 world.PlayClip(visual, "idle")
             }
-            if Math.Hypot(at.X - player.X, at.Z - player.Z) < Startle {
-                vec3 away = Math.Normalize(vec3(at.X - player.X, 0.0, at.Z - player.Z) + vec3(Random.Range(-0.4, 0.4), 0.0, Random.Range(-0.4, 0.4)))
-                Birds[i].Velocity = vec3(away.X * FlySpeed, ClimbSpeed, away.Z * FlySpeed)
+            // Boxed in on every side, it stays put.
+            if Math.Hypot(at.X - player.X, at.Z - player.Z) < Startle && PlanEscape(world, i, at, player) {
                 Spots[Birds[i].Spot].Taken = false
                 Birds[i].Spot = -1
                 Birds[i].State = 1
-                Birds[i].Timer = Random.Range(1.6, 2.6)
                 world.PlayClip(visual, "fly")
-                Face(world, visual, away)
             }
             return
         }
+        bool arrived = FollowPath(world, i, deltaSeconds)
         if Birds[i].State == 1 {
-            // Climbing away, then choosing somewhere to come down.
-            Birds[i].Timer -= deltaSeconds
-            transform.Position = at + Birds[i].Velocity * deltaSeconds
-            world.SetTransform(Birds[i].Node, transform)
-            if Birds[i].Timer > 0.0 { return }
-            int spot = FreeSpotNear(transform.Position, player)
-            if spot < 0 {
-                // Nowhere to land: keep going, and come back to the first free spot later.
-                Birds[i].Timer = 3.0
+            // Away from her, then somewhere to come down.
+            if !arrived { return }
+            vec3 now = world.GetPosition(Birds[i].Node)
+            int spot = FreeSpotNear(now, player)
+            if spot >= 0 && PlanLanding(world, i, now, Spots[spot].Feet) {
+                Spots[spot].Taken = true
+                Birds[i].Spot = spot
+                Birds[i].State = 2
                 return
             }
-            Spots[spot].Taken = true
-            Birds[i].Spot = spot
-            Birds[i].State = 2
+            // Nowhere it can reach: fly on, and look again from there.
+            if !PlanEscape(world, i, now, player) { SetPath(i, now, now, now, now, 1) }
             return
         }
-        // Gliding in to the spot, and landing on it.
-        vec3 target = Spots[Birds[i].Spot].Feet
-        vec3 offset = target - at
-        float distance = offset.Length()
-        if distance < 0.05 {
-            transform.Position = target
-            world.SetTransform(Birds[i].Node, transform)
+        // Coming in: settle onto the spot once there.
+        if arrived {
             Birds[i].State = 0
             Birds[i].Timer = Random.Range(3.0, 9.0)
             world.PlayClip(visual, "idle")
             return
         }
-        float step = Math.Min(distance, FlySpeed * deltaSeconds)
-        transform.Position = at + offset * (step / distance)
-        world.SetTransform(Birds[i].Node, transform)
-        Face(world, visual, offset)
-        if distance < 1.2 { world.PlayClip(visual, "land") }
+        vec3 target = Spots[Birds[i].Spot].Feet
+        vec3 left = target - world.GetPosition(Birds[i].Node)
+        if left.Length() < 1.2 { world.PlayClip(visual, "land") }
         else { world.PlayClip(visual, "fly") }
     }
 
@@ -225,13 +408,23 @@ HellfeatherRavens
     }
 }
 #{
-    #int Height = 20
-    // Larger than life, so they read at the camera's distance.
-    #float Voxel = 0.04
+    // The model's box height in voxels, which stands it on its feet; the box
+    // has room for the wings raised in flight. Perched it is 0.85 units long:
+    // larger than life, so it reads at the camera's distance.
+    #int Height = 37
+    #float Voxel = 0.025
     // World units.
     #float Startle = 3.0
     #float FlySpeed = 5.0
     #float ClimbSpeed = 2.4
+    // Flight checks, in world units: how often a line is sampled, how high the
+    // body is above the feet, how far each wing reaches out, how close to the
+    // ends of a line the wings may brush past, and how far out a landing starts.
+    #float Probe = 0.08
+    #float BodyHeight = 0.15
+    #float WingSpan = 0.3
+    #float WingClearance = 0.6
+    #float Approach = 1.2
     #float WakeRadius = 24.0
     #float SleepRadius = 30.0
 
@@ -247,5 +440,95 @@ HellfeatherRavens
     {
         float [6] zs = {-9.5, -10.5, 6.5, 15.5, -6.0, -6.0}
         return zs[n]
+    }
+
+    // For tests: a solid 16-voxel cube, 1 unit on a side, standing on the
+    // origin as an obstacle.
+    AddTestCube(QuaxelWorld& world, HellfeatherRavens& ravens)
+    {
+        int volume = world.CreateVolume(16, 16, 16)
+        for x : 0; x < 16; x++ {
+            for y : 0; y < 16; y++ {
+                for z : 0; z < 16; z++ { world.SetVoxel(volume, x, y, z, 0x808080) }
+            }
+        }
+        ravens.AddObstacle(world, volume, 0.0625, vec3(0.0, 0.0, 0.0))
+    }
+}
+T{
+    LinesThroughAModelAreBlocked()
+    {
+        QuaxelWorld world()
+        HellfeatherRavens ravens
+        HellfeatherRavens.AddTestCube(world, ravens)
+        T.IsTrue(ravens.Solid(world, vec3(0.0, 0.5, 0.0)))
+        T.IsFalse(ravens.Solid(world, vec3(0.0, 1.2, 0.0)))
+        T.IsFalse(ravens.Open(world, vec3(-2.0, 0.3, 0.0), vec3(2.0, 0.3, 0.0)))
+        T.IsTrue(ravens.Open(world, vec3(-2.0, 1.4, 0.0), vec3(2.0, 1.4, 0.0)))
+    }
+
+    ALandingCrossesOverWhatIsInTheWay()
+    {
+        QuaxelWorld world()
+        HellfeatherRavens ravens
+        HellfeatherRavens.AddTestCube(world, ravens)
+        HellfeatherRaven bird
+        ravens.Birds += bird
+        // From beside the cube to a perch on its far edge, at its top.
+        vec3 from = vec3(-3.0, 0.2, 0.0)
+        vec3 target = vec3(0.4, 1.0, 0.0)
+        T.IsTrue(ravens.PlanLanding(world, 0, from, target))
+        T.AreEqual(ravens.Birds[0].PathLength, 4)
+        vec3 at = from
+        for k : 0; k < 4; k++ {
+            vec3 next = ravens.Birds[0].Path[k]
+            T.IsTrue(ravens.Open(world, at, next))
+            at = next
+        }
+        T.IsTrue((at - target).Length() < 0.001)
+    }
+
+    ABirdAgainstAWallTakesOffAnotherWay()
+    {
+        QuaxelWorld world()
+        HellfeatherRavens ravens
+        HellfeatherRavens.AddTestCube(world, ravens)
+        HellfeatherRaven bird
+        ravens.Birds += bird
+        // Straight away from her is straight into the cube.
+        vec3 from = vec3(0.9, 0.0, 0.0)
+        T.IsTrue(ravens.PlanEscape(world, 0, from, vec3(3.0, 0.0, 0.0)))
+        T.IsTrue(ravens.Open(world, from, ravens.Birds[0].Path[0]))
+    }
+
+    EveryRavenSpotInTownCanBeLandedOn()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(game.Ravens.Spots.Len > 20)
+        for s : 0; s < game.Ravens.Spots.Len; s++ {
+            vec3 feet = game.Ravens.Spots[s].Feet
+            T.IsTrue(game.Ravens.PlanLanding(world, 0, feet + vec3(0.0, 15.0, 0.0), feet))
+        }
+    }
+
+    BuildingsMarkTheirOwnPerches()
+    {
+        QuaxelWorld world()
+        int volume = QuaxelAssets.LoadVoxelModel(world, "Assets/CrookedRaven.qvox")
+        T.IsTrue(volume >= 0)
+        T.AreEqual(world.VolumeSocketCount(volume), 3)
+        HellfeatherRavens ravens
+        vec3 base = vec3(10.0, 2.0, -4.0)
+        T.AreEqual(ravens.AddPerches(world, volume, 0.0625, base), 3)
+        T.AreEqual(ravens.Spots.Len, (long)3)
+        // Each perch is on the roof's ridge: high up, within the footprint.
+        ivec3 size = world.VolumeSize(volume)
+        for spot : ravens.Spots {
+            T.IsTrue(spot.Feet.Y > base.Y + (float)size.Y * 0.0625 * 0.6)
+            T.IsTrue(Math.Abs(spot.Feet.X - base.X) < (float)size.X * 0.0625 * 0.5)
+            T.IsTrue(Math.Abs(spot.Feet.Z - base.Z) < (float)size.Z * 0.0625 * 0.5)
+        }
     }
 }

@@ -62,6 +62,7 @@ HellfeatherStats
         if item == HellfeatherItems.ShortSword { stats.WeaponDamage += 12 }
         if item == HellfeatherItems.RoundShield { stats.Defense += 8 }
         if item == HellfeatherItems.IronHelm { stats.Defense += 5 }
+        if item == HellfeatherItems.MinersHelmet { stats.Defense += 2 }
         if item == HellfeatherItems.LeatherArmor { stats.Defense += 12 }
         if item == HellfeatherItems.Gloves { stats.Defense += 2 }
         if item == HellfeatherItems.Boots { stats.Defense += 2 }

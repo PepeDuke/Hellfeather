@@ -19,6 +19,7 @@ HellfeatherItemArt
         else if item == HellfeatherItems.RustyKey { PictureRustyKey(p) }
         else if item == HellfeatherItems.Scroll { PictureScroll(p) }
         else if item == HellfeatherItems.Gold { PictureGold(p) }
+        else if item == HellfeatherItems.MinersHelmet { PictureMinersHelmet(p) }
         else if item == HellfeatherItems.RuneCleave { PictureRuneCleave(p) }
         else if item == HellfeatherItems.RuneWarCry { PictureRuneWarCry(p) }
         else if item == HellfeatherItems.RuneDash { PictureRuneDash(p) }
@@ -430,6 +431,34 @@ HellfeatherItemArt
         p.Row(12, "..GGccccccGGGG..")
         p.Row(13, "....GGGGGGGG....")
         p.Row(14, "......ggggG.....")
+    }
+
+    -PictureMinersHelmet(HellfeatherItemPicture& p)
+    {
+        p.Row(4, "...........lllllllllc...........")
+        p.Row(5, ".........cllllllllllllc.........")
+        p.Row(6, "........clllllllllllllll........")
+        p.Row(7, ".......clllllllllllllllll.......")
+        p.Row(8, "......clllllllllllllllllll......")
+        p.Row(9, ".....cclllllllllllllllllllc.....")
+        p.Row(10, ".....cllllllllllllllllllllc.....")
+        p.Row(11, ".....cllllllllkkkklllllllll.....")
+        p.Row(12, ".....cllllllllLLLLlllllllll.....")
+        p.Row(13, "....cclllllllLLLLLLllllllllc....")
+        p.Row(14, "....ccllllllLLlkkLLllllllllc....")
+        p.Row(15, "....cclllllkLlQHQLLllllllllc....")
+        p.Row(16, "...cccclllcLLHHHHHQLLllllllcc...")
+        p.Row(17, "..ccccccllclLHHHHHQLLllllllccc..")
+        p.Row(18, ".clcccclllclLHHHHHHLlllllllcllc.")
+        p.Row(19, ".clccclllccllQHHHHQllcllllllllc.")
+        p.Row(20, ".cllcccllccclLLLLLllccclllllllc.")
+        p.Row(21, ".cllllccccccclLLLllccccclllllll.")
+        p.Row(22, ".Lllllllllccckkkkkkccllllllllll.")
+        p.Row(23, ".Lllllllllllcccccccllllllllll...")
+        p.Row(24, "...lllllllllllllllllllllllll....")
+        p.Row(25, "....lllllllllllllllllllllll.....")
+        p.Row(26, "......lllllllllllllllllll.......")
+        p.Row(27, "..........llllllllllllL.........")
     }
 
     -PictureRuneCleave(HellfeatherItemPicture& p)

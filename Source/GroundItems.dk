@@ -26,6 +26,8 @@ HellfeatherGroundItems
     HellfeatherGroundItem [] Entries
     // The entry under the mouse as of the last DrawLabels, or -1.
     int Hovered = -1
+    // Every item's title in view, or only the one under the mouse. Alt toggles it.
+    bool ShowLabels = true
     -int [] Volumes
     -float [] Heights
     -HellfeatherGroundLabel [] Labels
@@ -144,9 +146,10 @@ HellfeatherGroundItems
     }
 
     // A title box wins over a model, and the last box drawn is the one on top.
+    // Hidden titles cannot be pointed at, so then only the item itself counts.
     -int FindHovered(int x, int y)
     {
-        for i : (int)Labels.Len - 1; i >= 0; i-- {
+        for i : (int)Labels.Len - 1; i >= 0 && ShowLabels; i-- {
             if x >= Labels[i].X && y >= Labels[i].Y && x < Labels[i].X + Labels[i].Width && y < Labels[i].Y + BoxHeight { return Labels[i].Entry }
         }
         for i : (int)Labels.Len - 1; i >= 0; i-- {
@@ -191,6 +194,7 @@ HellfeatherGroundItems
         if mouseFree { Hovered = FindHovered(mouseX / scale, mouseY / scale) }
         for i : 0; i < Labels.Len; i++ {
             int entry = Labels[i].Entry
+            if !ShowLabels && entry != Hovered { continue }
             DrawBox(ui, Labels[i].X, Labels[i].Y, Labels[i].Width)
             // Titles take their rarity's color, dimmed out of reach and white under the mouse.
             uint color = HellfeatherItemMods.ColorOf(Entries[entry].Mods.Rarity)
@@ -435,6 +439,40 @@ T{
         T.AreEqual(game.Ground.Hovered, -1)
         game.Ground.DrawLabels(ui, world, game.CameraNode, player, 960, 540, 20, 20, true)
         T.AreEqual(game.Ground.Hovered, -1)
+    }
+
+    AltHidesTheTitlesButTheItemItselfStillShowsOne()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelUi ui()
+        game.ConfigureUi(ui)
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.Ground.Place(world, HellfeatherItems.Ring, player))
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.Alt, true)
+        game.Simulate(world, input, 2)
+        T.IsFalse(game.Ground.ShowLabels)
+        // Nothing is drawn, and the hidden title cannot be pointed at.
+        int titleY = 270 - (HellfeatherGroundItems.Rise + 5) * 2
+        ui.ClearOverlay()
+        game.Ground.DrawLabels(ui, world, game.CameraNode, player, 960, 540, 20, 20, true)
+        ui.Layout(960, 540, 0, 0, false)
+        T.AreEqual(ui.CommandCount, 0)
+        game.Ground.DrawLabels(ui, world, game.CameraNode, player, 960, 540, 480, titleY, true)
+        T.AreEqual(game.Ground.Hovered, -1)
+        // Pointing at the item itself still finds it and shows its title.
+        ui.ClearOverlay()
+        game.Ground.DrawLabels(ui, world, game.CameraNode, player, 960, 540, 480, 270, true)
+        T.AreEqual(game.Ground.Hovered, 0)
+        ui.Layout(960, 540, 480, 270, false)
+        T.IsTrue(ui.CommandCount > 0)
+        input.Clear()
+        game.Simulate(world, input, 1)
+        input.SetDown(QuaxelKey.Alt, true)
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.Ground.ShowLabels)
     }
 
     ClickingATitleDoesNotSwing()

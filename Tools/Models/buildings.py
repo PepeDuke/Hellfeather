@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import act1  # noqa: E402
 from kit import (BRASS, BURLAP, CANDLE, CLOTH_GREY, CLOTH_PALE, CLOTH_RED, FRAME, GLOW, GUANO, IRON, IVY,  # noqa: E402
                  MOSS, PAPER, PLASTER, RAVEN, SOOT, STONE, WATER, WOOD, WOOD_DARK, WOOD_LIT, Model, hash2,
-                 compact, octagon_corners, octagon_distance, pick, planks, raven, shingles, stone_courses)
+                 compact, octagon_corners, octagon_distance, perch, pick, planks, shingles, stone_courses)
 from house import (Gable, barrel, chimney, door, face_layer, falling_water, hanging_sign, lantern,  # noqa: E402
                    pent, plank_block, sack, stair, stone_block, timber_block, water_wheel, window)
 
@@ -125,7 +125,7 @@ def rookery_tower():
             m.beam((cx + ca * (r - 2), py, cz + sa * (r - 2)), (cx + ca * (r + 8), py, cz + sa * (r + 8)), 2, WOOD[:3])
             m.beam((cx + ca * (r - 1), py - 5, cz + sa * (r - 1)), (cx + ca * (r + 4), py - 1, cz + sa * (r + 4)), 1, [WOOD_DARK[0]])
             if hash2(ring, k, 14) < 0.65:
-                raven(m, (cx + ca * (r + 6), py + 1, cz + sa * (r + 6)), a + (hash2(ring, k, 15) - 0.5) * 2.0)
+                perch(m, (cx + ca * (r + 6), py + 1, cz + sa * (r + 6)))
 
     # The loft floor, a plank octagon on the corbels, with joist ends showing.
     octo = octagon_distance(dx, dz)
@@ -160,7 +160,7 @@ def rookery_tower():
             m.beam((sx, loft_top - 9, sz), (sx + ux / n * 7, loft_top - 2, sz + uz / n * 7), 1, [WOOD[2]])
         if hash2(k, 0, 16) < 0.55:
             mx, mz = (ax + bx) / 2, (az + bz) / 2
-            raven(m, (mx, rail + 1, mz), math.atan2(mz - cz, mx - cx))
+            perch(m, (mx, rail + 1, mz))
     # The bell, hung under the plate on the front face.
     (ax, az), (bx, bz) = corners[1], corners[2]
     bx_, bz_ = (ax + bx) / 2 - 3, (az + bz) / 2 - 3
@@ -235,18 +235,18 @@ def hut(m, x0, x1, z0, z1):
     m.fill(pile, np.where(ring, WOOD[2], WOOD[3]))
 
 
-def ridge_ravens(m, roof, spots, axis='x', facing=None):
-    """Ravens on a gable's ridge at the given positions along it."""
-    w, h, d = m.grid.shape
+def ridge_perches(m, roof, spots, axis='x'):
+    """Perches for the live ravens along a gable's ridge, at the given
+    positions along it."""
     for at in spots:
         if axis == 'x':
             col = roof.line[int(at), 0, :]
             z = int(np.argmax(col))
-            raven(m, (at, int(col[z]) - 1, z), facing if facing is not None else math.pi / 2 * (1 if hash2(int(at), 1, 3) < 0.5 else -1))
+            perch(m, (at, int(col[z]), z))
         else:
             col = roof.line[:, 0, int(at)]
             x = int(np.argmax(col))
-            raven(m, (x, int(col[x]) - 1, at), facing if facing is not None else (0.0 if hash2(int(at), 1, 3) < 0.5 else math.pi))
+            perch(m, (x, int(col[x]), at))
 
 
 def raven_icon(u, v):
@@ -297,7 +297,7 @@ def crooked_raven():
     lantern(m, 58, 20, 71)
     for bx, bz in ((80, 77), (85, 81), (80, 83)):
         barrel(m, bx, bz)
-    ridge_ravens(m, main, (24, 58, 78))
+    ridge_perches(m, main, (24, 58, 78))
     return m
 
 
@@ -363,7 +363,7 @@ def reeves_hall():
         window(m, side, at - (1 if side == '+x' else -1), 40, 48, 54, 64, arch=4)
     for u0 in (22, 46, 66):
         window(m, '-z', z0 - 1, u0, u0 + 8, 10, 22, style='bars', arch=3)
-    ridge_ravens(m, front, (30, 56), axis='z')
+    ridge_perches(m, front, (30, 56), axis='z')
     return m
 
 
@@ -401,7 +401,7 @@ def pells_chandlery():
         window(m, '-z', 7, u0, u0 + 8, 45, 57)
     window(m, '-x', 11, 30, 38, 45, 57)
     barrel(m, 16, 63)
-    ridge_ravens(m, roof, (22, 44), axis='z')
+    ridge_perches(m, roof, (22, 44), axis='z')
     return m
 
 
@@ -436,7 +436,7 @@ def senns_needlehouse():
     window(m, '-x', 7, 26, 34, 41, 54)
     barrel(m, 12, 64)
     barrel(m, 17, 66)
-    ridge_ravens(m, roof, (26,), axis='z')
+    ridge_perches(m, roof, (26,), axis='z')
     return m
 
 
@@ -464,7 +464,7 @@ def lantern_and_moth():
     window(m, '+x', 54, 20, 28, 8, 15, style='bars')
     window(m, '-z', 5, 22, 30, 35, 48)
     window(m, '-x', 7, 22, 30, 35, 48)
-    ridge_ravens(m, roof, (18,), axis='z')
+    ridge_perches(m, roof, (18,), axis='z')
     return m
 
 
@@ -534,7 +534,7 @@ def orras_hospice():
     ivy &= np.roll(m.grid, -1, axis=2) < 0
     ivy &= ~np.isin(m.grid, GLOW + [FRAME[0]] + WOOD + WOOD_DARK + IRON)
     m.fill(ivy, pick(IVY, hash2(m.x, m.y, 96)))
-    ridge_ravens(m, nave, (24, 96))
+    ridge_perches(m, nave, (24, 96))
     return m
 
 
@@ -570,7 +570,7 @@ def hobbs_mill():
     window(m, '-x', 9, 22, 28, 12, 20, style='bars')
     for sx, sz in ((40, 72), (45, 73), (50, 71), (43, 76)):
         sack(m, sx, sz, lean=0.6)
-    ridge_ravens(m, roof, (30,), axis='z')
+    ridge_perches(m, roof, (30,), axis='z')
     return m
 
 
@@ -586,13 +586,39 @@ RECIPES = {
 }
 
 
+def perch_sockets(model, grid, x0, z0):
+    """A socket line for each of the model's perches, in the trimmed grid's
+    cells: the empty cell just above the highest solid one within a few cells
+    of the mark, so the bird stands on what is really there."""
+    lines = []
+    for x, y, z in model.perches:
+        cx, cz = int(round(x)) - x0, int(round(z)) - z0
+        if not (0 <= cx < grid.shape[0] and 0 <= cz < grid.shape[2]):
+            continue
+        column = grid[cx, :, cz] >= 0
+        near = [cy for cy in range(int(y) - 4, min(int(y) + 4, grid.shape[1] - 1)) if 0 <= cy and column[cy]]
+        if not near:
+            continue
+        lines.append(f'socket perch{len(lines)} {cx} {max(near) + 1} {cz}')
+    return lines
+
+
 def build(name, preview):
-    (grid,), palette = compact([RECIPES[name]().trimmed()])
+    model = RECIPES[name]()
+    xs, _, zs = np.nonzero(model.grid >= 0)
+    (grid,), palette = compact([model.trimmed()])
     act1.write(act1.ASSETS / f'{name}.qvox', palette, grid, [])
+    # Building models carry only perch sockets; Ravens.dk lands its birds on
+    # every socket a building has.
+    sockets = perch_sockets(model, grid, int(xs.min()), int(zs.min()))
+    path = act1.ASSETS / f'{name}.qvox'
+    text = path.read_text(encoding='ascii').splitlines()
+    at = text.index('# y = 0')
+    path.write_text('\n'.join(text[:at] + sockets + text[at:]) + '\n', encoding='ascii')
     if preview:
         act1.save_preview(name, palette, grid, [])
     w, h, d = grid.shape
-    print(f'{name}: {w} x {h} x {d}, {int((grid >= 0).sum())} voxels, {len(palette)} colors')
+    print(f'{name}: {w} x {h} x {d}, {int((grid >= 0).sum())} voxels, {len(palette)} colors, {len(sockets)} perches')
 
 
 def main():

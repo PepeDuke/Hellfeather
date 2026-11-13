@@ -95,7 +95,7 @@ HellfeatherItemArt
     }
 
     // Potions and helmets stand up and are round. Everything else lies flat.
-    bool Stands(HellfeatherItems item) { return item == HellfeatherItems.HealthPotion || item == HellfeatherItems.ManaPotion || item == HellfeatherItems.IronHelm }
+    bool Stands(HellfeatherItems item) { return item == HellfeatherItems.HealthPotion || item == HellfeatherItems.ManaPotion || item == HellfeatherItems.IronHelm || item == HellfeatherItems.MinersHelmet }
 
     // Puffs a flat item up toward its middle, with dark lines pressed in.
     // Cells within two of an edge rise half as high, within four three quarters.

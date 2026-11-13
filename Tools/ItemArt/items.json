@@ -65,6 +65,11 @@
     "Gold": {
       "prompt": "three gold coins lying in a small pile",
       "colors": "gGHc"
+    },
+    "MinersHelmet": {
+      "prompt": "an empty brown leather miner's helmet with a low rounded crown and a short brim, a small round brass headlamp fixed to the front of the crown, no face, front view",
+      "colors": "LlcQgGHy",
+      "seed": 11
     }
   },
   "parts": {

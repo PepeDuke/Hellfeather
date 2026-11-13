@@ -506,8 +506,11 @@ def write(path, palette, base, clips):
     for name, looping, frames in clips:
         lines.append('')
         lines.append(f"clip {name} {'loop' if looping else 'once'}")
-        for grid, ms in frames:
+        # A frame may carry a third item: its socket lines, such as
+        # 'socket hand_r 10.5 38 38 12 20 16', from figure.py.
+        for grid, ms, *sockets in frames:
             lines.append(f'frame {ms}')
+            lines.extend(sockets[0] if sockets else [])
             grid_lines(grid)
     path.write_text('\n'.join(lines) + '\n', encoding='ascii')
 
@@ -532,7 +535,7 @@ def save_preview(name, palette, base, clips):
     PREVIEW.mkdir(parents=True, exist_ok=True)
     rows = [np.concatenate([render(base, palette, yaw) for yaw in (0.0, 45.0, 90.0)], axis=1)]
     for clip, _, frames in clips:
-        rows.append(np.concatenate([render(grid, palette, 90.0) for grid, _ in frames], axis=1))
+        rows.append(np.concatenate([render(frame[0], palette, 90.0) for frame in frames], axis=1))
     width = max(r.shape[1] for r in rows)
     sheet = np.concatenate([np.pad(r, ((0, 2), (0, width - r.shape[1]), (0, 0))) for r in rows], axis=0)
     scale = max(1, min(4, 900 // max(sheet.shape)))
@@ -691,8 +694,9 @@ def main():
             continue
         if not args.names or model['name'] in args.names:
             build_model(model, args.preview)
-    if not args.names or 'Raven' in args.names:
-        build_raven(args.preview)
+    # The raven is built by raven.py now; build_raven stays for reference.
+    if 'Raven' in args.names:
+        print('Raven: built by Tools/Models/raven.py')
     if not args.names or 'SilverSpark' in args.names:
         build_spark(args.preview)
 

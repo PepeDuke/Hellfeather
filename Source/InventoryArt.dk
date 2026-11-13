@@ -293,10 +293,14 @@ HellfeatherInventoryScreen
         if !Open { Items.StowHeld() }
     }
 
-    // The warrior's starting kit: her axe, and one rune to learn the board with.
+    // The warrior's starting kit: her axe, her Leather Armor and Miner's Helmet,
+    // all plain, and one rune to learn the board with.
     Stock()
     {
         Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.BattleAxe
+        Items.Equipped[HellfeatherSlot.Body] = HellfeatherItems.LeatherArmor
+        Items.Equipped[HellfeatherSlot.Head] = HellfeatherItems.MinersHelmet
+        for slot : HellfeatherSlot { Items.EquippedMods[slot].Clear() }
         Items.Add(HellfeatherItems.RuneCleave)
     }
 
@@ -599,7 +603,7 @@ T{
         T.AreEqual(screen.Items.Bag.Len, 1)
     }
 
-    TheWarriorStartsWithHerAxeAndACleaveRune()
+    TheWarriorStartsInHerArmorWithHerAxeAndACleaveRune()
     {
         HellfeatherInventoryScreen screen
         screen.Stock()
@@ -607,7 +611,12 @@ T{
         T.AreEqual(screen.Items.CountOf(HellfeatherItems.RuneCleave), 1)
         T.AreEqual(screen.Items.Gold, 0)
         for slot : HellfeatherSlot {
-            T.AreEqual(screen.Items.Equipped[slot], slot == HellfeatherSlot.MainHand ? HellfeatherItems.BattleAxe | HellfeatherItems.None)
+            HellfeatherItems expected = HellfeatherItems.None
+            if slot == HellfeatherSlot.MainHand { expected = HellfeatherItems.BattleAxe }
+            if slot == HellfeatherSlot.Body { expected = HellfeatherItems.LeatherArmor }
+            if slot == HellfeatherSlot.Head { expected = HellfeatherItems.MinersHelmet }
+            T.AreEqual(screen.Items.Equipped[slot], expected)
+            T.AreEqual(screen.Items.EquippedMods[slot].Rarity, HellfeatherRarity.Common)
         }
     }
 

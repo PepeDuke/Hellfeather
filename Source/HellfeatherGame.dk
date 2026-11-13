@@ -26,9 +26,12 @@ HellfeatherGame : QuaxelGameInstance
     -bool PassivesKeyHeld
     -bool RunesKeyHeld
     -bool QuestKeyHeld
+    -bool LabelKeyHeld
     // The rune board's Version when the known skills last matched it.
     -int RunesSynced
     HellfeatherInventoryScreen Inventory
+    // Shows her armor, helmet, weapon and shield on her model.
+    HellfeatherWardrobe Wardrobe
     HellfeatherStatsScreen StatsScreen
     HellfeatherPassiveScreen Passives
     HellfeatherRuneScreen Runes
@@ -282,6 +285,16 @@ HellfeatherGame : QuaxelGameInstance
         return moved
     }
 
+    // Shows what she has equipped on her model.
+    -bool DressPlayer(QuaxelWorld& world, int visual)
+    {
+        HellfeatherItems body = Inventory.Items.Equipped[HellfeatherSlot.Body]
+        HellfeatherItems mainHand = Inventory.Items.Equipped[HellfeatherSlot.MainHand]
+        HellfeatherItems offHand = Inventory.Items.Equipped[HellfeatherSlot.OffHand]
+        HellfeatherItems head = Inventory.Items.Equipped[HellfeatherSlot.Head]
+        return Wardrobe.Dress(world, visual, body, mainHand, offHand, head)
+    }
+
     -bool SpawnPlayer(QuaxelWorld& world)
     {
         PlayerNode = world.CreateNode()
@@ -299,7 +312,7 @@ HellfeatherGame : QuaxelGameInstance
         pose.FacingX = 0.70710678
         pose.FacingZ = 0.70710678
         world.AttachTransform(visual, pose)
-        if !HellfeatherWarrior.Attach(world, visual) { return false }
+        if !DressPlayer(world, visual) { return false }
 
         PlayerController controller
         controller.VisualNode = visual
@@ -357,6 +370,8 @@ HellfeatherGame : QuaxelGameInstance
         StepsSimulated++
         int activeCamera = world.ActiveCamera
         if activeCamera == 0 { return }
+        // Puts on whatever she equipped since the last step.
+        for controller : Controllers { DressPlayer(world, controller.VisualNode) }
         bool inventoryKey = input.IsDown(QuaxelKey.I)
         if inventoryKey && !InventoryKeyHeld { Inventory.Toggle() }
         InventoryKeyHeld = inventoryKey
@@ -405,6 +420,10 @@ HellfeatherGame : QuaxelGameInstance
             }
         }
         QuestKeyHeld = questKey
+        // Alt shows or hides the titles of items on the ground.
+        bool labelKey = input.IsDown(QuaxelKey.Alt)
+        if labelKey && !LabelKeyHeld { Ground.ShowLabels = !Ground.ShowLabels }
+        LabelKeyHeld = labelKey
         SyncRuneSkills()
         // Taking off gear can lower her maximums below what she has.
         PlayerHealth = Math.Min(PlayerHealth, PlayerMaxHealth())
@@ -716,7 +735,7 @@ HellfeatherGame : QuaxelGameInstance
     -SetFall(QuaxelWorld& world, int visual, float fall)
     {
         float standing = HellfeatherWarrior.Height * HellfeatherWarrior.VoxelSize * 0.5 - PlayerRadius()
-        float lying = HellfeatherWarrior.LyingCenterHeight - PlayerRadius()
+        float lying = HellfeatherWarrior.LyingCenterHeight(Inventory.Items.Equipped[HellfeatherSlot.Body]) - PlayerRadius()
         QuaxelTransform pose = world.GetTransform(visual)
         pose.Rotation = QuaxelRotation.FromDegrees(0.0, -90.0 * fall, 0.0)
         pose.Position = vec3(0.0, standing + (lying - standing) * fall, 0.0)
@@ -906,11 +925,8 @@ HellfeatherGame : QuaxelGameInstance
             // A copy, since the game's own fields cannot be lent by reference.
             HellfeatherQuests quests = Quests
             QuestLog.Notice(quests)
-            if !StatsScreen.Open && !Passives.Open && !Runes.Open && !QuestLog.Open && !Shop.Open {
-                lines : Quests.Objectives()
-                if QuestLog.AnyFresh() { lines += "New in the quest log (L)" }
-                HellfeatherTracker.Draw(ui, lines)
-            }
+            // Where she is, in the corner the open panels on the left would cover.
+            if !StatsScreen.Open && !Passives.Open && !Runes.Open && !QuestLog.Open && !Shop.Open { HellfeatherZoneNames.Draw(ui, ZoneName()) }
         }
         // Before the panels handle this click, so closing one cannot also swing the axe.
         ClickWorld(world, mouseX, mouseY, mouseDown)
@@ -1563,8 +1579,8 @@ T{
         int visual = game.Controllers[0].VisualNode
         mat4 flat = world.ModelMatrix(visual)
         T.IsTrue(Math.Abs(flat[1][1]) < 0.0001)
-        // Her back is at depth 26 of the 64 cells, and the unit cube is centered.
-        vec4 back = world.VolumeModel(visual) * vec4(0.0, 0.0, 26.0 / 64.0 - 0.5, 1.0)
+        // Her back is at depth 26 of the 70 cells, and the unit cube is centered.
+        vec4 back = world.VolumeModel(visual) * vec4(0.0, 0.0, 26.0 / 70.0 - 0.5, 1.0)
         T.IsTrue(Math.Abs(back.Y - game.Terrain.GroundY(0.0, 0.0)) < 0.001)
         input.Clear()
         game.Simulate(world, input, 170)
@@ -1572,6 +1588,61 @@ T{
         mat4 upright = world.ModelMatrix(visual)
         T.AreEqual(upright[1][1], HellfeatherWarrior.VoxelSize)
         T.AreEqual(game.Enemies[0].Health, game.Enemies[0].MaxHealth)
+    }
+
+    TheAxeHangsHeadDownWithTheBigBladeBack()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        // The axe is her first socket follower. Its volume is 29 x 59 x 7 cells:
+        // the grip at cell (18, 21, 3), the head on the haft around (17, 52, 3)
+        // and the tip of its big blade at (1, 52, 3).
+        int axe = world.NextWith(0, QuaxelComponents.SocketFollower)
+        mat4 model = world.VolumeModel(axe)
+        vec4 grip = model * vec4(18.5 / 29.0 - 0.5, 21.5 / 59.0 - 0.5, 3.5 / 7.0 - 0.5, 1.0)
+        vec4 head = model * vec4(17.5 / 29.0 - 0.5, 52.5 / 59.0 - 0.5, 3.5 / 7.0 - 0.5, 1.0)
+        vec4 blade = model * vec4(1.5 / 29.0 - 0.5, 52.5 / 59.0 - 0.5, 3.5 / 7.0 - 0.5, 1.0)
+        T.IsTrue(head.Y < grip.Y - 0.3)
+        // She spawns facing (0.7071, 0.7071); the big blade points away from that.
+        float back = (blade.X - head.X) * 0.70710678 + (blade.Z - head.Z) * 0.70710678
+        T.IsTrue(back < -0.2)
+    }
+
+    WhatSheEquipsShowsOnHer()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int visual = game.Controllers[0].VisualNode
+        // The nodes riding sockets: her weapon, shield and helmet.
+        func int() followers = @ int()
+        {
+            int count = 0
+            for id : world.NextWith(0, QuaxelComponents.SocketFollower); id != 0; id = world.NextWith(id, QuaxelComponents.SocketFollower) { count++ }
+            return count
+        }
+        // The axe and the Miner's Helmet ride her sockets, the armor is her body.
+        T.AreEqual(followers(), 2)
+        QuaxelAnimator dressed = world.GetAnimator(visual)
+        int armored = dressed.Animation
+        QuaxelInputState input
+        game.Inventory.Items.Equipped[HellfeatherSlot.Body] = HellfeatherItems.None
+        game.Inventory.Items.Equipped[HellfeatherSlot.Head] = HellfeatherItems.None
+        game.Inventory.Items.Equipped[HellfeatherSlot.OffHand] = HellfeatherItems.RoundShield
+        game.Simulate(world, input, 1)
+        QuaxelAnimator bare = world.GetAnimator(visual)
+        T.IsTrue(bare.Animation != armored)
+        T.IsTrue(world.CurrentClipName(visual) == "idle")
+        T.AreEqual(followers(), 2)
+        game.Inventory.Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.None
+        game.Simulate(world, input, 1)
+        T.AreEqual(followers(), 1)
+        // Putting the armor back on finds the model already read.
+        game.Inventory.Items.Equipped[HellfeatherSlot.Body] = HellfeatherItems.LeatherArmor
+        game.Simulate(world, input, 1)
+        QuaxelAnimator again = world.GetAnimator(visual)
+        T.AreEqual(again.Animation, armored)
     }
 
     WalkingAndClickingDriveTheArmedWarrior()

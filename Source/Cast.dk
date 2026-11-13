@@ -74,7 +74,7 @@ HellfeatherGame : QuaxelGameInstance
         int mill = PlacementOf(Terrain.Mill.Mill)
         vec3 millAt = mill >= 0 ? Terrain.PlacementPosition(mill) | ZoneMiddle(HellfeatherZone.HobbsMill)
         float face = (float)Terrain.Mill.MillHalf * QuaxelTerrain.Cell
-        People.AddPerson(HellfeatherPerson.OldHobb, "Old Hobb", fen, Flat(millAt) + vec3(-2.8, 0.0, face + 1.0), "Assets/OldHobb.qvox", 0.025, 66)
+        People.AddPerson(HellfeatherPerson.OldHobb, "Old Hobb", fen, Flat(millAt) + vec3(-2.8, 0.0, face + 1.0), "Assets/OldHobb.qvox", 0.025, 68)
         MillDoor = Flat(millAt) + vec3(1.4, 0.0, face + 0.4)
         int door = People.AddModel(HellfeatherSpotKind.Door, "Millrace door", fen, MillDoor, Landmarks.Doorway, HellfeatherArt.FineVoxel, HellfeatherLandmarks.DoorHeight)
         People.Spots[door].FacingX = 0.0
@@ -91,10 +91,17 @@ HellfeatherGame : QuaxelGameInstance
         if !Ravens.Load(world) { return }
         for i : 0; i < Terrain.Placements.Len; i++ {
             int volume = Terrain.Placements[i].Volume
+            // Everything placed is in the birds' way: houses, walls, perches and props.
+            if volume >= 0 { Ravens.AddObstacle(world, volume, Terrain.Placements[i].VoxelSize, Terrain.PlacementPosition(i)) }
             bool roof = volume == Landmarks.CrookedRaven || volume == Landmarks.RookeryTower || volume == Landmarks.ReevesHall
             roof = roof || volume == Landmarks.PellsChandlery || volume == Landmarks.SennsNeedlehouse || volume == Landmarks.LanternAndMoth
             roof = roof || volume == Landmarks.HobbsMill || volume == Landmarks.OrrasHospice
-            if roof && volume >= 0 { Ravens.AddRoof(world, volume, Terrain.Placements[i].VoxelSize, Terrain.PlacementPosition(i), 3) }
+            if roof && volume >= 0 {
+                // The buildings mark their own perches; older models get three on the ridge.
+                float voxel = Terrain.Placements[i].VoxelSize
+                vec3 base = Terrain.PlacementPosition(i)
+                if Ravens.AddPerches(world, volume, voxel, base) == 0 { Ravens.AddRoof(world, volume, voxel, base, 3) }
+            }
             else if volume >= 0 && (volume == Landmarks.RavenPerch || volume == Terrain.Hill.Props.Gibbet || volume == Terrain.Hill.Props.Shrine) { Ravens.AddRoof(world, volume, Terrain.Placements[i].VoxelSize, Terrain.PlacementPosition(i), 1) }
         }
     }
@@ -277,6 +284,7 @@ HellfeatherGame : QuaxelGameInstance
             }
         }
         Banner.Step(deltaSeconds)
+        StepZone(player, deltaSeconds)
         StepShots(world, deltaSeconds)
         StepQuests(world)
         // Walking away ends a conversation.

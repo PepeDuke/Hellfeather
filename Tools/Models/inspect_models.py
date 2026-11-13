@@ -15,6 +15,15 @@ a pedestal left under the feet all show up as a low score.
     python Tools/Models/inspect_models.py Matthew Raven   some of them, or any Assets/*.qvox
     python Tools/Models/inspect_models.py --check         also fail if a score is too low
     python Tools/Models/inspect_models.py --no-clips      skip the clip strips
+
+Gear: with --gear, a model is shown holding and wearing other models on its
+sockets, placed as the engine places them (World.FollowSocket: the item's grip
+lined up with the socket, both in position and turn). Each chosen frame gets
+front, back, left, right and top views and the game camera at four facings;
+45 degrees is how the game spawns the player, facing the camera.
+
+    python Tools/Models/inspect_models.py Warrior --gear hand_r=BattleAxe head=MinersHelmet
+    python Tools/Models/inspect_models.py WarriorLeatherArmor --gear hand_r=BattleAxe --frames idle:0 attack:2 attack:3
 """
 import argparse
 import math
@@ -269,6 +278,119 @@ def row(images, gap=8):
     return canvas
 
 
+def engine_rotation(yaw, pitch, roll):
+    """The engine's socket turn (QuaxelRotation.FromDegrees): roll about Z,
+    then pitch about X, then yaw about Y, by the right-hand rule."""
+    a, b, c = (math.radians(v) for v in (pitch, yaw, roll))
+    rx = np.array([[1, 0, 0], [0, math.cos(a), -math.sin(a)], [0, math.sin(a), math.cos(a)]])
+    ry = np.array([[math.cos(b), 0, math.sin(b)], [0, 1, 0], [-math.sin(b), 0, math.cos(b)]])
+    rz = np.array([[math.cos(c), -math.sin(c), 0], [math.sin(c), math.cos(c), 0], [0, 0, 1]])
+    return ry @ rx @ rz
+
+
+def read_sockets(path, size):
+    """Sockets per frame: {clip: [{name: (position, rotation)}]}, with the static
+    grid's under the key None. Positions are relative to the grid's center, as
+    the engine stores them (QuaxelVoxels.AddSocket: a whole number is a cell's
+    center)."""
+    out = {None: [{}]}
+    clip = None
+    half = np.array(size, float) * 0.5
+    for line in path.read_text(encoding='ascii').splitlines():
+        if line.startswith('clip '):
+            clip = line.split()[1]
+            out[clip] = []
+        elif line.startswith('frame ') and clip:
+            out[clip].append({})
+        elif line.startswith('socket '):
+            parts = line.split()
+            values = [float(v) for v in parts[2:]] + [0.0] * 3
+            position = np.array(values[:3]) + 0.5 - half
+            target = out[clip][-1] if clip else out[None][0]
+            target[parts[1]] = (position, engine_rotation(*values[3:6]))
+    return out
+
+
+def dress(grid, palette, sockets, gear, twists=None):
+    """The grid with each worn item drawn in, placed as World.FollowSocket
+    places it: turn = socket * grip^-1, and the grip's point on the socket.
+    gear maps socket names to (palette, grid, sockets) of the items. Returns a
+    grid padded to hold them, and the joined palette."""
+    pad = 48
+    shape = np.array(grid.shape)
+    out = np.full(tuple(shape + 2 * pad), -1, dtype=np.int32)
+    out[pad:pad + shape[0], pad:pad + shape[1], pad:pad + shape[2]] = grid
+    colors = palette
+    for name, (item_palette, item, item_sockets) in gear.items():
+        if name not in sockets:
+            continue    # the engine hides an item whose socket a frame leaves out
+        position, turn = sockets[name]
+        if twists and name in twists:
+            # An extra turn in the socket's own frame, to try out another
+            # socket rotation without rebuilding the holder.
+            turn = turn @ twists[name]
+        grip = item_sockets[None][0].get('grip')
+        grip_position, grip_turn = grip if grip else (np.zeros(3), np.eye(3))
+        rotation = turn @ grip_turn.T
+        offset = len(colors)
+        colors = np.concatenate([colors, item_palette])
+        cells = np.argwhere(item >= 0)
+        local = cells + 0.5 - np.array(item.shape) * 0.5
+        placed = position + (local - grip_position) @ rotation.T
+        # Back to the holder's cell indices, then into the padded grid.
+        index = np.floor(placed + shape * 0.5).astype(int) + pad
+        keep = np.all((index >= 0) & (index < out.shape), axis=1)
+        out[tuple(index[keep].T)] = offset + item[tuple(cells[keep].T)]
+    filled = np.argwhere(out >= 0)
+    lo, hi = filled.min(axis=0), filled.max(axis=0) + 1
+    # Keep the feet's row as the floor so every view stands on the same line.
+    lo[1] = min(lo[1], pad)
+    return out[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]], colors
+
+
+def inspect_gear(name, gear_names, frames, twists=None, views_wanted=None, out_name=None):
+    """A sheet of the model wearing its gear, for each frame: the five axis
+    views and the game camera at four facings."""
+    path = ASSETS / f'{name}.qvox'
+    palette, base, clips = read_qvox(path)
+    sockets = read_sockets(path, base.shape)
+    gear = {}
+    for pair in gear_names:
+        socket, item = pair.split('=')
+        item_path = ASSETS / f'{item}.qvox'
+        item_palette, item_grid, _ = read_qvox(item_path)
+        gear[socket] = (item_palette, item_grid, read_sockets(item_path, item_grid.shape))
+    by_name = dict(clips)
+    picks = frames or ([f'{clips[0][0]}:0'] + [f'{c}:{len(g) // 2}' for c, g in clips[1:]] if clips else [None])
+    rows = []
+    for pick in picks:
+        if pick is None:
+            grid, frame_sockets, title = base, sockets[None][0], 'rest'
+        else:
+            clip, index = pick.split(':')
+            grid, frame_sockets, title = by_name[clip][int(index)], sockets[clip][int(index)], pick
+        dressed, colors = dress(grid, palette, frame_sockets, gear, twists)
+        shown = views(dressed, colors)
+        wanted = views_wanted or ['front', 'back', 'left', 'right', 'top', 'game45', 'game135', 'game-135', 'game-45']
+        tiles = []
+        for v in wanted:
+            if v.startswith('game'):
+                tiles.append(label(to_image(game_view(dressed, colors, float(v[4:]), 4), PANEL), f'{title} {v}'))
+            else:
+                tiles.append(label(to_image(shown[v][0], PANEL), f'{title} {v}'))
+        rows.append(row(tiles))
+    width = max(r.width for r in rows)
+    sheet = Image.new('RGB', (width, sum(r.height + 8 for r in rows)), BACKGROUND)
+    y = 0
+    for r in rows:
+        sheet.paste(r, (0, y))
+        y += r.height + 8
+    OUT.mkdir(parents=True, exist_ok=True)
+    target = OUT / f'{out_name or name + ".gear"}.png'
+    sheet.save(target)
+    return target
+
+
 def inspect(name, model, clips_too):
     path = ASSETS / f'{name}.qvox'
     palette, base, clips = read_qvox(path)
@@ -319,7 +441,20 @@ def main():
     parser.add_argument('names', nargs='*')
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--no-clips', action='store_true')
+    parser.add_argument('--gear', nargs='+', metavar='SOCKET=ITEM', help='show the model with these Assets items on its sockets')
+    parser.add_argument('--frames', nargs='+', metavar='CLIP:FRAME', help='with --gear, the frames to show')
+    parser.add_argument('--twist', nargs='+', metavar='SOCKET=YAW,PITCH,ROLL', help='with --gear, turn a worn item further on its socket, in the socket frame')
+    parser.add_argument('--views', nargs='+', help='with --gear, the views to show: front back left right top game<yaw>')
+    parser.add_argument('--out', help='with --gear, the sheet file name in Tools/Models/Inspect')
     args = parser.parse_args()
+    if args.gear:
+        twists = {}
+        for pair in args.twist or []:
+            socket, angles = pair.split('=')
+            twists[socket] = engine_rotation(*(float(v) for v in angles.split(',')))
+        for name in args.names:
+            print(f'Sheet in {inspect_gear(name, args.gear, args.frames, twists, args.views, args.out)}')
+        return
     by_name = {m['name']: m for m in act1.MODELS}
     names = args.names or [m['name'] for m in act1.MODELS] + ['Raven', 'SilverSpark']
     failed = []

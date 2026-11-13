@@ -123,16 +123,3 @@ HellfeatherBanner
         ui.OverlayText(x, y, Text, alpha | (uint)0x00E8C878)
     }
 }
-
-// What the quests want next, in the top left corner.
-HellfeatherTracker
-#{
-    Draw(QuaxelUi& ui, string []& lines)
-    {
-        for n : 0; n < lines.Len; n++ {
-            uint color = n == 0 ? 0xFFE0B860 | 0xFFCFC6B6
-            ui.OverlayRect(4, 6 + n * 9, (int)Length(lines[n]) * 6 + 5, 9, 0x80000000)
-            ui.OverlayText(6, 7 + n * 9, lines[n], color)
-        }
-    }
-}

@@ -20,6 +20,23 @@ import act1
 from kit import compact
 
 
+def engine_rotation(yaw, pitch, roll):
+    """The engine's socket rotation: roll about Z, then pitch about X, then yaw about Y."""
+    a, b, c = (math.radians(v) for v in (pitch, yaw, roll))
+    rx = np.array([[1, 0, 0], [0, math.cos(a), -math.sin(a)], [0, math.sin(a), math.cos(a)]])
+    ry = np.array([[math.cos(b), 0, math.sin(b)], [0, 1, 0], [-math.sin(b), 0, math.cos(b)]])
+    rz = np.array([[math.cos(c), -math.sin(c), 0], [math.sin(c), math.cos(c), 0], [0, 0, 1]])
+    return ry @ rx @ rz
+
+
+def engine_angles(m):
+    """yaw, pitch, roll in degrees with engine_rotation(yaw, pitch, roll) == m."""
+    pitch = math.asin(max(-1.0, min(1.0, -m[1][2])))
+    yaw = math.atan2(m[0][2], m[2][2])
+    roll = math.atan2(m[1][0], m[1][1])
+    return math.degrees(yaw), math.degrees(pitch), math.degrees(roll)
+
+
 def rotation(pitch=0.0, yaw=0.0, roll=0.0):
     """Turns about x (pitch, positive tips +Y toward +Z), then z, then y, in degrees."""
     a, b, c = (math.radians(v) for v in (pitch, yaw, roll))
@@ -112,6 +129,7 @@ class Rig:
         self.bones = {}
         self.order = []
         self.parts = []
+        self.sockets = []
 
     def bone(self, name, joint, parent=None):
         self.bones[name] = (np.array(joint, float), parent)
@@ -122,6 +140,28 @@ class Rig:
         when(pose), if given, says in which poses the part is there at all, for
         things that come and go: a spat bolt, a splash."""
         self.parts.append((bone, shape, material, when))
+
+    def socket(self, name, bone, point, yaw=0.0, pitch=0.0, roll=0.0):
+        """A named socket on a bone, such as the hand that holds a weapon.
+        point is in rest rig coordinates; the angles are its rotation in the
+        rest pose, in the engine's order (roll about Z, then pitch about X,
+        then yaw about Y; see Quaxel-Engine Docs/VoxelModels.md)."""
+        self.sockets.append((name, bone, np.array(point, float), engine_rotation(yaw, pitch, roll)))
+
+    def socket_lines(self, pose, size, shift=(0, 0)):
+        """The pose's socket lines for a canvas of `size`, after the canvas
+        has been cut `shift` voxels in x and z."""
+        w, h, d = size
+        origin = np.array([w // 2, 0, d // 2], float)
+        posed = self.transforms(pose)
+        out = []
+        for name, bone, point, rest in self.sockets:
+            pj, pr = posed[bone]
+            joint = self.bones[bone][0]
+            p = ((point - joint) @ pr.T + pj) * self.scale + origin - 0.5 - np.array([shift[0], 0, shift[1]])
+            yaw, pitch, roll = engine_angles(pr @ rest)
+            out.append(f'socket {name} {p[0]:.2f} {p[1]:.2f} {p[2]:.2f} {yaw:.0f} {pitch:.0f} {roll:.0f}')
+        return out
 
     def transforms(self, pose):
         """Each bone's posed joint and rotation."""
@@ -179,27 +219,69 @@ def fit(rig, height, probe=(200, 260, 200)):
     rig.scale = height / top
 
 
+def trim_shift(rest, rendered):
+    """Where act1.trim cuts the canvas in x and z, so sockets can follow."""
+    used = rest >= 0
+    for _, _, frames in rendered:
+        for grid, _ in frames:
+            used = used | (grid >= 0)
+    w, h, d = rest.shape
+    xs = np.nonzero(used.any(axis=(1, 2)))[0]
+    zs = np.nonzero(used.any(axis=(0, 1)))[0]
+    half_x = int(max(w / 2 - xs.min(), xs.max() + 1 - w / 2)) + 1
+    half_z = int(max(d / 2 - zs.min(), zs.max() + 1 - d / 2)) + 1
+    return max(0, w // 2 - half_x), max(0, d // 2 - half_z)
+
+
 def build(name, rig, clips, size, preview=False):
     """Renders every clip, trims them to one canvas and writes Assets/<name>.qvox.
     clips are (name, looping, [(pose, milliseconds)])."""
-    rest = rig.render({}, size)
-    rendered = [(clip, looping, [(rig.render(pose, size), ms) for pose, ms in frames]) for clip, looping, frames in clips]
-    rest, rendered = act1.trim(rest, rendered)
-    flat = [rest] + [g for _, _, frames in rendered for g, _ in frames]
+    build_variants({name: rig}, clips, size, preview)
+
+
+def build_variants(rigs, clips, size, preview=False):
+    """Builds several rigs that share bones and clips, such as a body in each
+    outfit, into files with the same box and sockets, so the game can swap one
+    for another without the model shifting. rigs maps file names to rigs."""
+    first = next(iter(rigs.values()))
+    renders = {}
+    for name, rig in rigs.items():
+        rest = rig.render({}, size)
+        renders[name] = (rest, [(clip, looping, [(rig.render(pose, size), ms) for pose, ms in frames]) for clip, looping, frames in clips])
+    # One trim for all of them: the union of what any frame of any variant uses.
+    union = None
+    for rest, rendered in renders.values():
+        union = rest.copy() if union is None else np.maximum(union, rest)
+        for _, _, frames in rendered:
+            for grid, _ in frames:
+                union = np.maximum(union, grid)
+    shift = trim_shift(union, [])
+    sockets = [[first.socket_lines(pose, size, shift) for pose, _ in frames] for _, _, frames in clips]
+    box = act1.trim(union, [])[0].shape
+    x0, z0 = shift
+
+    def cut(grid):
+        return grid[x0:x0 + box[0], :, z0:z0 + box[2]]
+    trimmed = {name: (cut(rest), [(clip, looping, [(cut(g), ms) for g, ms in frames]) for clip, looping, frames in rendered])
+               for name, (rest, rendered) in renders.items()}
+    every = [g for rest, rendered in trimmed.values() for g in [rest] + [x for _, _, fr in rendered for x, _ in fr]]
     # Rows above the tallest frame are empty in all of them; every frame is
     # stored whole, so they would only make the file bigger.
-    top = max((int(np.nonzero((g >= 0).any(axis=(0, 2)))[0].max()) + 1 for g in flat if (g >= 0).any()), default=1)
+    top = max((int(np.nonzero((g >= 0).any(axis=(0, 2)))[0].max()) + 1 for g in every if (g >= 0).any()), default=1)
     if top >= size[1]:
-        print(f'{name}: a frame reaches the top of the {size[1]}-voxel canvas and is cut off; make the canvas taller')
-    flat = [g[:, :top, :] for g in flat]
-    flat, palette = compact(flat)
-    rest, at = flat[0], 1
-    for i, (clip, looping, frames) in enumerate(rendered):
-        rendered[i] = (clip, looping, [(flat[at + k], ms) for k, (_, ms) in enumerate(frames)])
-        at += len(frames)
-    act1.write(act1.ASSETS / f'{name}.qvox', palette, rest, rendered)
-    if preview:
-        act1.save_preview(name, palette, rest, rendered)
-    w, h, d = rest.shape
-    top = int(np.nonzero((rest >= 0).any(axis=(0, 2)))[0].max()) + 1
-    print(f'{name}: {w} x {h} x {d}, {top} tall, {int((rest >= 0).sum())} voxels, {sum(len(f) for _, _, f in rendered)} frames')
+        print(f'a frame reaches the top of the {size[1]}-voxel canvas and is cut off; make the canvas taller')
+    for name, (rest, rendered) in trimmed.items():
+        flat = [rest] + [g for _, _, frames in rendered for g, _ in frames]
+        flat = [g[:, :top, :] for g in flat]
+        flat, palette = compact(flat)
+        rest, at = flat[0], 1
+        out = []
+        for i, (clip, looping, frames) in enumerate(rendered):
+            out.append((clip, looping, [(flat[at + k], ms, sockets[i][k]) for k, (_, ms) in enumerate(frames)]))
+            at += len(frames)
+        act1.write(act1.ASSETS / f'{name}.qvox', palette, rest, out)
+        if preview:
+            act1.save_preview(name, palette, rest, out)
+        bw, bh, bd = rest.shape
+        stand = int(np.nonzero((rest >= 0).any(axis=(0, 2)))[0].max()) + 1
+        print(f'{name}: {bw} x {bh} x {bd}, {stand} tall, {int((rest >= 0).sum())} voxels, {sum(len(f) for _, _, f in out)} frames')

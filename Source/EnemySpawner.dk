@@ -68,8 +68,8 @@ EnemyKind
     bool UsesStandIn
     // The enemy's move; see HellfeatherMove.
     HellfeatherMove Move = HellfeatherMove.Peck
-    // The frame of the attack clip on which a blow lands. -1 picks 3 for the
-    // Evil Duck's hand-made clip and 2 for the generated ones.
+    // The frame of the attack clip on which a blow lands. -1 picks 2, where
+    // the clips Tools/Models/enemies.py builds land theirs.
     int StrikeFrame = -1
     // Most black feathers it drops when slain. Birds of the Moult drop them, and
     // grow frenzied during a Featherfall.
@@ -324,7 +324,7 @@ HellfeatherEnemySpawner
         for child : Data { ?child..Link(table) }
         table.ResolveStandIns()
         for kind : table.Kinds {
-            if kind.StrikeFrame < 0 { kind.StrikeFrame = kind.Model == "Assets/EvilDuck.qvox" ? 3 | 2 }
+            if kind.StrikeFrame < 0 { kind.StrikeFrame = 2 }
         }
         for i : 0; i < table.Kinds.Len; i++ {
             if Length(table.Kinds[i].Loot) == 0 { continue }
@@ -398,7 +398,7 @@ T{
         HellfeatherGame game()
         QuaxelWorld world()
         game.Spawner.Data = {
-            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 MaxHealth=60/>
+            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=60/>
             <EnemyGroup Name="Small" Weight=80 Spread=2.0>
                 <EnemyMember Kind="Duck" Min=1 Max=3/>
             </EnemyGroup>
@@ -437,8 +437,8 @@ T{
                 <EnemyMember Kind="Duck" Min=2 Max=2/>
                 <EnemyMember Kind="Brute" Min=1 Max=1/>
             </EnemyGroup>
-            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 MaxHealth=60/>
-            <EnemyKind Name="Brute" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.05 MaxHealth=200/>
+            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=60/>
+            <EnemyKind Name="Brute" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.05 MaxHealth=200/>
         }
         T.IsTrue(game.Prepare(world))
         T.IsTrue(game.Spawner.Encounters.Len > 0)
@@ -585,8 +585,8 @@ T{
             <LootTable Name="Missed" Chance=0.0 GoldChance=1.0 MinGold=20 MaxGold=20>
                 <LootItem Item=HellfeatherItems.Ring/>
             </LootTable>
-            <EnemyKind Name="Rich" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 MaxHealth=20 Loot="Rich"/>
-            <EnemyKind Name="Poor" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 MaxHealth=20 Loot="Missed"/>
+            <EnemyKind Name="Rich" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=20 Loot="Rich"/>
+            <EnemyKind Name="Poor" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=20 Loot="Missed"/>
             <EnemyPlacement Kind="Rich" X=1.0 Z=0.0/>
             <EnemyPlacement Kind="Poor" X=-1.0 Z=0.0/>
         }
@@ -627,7 +627,7 @@ T{
             <LootTable Name="Sure" Chance=1.0 Rolls=2>
                 <LootItem Item=HellfeatherItems.Ring/>
             </LootTable>
-            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 MaxHealth=20 Loot="Sure"/>
+            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=20 Loot="Sure"/>
             <EnemyPlacement Kind="Duck" X=1.0 Z=0.0 Respawns=true/>
         }
         T.IsTrue(game.Prepare(world))
@@ -702,7 +702,7 @@ T{
         HellfeatherGame game()
         QuaxelWorld world()
         game.Spawner.Data = {
-            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=66 VoxelSize=0.025 Notice=6.0/>
+            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 Notice=6.0/>
             <EnemyPlacement Kind="Duck" X=10.0 Z=-10.0/>
         }
         T.IsTrue(game.Prepare(world))

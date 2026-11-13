@@ -1,0 +1,90 @@
+// Which zone the warrior stands in, named in the top left corner.
+HellfeatherZoneNames
+#{
+    // The name shown for a clearing of the Fenmarch, by its module.
+    string Name(int zone)
+    {
+        if zone == HellfeatherZone.Ravenford + 0 { return "Ravenford" }
+        if zone == HellfeatherZone.HobbsMill + 0 { return "Hobb's Mill" }
+        if zone == HellfeatherZone.OrrasHill + 0 { return "Orra's Hill" }
+        if zone == HellfeatherZone.FordRoad + 0 { return "The Ford Road" }
+        if zone == HellfeatherZone.FennickWater + 0 { return "Fennick Water" }
+        if zone == HellfeatherZone.Croft + 0 { return "The Crofts" }
+        return "The Fenmarch"
+    }
+
+    // Below the Fenmarch a level has one name, wherever she stands in it.
+    string RealmName(HellfeatherRealm realm)
+    {
+        if realm == HellfeatherRealm.Undercroft { return "The Millrace Undercroft" }
+        if realm == HellfeatherRealm.UndercroftDeep { return "The Undercroft, deeper" }
+        return ""
+    }
+
+    // The zone name alone, in the top left corner.
+    Draw(QuaxelUi& ui, string title)
+    {
+        if Length(title) == 0 { return }
+        ui.OverlayRect(4, 6, (int)Length(title) * 6 + 5, 9, 0x80000000)
+        ui.OverlayText(6, 7, title, 0xFFE0B860)
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // The clearing she was last found in, and the time until the next look.
+    -int ZoneSite = -1
+    -float ZoneCountdown
+
+    // Looks a few times a second, since it walks every clearing of the level.
+    StepZone(vec3 player, float deltaSeconds)
+    {
+        ZoneCountdown -= deltaSeconds
+        if ZoneCountdown > 0.0 { return }
+        ZoneCountdown = 0.25
+        ZoneSite = SiteNear(player)
+    }
+
+    // The clearing whose middle is nearest, measured in its own radii, so a
+    // big clearing reaches farther than a small one beside it. -1 without a layout.
+    int SiteNear(vec3 player)
+    {
+        int best = -1
+        float bestShare = 0.0
+        for i : 0; i < Terrain.Layout.Sites.Len; i++ {
+            vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[i].X, Terrain.Layout.Sites[i].Z)
+            float radius = Math.Max(Terrain.Layout.Sites[i].Radius, 1.0)
+            float share = Math.Hypot(middle.X - player.X, middle.Z - player.Z) / radius
+            if best < 0 || share < bestShare {
+                best = (int)i
+                bestShare = share
+            }
+        }
+        return best
+    }
+
+    // What the corner says: the level's name below, the clearing's above.
+    string ZoneName()
+    {
+        string below = HellfeatherZoneNames.RealmName(Terrain.Realm)
+        if Length(below) > 0 { return below }
+        if ZoneSite < 0 || ZoneSite >= Terrain.Layout.Sites.Len { return "" }
+        return HellfeatherZoneNames.Name(Terrain.Layout.Sites[ZoneSite].Module)
+    }
+}
+T{
+    SheStartsInRavenfordAndTheMillIsHobbs()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.StepZone(world.GetPosition(game.PlayerNode), 1.0)
+        T.AreEqual(game.ZoneName(), "Ravenford")
+        for site : game.Terrain.Layout.Sites {
+            if site.Module != HellfeatherZone.HobbsMill + 0 { continue }
+            vec3 middle = game.Terrain.WorldPoint(site.X, site.Z)
+            game.StepZone(middle, 1.0)
+            T.AreEqual(game.ZoneName(), "Hobb's Mill")
+        }
+    }
+}

@@ -58,29 +58,6 @@ HellfeatherQuests
     int BearersFreed
     bool GreyneckSlain
 
-    // The objectives to show, most urgent first.
-    string [] Objectives()
-    {
-        string [] lines
-        if Moult == 0 { lines += "Find work at the Crooked Raven" }
-        else if Moult == 1 { lines += "Meet Sister Carmine on Orra's Hill" }
-        else if Moult == 2 { lines += "Find Jessa Brune in the outer ward" }
-        else if Moult == 3 { lines += "Return to Matthew at the Crooked Raven" }
-        if Millrace == 1 { lines += "Go down through the millrace door" }
-        else if Millrace == 2 { lines += "Find Mardra beneath the mill" }
-        else if Millrace == 3 { lines += "Sever the ring on its pedestal" }
-        else if Millrace == 4 { lines += "Someone watches from the mill stair" }
-        if Rooms == 1 { lines += "Search Jessa's garret above Pell's" }
-        else if Rooms == 3 { lines += "Survive the Red Cuffs" }
-        if Dark == 1 { lines += "Fight off Moth's raiders" }
-        else if Dark == 2 { lines += "Talk to Moth" }
-        if Ford == 1 {
-            if DucksCleared < DucksWanted { lines += "Ducks off the Ford Road: " + QuaxelUi.FormatInt(DucksCleared) + "/" + QuaxelUi.FormatInt(DucksWanted) }
-            else if !ReevePaid { lines += "Tell Reeve Hollan the road is clear" }
-        }
-        return lines
-    }
-
     // Where a quest of the act stands in the log. A quest shows up once it is
     // taken, or once something found points to it.
     HellfeatherQuestState State(int quest)

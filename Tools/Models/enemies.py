@@ -6,7 +6,10 @@ game slows the clip so the frames before the strike last as long as the move's
 wind-up, assuming they add up to 0.27 s at full speed (EnemyMoves.WindUp), so
 keep the wind-up frames' milliseconds summing to 270.
 
-Height and VoxelSize in EnemyData.dk must match what this builds.
+VoxelSize in EnemyData.dk must match what this builds, and Height must be the
+model's box height, the middle number the build prints ("W x H x D"), not the
+creature's own height: the spawner stands a model by half its Height, so a box
+taller than Height (raised wings, a lifted weapon) sinks into the ground.
 
     python Tools/Models/enemies.py                    build every enemy
     python Tools/Models/enemies.py PilgrimPenitent    build some of them
@@ -21,19 +24,20 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from figure import Rig, build, capsule, column, ellipsoid, fit, minus, union, where  # noqa: E402
 from kit import (BALD, BILL, BILL_DARK, BLOOD, BRASS, BURLAP, CLOTH_PALE, CLOTH_RED, EYE_WHITE, FACE_DARK,  # noqa: E402
-                 FEATHER_BROWN, FEATHER_GREY, FEATHER_PALE, FEET, FLOUR, GLOW, HABIT, HAIR_DARK, HAIR_GREY,
+                 FEATHER_BROWN, FEATHER_GREY, FEATHER_PALE, FEET, MALLARD, CHESTNUT, FLOUR, GLOW, HABIT, HAIR_DARK, HAIR_GREY,
                  GAMBESON, HONEY, IRON, LEATHER, LEECH_MOUTH, MUD, RAVEN, ROPE, SCARF, SHIELD, SILVER, SKIN,
                  SKIN_PALE, SMOCK, STRAW, TROUSERS, WIMPLE, WOOD, WOOD_DARK, WOOL, hash2, pick)
 from people import Body, dusted, flat, speckled  # noqa: E402
 
 
-def legs(b, material, foot, gap=3.8, hip=34, knee=18):
-    """Walking legs: thigh and shin on their own bones, feet forward."""
+def legs(b, material, foot, gap=3.8, hip=34, knee=18, thigh=(3.2, 2.7), shin=(2.6, 2.0)):
+    """Walking legs: thigh and shin on their own bones, feet forward. thigh and
+    shin are the radii at their top and bottom."""
     for side, name in ((-gap, 'r'), (gap, 'l')):
         b.rig.bone(f'{name}_hip', (side, hip, 0), 'root')
         b.rig.bone(f'{name}_knee', (side, knee, 0.4), f'{name}_hip')
-        b.part(f'{name}_hip', capsule((side, hip, 0), (side, knee, 0.4), 3.2, 2.7), material)
-        b.part(f'{name}_knee', capsule((side, knee, 0.4), (side, 3, 0), 2.6, 2.0), material)
+        b.part(f'{name}_hip', capsule((side, hip, 0), (side, knee, 0.4), *thigh), material)
+        b.part(f'{name}_knee', capsule((side, knee, 0.4), (side, 3, 0), *shin), material)
         b.part(f'{name}_knee', union(ellipsoid((side, 1.5, 1.8), (2.2, 1.5, 3.4)), capsule((side, 3, 0), (side, 1.2, 0.5), 1.9)), foot)
 
 
@@ -647,6 +651,43 @@ def feathered(shades, seed, scale=1.0):
     return material
 
 
+def evil_duck():
+    """The Evil Duck, the Ford Road's plain foe: a mallard gone wrong. Glossy
+    dark-green head, a white collar, a chestnut breast over a grey-brown body,
+    black-tipped wing feathers, red-rimmed eyes, a chipped yellow bill, and
+    loose black pinfeathers trailing behind. Waddle-runs in flocks; a fast peck."""
+    def body(x, y, z, pose):
+        out = feathered([FEATHER_GREY[1], FEATHER_BROWN[2], FEATHER_GREY[0]], 330)(x, y, z, pose)
+        breast = (z > 8) & (y > 38)
+        return np.where(breast, pick(CHESTNUT, hash2(np.floor(x / 3).astype(int), np.floor(y / 2).astype(int), 331)), out)
+
+    def head(x, y, z, pose):
+        out = pick(MALLARD, hash2(np.floor(x / 2).astype(int) * 7 + np.floor(z / 2).astype(int), np.floor(y / 2).astype(int), 332) ** 1.5)
+        return np.where(y < 59.5, CLOTH_PALE[0], out)
+    b = Bird(body, feathered([FEATHER_BROWN[0], FEATHER_GREY[1], FEATHER_BROWN[1]], 333), leg=22,
+             body=(16, 15, 24), neck=((0, 50, 15), (0, 66, 18)), neck_r=(7.5, 6.5), head=(7.6, 7.8, 8.8),
+             bill=('duck', 14), eye=BLOOD[0], eye_r=1.9)
+    # The head and neck in mallard green over a white ring; the body's colour
+    # stays on the neck below the ring.
+    hx, hy, hz = b.head_at
+    b.part('head', ellipsoid(b.head_at, (7.7, 7.9, 8.9)), head)
+    b.part('neck', where(capsule((0, 50, 15), (0, 66, 18), 7.6, 6.6), lambda x, y, z: (y > 56) & (y < 59)), CLOTH_PALE[0])
+    b.part('neck', where(capsule((0, 50, 15), (0, 66, 18), 7.6, 6.6), lambda x, y, z: y >= 59), MALLARD[1])
+    for side in (-1, 1):
+        b.part('head', ellipsoid((side * 6.4, hy + 1.2, hz + 2.8), (1.6, 2.2, 2.2)), BLOOD[0])
+        b.part('head', ellipsoid((side * 7.0, hy + 1.2, hz + 3.0), (1.1, 1.2, 1.2)), FACE_DARK[0])
+    # The chipped bill: a notch out of its tip.
+    b.part('head', ellipsoid((2.6, hy - 1.0, hz + 19.5), (1.6, 2.4, 1.8)), FACE_DARK[1])
+    # Black-tipped wings, and loose pinfeathers trailing off the tail.
+    for side, name in ((-1, 'r'), (1, 'l')):
+        b.part(f'{name}_wing', ellipsoid((side * 16.8, 38, -20), (2.2, 6, 6)), RAVEN[0])
+    for k in range(5):
+        x = (k - 2) * 2.4
+        b.part('tail', capsule((x, 46 - abs(k - 2), -30), (x * 1.6, 44 + (k % 2) * 3, -38 - k % 3 * 2), 1.4, 0.8), RAVEN[k % 2])
+    fit(b.rig, 66)
+    return b.rig, bird_clips('peck')
+
+
 def road_drake():
     """The Road Drake: a duck the size of a sheepdog, dark grey-brown, with
     bald pink moult patches and a thick neck bristling with black quills.
@@ -869,6 +910,7 @@ ENEMIES = {
     'SergeantOttar': (lambda: red_cuff(sergeant=True), (64, 100, 100)),
     'HollowedBearer': (hollowed_bearer, (64, 90, 90)),
     'RingKeeperWarden': (ring_keeper_warden, (70, 100, 100)),
+    'EvilDuck': (evil_duck, (90, 80, 100)),
     'RoadDrake': (road_drake, (100, 90, 110)),
     'CarrionRook': (carrion_rook, (60, 60, 70)),
     'ReedDuck': (reed_duck, (90, 80, 100)),
