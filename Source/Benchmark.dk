@@ -2,6 +2,12 @@
 HellfeatherBenchmark
 {
     bool Enabled
+    bool RecordFrameTimes
+    -long [] FrameTicks
+    -long CpuStart
+    -long CpuEnd
+    -long [] CpuTicks
+    -double [] GpuMs
     -bool Started
     -bool LastWalkFrame
     -bool Finished
@@ -28,14 +34,23 @@ HellfeatherBenchmark
     {
         if Finished || steps < 30 { return }
         long now = 0
+        long cpu = 0
         if !Started {
             long clockFrequency = 0
             if !QuaxelPlatform.GetClockFrequency(clockFrequency) || clockFrequency <= 0 || !QuaxelPlatform.ReadClock(now) {
                 QuaxelPlatform.RequestWindowClose()
                 return
             }
+            if !QuaxelRenderer.StartGpuTiming() || !QuaxelRenderer.ReadThreadTime(cpu) {
+                Print("CPU or GPU timing unavailable")
+                QuaxelPlatform.RequestWindowClose()
+                return
+            }
+            CpuStart = cpu
+            CpuEnd = cpu
             Frequency = clockFrequency
             StartTick = now
+            EndTick = now
             Width = width
             Height = height
             Spawn = player
@@ -46,10 +61,21 @@ HellfeatherBenchmark
             QuaxelPlatform.RequestWindowClose()
             return
         }
+        if RecordFrameTimes || LastWalkFrame {
+            if !QuaxelPlatform.ReadClock(now) || now < EndTick || !QuaxelRenderer.ReadThreadTime(cpu) {
+                QuaxelPlatform.RequestWindowClose()
+                return
+            }
+            if RecordFrameTimes { FrameTicks += now - EndTick }
+            if RecordFrameTimes { CpuTicks += cpu - CpuEnd }
+            CpuEnd = cpu
+            EndTick = now
+        }
         Frames++
         if LastWalkFrame {
-            Finished = QuaxelPlatform.ReadClock(now) && now > StartTick
-            EndTick = now
+            double [] samples
+            Finished = QuaxelRenderer.FinishGpuTiming(samples) && samples.Len == Frames && EndTick > StartTick
+            for ms : samples { GpuMs += ms }
             Distance = Math.Length(vec3(player.X - Spawn.X, 0.0, player.Z - Spawn.Z))
             QuaxelPlatform.RequestWindowClose()
         }
@@ -72,5 +98,21 @@ HellfeatherBenchmark
         Print((double)Frames / seconds)
         Print("Horizontal displacement (world units)")
         Print(Distance)
+        double gpuTotal = 0.0
+        for ms : GpuMs { gpuTotal += ms }
+        Print("Mean main-thread CPU execution (ms)")
+        Print((double)(CpuEnd - CpuStart) / (10000.0 * (double)Frames))
+        Print("Mean GPU command-buffer time (ms)")
+        Print(gpuTotal / (double)Frames)
+        if RecordFrameTimes {
+            Print("Total measured time (ms)")
+            Print(1000.0 * seconds)
+            Print("Frame times (ms), one per frame in order")
+            for ticks : FrameTicks { Print(1000.0 * (double)ticks / (double)Frequency) }
+            Print("Main-thread CPU execution (ms), same frame order")
+            for ticks : CpuTicks { Print((double)ticks / 10000.0) }
+            Print("GPU command-buffer time (ms), same frame order")
+            for ms : GpuMs { Print(ms) }
+        }
     }
 }

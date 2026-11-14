@@ -8,6 +8,10 @@ Main(string [] args)
     HellfeatherGame game()
     for i : 0; i < args.Len; i++ {
         if args[i] == "--benchmark" { game.Benchmark.Enabled = true }
+        if args[i] == "--frame-times" {
+            game.Benchmark.Enabled = true
+            game.Benchmark.RecordFrameTimes = true
+        }
         if args[i] == "--start" && i + 1 < args.Len { game.StartAt = args[i + 1] }
     }
     if game.Benchmark.Enabled {
