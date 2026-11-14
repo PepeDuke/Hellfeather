@@ -51,6 +51,7 @@ HellfeatherBenchmark
             Frequency = clockFrequency
             StartTick = now
             EndTick = now
+            Print("Benchmark presentation: " + QuaxelRenderer.PresentationMode())
             Width = width
             Height = height
             Spawn = player

@@ -19,6 +19,7 @@ Main(string [] args)
             Print("The Ravenford benchmark requires the Windows build")
             return
         }
+        QuaxelRenderer.PreferUncappedPresentation()
         game.StartAt = ""
     }
     if !QuaxelEngine.Run(game) { return }

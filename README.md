@@ -60,6 +60,7 @@ From the repository root, build and run the Windows release executable.
 The benchmark opens a 1920x1080 window and warms up at the normal Ravenford spawn for 30 simulation ticks, holds A
 for 120 ticks (two simulated seconds), then closes the window. The console reports
 window resolution, frame count, mean frame time, average FPS, and horizontal distance from spawn.
+The benchmark requests immediate presentation, falling back to mailbox and then FIFO, and prints the selected mode.
 Wall time includes presentation pacing. The summary also reports main-thread CPU
 execution (Windows user + kernel thread time) and GPU elapsed time between Vulkan
 timestamps bracketing the frame command buffer, including the final image copy.
