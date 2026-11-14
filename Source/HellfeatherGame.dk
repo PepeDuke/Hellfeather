@@ -5,6 +5,7 @@ HellfeatherGame : QuaxelGameInstance
     HellfeatherEnemySpawner Spawner
     int PlayerNode
     int CameraNode
+    HellfeatherBenchmark Benchmark
     int StepsSimulated
     int PlayerHealth
     int PlayerMana
@@ -44,6 +45,9 @@ HellfeatherGame : QuaxelGameInstance
     HellfeatherFires Fires
     HellfeatherShopKeeper Keeper
     HellfeatherShopScreen Shop
+
+    int WindowWidth() { return Benchmark.Enabled ? 1920 | 960 }
+    int WindowHeight() { return Benchmark.Enabled ? 1080 | 540 }
 
     string WindowTitle() { return "Hellfeather" }
 
@@ -376,6 +380,7 @@ HellfeatherGame : QuaxelGameInstance
     FixedStep(QuaxelWorld& world, QuaxelInputState& input, float deltaSeconds)
     {
         StepsSimulated++
+        if Benchmark.Enabled { Benchmark.Step(input) }
         int activeCamera = world.ActiveCamera
         if activeCamera == 0 { return }
         // Puts on whatever she equipped since the last step.
@@ -918,6 +923,7 @@ HellfeatherGame : QuaxelGameInstance
         int windowWidth = 0
         int windowHeight = 0
         bool hasWindow = QuaxelPlatform.GetWindowSize(windowWidth, windowHeight) && windowWidth > 0 && windowHeight > 0
+        if Benchmark.Enabled { Benchmark.Frame(StepsSimulated, world.GetPosition(PlayerNode), windowWidth, windowHeight) }
         ui.ClearOverlay()
         // Drawn first, so that the inventory panel covers the titles.
         if hasWindow {

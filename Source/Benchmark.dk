@@ -1,0 +1,76 @@
+// Times complete frame intervals during the normal Ravenford movement and camera update.
+HellfeatherBenchmark
+{
+    bool Enabled
+    -bool Started
+    -bool LastWalkFrame
+    -bool Finished
+    -int WalkSteps
+    -int Width
+    -int Height
+    -int Frames
+    -long StartTick
+    -long EndTick
+    -long Frequency
+    -vec3 Spawn
+    -float Distance
+
+    Step(QuaxelInputState& input)
+    {
+        input.Clear()
+        if Started && WalkSteps < 120 {
+            input.SetDown(QuaxelKey.A, true)
+            WalkSteps++
+        }
+    }
+
+    Frame(int steps, vec3 player, int width, int height)
+    {
+        if Finished || steps < 30 { return }
+        long now = 0
+        if !Started {
+            long clockFrequency = 0
+            if !QuaxelPlatform.GetClockFrequency(clockFrequency) || clockFrequency <= 0 || !QuaxelPlatform.ReadClock(now) {
+                QuaxelPlatform.RequestWindowClose()
+                return
+            }
+            Frequency = clockFrequency
+            StartTick = now
+            Width = width
+            Height = height
+            Spawn = player
+            Started = true
+            return
+        }
+        if width != Width || height != Height {
+            QuaxelPlatform.RequestWindowClose()
+            return
+        }
+        Frames++
+        if LastWalkFrame {
+            Finished = QuaxelPlatform.ReadClock(now) && now > StartTick
+            EndTick = now
+            Distance = Math.Length(vec3(player.X - Spawn.X, 0.0, player.Z - Spawn.Z))
+            QuaxelPlatform.RequestWindowClose()
+        }
+        LastWalkFrame = WalkSteps == 120
+    }
+
+    Report()
+    {
+        if !Finished {
+            Print("Ravenford benchmark incomplete")
+            return
+        }
+        double seconds = (double)(EndTick - StartTick) / (double)Frequency
+        Print("Ravenford benchmark | " + QuaxelUi.FormatInt(Width) + "x" + QuaxelUi.FormatInt(Height))
+        Print("Frames")
+        Print(Frames)
+        Print("Mean frame time (ms)")
+        Print(1000.0 * seconds / (double)Frames)
+        Print("Average FPS")
+        Print((double)Frames / seconds)
+        Print("Horizontal displacement (world units)")
+        Print(Distance)
+    }
+}

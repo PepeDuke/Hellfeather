@@ -6,10 +6,19 @@ Main(string [] args)
 {
     Print("Hellfeather / Quaxel")
     HellfeatherGame game()
-    for i : 0; i + 1 < args.Len; i++ {
-        if args[i] == "--start" { game.StartAt = args[i + 1] }
+    for i : 0; i < args.Len; i++ {
+        if args[i] == "--benchmark" { game.Benchmark.Enabled = true }
+        if args[i] == "--start" && i + 1 < args.Len { game.StartAt = args[i + 1] }
+    }
+    if game.Benchmark.Enabled {
+        if !QuaxelPlatform.SupportsWindowing() {
+            Print("The Ravenford benchmark requires the Windows build")
+            return
+        }
+        game.StartAt = ""
     }
     if !QuaxelEngine.Run(game) { return }
+    if game.Benchmark.Enabled { game.Benchmark.Report() }
     if !QuaxelPlatform.SupportsWindowing() {
         Print("Frames")
         Print(game.StepsSimulated)
