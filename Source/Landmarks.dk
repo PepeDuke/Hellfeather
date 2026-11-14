@@ -22,6 +22,8 @@ HellfeatherLandmarks
     int Stairs = -1
     int Spit = -1
     int Bolt = -1
+    // Code-built from the raven portal concept sheet.
+    int Portal = -1
 }
 #{
     HellfeatherLandmarks Load(QuaxelWorld& world)
@@ -43,12 +45,77 @@ HellfeatherLandmarks
         made.Stairs = BuildStairs(world)
         made.Spit = BuildSpit(world)
         made.Bolt = BuildBolt(world)
+        made.Portal = BuildPortal(world)
         return made
     }
 
     // Sizes in voxels of the code-built models.
     #int DoorWidth = 28
     #int DoorHeight = 40
+    #int PortalWidth = 26
+    #int PortalHeight = 44
+    #int PortalDepth = 6
+
+    // A standing oval of magenta energy in a thick rim of blue-black raven
+    // feathers, with a raven on the crest, its wings spread. The energy is a
+    // thin sheet in the middle of the rim's depth.
+    -int BuildPortal(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(PortalWidth, PortalHeight, PortalDepth)
+        if volume < 0 { return -1 }
+        float middleX = (float)(PortalWidth - 1) * 0.5
+        float middleY = 19.0
+        for x : 0; x < PortalWidth; x++ {
+            for y : 0; y < PortalHeight; y++ {
+                // Distance out from the center, 1 at the edge of the opening.
+                float dx = ((float)x - middleX) / 7.5
+                float dy = ((float)y - middleY) / 15.0
+                float out = Math.Sqrt(dx * dx + dy * dy)
+                // The rim is ragged, as feathers are, so its edge wanders.
+                float ragged = (float)(HellfeatherArt.Hash(x / 2, y / 3, 41) % 100) * 0.0028
+                bool opening = out < 1.0
+                bool rim = !opening && out < 1.55 + ragged && y < 38
+                for z : 0; z < PortalDepth; z++ {
+                    int color = 0
+                    if rim {
+                        // Feathers lie in slanting rows, a blue sheen along each vane.
+                        int vane = (x * 2 + y * 3 + z) % 7
+                        int base = vane == 0 ? 0x3a4d86 | (vane < 3 ? 0x1d2343 | 0x10121f)
+                        color = HellfeatherArt.Shade(base, 75 + HellfeatherArt.Hash(x, y, z) % 40)
+                    } else if opening && z == PortalDepth / 2 {
+                        // White-hot in the middle, magenta out to a deep rim of violet.
+                        int energy = out < 0.35 ? 0xffd2ff | (out < 0.8 ? 0xf03cf0 | 0x8c1a9c)
+                        color = HellfeatherArt.Shade(energy, 88 + HellfeatherArt.Hash(x, y, 7) % 24)
+                    }
+                    if color != 0 { world.SetVoxel(volume, x, y, z, HellfeatherArt.Rgb(color)) }
+                }
+            }
+        }
+        PortalRaven(world, volume, (int)middleX)
+        return volume
+    }
+
+    // The raven on the crest: a body over the rim's top, wings out to each side.
+    -PortalRaven(QuaxelWorld& world, int volume, int middle)
+    {
+        for x : 0; x < PortalWidth; x++ {
+            int across = Math.Abs(x - middle)
+            for y : 34; y < PortalHeight; y++ {
+                // Wings rise from the shoulders toward their tips.
+                bool wing = across >= 2 && across <= 11 && y >= 37 + across / 4 && y <= 39 + across / 2 && y < PortalHeight
+                bool body = across <= 2 && y >= 34 && y <= 40
+                bool head = across <= 1 && y >= 41 && y <= 43
+                if !(wing || body || head) { continue }
+                for z : 1; z < PortalDepth - 1; z++ {
+                    int color = HellfeatherArt.Shade(wing && (x + y) % 3 == 0 ? 0x2c3a66 | 0x0e0f18, 85 + HellfeatherArt.Hash(x, y, z) % 30)
+                    world.SetVoxel(volume, x, y, z, HellfeatherArt.Rgb(color))
+                }
+            }
+        }
+        // The beak, pale and pointing out of the portal, and an eye.
+        world.SetVoxel(volume, middle, 42, PortalDepth - 1, HellfeatherArt.Rgb(0x9a8f7a))
+        world.SetVoxel(volume, middle - 1, 42, PortalDepth - 2, HellfeatherArt.Rgb(0xf03cf0))
+    }
     #int StairsWidth = 32
     #int StairsHeight = 12
 

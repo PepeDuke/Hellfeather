@@ -28,6 +28,7 @@ HellfeatherShop
         Add(HellfeatherItems.HealthPotion, true)
         Add(HellfeatherItems.ManaPotion, true)
         Add(HellfeatherItems.Scroll, true)
+        Add(HellfeatherItems.RavenPortal, true)
         Add(HellfeatherItems.LeatherArmor, false)
         Add(HellfeatherItems.ShortSword, false)
         Add(HellfeatherItems.RoundShield, false)
@@ -177,10 +178,11 @@ T{
     {
         HellfeatherShop shop
         shop.Restock()
-        T.AreEqual(shop.Stock.Len, 15)
+        T.AreEqual(shop.Stock.Len, 16)
         T.IsTrue(shop.HasEndless(HellfeatherItems.HealthPotion))
         T.IsTrue(shop.HasEndless(HellfeatherItems.ManaPotion))
         T.IsTrue(shop.HasEndless(HellfeatherItems.Scroll))
+        T.IsTrue(shop.HasEndless(HellfeatherItems.RavenPortal))
         T.IsFalse(shop.HasEndless(HellfeatherItems.Ring))
     }
 
@@ -194,9 +196,9 @@ T{
         }
         T.AreEqual(shop.Quote(helm, 500), HellfeatherShopResult.Done)
         T.AreEqual(shop.Take(helm), HellfeatherItems.IronHelm)
-        T.AreEqual(shop.Stock.Len, 14)
+        T.AreEqual(shop.Stock.Len, 15)
         for i : 0; i < 5; i++ { T.AreEqual(shop.Take(0), HellfeatherItems.HealthPotion) }
-        T.AreEqual(shop.Stock.Len, 14)
+        T.AreEqual(shop.Stock.Len, 15)
     }
 
     QuotesTurnAwayThePoor()
@@ -213,10 +215,10 @@ T{
         HellfeatherShop shop
         shop.Restock()
         T.AreEqual(shop.Receive(HellfeatherItems.BattleAxe), 75)
-        T.AreEqual(shop.Stock.Len, 16)
+        T.AreEqual(shop.Stock.Len, 17)
         // He already has endless potions, so one more does not take shelf space.
         T.AreEqual(shop.Receive(HellfeatherItems.HealthPotion), 7)
-        T.AreEqual(shop.Stock.Len, 16)
+        T.AreEqual(shop.Stock.Len, 17)
         T.AreEqual(shop.Receive(HellfeatherItems.None), 0)
         T.AreEqual(shop.Receive(HellfeatherItems.Gold), 0)
     }

@@ -93,7 +93,10 @@ HellfeatherItems : int
     GreyneckQuill,
     MillstoneMaul,
     // Wren's own cap from the mines, its lamp still lit. She starts in it.
-    MinersHelmet
+    MinersHelmet,
+    // Bought at the shop and kept as a count, as feathers are. Each opens one
+    // portal home to Ravenford.
+    RavenPortal
 }
 
 HellfeatherItems
@@ -142,6 +145,7 @@ HellfeatherItems
         if item == HellfeatherItems.GreyneckQuill { return Make("Greyneck's Quill", "Agility 6", 1, 1, HellfeatherGear.Neck, 380) }
         if item == HellfeatherItems.MillstoneMaul { return Make("Millstone Maul", "Damage 32", 2, 3, HellfeatherGear.Weapon, 520) }
         if item == HellfeatherItems.MinersHelmet { return Make("Miner's Helmet", "Defense 2", 2, 2, HellfeatherGear.Head, 40) }
+        if item == HellfeatherItems.RavenPortal { return Make("Raven Portal", "Opens a way to town: H", 1, 1, HellfeatherGear.None, 50) }
         return Make("", "", 1, 1, HellfeatherGear.None, 0)
     }
 }
@@ -167,6 +171,16 @@ HellfeatherInventory
     int Gold
     // Black feathers for Edda, kept in a pouch rather than the bag.
     int Feathers
+    // Raven portals, counted like feathers, at most MaxPortals.
+    int Portals
+
+    // Adds portals up to the most she can carry. False if she has no room for one.
+    bool AddPortals(int count)
+    {
+        if Portals >= HellfeatherInventory.MaxPortals { return false }
+        Portals = Math.Min(HellfeatherInventory.MaxPortals, Portals + count)
+        return true
+    }
 
     // The index of the bag entry covering a cell, or -1.
     int EntryAt(int x, int y)
@@ -353,6 +367,7 @@ HellfeatherInventory
 #{
     #int Columns = 10
     #int Rows = 4
+    #int MaxPortals = 20
 }
 T{
     ItemsFillTheBagWithoutOverlapping()

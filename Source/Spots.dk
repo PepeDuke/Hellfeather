@@ -13,7 +13,9 @@ HellfeatherSpotKind : int
     Garret,
     Pedestal,
     // The nearest chained Hollowed Bearer, which the Tithe-mark can free.
-    Bearer
+    Bearer,
+    // An open raven portal: one where she cast it, one in Ravenford.
+    Portal
 }
 
 HellfeatherPerson : int

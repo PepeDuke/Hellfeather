@@ -189,7 +189,15 @@ HellfeatherGame : QuaxelGameInstance
             if quote == HellfeatherShopResult.TooPoor { Shop.Say("Not enough gold") }
             else if quote == HellfeatherShopResult.Done {
                 item : Shop.Shop.Stock[index].Item
-                if Inventory.Items.AddWith(item, Shop.Shop.Stock[index].Mods) {
+                // Portals go to their count, not the bag.
+                if item == HellfeatherItems.RavenPortal {
+                    if Inventory.Items.AddPortals(1) {
+                        Inventory.Items.Gold -= Shop.Shop.PriceOf(index)
+                        Shop.Shop.Take(index)
+                    } else {
+                        Shop.Say("You carry all the portals you can")
+                    }
+                } else if Inventory.Items.AddWith(item, Shop.Shop.Stock[index].Mods) {
                     Inventory.Items.Gold -= Shop.Shop.PriceOf(index)
                     Shop.Shop.Take(index)
                 } else {
@@ -424,6 +432,7 @@ HellfeatherGame : QuaxelGameInstance
         bool labelKey = input.IsDown(QuaxelKey.Alt)
         if labelKey && !LabelKeyHeld { Ground.ShowLabels = !Ground.ShowLabels }
         LabelKeyHeld = labelKey
+        StepPortalKey(world, input)
         SyncRuneSkills()
         // Taking off gear can lower her maximums below what she has.
         PlayerHealth = Math.Min(PlayerHealth, PlayerMaxHealth())
@@ -874,6 +883,9 @@ HellfeatherGame : QuaxelGameInstance
         if !Ground.InReach(index, world.GetPosition(PlayerNode)) { return false }
         if Ground.Entries[index].Item == HellfeatherItems.Gold { Inventory.Items.Gold += Ground.Entries[index].Amount }
         else if Ground.Entries[index].Item == HellfeatherItems.BlackFeather { Inventory.Items.Feathers += Ground.Entries[index].Amount }
+        else if Ground.Entries[index].Item == HellfeatherItems.RavenPortal {
+            if !Inventory.Items.AddPortals(Math.Max(1, Ground.Entries[index].Amount)) { return false }
+        }
         else if !Inventory.Items.AddWith(Ground.Entries[index].Item, Ground.Entries[index].Mods) { return false }
         Ground.Remove(world, index)
         return true
@@ -940,8 +952,13 @@ HellfeatherGame : QuaxelGameInstance
             Actions.CoveredLeft = coveredLeft
             Actions.ExperienceShare = Passives.Level.Share()
             Actions.UnspentPoints = Passives.Open ? 0 | Passives.Points()
+            Actions.Portals = Inventory.Items.Portals
             Globes.CoveredLeft = coveredLeft
             Actions.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, clearWidth, Inventory.OverPanel(mouseX, mouseY) || StatsScreen.OverPanel(mouseX, mouseY) || Passives.OverPanel(mouseX, mouseY) || Runes.OverPanel(mouseX, mouseY) || QuestLog.OverPanel(mouseX, mouseY) || Shop.OverPanel(mouseX, mouseY), Means())
+            if Actions.PortalRequest {
+                Actions.PortalRequest = false
+                OpenPortal(world)
+            }
             // Before the inventory, which draws the item on the cursor over every panel.
             Shop.HeldMods = Inventory.Items.HeldMods
             Shop.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, Inventory.Items.Gold, Inventory.Items.Held)

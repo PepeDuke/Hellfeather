@@ -294,9 +294,10 @@ HellfeatherInventoryScreen
     }
 
     // The warrior's starting kit: her axe, her Leather Armor and Miner's Helmet,
-    // all plain, and one rune to learn the board with.
+    // all plain, one rune to learn the board with, and one raven portal home.
     Stock()
     {
+        Items.Portals = 1
         Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.BattleAxe
         Items.Equipped[HellfeatherSlot.Body] = HellfeatherItems.LeatherArmor
         Items.Equipped[HellfeatherSlot.Head] = HellfeatherItems.MinersHelmet

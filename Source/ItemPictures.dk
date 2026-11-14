@@ -20,6 +20,7 @@ HellfeatherItemArt
         else if item == HellfeatherItems.Scroll { PictureScroll(p) }
         else if item == HellfeatherItems.Gold { PictureGold(p) }
         else if item == HellfeatherItems.MinersHelmet { PictureMinersHelmet(p) }
+        else if item == HellfeatherItems.RavenPortal { PictureRavenPortal(p) }
         else if item == HellfeatherItems.RuneCleave { PictureRuneCleave(p) }
         else if item == HellfeatherItems.RuneWarCry { PictureRuneWarCry(p) }
         else if item == HellfeatherItems.RuneDash { PictureRuneDash(p) }
@@ -459,6 +460,24 @@ HellfeatherItemArt
         p.Row(25, "....lllllllllllllllllllllll.....")
         p.Row(26, "......lllllllllllllllllll.......")
         p.Row(27, "..........llllllllllllL.........")
+    }
+
+    -PictureRavenPortal(HellfeatherItemPicture& p)
+    {
+        p.Row(1, "......NNNN......")
+        p.Row(2, ".....NNNNNN.....")
+        p.Row(3, "....NNNNNNNN....")
+        p.Row(4, "....NNMMMMNN....")
+        p.Row(5, "...NNMMMMMMNN...")
+        p.Row(6, "...NNMMMMMMNN...")
+        p.Row(7, "...NNMMuNMMNN...")
+        p.Row(8, "...NNMMuuMMNN...")
+        p.Row(9, "...NNMMuuNMNN...")
+        p.Row(10, "...NNMMNuuNNN...")
+        p.Row(11, "...NNNMMkNNNN...")
+        p.Row(12, "....NNNNNNDN....")
+        p.Row(13, ".....NNNNNDb....")
+        p.Row(14, "......NNNN......")
     }
 
     -PictureRuneCleave(HellfeatherItemPicture& p)

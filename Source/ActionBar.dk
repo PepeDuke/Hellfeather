@@ -12,6 +12,10 @@ HellfeatherActionBar
     // How far she is toward the next level, from 0 to 1, and her unspent passive points.
     float ExperienceShare
     int UnspentPoints
+    // Raven portals she carries, shown on the button beside the bar, and a
+    // click on it, for the game to act on.
+    int Portals
+    bool PortalRequest
     -bool MouseWasDown
     -bool Placed
     -int Scale = 1
@@ -34,7 +38,17 @@ HellfeatherActionBar
         if !Placed { return false }
         int x = mouseX / Scale - BarX
         int y = mouseY / Scale - BarY
+        if OverPortal(mouseX / Scale, mouseY / Scale) { return true }
         return x >= HellfeatherActionArt.BodyLeft && y >= 0 && x < HellfeatherActionArt.BodyRight && y < HellfeatherActionArt.BarHeight
+    }
+
+    // The portal button, and its key plate under it, past the bar's right feathers.
+    bool OverPortal(int pointerX, int pointerY)
+    {
+        if !Placed { return false }
+        int x = pointerX - BarX - PortalX
+        int y = pointerY - BarY - PortalY
+        return x >= 0 && y >= 0 && x < PortalSize && y < HellfeatherActionArt.KeyY + HellfeatherActionArt.KeyHeight - PortalY
     }
 
     // Runs once per frame after the overlay is cleared. ClearWidth is how many
@@ -60,7 +74,7 @@ HellfeatherActionBar
         GridWide = width / Scale
         int clear = clearWidth / Scale
         int left = Math.Max(0, CoveredLeft / Scale)
-        int fit = HellfeatherActionArt.BarWidth + 4
+        int fit = PortalX + PortalSize + 4
         if clear - left < fit { left = 0 }
         if clear < fit { clear = GridWide }
         BarX = left + Math.Max(0, (clear - left - HellfeatherActionArt.BarWidth) / 2)
@@ -98,6 +112,11 @@ HellfeatherActionBar
     -Click(int pointerX, int pointerY)
     {
         int slot = SlotUnder(pointerX, pointerY)
+        if OverPortal(pointerX, pointerY) {
+            if Picking < 0 { PortalRequest = true }
+            Picking = -1
+            return
+        }
         if Picking < 0 {
             if slot >= 0 { Picking = slot }
             return
@@ -117,6 +136,7 @@ HellfeatherActionBar
         ui.OverlaySprite(BarX, BarY, 0, HellfeatherActionArt.BarAtlasY, HellfeatherActionArt.BarWidth, HellfeatherActionArt.BarHeight)
         for slot : HellfeatherActionSlot { DrawSlot(ui, slot, pointerX, pointerY, means) }
         DrawKeys(ui)
+        DrawPortal(ui, pointerX, pointerY)
         DrawExperience(ui)
         if Picking >= 0 { DrawPicker(ui, pointerX, pointerY) }
         else if Slots.LearnedSeconds > 0.0 { DrawLearned(ui) }
@@ -195,6 +215,30 @@ HellfeatherActionBar
         }
     }
 
+    // An iron-rimmed well with the portal icon, how many she has, and its key.
+    -DrawPortal(QuaxelUi& ui, int pointerX, int pointerY)
+    {
+        int x = BarX + PortalX
+        int y = BarY + PortalY
+        ui.OverlayRect(x - 1, y - 1, PortalSize + 2, PortalSize + 2, 0xFF0A0908)
+        ui.OverlayRect(x, y, PortalSize, PortalSize, 0xFF4B3B2D)
+        ui.OverlayRect(x + 1, y + 1, PortalSize - 2, PortalSize - 2, 0xFF171412)
+        int icon = HellfeatherInventoryArt.Cell
+        int iconX = x + (PortalSize - icon) / 2
+        int iconY = y + (PortalSize - icon) / 2
+        HellfeatherItems portal = HellfeatherItems.RavenPortal
+        ui.OverlayOutlinedSprite(iconX, iconY, HellfeatherInventoryArt.IconX(portal), HellfeatherInventoryArt.IconY(portal), icon, icon, HellfeatherInventoryArt.IconOutline)
+        if Portals <= 0 { ui.OverlayRect(x + 1, y + 1, PortalSize - 2, PortalSize - 2, 0xA0000000) }
+        else if Picking < 0 && OverPortal(pointerX, pointerY) { ui.OverlayRect(x + 1, y + 1, PortalSize - 2, PortalSize - 2, 0x30FFFFFF) }
+        string count = QuaxelUi.FormatInt(Portals)
+        Shadowed(ui, x + PortalSize - 1 - (int)Length(count) * 6, y + PortalSize - 8, count, Portals > 0 ? 0xFFE8E0D0 | 0xFFC04030)
+        int plateX = x + PortalSize / 2 - HellfeatherActionArt.KeyWidth / 2
+        int plateY = BarY + HellfeatherActionArt.KeyY
+        ui.OverlayRect(plateX, plateY, HellfeatherActionArt.KeyWidth, HellfeatherActionArt.KeyHeight, 0xFF0A0908)
+        ui.OverlayRect(plateX + 1, plateY + 1, HellfeatherActionArt.KeyWidth - 2, HellfeatherActionArt.KeyHeight - 2, 0xFF3A2E24)
+        ui.OverlayText(plateX + 5, plateY + 1, "H", 0xFFD8C8A8)
+    }
+
     -DrawPicker(QuaxelUi& ui, int pointerX, int pointerY)
     {
         int x = PickerX()
@@ -228,6 +272,11 @@ HellfeatherActionBar
 
     -DrawTooltip(QuaxelUi& ui, int pointerX, int pointerY)
     {
+        if Picking < 0 && OverPortal(pointerX, pointerY) {
+            string carried = QuaxelUi.FormatInt(Portals) + " of " + QuaxelUi.FormatInt(HellfeatherInventory.MaxPortals) + ", opens a way to town"
+            Tooltip(ui, pointerX, pointerY, "Raven Portal", carried, 0xFFE070E8)
+            return
+        }
         int action = -1
         if Picking >= 0 { action = EntryAt(pointerX, pointerY) }
         else {
@@ -238,14 +287,20 @@ HellfeatherActionBar
         HellfeatherActionKind kind = HellfeatherAction.Get((HellfeatherAction)action)
         string detail = kind.Detail
         if !Slots.Known[action] && kind.Agility { detail = "Socket its rune: R" }
-        int characters = (int)Math.Max(Length(kind.Name), Length(detail))
+        Tooltip(ui, pointerX, pointerY, kind.Name, detail, kind.Agility ? 0xFFF08A2A | 0xFFE8B070)
+    }
+
+    // A name and one line about it, in a box above the pointer.
+    -Tooltip(QuaxelUi& ui, int pointerX, int pointerY, string title, string detail, uint titleColor)
+    {
+        int characters = (int)Math.Max(Length(title), Length(detail))
         int boxWidth = characters * 6 + 12
         int boxHeight = 26
         int x = Math.Clamp(pointerX - boxWidth / 2, 2, Math.Max(2, GridWide - boxWidth - 2))
         int y = Math.Max(2, pointerY - boxHeight - 8)
         ui.OverlayRect(x - 1, y - 1, boxWidth + 2, boxHeight + 2, 0xFF625749)
         ui.OverlayRect(x, y, boxWidth, boxHeight, 0xF0120F0D)
-        ui.OverlayText(x + 6, y + 4, kind.Name, kind.Agility ? 0xFFF08A2A | 0xFFE8B070)
+        ui.OverlayText(x + 6, y + 4, title, titleColor)
         ui.OverlayText(x + 6, y + 15, detail, 0xFFC8CCD4)
     }
 }
@@ -262,8 +317,32 @@ HellfeatherActionBar
     #int PickerTitle = 14
     #int PickerWidth = 134
     #int PickerHeight = 36
+    // The portal button, from the bar's top left: just past the right feathers,
+    // level with the mouse slots.
+    #int PortalX = 156
+    #int PortalY = 8
+    #int PortalSize = 20
 }
 T{
+    ClickingThePortalButtonAsksForAPortal()
+    {
+        HellfeatherActionBar bar
+        bar.Stock()
+        bar.Portals = 4
+        HellfeatherActionMeans means
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        bar.Update(ui, 960, 540, 0, 0, false, 960, false, means)
+        int s = bar.BarScale
+        int x = (bar.BarLeft + HellfeatherActionBar.PortalX + 5) * s
+        int y = (bar.BarTop + HellfeatherActionBar.PortalY + 5) * s
+        T.IsTrue(bar.Captures(x, y))
+        bar.Update(ui, 960, 540, x, y, true, 960, false, means)
+        T.IsTrue(bar.PortalRequest)
+        // The button stays on the window at the smallest width the bar is laid out for.
+        T.IsTrue(bar.BarLeft + HellfeatherActionBar.PortalX + HellfeatherActionBar.PortalSize <= 480)
+    }
+
     TheBarSitsAtTheBottomCenterOnTheFontGrid()
     {
         HellfeatherActionBar bar

@@ -157,6 +157,16 @@ HellfeatherGame : QuaxelGameInstance
     // filled. Down is true when she came by a way down.
     bool Travel(QuaxelWorld& world, HellfeatherRealm realm, bool down)
     {
+        vec3 arrival = HellfeatherRealm.Landing(realm) + vec3(0.0, 0.0, 1.5)
+        if realm == HellfeatherRealm.Fenmarch { arrival = MillDoor + vec3(0.0, 0.0, 1.6) }
+        else if realm == HellfeatherRealm.Undercroft && !down { arrival = StairsDown + vec3(0.0, 0.0, 2.0) }
+        return TravelTo(world, realm, arrival, down)
+    }
+
+    // Travel to a chosen point of a level, as a raven portal takes her. The
+    // level is built again even when she stays on it.
+    bool TravelTo(QuaxelWorld& world, HellfeatherRealm realm, vec3 arrival, bool down)
+    {
         Talk.Close()
         Shop.Open = false
         for i : 0; i < Spawner.Encounters.Len; i++ {
@@ -167,9 +177,6 @@ HellfeatherGame : QuaxelGameInstance
         ClearShots(world)
         Ravens.Clear(world)
         Featherfall.Stop(world)
-        vec3 arrival = HellfeatherRealm.Landing(realm) + vec3(0.0, 0.0, 1.5)
-        if realm == HellfeatherRealm.Fenmarch { arrival = MillDoor + vec3(0.0, 0.0, 1.6) }
-        else if realm == HellfeatherRealm.Undercroft && !down { arrival = StairsDown + vec3(0.0, 0.0, 2.0) }
         Terrain.Realm = realm
         QuaxelTerrainConfig config = realm == HellfeatherRealm.Fenmarch ? FenmarchConfig() | HellfeatherRealm.Undercroft(realm)
         if !Terrain.Reconfigure(world, config, arrival) { return false }
@@ -260,6 +267,7 @@ HellfeatherGame : QuaxelGameInstance
     StepAct(QuaxelWorld& world, float deltaSeconds)
     {
         vec3 player = world.GetPosition(PlayerNode)
+        SyncPortals(world)
         // A spot's ground is only known once it has streamed in, which it has this near.
         for spot : People.Spots {
             if spot.Node == 0 && spot.Realm == Terrain.Realm && Math.Hypot(spot.Feet.X - player.X, spot.Feet.Z - player.Z) < HellfeatherSpots.WakeRadius {

@@ -351,6 +351,10 @@ HellfeatherGame : QuaxelGameInstance
             TalkPedestal(spot)
             return
         }
+        if kind == HellfeatherSpotKind.Portal {
+            UsePortal(world, spot)
+            return
+        }
         TalkTo(world, spot)
         People.SetTalking(world, spot)
     }

@@ -1,0 +1,271 @@
+// Raven portals. H, or the button beside the action bar, spends one to open a
+// pair: one where she stands and one in Ravenford. Stepping through the first
+// takes her to town; stepping back through the town one returns her to where
+// she cast it, and both close.
+HellfeatherPortals
+#{
+    #string FieldTitle = "Portal to Ravenford"
+    #string TownTitle = "Portal back"
+    // Where the town end opens, near the square, and how far in front of a
+    // portal she steps out. Portals face the camera, down the screen.
+    #float TownX = 2.5
+    #float TownZ = 1.5
+    #float StepOut = 1.1
+    // The middle of the oval, above the portal's feet.
+    #float Middle = 1.2
+
+    // Magenta motes drifting up and around the oval until it closes.
+    QuaxelEffectStyle Swirl()
+    {
+        QuaxelEffectStyle style
+        style.VoxelSize = 0.04
+        style.Floor = 0.5
+        style.MaxParticles = 220
+        style.Rate = 70.0
+        style.EmitSeconds = -1.0
+        style.SpawnRadius = 0.55
+        style.SpeedMin = 0.1
+        style.SpeedMax = 0.5
+        style.Spread = 180.0
+        style.Gravity = 0.25
+        style.Drag = 1.5
+        style.Wander = 2.0
+        style.LifeMin = 0.6
+        style.LifeMax = 1.2
+        style.SizeStart = 1.2
+        style.SizeEnd = 0.3
+        style.ColorStart = 0xffd2ff
+        style.ColorMiddle = 0xf03cf0
+        style.ColorEnd = 0x8c1a9c
+        style.MiddleAt = 0.4
+        style.Shade = 0.15
+        style.Flicker = true
+        style.Contact = QuaxelEffectContact.Pass
+        return style
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // The open pair, if any: the level and spot she cast it from, and the town end.
+    -bool PortalOpen
+    -HellfeatherRealm PortalRealm
+    -vec3 PortalFeet
+    -vec3 TownPortalFeet
+    -int PortalEffect = -1
+    -int TownPortalEffect = -1
+    -bool PortalKeyHeld
+
+    bool IsPortalOpen() { return PortalOpen }
+
+    // Inside Ravenford's walls a portal home has nowhere to go.
+    bool InTown(vec3 player) { return Terrain.Realm == HellfeatherRealm.Fenmarch && Math.Hypot(player.X, player.Z) <= Ravenford.Wall + 6.0 }
+
+    // Spends a portal and opens the pair, closing any pair already open.
+    // False, with a word on the banner, when she cannot.
+    bool OpenPortal(QuaxelWorld& world)
+    {
+        vec3 player = world.GetPosition(PlayerNode)
+        if PlayerHealth <= 0 { return false }
+        if Inventory.Items.Portals <= 0 {
+            Banner.Show("No raven portals left", 2.0)
+            return false
+        }
+        if InTown(player) {
+            Banner.Show("You are already in Ravenford", 2.0)
+            return false
+        }
+        ClosePortals(world)
+        Inventory.Items.Portals--
+        PortalOpen = true
+        PortalRealm = Terrain.Realm
+        // Up the screen from her, so she stands in front of it.
+        PortalFeet = OpenNear(player + vec3(-HellfeatherPortals.StepOut, 0.0, -HellfeatherPortals.StepOut))
+        PortalFeet.Y = Terrain.GroundY(PortalFeet.X, PortalFeet.Z)
+        TownPortalFeet = vec3(HellfeatherPortals.TownX, 0.0, HellfeatherPortals.TownZ)
+        SyncPortals(world)
+        return true
+    }
+
+    // Takes her through a portal: from the field to town, or from town back to
+    // where she opened it, which closes both.
+    bool UsePortal(QuaxelWorld& world, int spot)
+    {
+        if !PortalOpen || spot < 0 || spot >= People.Spots.Len { return false }
+        bool toTown = People.Spots[spot].Title == HellfeatherPortals.FieldTitle
+        if toTown {
+            vec3 arrival = TownPortalFeet + vec3(HellfeatherPortals.StepOut, 0.0, HellfeatherPortals.StepOut)
+            if !TravelTo(world, HellfeatherRealm.Fenmarch, arrival, false) { return false }
+            // Now the town has streamed in, the portal can stand on open ground.
+            TownPortalFeet = OpenNear(TownPortalFeet)
+            TownPortalFeet.Y = Terrain.GroundY(TownPortalFeet.X, TownPortalFeet.Z)
+            SyncPortals(world)
+            Banner.Show("Ravenford", 2.5)
+            return true
+        }
+        vec3 back = PortalFeet + vec3(HellfeatherPortals.StepOut, 0.0, HellfeatherPortals.StepOut)
+        if !TravelTo(world, PortalRealm, back, false) { return false }
+        ClosePortals(world)
+        StepZone(world.GetPosition(PlayerNode), 1.0)
+        Banner.Show(ZoneName(), 2.5)
+        return true
+    }
+
+    // Closes the pair: the spots stay in the list, hidden, for the next one.
+    ClosePortals(QuaxelWorld& world)
+    {
+        PortalOpen = false
+        for spot : People.Spots {
+            if spot.Kind == HellfeatherSpotKind.Portal { spot.Shown = false }
+        }
+        if PortalEffect >= 0 { world.StopEffect(PortalEffect) }
+        if TownPortalEffect >= 0 { world.StopEffect(TownPortalEffect) }
+        PortalEffect = -1
+        TownPortalEffect = -1
+    }
+
+    // Keeps both ends standing while the pair is open. A level is rebuilt on
+    // each journey and takes its spots with it, so a missing end is added back.
+    // Each end's motes run only on the level she is on.
+    SyncPortals(QuaxelWorld& world)
+    {
+        if !PortalOpen { return }
+        int field = PlacePortal(HellfeatherPortals.FieldTitle, PortalRealm, PortalFeet)
+        int town = PlacePortal(HellfeatherPortals.TownTitle, HellfeatherRealm.Fenmarch, TownPortalFeet)
+        PortalEffect = KeepSwirl(world, PortalEffect, field)
+        TownPortalEffect = KeepSwirl(world, TownPortalEffect, town)
+    }
+
+    -int PlacePortal(string title, HellfeatherRealm realm, vec3 feet)
+    {
+        int index = FindPortal(title)
+        if index < 0 { index = People.AddModel(HellfeatherSpotKind.Portal, title, realm, feet, Landmarks.Portal, HellfeatherArt.FineVoxel, HellfeatherLandmarks.PortalHeight) }
+        // A move to another place takes the old model down, so it rises anew there.
+        bool moved = People.Spots[index].Realm != realm || Math.Hypot(People.Spots[index].Feet.X - feet.X, People.Spots[index].Feet.Z - feet.Z) > 0.01
+        if moved {
+            People.Spots[index].Realm = realm
+            People.Spots[index].Feet = feet
+        }
+        People.Spots[index].Shown = true
+        return index
+    }
+
+    int FindPortal(string title)
+    {
+        for i : 0; i < People.Spots.Len; i++ {
+            if People.Spots[i].Kind == HellfeatherSpotKind.Portal && People.Spots[i].Title == title { return (int)i }
+        }
+        return -1
+    }
+
+    // Starts an end's motes once its model stands on this level, and stops them
+    // when she leaves the level.
+    -int KeepSwirl(QuaxelWorld& world, int effect, int spot)
+    {
+        bool here = People.Spots[spot].Realm == Terrain.Realm && People.Spots[spot].Node != 0
+        if !here {
+            if effect >= 0 { world.StopEffect(effect) }
+            return -1
+        }
+        if effect >= 0 && world.IsEffectPlaying(effect) { return effect }
+        vec3 middle = People.Spots[spot].Feet + vec3(0.0, HellfeatherPortals.Middle, 0.0)
+        return world.StartEffect(HellfeatherPortals.Swirl(), middle, vec3(0.0, 1.0, 0.0))
+    }
+
+    // H opens a portal, like the button beside the bar.
+    StepPortalKey(QuaxelWorld& world, QuaxelInputState& input)
+    {
+        bool key = input.IsDown(QuaxelKey.H)
+        if key && !PortalKeyHeld { OpenPortal(world) }
+        PortalKeyHeld = key
+    }
+}
+T{
+    APortalNeedsOneInHandAndTheWild()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        // She starts in Ravenford with one.
+        T.AreEqual(game.Inventory.Items.Portals, 1)
+        T.IsFalse(game.OpenPortal(world))
+        T.AreEqual(game.Inventory.Items.Portals, 1)
+        game.Quests.Millrace = 1
+        T.IsTrue(game.Travel(world, HellfeatherRealm.Undercroft, true))
+        game.Inventory.Items.Portals = 0
+        T.IsFalse(game.OpenPortal(world))
+        T.IsFalse(game.IsPortalOpen())
+    }
+
+    APortalGoesToTownAndBackThenCloses()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Quests.Millrace = 1
+        T.IsTrue(game.Travel(world, HellfeatherRealm.Undercroft, true))
+        vec3 cast = world.GetPosition(game.PlayerNode)
+        game.Inventory.Items.Portals = 3
+        T.IsTrue(game.OpenPortal(world))
+        T.AreEqual(game.Inventory.Items.Portals, 2)
+        int field = game.FindPortal(HellfeatherPortals.FieldTitle)
+        int town = game.FindPortal(HellfeatherPortals.TownTitle)
+        T.IsTrue(field >= 0 && town >= 0)
+        T.AreEqual(game.People.Spots[field].Realm, HellfeatherRealm.Undercroft)
+        T.AreEqual(game.People.Spots[town].Realm, HellfeatherRealm.Fenmarch)
+        // Through to Ravenford, beside the town end.
+        T.IsTrue(game.UsePortal(world, field))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Fenmarch)
+        vec3 there = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.InTown(there))
+        town = game.FindPortal(HellfeatherPortals.TownTitle)
+        T.IsTrue(game.People.Spots[town].Shown)
+        T.IsTrue(game.IsPortalOpen())
+        // And back to where she cast it, which closes the pair.
+        T.IsTrue(game.UsePortal(world, town))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Undercroft)
+        vec3 back = world.GetPosition(game.PlayerNode)
+        T.IsTrue(Math.Hypot(back.X - cast.X, back.Z - cast.Z) < 4.0)
+        T.IsFalse(game.IsPortalOpen())
+        field = game.FindPortal(HellfeatherPortals.FieldTitle)
+        T.IsTrue(field < 0 || !game.People.Spots[field].Shown)
+    }
+
+    TheHKeyOpensAPortal()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Quests.Millrace = 1
+        T.IsTrue(game.Travel(world, HellfeatherRealm.Undercroft, true))
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.H, true)
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.IsPortalOpen())
+        T.AreEqual(game.Inventory.Items.Portals, 0)
+    }
+
+    PortalsComeFromTheShopUpToTwenty()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int index = -1
+        for i : 0; i < game.Shop.Shop.Stock.Len; i++ {
+            if game.Shop.Shop.Stock[i].Item == HellfeatherItems.RavenPortal { index = (int)i }
+        }
+        T.IsTrue(index >= 0)
+        long bag = game.Inventory.Items.Bag.Len
+        game.Inventory.Items.Gold = 5000
+        game.Inventory.Items.Portals = HellfeatherInventory.MaxPortals - 1
+        game.Shop.BuyRequest = index
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.Portals, HellfeatherInventory.MaxPortals)
+        T.AreEqual(game.Inventory.Items.Bag.Len, bag)
+        int gold = game.Inventory.Items.Gold
+        game.Shop.BuyRequest = index
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.Portals, HellfeatherInventory.MaxPortals)
+        T.AreEqual(game.Inventory.Items.Gold, gold)
+    }
+}

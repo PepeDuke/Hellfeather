@@ -70,6 +70,12 @@
       "prompt": "an empty brown leather miner's helmet with a low rounded crown and a short brim, a small round brass headlamp fixed to the front of the crown, no face, front view",
       "colors": "LlcQgGHy",
       "seed": 11
+    },
+    "RavenPortal": {
+      "prompt": "a tall vertical oval portal filled with bright saturated magenta pink energy, its rim made of many dark navy blue raven feathers, a small black raven perched at the top of the rim, front view",
+      "colors": "JMNbuDX",
+      "seed": 11,
+      "hole": "f03cf0"
     }
   },
   "parts": {

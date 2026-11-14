@@ -92,6 +92,38 @@ def prepare(image, item):
         image = image.crop((0, cut, image.size[0], image.size[1]))
     if 'rotate' in item:
         image = image.rotate(item['rotate'], resample=Image.NEAREST, expand=True, fillcolor=corner)
+    if 'hole' in item:
+        # Background enclosed by the item, such as a portal's glowing middle,
+        # takes this color ("rrggbb") instead of being cut away.
+        image = fill_holes(image, tuple(int(item['hole'][i:i + 2], 16) for i in (0, 2, 4)))
+    return image
+
+
+def fill_holes(image, color):
+    """Paints background pixels that the image's border cannot reach."""
+    image = image.copy()
+    width, height = image.size
+    pixels = image.load()
+    corner = pixels[0, 0]
+
+    def plain(x, y):
+        return max(abs(pixels[x, y][i] - corner[i]) for i in range(3)) < BACKGROUND
+
+    outside = [[False] * width for _ in range(height)]
+    queue = deque((x, y) for y in range(height) for x in range(width)
+                  if (x in (0, width - 1) or y in (0, height - 1)) and plain(x, y))
+    for x, y in queue:
+        outside[y][x] = True
+    while queue:
+        x, y = queue.popleft()
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if 0 <= nx < width and 0 <= ny < height and not outside[ny][nx] and plain(nx, ny):
+                outside[ny][nx] = True
+                queue.append((nx, ny))
+    for y in range(height):
+        for x in range(width):
+            if plain(x, y) and not outside[y][x]:
+                pixels[x, y] = color
     return image
 
 

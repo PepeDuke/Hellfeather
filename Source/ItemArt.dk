@@ -91,6 +91,10 @@ HellfeatherItemArt
         if code == 120 { return 0x524b42 } // x: shaded stone
         if code == 88 { return 0x2a2622 } // X: crack
         if code == 106 { return 0x5c6b3a } // j: moss
+        // The raven portal's magenta energy, from its white-hot core outward.
+        if code == 74 { return 0xffd2ff } // J: portal glow
+        if code == 77 { return 0xf03cf0 } // M: portal magenta
+        if code == 78 { return 0x8c1a9c } // N: deep magenta
         return -1
     }
 
