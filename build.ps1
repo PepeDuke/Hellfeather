@@ -12,5 +12,7 @@ if (-not (Test-Path -LiteralPath $builder)) {
 }
 $manifest = if ($Platform -eq 'windows') { 'Hellfeather.Windows.dkp' } else { 'Hellfeather.dkp' }
 if ($Platform -eq 'windows') { & (Join-Path $PSScriptRoot '../Quaxel-Engine/configure-vulkan.ps1') }
+& python (Join-Path $PSScriptRoot '../Quaxel-Engine/Tools/Qvoxc/compile.py') (Join-Path $PSScriptRoot 'Assets') --duck-root $DuckRoot
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
 & $builder build (Join-Path $PSScriptRoot $manifest) --profile $Profile
 exit $LASTEXITCODE
