@@ -1,6 +1,25 @@
 // Times complete frame intervals during the normal Ravenford movement and camera update.
 HellfeatherBenchmark
 {
+    bool LightShadows = true
+    int LightCount = -1
+    -double LightingMs
+    // Fixed lights around spawn let every run cover the same lit ground.
+    PlaceLights(QuaxelWorld& world, vec3 spawn)
+    {
+        for i : 0; i < LightCount; i++ {
+            vec3 position = spawn + vec3((float)(i % 4) * 2.0 - 2.0, 1.5, (float)(i / 4) * 2.0 - 2.0)
+            int node = world.CreateNode()
+            world.AttachTransform(node, QuaxelTransform.Make(position, vec3(1.0, 1.0, 1.0)))
+            QuaxelPointLight light
+            light.Color = vec3(1.0, 0.38, 0.10)
+            light.Intensity = 3.0
+            light.CastShadows = LightShadows
+            light.Radius = 4.0
+            world.SetPointLight(node, light)
+        }
+    }
+
     bool Enabled
     bool RecordFrameTimes
     -long [] FrameTicks
@@ -76,6 +95,7 @@ HellfeatherBenchmark
         if LastWalkFrame {
             double [] samples
             Finished = QuaxelRenderer.FinishGpuTiming(samples) && samples.Len == Frames && EndTick > StartTick
+            LightingMs = QuaxelRenderer.MeanLightingMs()
             for ms : samples { GpuMs += ms }
             Distance = Math.Length(vec3(player.X - Spawn.X, 0.0, player.Z - Spawn.Z))
             QuaxelPlatform.RequestWindowClose()
@@ -91,6 +111,13 @@ HellfeatherBenchmark
         }
         double seconds = (double)(EndTick - StartTick) / (double)Frequency
         Print("Ravenford benchmark | " + QuaxelUi.FormatInt(Width) + "x" + QuaxelUi.FormatInt(Height))
+        if LightCount >= 0 {
+            Print("Benchmark point lights")
+            Print(LightCount)
+            Print(LightShadows ? "Test light shadows on" | "Test light shadows off")
+        }
+        Print("Mean GPU lighting pass (ms)")
+        Print(LightingMs)
         Print("Frames")
         Print(Frames)
         Print("Mean frame time (ms)")

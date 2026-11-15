@@ -16,7 +16,6 @@ HellfeatherScatter
             else if kind == 3 { placer.OfferProp(group, props.Banner, x, z, 5, 36, size) }
             else {
                 placer.OfferProp(group, props.Brazier, x, z, 4, 20, size)
-                placer.AddLight(0, 0, 44)
             }
         }
     }

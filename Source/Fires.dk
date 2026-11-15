@@ -2,6 +2,7 @@
 // light and go out as the terrain streams their props in and out of range.
 HellfeatherFires
 {
+    bool EmitPointLights = true
     -int [] Sources
     -int [] Flames
     -int [] Smokes
@@ -24,6 +25,7 @@ HellfeatherFires
         for i : (int)Sources.Len - 1; i >= 0; i-- {
             int source = Sources[i]
             if world.Has(source, QuaxelComponents.Voxels) && Near(world.WorldPosition(source), player) { continue }
+            if EmitPointLights { world.RemovePointLight(source) }
             world.StopEffect(Flames[i])
             world.StopEffect(Smokes[i])
             Sources -= [i]
@@ -73,6 +75,15 @@ HellfeatherFires
         smoke.Rate = campfire ? 7.0 | 3.5
         smoke.DensityStart = 0.6
 
+        if EmitPointLights {
+            QuaxelPointLight light
+            light.Offset = vec3(0.0, base - 20.0 + (campfire ? 21.0 | 13.0), 0.0)
+            light.CastShadows = true
+            light.Radius = campfire ? 7.0 | 5.0
+            light.Intensity = campfire ? 32.0 | 14.0
+            light.Color = vec3(1.0, 0.38, 0.10)
+            world.SetPointLight(id, light)
+        }
         Sources += id
         Flames += world.StartEffect(flame, point, up)
         Smokes += world.StartEffect(smoke, point + vec3(0.0, 0.3, 0.0), up)

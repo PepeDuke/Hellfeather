@@ -180,7 +180,6 @@ Ravenford : QuaxelTerrainModule
         Building(placer, group, Volumes.Stalls[0], 8.0, 14.5, 12, 22, 14)
         placer.AddLight(0, 14, 24)
         Clutter(placer, group, Volumes.Campfire, -1.0, -6.0, 8, 20)
-        placer.AddLight(0, 0, 84)
         // Raven perches about the square, where the town's ravens come down.
         if Landmarks.RavenPerch >= 0 {
             for n : 0; n < HellfeatherRavens.TownPerches; n++ {
@@ -197,9 +196,7 @@ Ravenford : QuaxelTerrainModule
         for side : 0; side < 2; side++ {
             float x = side == 0 ? -4.0 | 4.0
             Clutter(placer, group, Props.Brazier, x, 19.5, 4, 20)
-            placer.AddLight(0, 0, 44)
             Clutter(placer, group, Props.Brazier, x, 27.5, 4, 20)
-            placer.AddLight(0, 0, 44)
             Fixture(placer, group, Volumes.Rail, x * 0.6, RiverZ, 8)
         }
         Clutter(placer, group, Volumes.Crate, 22.0, 18.0, 4, 8)

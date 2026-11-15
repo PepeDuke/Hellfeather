@@ -8,6 +8,22 @@ Main(string [] args)
     HellfeatherGame game()
     for i : 0; i < args.Len; i++ {
         if args[i] == "--benchmark" { game.Benchmark.Enabled = true }
+        if args[i] == "--unshadowed-test-lights" { game.Benchmark.LightShadows = false }
+        if args[i] == "--benchmark-lights" {
+            if i + 1 >= args.Len {
+                Print("Expected --benchmark-lights 0, 1 or 12")
+                return
+            }
+            i++
+            if args[i] == "0" { game.Benchmark.LightCount = 0 }
+            else if args[i] == "1" { game.Benchmark.LightCount = 1 }
+            else if args[i] == "12" { game.Benchmark.LightCount = 12 }
+            else {
+                Print("Expected --benchmark-lights 0, 1 or 12")
+                return
+            }
+            game.Benchmark.Enabled = true
+        }
         if args[i] == "--frame-times" {
             game.Benchmark.Enabled = true
             game.Benchmark.RecordFrameTimes = true

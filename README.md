@@ -76,3 +76,9 @@ To save the summary and samples together, run:
 ```powershell
 ./.duck/build/windows/release/Hellfeather.exe --benchmark --frame-times > ravenford-frame-times.txt
 ```
+
+The benchmark reports mean GPU lighting-pass time. Use `--benchmark-lights 0`,
+`--benchmark-lights 1`, or `--benchmark-lights 12` for the same walk with a
+fixed set of shadow-casting test lights around spawn. Add `--unshadowed-test-lights`
+to compare the same test lights with their shadows disabled. Fire and smoke effects run in every
+case. Plain `--benchmark` uses the regular brazier and campfire lights.
