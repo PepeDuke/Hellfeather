@@ -139,8 +139,14 @@ HellfeatherGame : QuaxelGameInstance
 
     -int PeckStrikeFrame() { return 3 }
 
+    // Experimental DDGI can briefly brighten shadows around moving characters.
+    bool UseDdgi = false
+    bool UniformProbeUpdates
+
     bool Prepare(QuaxelWorld& world)
     {
+        world.Ddgi = UseDdgi
+        world.UniformProbeUpdates = UniformProbeUpdates
         Inventory.Stock()
         Actions.Stock()
         Runes.Stock()

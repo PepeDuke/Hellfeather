@@ -81,4 +81,6 @@ The benchmark reports mean GPU lighting-pass time. Use `--benchmark-lights 0`,
 `--benchmark-lights 1`, or `--benchmark-lights 12` for the same walk with a
 fixed set of shadow-casting test lights around spawn. Add `--unshadowed-test-lights`
 to compare the same test lights with their shadows disabled. Fire and smoke effects run in every
-case. Plain `--benchmark` uses the regular brazier and campfire lights.
+case. Plain `--benchmark` uses the regular brazier and campfire lights. DDGI is enabled by default.
+Add `--no-ddgi` for the original ambient lighting or `--ddgi-uniform` to distribute the same 4,096 rays uniformly across resident probes. The lighting GPU timer includes
+probe tracing, probe blending and the fullscreen lighting pass.

@@ -7,6 +7,12 @@ Main(string [] args)
     Print("Hellfeather / Quaxel")
     HellfeatherGame game()
     for i : 0; i < args.Len; i++ {
+        if args[i] == "--ddgi" { game.UseDdgi = true }
+        if args[i] == "--ddgi-uniform" {
+            game.UseDdgi = true
+            game.UniformProbeUpdates = true
+        }
+        if args[i] == "--no-ddgi" { game.UseDdgi = false }
         if args[i] == "--benchmark" { game.Benchmark.Enabled = true }
         if args[i] == "--unshadowed-test-lights" { game.Benchmark.LightShadows = false }
         if args[i] == "--benchmark-lights" {

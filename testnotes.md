@@ -6,7 +6,7 @@ Issues found during testing:
 [] the bresire fire base is kanda wrong althou the fire looks good it starts on gay plane whitch does not look good maybe add the fire bit-in and make bit of a bowl in
 [] add mini-map tab should open it
 [] reeve hollan and its building and jessa's garret is way to the side  maybe move them and the building somewhere closer to the fire thay look un-importatnt or add road and section that leads you to them.
-[] remove the shopkeeper and add to the main NPS shop option (does not need to be to all, maybe like 2-3 and give them a theme of what thay sell)
+[] remove the shopkeeper and add to the main NPCs shop option (does not need to be to all, maybe like 2-3 and give them a theme of what thay sell)
 [] shop window should be on the left and the inventory on right.
 [] talking to NPSs looks odd they do not talk thay have kinda like a cut-off sentence bud way displayed always. lets have a topics/shop that you can talk about and also we want possibly a diffrent way of talking that would be more interesting i would like a mode where we hide UI and you have the player model on the left saying something and the NPS on the Right responding kida like dating sim/JRPG style only we have the normal vexel model closer to the screen.
 [] there is way too many ducks when i exist fist setlement, for first time player this would be overwealinmg 
@@ -38,7 +38,7 @@ Issues found during testing:
 [] maybe after the severing of the ring it should open portal (NPC portal should have diffrent color to show it is not yours) to the mara hob
 [] add chest that will be in town and you can store item in it
 [] add saving system we need to create and save characters, it does not need to save enemies only/world only player related thing like inventory, level, runes ... and quest progression
-[] black fethers thay need re-design in terms of gameplay thay feel un-rewarding it is not clear how many you need to colect and if you collect all of the they still continue droping, it sort of makes sense thay would drop but possibly thay need to be physical item in iventory and i 1 slot you can stack like 5 of them for example, maybe if you bring them affter to edda you can use them to gamble on hiden item, you see base and you buy them with black fethers and it rolls rarty giving you possibity of getting blue or gold.
+[] black fethers thay need re-design in terms of gameplay thay feel un-rewarding it is not clear how many you need to collect and if you collect all of the they still continue droping, it sort of makes sense thay would drop but possibly thay need to be physical item in iventory and for 1 slot you can stack like 5 of them for example, maybe if you bring them affter to edda you can use them to gamble on hiden item, you see base and you buy them with black fethers and it rolls rarty giving you possibity of getting blue or gold.
 [] we need interior location, for example hobs mill and sister Carmine building should be inside the building it self. maybe have abilty to click on the building or the door to enter in.
 [] we need more item bases that spawn in later zones
 [] enemies in later zones should have some elemental atacks (maybe part phys and part elemental) for example maybe leeches cold,  pond drake cold
