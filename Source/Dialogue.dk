@@ -30,7 +30,8 @@ HellfeatherDialogue
     int Beat
     string [] Options
     HellfeatherReply [] Replies
-    // For a Topic reply, which topic; -1 for the rest.
+    // For a Topic reply, which topic, and for one offered with OfferFor its
+    // value; -1 for the rest.
     int [] Topics
     bool [] Asked
     // The spot being talked to, or -1.
@@ -110,6 +111,15 @@ HellfeatherDialogue
         Options += text
         Replies += reply
         Topics += -1
+        Asked += false
+    }
+
+    // A reply that carries a number for the game, such as which waypoint.
+    OfferFor(string text, HellfeatherReply reply, int value)
+    {
+        Options += text
+        Replies += reply
+        Topics += value
         Asked += false
     }
 

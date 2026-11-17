@@ -196,7 +196,7 @@ Ravenford : QuaxelTerrainModule
         placer.AddLight(0, 14, 24)
         Building(placer, group, Volumes.Stalls[0], 8.0, 14.5, 12, 22, 14)
         placer.AddLight(0, 14, 24)
-        Clutter(placer, group, Volumes.Campfire, -1.0, -6.0, 8, 20)
+        // The fire in the square is Ravenford's waypoint (Source/Waypoints.dk).
         // Raven perches about the square, where the town's ravens come down.
         if Landmarks.RavenPerch >= 0 {
             for n : 0; n < HellfeatherRavens.TownPerches; n++ {

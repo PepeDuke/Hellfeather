@@ -1,0 +1,313 @@
+// Waypoints: a fireplace in each key place of Act I, one per zone. They start
+// cold. Walking up to one, or clicking it, lights it with a blue fire, and a
+// click on a lit one shows every other lit fire to travel to. Ravenford's, in
+// the square, burns from the start. The fireplaces of the Fenmarch's clearings
+// stand on open ground near each clearing's middle, found once the terrain
+// there has streamed in; those below stand beside each level's landing.
+HellfeatherWaypoint
+{
+    string Name
+    HellfeatherRealm Realm
+    // Where it stands, or, before Placed, where to look for open ground.
+    vec3 Feet
+    // How far from Feet the search for open ground starts, to keep the fire
+    // off the road through a clearing's middle.
+    float Away
+    bool Placed
+    bool Lit
+}
+
+HellfeatherWaypoints
+#{
+    // World units along the ground at which walking up lights a fire.
+    #float LightReach = 3.5
+    // The open ground a fireplace needs around it.
+    #float Clearance = 1.4
+    // Where she steps out of the fire she travels to, down the screen from it.
+    #float StepOut = 1.4
+
+    // A pale blue fire that throws little smoke.
+    QuaxelEffectStyle Flame()
+    {
+        QuaxelEffectStyle flame = QuaxelEffectStyle.Fire()
+        flame.SpawnRadius = 0.32
+        flame.Rate = 55.0
+        flame.SizeStart = 2.4
+        flame.LifeMax = 0.9
+        flame.ColorStart = 0xe6f6ff
+        flame.ColorMiddle = 0x3c9cff
+        flame.ColorEnd = 0x0e2a88
+        return flame
+    }
+
+    QuaxelEffectStyle Smoke()
+    {
+        QuaxelEffectStyle smoke = QuaxelEffectStyle.Smoke()
+        smoke.Rate = 3.0
+        smoke.DensityStart = 0.4
+        return smoke
+    }
+
+    // The title over a fireplace, which also finds its spot.
+    string Title(string place) { return place + " waypoint" }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherWaypoint [] Waypoints
+    // Per waypoint: its flames, smoke, and the node carrying its light.
+    -int [] WaypointFlames
+    -int [] WaypointSmokes
+    -int [] WaypointLights
+
+    // One fire per key place, after the Fenmarch's layout is known.
+    SetUpWaypoints()
+    {
+        Waypoints.Clear()
+        WaypointFlames.Clear()
+        WaypointSmokes.Clear()
+        WaypointLights.Clear()
+        int town = AddWaypoint("Ravenford", HellfeatherRealm.Fenmarch, vec3(-1.0, 0.0, -6.0), 0.0)
+        // Where the town's campfire stood, so it needs no search.
+        Waypoints[town].Lit = true
+        Waypoints[town].Placed = true
+        HellfeatherZone [5] zones = {HellfeatherZone.Croft, HellfeatherZone.FordRoad, HellfeatherZone.FennickWater, HellfeatherZone.OrrasHill, HellfeatherZone.HobbsMill}
+        for zone : zones {
+            int site = NearestSiteOf(zone)
+            if site < 0 { continue }
+            vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[site].X, Terrain.Layout.Sites[site].Z)
+            AddWaypoint(HellfeatherZoneNames.Name(zone + 0), HellfeatherRealm.Fenmarch, Flat(middle), 4.0)
+        }
+        AddWaypoint("The Millrace Undercroft", HellfeatherRealm.Undercroft, HellfeatherRealm.Landing(HellfeatherRealm.Undercroft) + vec3(2.5, 0.0, 0.5), 0.0)
+        AddWaypoint("The Undercroft, deeper", HellfeatherRealm.UndercroftDeep, HellfeatherRealm.Landing(HellfeatherRealm.UndercroftDeep) + vec3(2.5, 0.0, 0.5), 0.0)
+    }
+
+    -int AddWaypoint(string place, HellfeatherRealm realm, vec3 feet, float away)
+    {
+        HellfeatherWaypoint waypoint
+        waypoint.Name = place
+        waypoint.Realm = realm
+        waypoint.Feet = feet
+        waypoint.Away = away
+        Waypoints += waypoint
+        WaypointFlames += -1
+        WaypointSmokes += -1
+        WaypointLights += 0
+        return (int)Waypoints.Len - 1
+    }
+
+    // The zone's clearing nearest Ravenford, which the road reaches first.
+    -int NearestSiteOf(HellfeatherZone zone)
+    {
+        int best = -1
+        float bestDistance = 0.0
+        for i : 0; i < Terrain.Layout.Sites.Len; i++ {
+            if Terrain.Layout.Sites[i].Module != zone + 0 { continue }
+            vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[i].X, Terrain.Layout.Sites[i].Z)
+            float distance = Math.Hypot(middle.X, middle.Z)
+            if best < 0 || distance < bestDistance {
+                best = (int)i
+                bestDistance = distance
+            }
+        }
+        return best
+    }
+
+    // The waypoint a spot shows, or -1.
+    int WaypointOfSpot(int spot)
+    {
+        if spot < 0 || spot >= People.Spots.Len || People.Spots[spot].Kind != HellfeatherSpotKind.Waypoint { return -1 }
+        for i : 0; i < Waypoints.Len; i++ {
+            if HellfeatherWaypoints.Title(Waypoints[i].Name) == People.Spots[spot].Title { return (int)i }
+        }
+        return -1
+    }
+
+    -int SpotOfWaypoint(int waypoint)
+    {
+        string title = HellfeatherWaypoints.Title(Waypoints[waypoint].Name)
+        for i : 0; i < People.Spots.Len; i++ {
+            if People.Spots[i].Kind == HellfeatherSpotKind.Waypoint && People.Spots[i].Title == title { return (int)i }
+        }
+        return -1
+    }
+
+    // Places fireplaces as their ground streams in, keeps their spots, lights
+    // the one she walks up to, and keeps the lit ones on this level burning.
+    StepWaypoints(QuaxelWorld& world, vec3 player)
+    {
+        for i : 0; i < Waypoints.Len; i++ {
+            bool here = Waypoints[i].Realm == Terrain.Realm
+            if here && !Waypoints[i].Placed && Terrain.IsReady(Waypoints[i].Feet) { PlaceWaypoint(i) }
+            if !here || !Waypoints[i].Placed {
+                QuenchWaypoint(world, i)
+                continue
+            }
+            int spot = SpotOfWaypoint(i)
+            if spot < 0 {
+                spot = People.AddModel(HellfeatherSpotKind.Waypoint, HellfeatherWaypoints.Title(Waypoints[i].Name), Waypoints[i].Realm, Waypoints[i].Feet, Landmarks.Fireplace, HellfeatherArt.FineVoxel, HellfeatherLandmarks.FireplaceHeight)
+            }
+            People.Spots[spot].Feet.Y = Terrain.GroundY(Waypoints[i].Feet.X, Waypoints[i].Feet.Z)
+            if !Waypoints[i].Lit && PlayerHealth > 0 && Math.Hypot(Waypoints[i].Feet.X - player.X, Waypoints[i].Feet.Z - player.Z) <= HellfeatherWaypoints.LightReach { LightWaypoint(i) }
+            if Waypoints[i].Lit && People.Spots[spot].Visual != 0 { BurnWaypoint(world, i, People.Spots[spot].Visual, People.Spots[spot].Feet) }
+            else { QuenchWaypoint(world, i) }
+        }
+    }
+
+    // Open ground for the fire, in rings outward from Away units off its
+    // point. Where there is none it stays on the point.
+    -PlaceWaypoint(int i)
+    {
+        vec3 origin = Waypoints[i].Feet
+        float clear = HellfeatherWaypoints.Clearance
+        for ring : 0; ring <= 24; ring++ {
+            float distance = Waypoints[i].Away + (float)ring * 0.5
+            int steps = distance <= 0.0 ? 1 | 16
+            for step : 0; step < steps; step++ {
+                float angle = (float)step * 0.39269908 + (float)ring * 0.2
+                float x = origin.X + Math.Cos(angle) * distance
+                float z = origin.Z + Math.Sin(angle) * distance
+                if !Terrain.CircleBlocked(x, z, clear) {
+                    Waypoints[i].Feet = vec3(x, Terrain.GroundY(x, z), z)
+                    Waypoints[i].Placed = true
+                    return
+                }
+            }
+        }
+        Waypoints[i].Feet.Y = Terrain.GroundY(origin.X, origin.Z)
+        Waypoints[i].Placed = true
+    }
+
+    LightWaypoint(int i)
+    {
+        if Waypoints[i].Lit { return }
+        Waypoints[i].Lit = true
+        Banner.Show("Waypoint lit: " + Waypoints[i].Name, 3.0)
+    }
+
+    // Starts whatever of the blue fire is not playing; slots may have been
+    // busy, as for the town's fires.
+    -BurnWaypoint(QuaxelWorld& world, int i, int visual, vec3 feet)
+    {
+        // The logs sit three voxels up.
+        vec3 point = feet + vec3(0.0, 3.0 * HellfeatherArt.FineVoxel, 0.0)
+        vec3 up = vec3(0.0, 1.0, 0.0)
+        if !world.IsEffectPlaying(WaypointFlames[i]) { WaypointFlames[i] = world.StartEffect(HellfeatherWaypoints.Flame(), point, up) }
+        if !world.IsEffectPlaying(WaypointSmokes[i]) { WaypointSmokes[i] = world.StartEffect(HellfeatherWaypoints.Smoke(), point + vec3(0.0, 0.5, 0.0), up) }
+        if WaypointLights[i] != visual && Fires.EmitPointLights {
+            QuaxelPointLight light
+            // In the visual's voxels, from the middle of its box.
+            light.Offset = vec3(0.0, 4.0, 0.0)
+            light.CastShadows = true
+            light.Radius = 7.0
+            light.Intensity = 26.0
+            light.Color = vec3(0.25, 0.55, 1.0)
+            world.SetPointLight(visual, light)
+            WaypointLights[i] = visual
+        }
+    }
+
+    -QuenchWaypoint(QuaxelWorld& world, int i)
+    {
+        if WaypointFlames[i] > 0 { world.StopEffect(WaypointFlames[i]) }
+        if WaypointSmokes[i] > 0 { world.StopEffect(WaypointSmokes[i]) }
+        WaypointFlames[i] = -1
+        WaypointSmokes[i] = -1
+        // The light goes with the spot's node when it is taken down.
+        WaypointLights[i] = 0
+    }
+
+    // A click on a fireplace in reach: a cold one lights, a lit one shows
+    // where else she can go.
+    UseWaypoint(int spot)
+    {
+        int i = WaypointOfSpot(spot)
+        if i < 0 { return }
+        if !Waypoints[i].Lit {
+            LightWaypoint(i)
+            return
+        }
+        Talk.Begin(Waypoints[i].Name, spot, false)
+        Talk.Narrate("Blue fire, without heat. In it you see the other fires you have lit.")
+        int offered = 0
+        for other : 0; other < Waypoints.Len; other++ {
+            if other == i || !Waypoints[other].Lit { continue }
+            Talk.OfferFor(Waypoints[other].Name, HellfeatherReply.Waypoint, other)
+            offered++
+        }
+        if offered == 0 { Talk.Narrate("No other fire burns yet. Find the cold ones and light them.") }
+        Talk.Offer("Leave", HellfeatherReply.Leave)
+    }
+
+    // Steps out beside another lit fire, on whatever level it is.
+    bool TravelToWaypoint(QuaxelWorld& world, int i)
+    {
+        if i < 0 || i >= Waypoints.Len || !Waypoints[i].Lit { return false }
+        vec3 arrival = Waypoints[i].Feet + vec3(HellfeatherWaypoints.StepOut, 0.0, HellfeatherWaypoints.StepOut)
+        if !TravelTo(world, Waypoints[i].Realm, arrival, false) { return false }
+        Banner.Show(Waypoints[i].Name, 2.5)
+        return true
+    }
+
+    bool IsWaypointLit(string title)
+    {
+        for waypoint : Waypoints {
+            if HellfeatherWaypoints.Title(waypoint.Name) == title { return waypoint.Lit }
+        }
+        return false
+    }
+}
+T{
+    // Ravenford's fire burns from the start; the rest are cold until she
+    // comes near one, and there is one in each key place.
+    EveryKeyPlaceHasAFireAndOnlyTownsBurns()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.AreEqual(game.Waypoints.Len, (long)8)
+        T.IsTrue(game.Waypoints[0].Lit)
+        for i : 1; i < game.Waypoints.Len; i++ { T.IsFalse(game.Waypoints[i].Lit) }
+    }
+
+    // Walking up to a cold fire lights it, and from town she can then travel
+    // to it and arrive beside it.
+    WalkingUpLightsAFireAndTownCanTravelThere()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int ford = -1
+        for i : 0; i < game.Waypoints.Len; i++ {
+            if game.Waypoints[i].Name == "The Ford Road" { ford = (int)i }
+        }
+        T.IsTrue(ford >= 0)
+        vec3 near = game.Waypoints[ford].Feet
+        int calls = 0
+        while !game.Terrain.IsReady(near) && calls < 2000 {
+            T.IsTrue(game.Terrain.Stream(world, near, 100000))
+            calls++
+        }
+        HellfeatherActOne.Stand(game, world, near.X, near.Z, 2)
+        // Once the ground is in it finds open ground, then lights as she stands there.
+        T.IsTrue(game.Waypoints[ford].Placed)
+        vec3 fire = game.Waypoints[ford].Feet
+        T.IsFalse(game.Terrain.CircleBlocked(fire.X, fire.Z, HellfeatherWaypoints.Clearance))
+        HellfeatherActOne.Stand(game, world, fire.X + 1.0, fire.Z + 1.0, 2)
+        T.IsTrue(game.Waypoints[ford].Lit)
+        // Back in town, the town's fire offers the Ford Road.
+        T.IsTrue(game.TravelToWaypoint(world, 0))
+        T.IsTrue(game.InTown(world.GetPosition(game.PlayerNode)))
+        game.StepWaypoints(world, world.GetPosition(game.PlayerNode))
+        int townSpot = game.SpotOfWaypoint(0)
+        T.IsTrue(townSpot >= 0)
+        game.UseWaypoint(townSpot)
+        T.IsTrue(game.Talk.Open)
+        T.IsTrue(game.Talk.Replies[0] == HellfeatherReply.Waypoint)
+        T.AreEqual(game.Talk.Topics[0], ford)
+        game.Talk.Pick(0)
+        game.Answer(world, game.Talk.Chosen)
+        vec3 there = world.GetPosition(game.PlayerNode)
+        T.IsTrue(Math.Hypot(there.X - fire.X, there.Z - fire.Z) < 4.0)
+    }
+}

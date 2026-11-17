@@ -351,6 +351,7 @@ HellfeatherGame : QuaxelGameInstance
                 spot.Feet.Y = Terrain.GroundY(spot.Feet.X, spot.Feet.Z)
             }
         }
+        StepWaypoints(world, player)
         if !People.Step(world, player, Terrain.Realm) { Print("People failed to spawn") }
         if TalkOnStart && !Talk.Open {
             for i : 0; i < People.Spots.Len; i++ {

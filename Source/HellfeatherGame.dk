@@ -261,6 +261,7 @@ HellfeatherGame : QuaxelGameInstance
         Terrain.Landing.Props = props
         if !Terrain.Configure(FenmarchConfig()) || !Terrain.Start(world, vec3(0.0, 0.0, 0.0)) { return false }
         SetUpCast()
+        SetUpWaypoints()
         SetUpRavens(world)
         return true
     }

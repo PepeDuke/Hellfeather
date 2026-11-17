@@ -391,6 +391,8 @@ HellfeatherGame : QuaxelGameInstance
             if spot.Kind == HellfeatherSpotKind.Person { color = Sells(spot.Person) ? 0xFFE8C04A | 0xFF5CC85C }
             else if spot.Kind == HellfeatherSpotKind.Door || spot.Kind == HellfeatherSpotKind.StairsUp || spot.Kind == HellfeatherSpotKind.StairsDown { color = 0xFF7AA8E8 }
             else if spot.Kind == HellfeatherSpotKind.Portal { color = 0xFFE070E8 }
+            // Waypoints blue once lit, grey while cold.
+            else if spot.Kind == HellfeatherSpotKind.Waypoint { color = IsWaypointLit(spot.Title) ? 0xFF4F9CFF | 0xFF8C8880 }
             if color != (uint)0 { AutoMap.Marker(ui, spot.Feet, 4, color, false) }
         }
         AutoMap.Marker(ui, player, 4, 0xFFF4ECD0, true)

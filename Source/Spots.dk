@@ -15,7 +15,9 @@ HellfeatherSpotKind : int
     // The nearest chained Hollowed Bearer, which the Tithe-mark can free.
     Bearer,
     // An open raven portal: one where she cast it, one in Ravenford.
-    Portal
+    Portal,
+    // A waypoint's fireplace (Source/Waypoints.dk).
+    Waypoint
 }
 
 HellfeatherPerson : int

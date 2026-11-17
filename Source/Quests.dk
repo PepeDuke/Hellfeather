@@ -30,7 +30,9 @@ HellfeatherReply : int
     Interlude,
     FreeBearer,
     // Asks about a topic; the dialogue's ChosenTopic says which.
-    Topic
+    Topic,
+    // Travels to a lit waypoint; ChosenTopic is its index in Waypoints.
+    Waypoint
 }
 
 HellfeatherQuests
@@ -355,6 +357,10 @@ HellfeatherGame : QuaxelGameInstance
             UsePortal(world, spot)
             return
         }
+        if kind == HellfeatherSpotKind.Waypoint {
+            UseWaypoint(spot)
+            return
+        }
         TalkTo(world, spot)
         People.SetTalking(world, spot)
         FacePlayerToward(world, People.Spots[spot].Feet)
@@ -579,8 +585,13 @@ HellfeatherGame : QuaxelGameInstance
             if spot >= 0 && spot < People.Spots.Len { Discuss(People.Spots[spot].Person, Talk.ChosenTopic) }
             return
         }
+        int chosen = Talk.ChosenTopic
         Talk.Close()
         People.SetTalking(world, -1)
+        if reply == HellfeatherReply.Waypoint {
+            TravelToWaypoint(world, chosen)
+            return
+        }
         vec3 player = world.GetPosition(PlayerNode)
         if reply == HellfeatherReply.TakeCommission {
             Quests.Moult = 1

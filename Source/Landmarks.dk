@@ -24,6 +24,8 @@ HellfeatherLandmarks
     int Bolt = -1
     // Code-built from the raven portal concept sheet.
     int Portal = -1
+    // A waypoint's fire pit, ringed by four standing stones. Code-built.
+    int Fireplace = -1
 }
 #{
     HellfeatherLandmarks Load(QuaxelWorld& world)
@@ -46,7 +48,54 @@ HellfeatherLandmarks
         made.Spit = BuildSpit(world)
         made.Bolt = BuildBolt(world)
         made.Portal = BuildPortal(world)
+        made.Fireplace = BuildFireplace(world)
         return made
+    }
+
+    // A ring of rough stones around crossed logs, as the town's campfire, with
+    // a pale standing stone at each corner carrying a blue rune that glows
+    // once the fire is lit. FireplaceSize across, FireplaceHeight tall.
+    -int BuildFireplace(QuaxelWorld& world)
+    {
+        int size = FireplaceSize
+        int volume = world.CreateVolume(size, FireplaceHeight, size)
+        if volume < 0 { return -1 }
+        int middle = size / 2
+        for x : 0; x < size; x++ {
+            for z : 0; z < size; z++ {
+                int offset = (x - middle) * (x - middle) + (z - middle) * (z - middle)
+                if offset > 11 * 11 || offset < 8 * 8 { continue }
+                int top = 3 + HellfeatherArt.Hash(x / 3, 9, z / 3) % 3
+                HellfeatherArt.Box(world, volume, x, 0, z, x + 1, top, z + 1, HellfeatherArt.Rgb(HellfeatherArt.Shade(0x4a443e, 80 + HellfeatherArt.Hash(x / 3, 1, z / 3) % 40)))
+            }
+        }
+        // Ash under the logs.
+        for x : middle - 6; x <= middle + 6; x++ {
+            for z : middle - 6; z <= middle + 6; z++ {
+                if (x - middle) * (x - middle) + (z - middle) * (z - middle) > 36 { continue }
+                HellfeatherArt.Box(world, volume, x, 0, z, x + 1, 1, z + 1, HellfeatherArt.Rgb(HellfeatherArt.Shade(0x2a2624, 85 + HellfeatherArt.Hash(x, 3, z) % 30)))
+            }
+        }
+        for i : -6; i <= 6; i++ {
+            RavenfordArt.Timber(world, volume, middle + i, 1 + Math.Abs(i) / 3, middle - 1, middle + i + 1, 3 + Math.Abs(i) / 3, middle + 1)
+            RavenfordArt.Timber(world, volume, middle - 1, 1 + Math.Abs(i) / 3, middle + i, middle + 1, 3 + Math.Abs(i) / 3, middle + i + 1)
+        }
+        // Standing stones on the diagonals, leaning nothing, rune facing in.
+        for corner : 0; corner < 4; corner++ {
+            int sx = corner % 2 == 0 ? 3 | size - 6
+            int sz = corner / 2 == 0 ? 3 | size - 6
+            int tall = 11 + corner % 2 * 2
+            for y : 0; y < tall; y++ {
+                int shrink = y > tall - 3 ? 1 | 0
+                int grey = HellfeatherArt.Shade(0x8c8a90, 80 + HellfeatherArt.Hash(sx + y, corner, sz) % 30)
+                HellfeatherArt.Box(world, volume, sx + shrink, y, sz + shrink, sx + 3 - shrink, y + 1, sz + 3 - shrink, HellfeatherArt.Rgb(grey))
+            }
+            // The rune: two voxels of blue on the face toward the fire.
+            int rx = sx < middle ? sx + 2 | sx
+            int rz = sz < middle ? sz + 2 | sz
+            HellfeatherArt.Box(world, volume, rx, 6, rz, rx + 1, 9, rz + 1, HellfeatherArt.Rgb(0x4f9cff))
+        }
+        return volume
     }
 
     // Sizes in voxels of the code-built models.
@@ -55,6 +104,8 @@ HellfeatherLandmarks
     #int PortalWidth = 26
     #int PortalHeight = 44
     #int PortalDepth = 6
+    #int FireplaceSize = 28
+    #int FireplaceHeight = 14
 
     // A standing oval of magenta energy in a thick rim of blue-black raven
     // feathers, with a raven on the crest, its wings spread. The energy is a

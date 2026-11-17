@@ -19,7 +19,7 @@ Issues found during testing:
 [x] weapon dmg needs range not just flat number
 [x] when shop is open the the items in inventory should have showen sell price
 [x] protal should not reset the level (respawn enemies)
-[] add waypoint system this should be done using the fireplace make it clicable and change the fire to blue color, in key location (1 per region/zone) should be fireplaces, trey should start un-lit first and thay should be lit/activated when clicked on/ you walk near.
+[x] add waypoint system this should be done using the fireplace make it clicable and change the fire to blue color, in key location (1 per region/zone) should be fireplaces, trey should start un-lit first and thay should be lit/activated when clicked on/ you walk near.
 [] reads look skuffed re-work them.
 [] fether fall event lasts too long and maybe it should start by few ravens flying over and then the fether should start to fall.
 [] wen we mouse over enemie in top of the sceen UI it should show the nameplate of the enemy and the boreder of the enemy should show health (like a helth progress bar), rare enemies should have deffrent color of the text based on rarity
