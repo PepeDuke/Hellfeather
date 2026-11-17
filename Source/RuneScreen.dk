@@ -97,7 +97,14 @@ HellfeatherRuneScreen
     -int PointerX = -1
     -int PointerY = -1
 
-    Stock() { Board.Stock() }
+    // A new character's board has her Cleave rune already socketed in the
+    // middle of the starting square, so Cleave is known from the start.
+    Stock()
+    {
+        Board.Stock()
+        int start = HellfeatherRuneBoard.Columns / 2 - 1
+        Board.Place(HellfeatherItems.RuneCleave, start, start)
+    }
 
     Toggle() { Open = !Open }
 
@@ -319,10 +326,22 @@ T{
         T.AreEqual(screen.Points(), 0)
     }
 
-    AHeldRuneSocketsAndLiftsBack()
+    TheBoardStartsWithTheCleaveRuneSocketed()
     {
         HellfeatherRuneScreen screen
         screen.Stock()
+        T.AreEqual(screen.Board.Sockets.Len, 1)
+        T.AreEqual(screen.Board.Sockets[0].Item, HellfeatherItems.RuneCleave)
+        T.AreEqual(screen.Board.PowerOf(HellfeatherAction.Cleave), 100)
+        // It sits inside the starting square, which buys nothing.
+        T.AreEqual(screen.Board.Bought, 0)
+    }
+
+    AHeldRuneSocketsAndLiftsBack()
+    {
+        HellfeatherRuneScreen screen
+        // An empty board, without the starting rune.
+        screen.Board.Stock()
         QuaxelUi ui()
         ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
         screen.Toggle()
@@ -346,7 +365,8 @@ T{
     OnlyRunesGoOnTheBoard()
     {
         HellfeatherRuneScreen screen
-        screen.Stock()
+        // An empty board, without the starting rune.
+        screen.Board.Stock()
         QuaxelUi ui()
         ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
         screen.Toggle()

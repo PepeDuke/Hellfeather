@@ -147,14 +147,18 @@ HellfeatherStatsScreen
         if Level >= HellfeatherLevel.MaxLevel { experience = "The highest level" }
         Line(ui, 0, 0, "Level", QuaxelUi.FormatInt(Level), experience, pointerX, pointerY)
         Line(ui, 0, 1, "Strength", QuaxelUi.FormatInt(stats.Strength), "+1 damage with weapons", pointerX, pointerY)
-        Line(ui, 0, 2, "Agility", QuaxelUi.FormatInt(stats.Agility), "+1 ranged dmg, +1% hit", pointerX, pointerY)
+        Line(ui, 0, 2, "Agility", QuaxelUi.FormatInt(stats.Agility), "+1 ranged dmg, +2 accuracy", pointerX, pointerY)
         Line(ui, 0, 3, "Health", QuaxelUi.FormatInt(health) + "/" + QuaxelUi.FormatInt(stats.MaxHealth), "She falls at zero", pointerX, pointerY)
         Line(ui, 0, 4, "Mana", QuaxelUi.FormatInt(mana) + "/" + QuaxelUi.FormatInt(stats.MaxMana), "Spent on actions", pointerX, pointerY)
-        string damageHint = "Weapon " + QuaxelUi.FormatInt(stats.WeaponDamage) + " + strength " + QuaxelUi.FormatInt(stats.Strength)
+        HellfeatherDamageRange weapon = HellfeatherDamageRange.Make(stats.WeaponMin, stats.WeaponMax)
+        string damageHint = "Weapon " + weapon.Text() + " + strength " + QuaxelUi.FormatInt(stats.Strength)
         if stats.Ranged { damageHint = "Weapon + str + agi" }
-        Line(ui, 1, 0, "Damage", QuaxelUi.FormatInt(stats.Damage()), damageHint, pointerX, pointerY)
-        Line(ui, 1, 1, "Hit chance", QuaxelUi.FormatInt(stats.HitChance()) + "%", "75% + agility, max 95%", pointerX, pointerY)
-        Line(ui, 2, 0, "Defense", QuaxelUi.FormatInt(stats.Defense), "From the armor she wears", pointerX, pointerY)
+        HellfeatherDamageRange damage = stats.Damage()
+        Line(ui, 1, 0, "Damage", damage.Text(), damageHint, pointerX, pointerY)
+        Line(ui, 1, 1, "Accuracy", QuaxelUi.FormatInt(stats.Accuracy()), "Beats enemy armor", pointerX, pointerY)
+        // Her defense, and how often it dodges a foe with no accuracy at all.
+        int dodge = (int)(stats.DodgeChance(0) + 0.5)
+        Line(ui, 2, 0, "Defense", QuaxelUi.FormatInt(stats.Defense) + " (" + QuaxelUi.FormatInt(dodge) + "%)", "Dodge % vs accuracy 0", pointerX, pointerY)
         Line(ui, 2, 1, "Fire resist", QuaxelUi.FormatInt(stats.FireResist) + "%", "Less damage from fire", pointerX, pointerY)
         Line(ui, 2, 2, "Cold resist", QuaxelUi.FormatInt(stats.ColdResist) + "%", "Less damage from cold", pointerX, pointerY)
         Line(ui, 2, 3, "Lightning res", QuaxelUi.FormatInt(stats.LightningResist) + "%", "Less lightning damage", pointerX, pointerY)
@@ -254,7 +258,7 @@ T{
         int x = (screen.PanelLeft + HellfeatherStatsArt.WellX + 10) * s
         int y = (screen.PanelTop + HellfeatherStatsArt.RowY(1, 0) + 3) * s
         screen.Update(ui, 960, 540, x, y, false, stats, 100, 60)
-        T.AreEqual(screen.HintText, "Weapon 20 + strength 5")
+        T.AreEqual(screen.HintText, "Weapon 16-24 + strength 5")
         y = (screen.PanelTop + HellfeatherStatsArt.RowY(0, 1) + 3) * s
         screen.Update(ui, 960, 540, x, y, false, stats, 100, 60)
         T.AreEqual(screen.HintText, "+1 damage with weapons")

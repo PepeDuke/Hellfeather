@@ -219,7 +219,8 @@ T{
         T.IsTrue(game.PlayerHealth < health)
     }
 
-    // Feathers fall only out in the wild, and frenzy only the birds.
+    // Feathers fall only out in the wild, after a few ravens fly over, and
+    // frenzy only the birds.
     FeatherfallComesInTheWildAndPasses()
     {
         QuaxelWorld world()
@@ -228,12 +229,34 @@ T{
         T.AreEqual(fall.Step(world, vec3(0.0, 0.0, 0.0), false, false, 1.0), 0)
         T.IsFalse(fall.Active)
         fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0)
+        T.IsTrue(fall.Heralding)
+        T.IsFalse(fall.Active)
+        T.IsTrue(fall.HeraldCount() >= 3)
+        for n : 0; n < 4; n++ { fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0) }
         T.IsTrue(fall.Active)
+        T.IsFalse(fall.Heralding)
+        T.AreEqual(fall.HeraldCount(), 0)
         int healed = 0
         for n : 0; n < 10; n++ { healed += fall.Step(world, vec3(80.0, 0.0, 0.0), true, true, 1.0) }
         T.AreEqual(healed, 20)
-        for n : 0; n < 40; n++ { fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0) }
+        for n : 0; n < 10; n++ { fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0) }
         T.IsFalse(fall.Active)
+    }
+
+    // The heralds cross high over her, and leave when she walks back to town.
+    TheHeraldsFlyOverAndLeaveWithHer()
+    {
+        QuaxelWorld world()
+        HellfeatherFeatherfall fall
+        fall.Timer = 0.1
+        vec3 player = vec3(10.0, 2.0, 10.0)
+        fall.Step(world, player, true, false, 0.2)
+        T.IsTrue(fall.Heralding)
+        fall.Step(world, player, true, false, HellfeatherFeatherfall.HeraldSeconds * 0.5)
+        T.IsTrue(fall.HeraldCount() > 0)
+        fall.Step(world, player, false, false, 0.1)
+        T.IsFalse(fall.Heralding)
+        T.AreEqual(fall.HeraldCount(), 0)
     }
 
     // Edda takes twenty feathers for her charm, and the Ford's bounty pays.

@@ -1,0 +1,359 @@
+// How blows land, for the warrior and her enemies alike.
+//
+// Dodging: armor (her Defense, an enemy's Armor) makes blows miss, and the
+// attacker's accuracy cancels it. Only the lead of armor over accuracy counts,
+// and it buys dodge on a saturating curve that never reaches MaxDodge, so
+// there is always a way to hit:
+//
+//     dodge% = MaxDodge * lead / (lead + DodgeKnee),  lead = armor - accuracy
+//
+// Armor 100 against accuracy 0 dodges 20%, against accuracy 100 nothing, and
+// armor 1000 against accuracy 0 about 35%.
+//
+// Elements: an enemy's blow can carry fire, cold or lightning on top of its
+// physical damage. Her resistances, in percent and at most MaxResist, take
+// their share off each element; nothing resists the physical part.
+
+// One weapon's or attack's damage, rolled evenly from Min to Max inclusive.
+HellfeatherDamageRange
+{
+    int Min
+    int Max
+
+    // unit is a roll in 0..1, excluding 1, such as QuaxelRandom.Unit gives.
+    int Roll(float unit) { return Math.Min(Max, Min + (int)(unit * (float)(Max - Min + 1))) }
+
+    // Both ends scaled by a percent, as runes and the war cry do.
+    HellfeatherDamageRange Times(int percent) { return HellfeatherDamageRange.Make(Min * percent / 100, Max * percent / 100) }
+
+    // "16-24", or a single number when both ends match.
+    string Text()
+    {
+        if Min == Max { return QuaxelUi.FormatInt(Min) }
+        return QuaxelUi.FormatInt(Min) + "-" + QuaxelUi.FormatInt(Max)
+    }
+}
+#{
+    HellfeatherDamageRange Make(int low, int high)
+    {
+        HellfeatherDamageRange range
+        range.Min = low
+        range.Max = Math.Max(low, high)
+        return range
+    }
+}
+
+HellfeatherCombat
+#{
+    // Percent: the most any armor can dodge, approached but never reached.
+    #float MaxDodge = 38.0
+    // The armor lead that dodges half of MaxDodge.
+    #float DodgeKnee = 90.0
+    // Percent: the most a resistance can take off an element.
+    #int MaxResist = 75
+
+    // Percent chance that a blow of this accuracy misses this armor.
+    float DodgeChance(int armor, int accuracy)
+    {
+        int lead = armor - accuracy
+        if lead <= 0 { return 0.0 }
+        return MaxDodge * (float)lead / ((float)lead + DodgeKnee)
+    }
+
+    // Whether a roll in 0..1 makes the blow miss.
+    bool Dodges(float unit, int armor, int accuracy) { return unit * 100.0 < DodgeChance(armor, accuracy) }
+
+    // An elemental amount after a resistance in percent.
+    int Resisted(int amount, int resist) { return amount * (100 - Math.Clamp(resist, 0, MaxResist)) / 100 }
+
+    // A blow's physical part plus each element after her resistances.
+    int BlowAgainst(HellfeatherStats& stats, int physical, int fire, int cold, int lightning)
+    {
+        return physical + Resisted(fire, stats.FireResist) + Resisted(cold, stats.ColdResist) + Resisted(lightning, stats.LightningResist)
+    }
+}
+
+// The new numbers each enemy kind carries. EnemyData.dk sets them per kind.
+EnemyKind
+{
+    // Makes her blows miss; her accuracy cancels it.
+    int Armor
+    // Cancels her defense.
+    int Accuracy
+    // Elemental damage added to each blow, on top of the physical Damage.
+    int Fire
+    int Cold
+    int Lightning
+}
+
+// The kind that fired a shot, whose accuracy and elements it carries.
+HellfeatherShot
+{
+    int Kind = -1
+}
+
+// Effects for her skills, made from the engine's particle styles.
+HellfeatherSkillEffects
+#{
+    // A short streak of steel light along a stretch of a cleave's arc. Several
+    // laid end to end along the sweep read as one arc.
+    QuaxelEffectStyle CleaveStreak()
+    {
+        QuaxelEffectStyle style
+        style.VoxelSize = 0.03
+        style.Floor = 0.5
+        style.MaxParticles = 60
+        style.Burst = 26
+        style.SpawnRadius = 0.12
+        style.SpeedMin = 3.0
+        style.SpeedMax = 4.6
+        style.Spread = 10.0
+        style.Drag = 5.0
+        style.LifeMin = 0.16
+        style.LifeMax = 0.32
+        style.SizeStart = 0.6
+        style.SizeEnd = 0.2
+        style.DensityEnd = 0.3
+        style.ColorStart = 0xfff4dc
+        style.ColorMiddle = 0xe8c070
+        style.ColorEnd = 0x803818
+        style.MiddleAt = 0.35
+        style.Streak = 1.6
+        return style
+    }
+
+    // The war cry's shockwave: a dome of pale sparks that rushes out from her
+    // to about the cry's radius, fading as it slows.
+    QuaxelEffectStyle WarCryWave()
+    {
+        QuaxelEffectStyle style
+        style.VoxelSize = 0.13
+        style.Floor = 0.04
+        style.MaxParticles = 1024
+        style.Burst = 1000
+        style.SpawnRadius = 0.15
+        style.SpawnFlat = true
+        // Every particle at the same speed keeps the wave a thin shell.
+        style.SpeedMin = 8.5
+        style.SpeedMax = 8.5
+        style.Spread = 92.0
+        style.Drag = 2.0
+        style.LifeMin = 0.75
+        style.LifeMax = 0.9
+        style.DensityStart = 0.9
+        style.DensityEnd = 0.1
+        style.ColorStart = 0xfff0c8
+        style.ColorMiddle = 0xf09030
+        style.ColorEnd = 0x902010
+        style.MiddleAt = 0.3
+        style.Shade = 0.2
+        return style
+    }
+
+    // A miss: a puff of dust where the blow went wide.
+    QuaxelEffectStyle Miss()
+    {
+        QuaxelEffectStyle style = QuaxelEffectStyle.Dust()
+        style.Burst = 8
+        return style
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // Damage and dodge rolls. Seeded from the clock on first use.
+    QuaxelRandom CombatRandom
+    -bool CombatSeeded
+
+    // A roll in 0..1, excluding 1.
+    float CombatRoll()
+    {
+        if !CombatSeeded {
+            long now = 0
+            QuaxelPlatform.ReadClock(now)
+            CombatRandom.Begin((uint)((now >> 4) & (long)0x7FFFFFFF))
+            CombatSeeded = true
+        }
+        return CombatRandom.Unit()
+    }
+
+    // What her blow does to an enemy: a roll in the range, or -1 when the
+    // enemy's armor turns it aside.
+    int RollStrike(QuaxelWorld& world, int i, HellfeatherDamageRange range)
+    {
+        stats : Stats()
+        int armor = Spawner.Table.Kinds[Enemies[i].Kind].Armor
+        if HellfeatherCombat.Dodges(CombatRoll(), armor, stats.Accuracy()) {
+            PuffMiss(world, world.GetPosition(Enemies[i].Node))
+            return -1
+        }
+        return range.Roll(CombatRoll())
+    }
+
+    // An enemy's blow with its own Damage. False when she dodged it.
+    bool HitPlayer(QuaxelWorld& world, int i) { return HitPlayerAs(world, Enemies[i].Kind, Enemies[i].Damage) }
+
+    // A blow from an enemy of a kind, with physical damage and the kind's
+    // accuracy and elements. False when she dodged it.
+    bool HitPlayerAs(QuaxelWorld& world, int kind, int physical)
+    {
+        if PlayerHealth <= 0 { return false }
+        stats : Stats()
+        int accuracy = kind >= 0 ? Spawner.Table.Kinds[kind].Accuracy | 0
+        if HellfeatherCombat.Dodges(CombatRoll(), stats.Defense, accuracy) {
+            PuffMiss(world, world.GetPosition(PlayerNode))
+            return false
+        }
+        if kind < 0 {
+            DamagePlayer(world, physical)
+            return true
+        }
+        int fire = Spawner.Table.Kinds[kind].Fire
+        int cold = Spawner.Table.Kinds[kind].Cold
+        int lightning = Spawner.Table.Kinds[kind].Lightning
+        DamagePlayer(world, HellfeatherCombat.BlowAgainst(stats, physical, fire, cold, lightning))
+        return true
+    }
+
+    -PuffMiss(QuaxelWorld& world, vec3 at)
+    {
+        vec3 feet = vec3(at.X, Terrain.GroundY(at.X, at.Z), at.Z)
+        world.StartEffect(HellfeatherSkillEffects.Miss(), feet, vec3(0.0, 1.0, 0.0))
+    }
+
+    // Her facing on the ground, from her model.
+    -vec3 PlayerFacing(QuaxelWorld& world)
+    {
+        if Controllers.Len == 0 { return vec3(0.0, 0.0, 1.0) }
+        QuaxelTransform pose = world.GetTransform(Controllers[0].VisualNode)
+        return Math.Normalize(vec3(pose.FacingX, 0.0, pose.FacingZ))
+    }
+
+    // A cleave sweeps the half circle in front of her and a little round her
+    // sides, not behind her.
+    bool InSweep(QuaxelWorld& world, int i, vec3 origin)
+    {
+        vec3 at = world.GetPosition(Enemies[i].Node)
+        vec3 toward = vec3(at.X - origin.X, 0.0, at.Z - origin.Z)
+        if toward.Length() < 0.01 { return true }
+        return PlayerFacing(world).Dot(Math.Normalize(toward)) >= HellfeatherCombat.SweepCosine
+    }
+
+    // Streaks of light along the cleave's arc, from her right to her left.
+    CleaveArc(QuaxelWorld& world, vec3 origin)
+    {
+        vec3 forward = PlayerFacing(world)
+        // Her right: local -X of the model, which faces +Z.
+        vec3 right = vec3(-forward.Z, 0.0, forward.X)
+        float radius = CleaveReach() * 0.65
+        for n : 0; n < HellfeatherCombat.ArcStreaks; n++ {
+            // From 75 degrees to her right to 75 to her left.
+            float angle = 1.3089969 - 2.6179939 * (float)n / (float)(HellfeatherCombat.ArcStreaks - 1)
+            vec3 spot = forward * Math.Cos(angle) + right * Math.Sin(angle)
+            vec3 along = forward * Math.Sin(angle) - right * Math.Cos(angle)
+            vec3 at = origin + spot * radius + vec3(0.0, 0.35, 0.0)
+            world.StartEffect(HellfeatherSkillEffects.CleaveStreak(), at, along)
+        }
+    }
+
+    // The war cry's shockwave, rising from the ground at her feet.
+    CryWave(QuaxelWorld& world)
+    {
+        vec3 at = world.GetPosition(PlayerNode)
+        vec3 feet = vec3(at.X, Terrain.GroundY(at.X, at.Z), at.Z)
+        world.StartEffect(HellfeatherSkillEffects.WarCryWave(), feet, vec3(0.0, 1.0, 0.0))
+        world.StartEffect(QuaxelEffectStyle.Dust(), feet, vec3(0.0, 1.0, 0.0))
+    }
+
+    // Plays an action's clip on her, with walking legs when she is moving.
+    PlayAction(QuaxelWorld& world, int visual, HellfeatherAction action, bool moving)
+    {
+        world.PlayClip(visual, HellfeatherWarrior.ActionClip(action, moving))
+    }
+}
+
+HellfeatherCombat
+#{
+    // Cosine of the widest angle off her facing a cleave reaches: about 110 degrees.
+    #float SweepCosine = -0.35
+    #int ArcStreaks = 7
+}
+T{
+    DodgeMatchesItsCalibration()
+    {
+        T.AreEqual(HellfeatherCombat.DodgeChance(100, 0), 20.0)
+        T.AreEqual(HellfeatherCombat.DodgeChance(100, 100), 0.0)
+        T.IsTrue(Math.Abs(HellfeatherCombat.DodgeChance(1000, 0) - 35.0) < 0.5)
+        // Accuracy past the armor gains nothing more, and the lead is what counts.
+        T.AreEqual(HellfeatherCombat.DodgeChance(50, 300), 0.0)
+        T.AreEqual(HellfeatherCombat.DodgeChance(200, 100), 20.0)
+        T.AreEqual(HellfeatherCombat.DodgeChance(0, 0), 0.0)
+    }
+
+    DodgeRisesSmoothlyButAlwaysLeavesAWayToHit()
+    {
+        float last = 0.0
+        for armor : 10; armor <= 100000; armor *= 10 {
+            float chance = HellfeatherCombat.DodgeChance(armor, 0)
+            T.IsTrue(chance > last)
+            T.IsTrue(chance < HellfeatherCombat.MaxDodge)
+            last = chance
+        }
+        T.IsTrue(HellfeatherCombat.DodgeChance(31, 0) > HellfeatherCombat.DodgeChance(30, 0))
+    }
+
+    DodgesFollowTheRoll()
+    {
+        // Armor 100 against accuracy 0 turns the lowest 20% of rolls.
+        T.IsTrue(HellfeatherCombat.Dodges(0.1, 100, 0))
+        T.IsFalse(HellfeatherCombat.Dodges(0.25, 100, 0))
+        T.IsFalse(HellfeatherCombat.Dodges(0.0, 100, 100))
+    }
+
+    DamageRangesRollEveryValueAndNothingElse()
+    {
+        range : HellfeatherDamageRange.Make(16, 24)
+        T.AreEqual(range.Roll(0.0), 16)
+        T.AreEqual(range.Roll(0.99999), 24)
+        T.AreEqual(range.Roll(0.5), 20)
+        bool [9] seen
+        for n : 0; n < 90; n++ {
+            int rolled = range.Roll((float)n / 90.0)
+            T.IsTrue(rolled >= 16 && rolled <= 24)
+            seen[rolled - 16] = true
+        }
+        for hit : seen { T.IsTrue(hit) }
+        doubled : range.Times(200)
+        T.AreEqual(doubled.Max, 48)
+        T.AreEqual(range.Text(), "16-24")
+        single : HellfeatherDamageRange.Make(5, 5)
+        T.AreEqual(single.Text(), "5")
+    }
+
+    ResistancesTakeTheirShareOfEachElement()
+    {
+        HellfeatherInventory items
+        stats : items.Stats()
+        T.AreEqual(HellfeatherCombat.BlowAgainst(stats, 6, 0, 10, 0), 16)
+        stats.ColdResist = 50
+        stats.FireResist = 200
+        T.AreEqual(HellfeatherCombat.BlowAgainst(stats, 6, 8, 10, 4), 6 + 2 + 5 + 4)
+        // Nothing resists the physical part.
+        stats.LightningResist = 100
+        T.AreEqual(HellfeatherCombat.BlowAgainst(stats, 6, 0, 0, 4), 7)
+    }
+
+    LaterEnemiesBiteWithTheElements()
+    {
+        HellfeatherEnemySpawner spawner()
+        spawner.Data = HellfeatherEnemyData.Build()
+        QuaxelWorld world()
+        T.IsTrue(spawner.Load(world))
+        int leech = spawner.Table.KindNamed("BlackHoneyLeech")
+        int drake = spawner.Table.KindNamed("PondDrake")
+        int duck = spawner.Table.KindNamed("EvilDuck")
+        T.IsTrue(spawner.Table.Kinds[leech].Cold > 0 && spawner.Table.Kinds[leech].Damage > 0)
+        T.IsTrue(spawner.Table.Kinds[drake].Cold > 0 && spawner.Table.Kinds[drake].Damage > 0)
+        T.AreEqual(spawner.Table.Kinds[duck].Cold + spawner.Table.Kinds[duck].Fire + spawner.Table.Kinds[duck].Lightning, 0)
+    }
+}

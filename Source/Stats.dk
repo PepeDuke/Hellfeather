@@ -6,8 +6,9 @@ HellfeatherStats
     int Agility
     int MaxHealth
     int MaxMana
-    // The equipped weapon's own damage, before any attribute adds to it.
-    int WeaponDamage
+    // The equipped weapon's own damage range, before any attribute adds to it.
+    int WeaponMin
+    int WeaponMax
     bool Ranged
     int Defense
     int FireResist
@@ -18,20 +19,37 @@ HellfeatherStats
     float ManaPerSecond
     // Percent more damage on top of the flat amount, from passives.
     int DamagePercent
-    // Hit chance from passives, on top of what agility gives.
+    // Accuracy from mods and passives, on top of what agility gives.
     int HitBonus
 
-    // Strength adds to every weapon, and agility to ranged weapons as well.
-    // Percent bonuses apply after the flat ones.
-    int Damage() { return Scaled(WeaponDamage + Strength + (Ranged ? Agility | 0)) }
+    // Strength adds to both ends of every weapon's range, and agility to ranged
+    // weapons as well. Percent bonuses apply after the flat ones.
+    HellfeatherDamageRange Damage() { return WeaponRange(100) }
 
     // Cleave hits half as hard again as the weapon, and attributes add the same.
-    int CleaveDamage() { return Scaled(WeaponDamage * 3 / 2 + Strength + (Ranged ? Agility | 0)) }
+    HellfeatherDamageRange CleaveDamage() { return WeaponRange(150) }
+
+    -HellfeatherDamageRange WeaponRange(int weaponPercent)
+    {
+        int flat = Strength + (Ranged ? Agility | 0)
+        return HellfeatherDamageRange.Make(Scaled(WeaponMin * weaponPercent / 100 + flat), Scaled(WeaponMax * weaponPercent / 100 + flat))
+    }
 
     -int Scaled(int flat) { return flat * (100 + DamagePercent) / 100 }
 
-    // Agility makes every attack more accurate.
-    int HitChance() { return Math.Min(HellfeatherStats.MaxHitChance, HellfeatherStats.BaseHitChance + Agility * HellfeatherStats.HitPerAgility + HitBonus) }
+    // Accuracy cancels an enemy's armor (see HellfeatherCombat); agility gives
+    // AccuracyPerAgility for each point.
+    int Accuracy() { return Agility * HellfeatherStats.AccuracyPerAgility + HitBonus }
+
+    // Percent chance her defense turns aside a blow of this accuracy.
+    float DodgeChance(int accuracy) { return HellfeatherCombat.DodgeChance(Defense, accuracy) }
+
+    // Adds flat damage to both ends of the weapon's range.
+    AddWeaponDamage(int low, int high)
+    {
+        WeaponMin += low
+        WeaponMax += high
+    }
 }
 #{
     #int BaseStrength = 5
@@ -39,9 +57,7 @@ HellfeatherStats
     #int BaseHealth = 100
     #int BaseMana = 60
     #float BaseManaPerSecond = 2.0
-    #int BaseHitChance = 75
-    #int HitPerAgility = 1
-    #int MaxHitChance = 95
+    #int AccuracyPerAgility = 2
 
     // What the warrior has with nothing on.
     HellfeatherStats Base()
@@ -58,8 +74,8 @@ HellfeatherStats
     // What one worn item gives. These match the items' detail lines.
     AddItem(HellfeatherStats& stats, HellfeatherItems item)
     {
-        if item == HellfeatherItems.BattleAxe { stats.WeaponDamage += 20 }
-        if item == HellfeatherItems.ShortSword { stats.WeaponDamage += 12 }
+        if item == HellfeatherItems.BattleAxe { stats.AddWeaponDamage(16, 24) }
+        if item == HellfeatherItems.ShortSword { stats.AddWeaponDamage(9, 15) }
         if item == HellfeatherItems.RoundShield { stats.Defense += 8 }
         if item == HellfeatherItems.IronHelm { stats.Defense += 5 }
         if item == HellfeatherItems.MinersHelmet { stats.Defense += 2 }
@@ -81,7 +97,21 @@ HellfeatherStats
             stats.Strength += 3
         }
         if item == HellfeatherItems.GreyneckQuill { stats.Agility += 6 }
-        if item == HellfeatherItems.MillstoneMaul { stats.WeaponDamage += 32 }
+        if item == HellfeatherItems.MillstoneMaul { stats.AddWeaponDamage(24, 40) }
+        if item == HellfeatherItems.HandAxe { stats.AddWeaponDamage(10, 14) }
+        if item == HellfeatherItems.Falchion { stats.AddWeaponDamage(12, 20) }
+        if item == HellfeatherItems.FlangedMace { stats.AddWeaponDamage(20, 32) }
+        if item == HellfeatherItems.KiteShield { stats.Defense += 14 }
+        if item == HellfeatherItems.ChainCoif { stats.Defense += 8 }
+        if item == HellfeatherItems.GreatHelm { stats.Defense += 12 }
+        if item == HellfeatherItems.RingMail { stats.Defense += 20 }
+        if item == HellfeatherItems.ScaleMail { stats.Defense += 30 }
+        if item == HellfeatherItems.ChainGloves || item == HellfeatherItems.ChainBoots { stats.Defense += 5 }
+        if item == HellfeatherItems.Gauntlets || item == HellfeatherItems.PlateBoots { stats.Defense += 9 }
+        if item == HellfeatherItems.HeavyBelt { stats.Defense += 4 }
+        if item == HellfeatherItems.PlatedBelt { stats.Defense += 7 }
+        if item == HellfeatherItems.GarnetRing { stats.Strength += 2 }
+        if item == HellfeatherItems.RavenAmulet { stats.MaxMana += 15 }
     }
 
     // A rate with one decimal, such as "2.0".
@@ -117,7 +147,9 @@ T{
         T.AreEqual(stats.Defense, 0)
         T.AreEqual(stats.MoveSpeed, 100)
         // Bare hands still hit with her strength.
-        T.AreEqual(stats.Damage(), HellfeatherStats.BaseStrength)
+        bare : stats.Damage()
+        T.AreEqual(bare.Min, HellfeatherStats.BaseStrength)
+        T.AreEqual(bare.Max, HellfeatherStats.BaseStrength)
     }
 
     StrengthAddsFlatDamageToTheWeapon()
@@ -125,23 +157,40 @@ T{
         HellfeatherInventory items
         items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.BattleAxe
         stats : items.Stats()
-        T.AreEqual(stats.Damage(), 20 + stats.Strength)
-        T.AreEqual(stats.CleaveDamage(), 30 + stats.Strength)
+        axe : stats.Damage()
+        T.AreEqual(axe.Min, 16 + stats.Strength)
+        T.AreEqual(axe.Max, 24 + stats.Strength)
+        cleave : stats.CleaveDamage()
+        T.AreEqual(cleave.Min, 24 + stats.Strength)
+        T.AreEqual(cleave.Max, 36 + stats.Strength)
         stats.Strength += 4
-        T.AreEqual(stats.Damage(), 24 + HellfeatherStats.BaseStrength)
+        stronger : stats.Damage()
+        T.AreEqual(stronger.Max, 28 + HellfeatherStats.BaseStrength)
     }
 
-    AgilityAddsToRangedDamageAndToHitChance()
+    AgilityAddsToRangedDamageAndToAccuracy()
     {
         HellfeatherInventory items
         stats : items.Stats()
-        stats.WeaponDamage = 10
-        T.AreEqual(stats.Damage(), 10 + stats.Strength)
+        stats.AddWeaponDamage(8, 12)
+        melee : stats.Damage()
+        T.AreEqual(melee.Min, 8 + stats.Strength)
         stats.Ranged = true
-        T.AreEqual(stats.Damage(), 10 + stats.Strength + stats.Agility)
-        T.AreEqual(stats.HitChance(), 75 + stats.Agility)
-        stats.Agility = 100
-        T.AreEqual(stats.HitChance(), HellfeatherStats.MaxHitChance)
+        ranged : stats.Damage()
+        T.AreEqual(ranged.Max, 12 + stats.Strength + stats.Agility)
+        T.AreEqual(stats.Accuracy(), stats.Agility * HellfeatherStats.AccuracyPerAgility)
+        stats.HitBonus = 7
+        T.AreEqual(stats.Accuracy(), stats.Agility * HellfeatherStats.AccuracyPerAgility + 7)
+    }
+
+    DefenseDodgesBlowsLikeEnemyArmor()
+    {
+        HellfeatherInventory items
+        stats : items.Stats()
+        T.AreEqual(stats.DodgeChance(0), 0.0)
+        stats.Defense = 100
+        T.AreEqual(stats.DodgeChance(0), 20.0)
+        T.AreEqual(stats.DodgeChance(100), 0.0)
     }
 
     WornArmorAndWardsAddUp()

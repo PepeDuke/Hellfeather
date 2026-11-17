@@ -74,7 +74,7 @@ HellfeatherItemMods
         for i : 0; i < Count; i++ {
             kind : Kinds[i]
             int value = Values[i]
-            if kind == HellfeatherModKind.Damage { stats.WeaponDamage += value }
+            if kind == HellfeatherModKind.Damage { stats.AddWeaponDamage(value, value) }
             if kind == HellfeatherModKind.DamagePercent { stats.DamagePercent += value }
             if kind == HellfeatherModKind.Strength { stats.Strength += value }
             if kind == HellfeatherModKind.Agility { stats.Agility += value }
@@ -137,7 +137,7 @@ HellfeatherItemMods
         if kind == HellfeatherModKind.Damage { Set(2, 8, low, high) }
         if kind == HellfeatherModKind.DamagePercent { Set(5, 20, low, high) }
         if kind == HellfeatherModKind.Strength || kind == HellfeatherModKind.Agility { Set(1, 5, low, high) }
-        if kind == HellfeatherModKind.HitChance { Set(2, 8, low, high) }
+        if kind == HellfeatherModKind.HitChance { Set(4, 15, low, high) }
         if kind == HellfeatherModKind.Defense { Set(2, 10, low, high) }
         if kind == HellfeatherModKind.Health { Set(5, 25, low, high) }
         if kind == HellfeatherModKind.Mana { Set(5, 20, low, high) }
@@ -160,7 +160,7 @@ HellfeatherItemMods
         if kind == HellfeatherModKind.DamagePercent { return amount + "% damage" }
         if kind == HellfeatherModKind.Strength { return amount + " strength" }
         if kind == HellfeatherModKind.Agility { return amount + " agility" }
-        if kind == HellfeatherModKind.HitChance { return amount + "% hit chance" }
+        if kind == HellfeatherModKind.HitChance { return amount + " accuracy" }
         if kind == HellfeatherModKind.Defense { return amount + " defense" }
         if kind == HellfeatherModKind.Health { return amount + " maximum health" }
         if kind == HellfeatherModKind.Mana { return amount + " maximum mana" }
@@ -414,7 +414,8 @@ T{
         mods.Add(HellfeatherModKind.ManaRegen, 5)
         mods.ApplyTo(stats)
         T.AreEqual(stats.MoveSpeed, 110)
-        T.AreEqual(stats.WeaponDamage, 3)
+        T.AreEqual(stats.WeaponMin, 3)
+        T.AreEqual(stats.WeaponMax, 3)
         T.AreEqual(stats.ManaPerSecond, HellfeatherStats.BaseManaPerSecond + 0.5)
     }
 }

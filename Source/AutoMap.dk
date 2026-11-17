@@ -1,0 +1,487 @@
+// What the map knows of one texel.
+HellfeatherMapCell : int
+#@{
+    Unknown,
+    Ground,
+    Rock,
+    Water,
+    Building
+}
+
+// The automap. Tab lays it straight over the view, centered on her and see
+// through, Diablo-style: walls and buildings stand out, the open ground is
+// barely there, and people and doors are marked. It remembers the ground she
+// has seen in each realm, drawn as she saw it: rotated and squashed like the
+// camera's view, so up on the map is up on the screen. The record is far
+// larger than the atlas, so only the window around her is painted into a
+// free corner of the shared sprite atlas, one texel per UI pixel.
+HellfeatherAutoMap
+{
+    bool Open
+    // The realm the transform below was made for, or -1.
+    int Realm = -1
+    // Map texels per world unit along world X and along world Z: a world offset
+    // (dx, dz) moves dx * AxisX + dz * AxisZ texels.
+    vec2 AxisX
+    vec2 AxisZ
+    // The texel the world origin falls on.
+    vec2 Origin
+    // A HellfeatherMapCell for each texel, realm after realm, row by row.
+    uint8 [] Known
+    // Known changed, or the window moved, since the atlas was last painted.
+    bool Dirty
+    // The record texel at the atlas corner's top left.
+    int WindowU
+    int WindowV
+    // Record texels per screen texel along each side: 1 is the closest view,
+    // MaxStep shows the whole record.
+    int Step = 1
+    // Where texel (0, 0) fell on screen at the last Draw, in UI pixels, and the
+    // part of the screen the map covers.
+    -int OffsetX
+    -int OffsetY
+    -int ViewX
+    -int ViewY
+    -int ViewWidth
+    -int ViewHeight
+
+    // Fits a realm's clearings into the map. Screen is the camera's view
+    // projection, whose clip X and Y become map X and Y at the view's 16:9
+    // proportions; Sites are the clearings' middles and radii in world units.
+    Configure(mat4 screen, vec4 [] & sites, int realm)
+    {
+        if Known.Len == 0 {
+            for i : 0; i < HellfeatherAutoMap.RecordWidth * HellfeatherAutoMap.RecordHeight * HellfeatherRealm.Count; i++ { Known += (uint8)0 }
+        }
+        Realm = realm
+        Dirty = true
+        vec4 o = screen * vec4(0.0, 0.0, 0.0, 1.0)
+        vec4 ax = screen * vec4(1.0, 0.0, 0.0, 1.0)
+        vec4 az = screen * vec4(0.0, 0.0, 1.0, 1.0)
+        float xx = (ax.X - o.X) * 16.0
+        float xy = (ax.Y - o.Y) * 9.0
+        float zx = (az.X - o.X) * 16.0
+        float zy = (az.Y - o.Y) * 9.0
+        // One map unit per world unit along the screen's horizontal.
+        float across = Math.Max(0.0001, Math.Sqrt(xx * xx + zx * zx))
+        xx = xx / across
+        xy = xy / across
+        zx = zx / across
+        zy = zy / across
+        float down = Math.Sqrt(xy * xy + zy * zy)
+        float minX = 1000000.0
+        float maxX = -1000000.0
+        float minY = 1000000.0
+        float maxY = -1000000.0
+        for site : sites {
+            float mx = xx * site.X + zx * site.Z
+            float my = xy * site.X + zy * site.Z
+            float reach = site.W + HellfeatherAutoMap.Margin
+            minX = Math.Min(minX, mx - reach)
+            maxX = Math.Max(maxX, mx + reach)
+            minY = Math.Min(minY, my - reach * down)
+            maxY = Math.Max(maxY, my + reach * down)
+        }
+        if sites.Len == 0 {
+            minX = -20.0
+            maxX = 20.0
+            minY = -20.0
+            maxY = 20.0
+        }
+        // World units per texel, so the whole realm fits.
+        float scale = Math.Max(HellfeatherAutoMap.MinWorldPerTexel, Math.Max((maxX - minX) / (float)HellfeatherAutoMap.RecordWidth, (maxY - minY) / (float)HellfeatherAutoMap.RecordHeight))
+        AxisX = vec2(xx / scale, xy / scale)
+        AxisZ = vec2(zx / scale, zy / scale)
+        Origin = vec2(((float)HellfeatherAutoMap.RecordWidth - (maxX - minX) / scale) * 0.5 - minX / scale, ((float)HellfeatherAutoMap.RecordHeight - (maxY - minY) / scale) * 0.5 - minY / scale)
+    }
+
+    vec2 TexelOf(vec3 point) { return vec2(Origin.X + AxisX.X * point.X + AxisZ.X * point.Z, Origin.Y + AxisX.Y * point.X + AxisZ.Y * point.Z) }
+
+    // The world point, on the ground plane, at a map position.
+    vec3 WorldOf(float u, float v)
+    {
+        float a = u - Origin.X
+        float b = v - Origin.Y
+        float determinant = AxisX.X * AxisZ.Y - AxisZ.X * AxisX.Y
+        if Math.Abs(determinant) < 0.000001 { return vec3(0.0, 0.0, 0.0) }
+        return vec3((a * AxisZ.Y - b * AxisZ.X) / determinant, 0.0, (AxisX.X * b - AxisX.Y * a) / determinant)
+    }
+
+    bool InMap(int u, int v) { return u >= 0 && v >= 0 && u < HellfeatherAutoMap.RecordWidth && v < HellfeatherAutoMap.RecordHeight }
+
+    int IndexOf(int u, int v) { return (Realm * HellfeatherAutoMap.RecordHeight + v) * HellfeatherAutoMap.RecordWidth + u }
+
+    HellfeatherMapCell CellAt(int u, int v)
+    {
+        if Realm < 0 || !InMap(u, v) { return HellfeatherMapCell.Unknown }
+        return (HellfeatherMapCell)Known[IndexOf(u, v)]
+    }
+
+    // True once she has seen the ground at a world point.
+    bool Seen(vec3 point)
+    {
+        vec2 texel = TexelOf(point)
+        return CellAt((int)texel.X, (int)texel.Y) != HellfeatherMapCell.Unknown
+    }
+
+    Mark(int u, int v, HellfeatherMapCell cell)
+    {
+        if Realm < 0 || !InMap(u, v) { return }
+        int index = IndexOf(u, v)
+        if Known[index] == (uint8)cell.Value { return }
+        Known[index] = (uint8)cell.Value
+        // Only a change inside the painted window needs a repaint.
+        if u >= WindowU - 1 && v >= WindowV - 1 && u <= WindowU + HellfeatherAutoMap.Width * Step && v <= WindowV + HellfeatherAutoMap.Height * Step { Dirty = true }
+    }
+
+    // The most texels one world unit spans in any direction on the ground.
+    float TexelsPerUnit() { return Math.Max(Math.Sqrt(AxisX.X * AxisX.X + AxisX.Y * AxisX.Y), Math.Sqrt(AxisZ.X * AxisZ.X + AxisZ.Y * AxisZ.Y)) }
+
+    HellfeatherMapCell CellFor(QuaxelTerrainKind kind)
+    {
+        if kind == QuaxelTerrainKind.Mountain { return HellfeatherMapCell.Rock }
+        if kind == QuaxelTerrainKind.Water { return HellfeatherMapCell.Water }
+        if kind == QuaxelTerrainKind.Structure { return HellfeatherMapCell.Building }
+        if kind == QuaxelTerrainKind.Open { return HellfeatherMapCell.Ground }
+        return HellfeatherMapCell.Unknown
+    }
+
+    // True when a texel's neighbor across an edge is either kind.
+    -bool Beside(int u, int v, HellfeatherMapCell first, HellfeatherMapCell second)
+    {
+        for i : 0; i < 4; i++ {
+            int du = i == 0 ? 1 | (i == 1 ? -1 | 0)
+            int dv = i == 2 ? 1 | (i == 3 ? -1 | 0)
+            cell : CellAt(u + du, v + dv)
+            if cell == first || cell == second { return true }
+        }
+        return false
+    }
+
+    // The color a texel is painted, with its see-through alpha, 0 for clear.
+    // What blocks her stands out; the open ground is barely there.
+    uint ColorAt(int u, int v)
+    {
+        cell : CellAt(u, v)
+        if cell == HellfeatherMapCell.Ground {
+            // Ground beside rock or a building is the wall line.
+            if Beside(u, v, HellfeatherMapCell.Rock, HellfeatherMapCell.Building) { return HellfeatherAutoMap.WallColor }
+            return HellfeatherAutoMap.GroundColor
+        }
+        if cell == HellfeatherMapCell.Water { return Beside(u, v, HellfeatherMapCell.Ground, HellfeatherMapCell.Rock) ? HellfeatherAutoMap.ShoreColor | HellfeatherAutoMap.WaterColor }
+        if cell == HellfeatherMapCell.Building { return Beside(u, v, HellfeatherMapCell.Ground, HellfeatherMapCell.Unknown) ? HellfeatherAutoMap.BuildingEdgeColor | HellfeatherAutoMap.BuildingColor }
+        return 0
+    }
+
+    // How much a color matters when several record texels share one on
+    // screen: walls first, so outlines survive zooming out.
+    -int Rank(uint color)
+    {
+        if color == HellfeatherAutoMap.WallColor { return 6 }
+        if color == HellfeatherAutoMap.BuildingEdgeColor { return 5 }
+        if color == HellfeatherAutoMap.ShoreColor { return 4 }
+        if color == HellfeatherAutoMap.BuildingColor { return 3 }
+        if color == HellfeatherAutoMap.WaterColor { return 2 }
+        return color != (uint)0 ? 1 | 0
+    }
+
+    // Repaints the window of this realm's map into its corner of the atlas,
+    // each atlas texel standing for Step by Step texels of the record.
+    Paint(QuaxelUi& ui)
+    {
+        for v : 0; v < HellfeatherAutoMap.Height; v++ {
+            for u : 0; u < HellfeatherAutoMap.Width; u++ {
+                uint best = 0
+                int rank = 0
+                for dv : 0; dv < Step; dv++ {
+                    for du : 0; du < Step; du++ {
+                        uint color = ColorAt(WindowU + u * Step + du, WindowV + v * Step + dv)
+                        int mine = Rank(color)
+                        if mine > rank {
+                            rank = mine
+                            best = color
+                        }
+                    }
+                }
+                ui.SetAtlasTexel(HellfeatherAutoMap.AtlasX + u, HellfeatherAutoMap.AtlasY + v, best)
+            }
+        }
+        Dirty = false
+    }
+
+    // Moves the painted window to center on a record texel once she nears its
+    // edge. The window starts on a whole screen texel.
+    Follow(vec2 here)
+    {
+        int u = ((int)here.X - HellfeatherAutoMap.Width * Step / 2) / Step * Step
+        int v = ((int)here.Y - HellfeatherAutoMap.Height * Step / 2) / Step * Step
+        int slack = HellfeatherAutoMap.Slack * Step
+        if Math.Abs(u - WindowU) <= slack && Math.Abs(v - WindowV) <= slack { return }
+        WindowU = u
+        WindowV = v
+        Dirty = true
+    }
+
+    // Wheel notches away from the player zoom in, toward her zoom out.
+    Zoom(int notches)
+    {
+        int step = Math.Clamp(Step - notches, 1, HellfeatherAutoMap.MaxStep)
+        if step == Step { return }
+        Step = step
+        // Recentered on the next Draw.
+        WindowU = -1000000
+        Dirty = true
+    }
+
+    // Lays the map over the view with her texel at Center, a point on the UI
+    // grid, clipped to keep the nameplate and the action bar clear.
+    Draw(QuaxelUi& ui, int width, int height, vec3 player, vec2 center)
+    {
+        vec2 here = TexelOf(player)
+        Follow(here)
+        if Dirty { Paint(ui) }
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        // Where screen texel (0, 0), record texel (0, 0), falls on screen.
+        OffsetX = (int)center.X - (int)here.X / Step
+        OffsetY = (int)center.Y - (int)here.Y / Step
+        int windowX = OffsetX + WindowU / Step
+        int windowY = OffsetY + WindowV / Step
+        // The part of the screen the painted window covers, inside the clear area.
+        int left = Math.Max(0, windowX)
+        int top = Math.Max(HellfeatherAutoMap.ClearTop, windowY)
+        int right = Math.Min(gridWidth, windowX + HellfeatherAutoMap.Width)
+        int bottom = Math.Min(gridHeight - HellfeatherAutoMap.ClearBottom, windowY + HellfeatherAutoMap.Height)
+        ViewX = left
+        ViewY = top
+        ViewWidth = right - left
+        ViewHeight = bottom - top
+        if ViewWidth <= 0 || ViewHeight <= 0 { return }
+        ui.OverlaySprite(ViewX, ViewY, HellfeatherAutoMap.AtlasX + ViewX - windowX, HellfeatherAutoMap.AtlasY + ViewY - windowY, ViewWidth, ViewHeight)
+    }
+
+    // A square mark at a world point, if it is on the visible part of the map
+    // and, unless Always, on ground she has seen.
+    Marker(QuaxelUi& ui, vec3 point, int size, uint color, bool always)
+    {
+        if !always && !Seen(point) { return }
+        vec2 texel = TexelOf(point)
+        int x = OffsetX + (int)texel.X / Step - size / 2
+        int y = OffsetY + (int)texel.Y / Step - size / 2
+        if x - 1 < ViewX || y - 1 < ViewY || x + size + 1 > ViewX + ViewWidth || y + size + 1 > ViewY + ViewHeight { return }
+        ui.OverlayRect(x - 1, y - 1, size + 2, size + 2, 0xC0000000)
+        ui.OverlayRect(x, y, size, size, color)
+    }
+}
+#{
+    // The atlas corner the map's window is painted into, right of the
+    // character panel, and the texels of the whole record of a realm.
+    #int AtlasX = 256
+    #int AtlasY = 768
+    #int Width = 256
+    #int Height = 192
+    #int RecordWidth = 1024
+    #int RecordHeight = 768
+    // Screen texels she may walk from the window's middle before it is repainted.
+    #int Slack = 40
+    // The farthest zoom: four record texels a side to each on screen, the
+    // whole record in the atlas window.
+    #int MaxStep = 4
+    // World units: the radius she maps around her, the room kept around each
+    // clearing, and the finest detail a texel covers.
+    #float RevealRadius = 13.0
+    #float Margin = 6.0
+    // A quarter of a world unit per texel keeps the map about a third the size
+    // of the world on screen, so it reads as an overlay around her.
+    #float MinWorldPerTexel = 0.25
+    // UI pixels kept clear for the nameplate above and the action bar below.
+    #int ClearTop = 22
+    #int ClearBottom = HellfeatherActionArt.BarHeight + HellfeatherActionBar.Margin + 5
+    // Frames between looks while she stands still, and world units of walking
+    // that bring the next look sooner.
+    #int ExploreFrames = 20
+    #float ExploreStep = 1.0
+    // ARGB of each kind of texel. Open ground is barely tinted, walls and
+    // buildings nearly solid, so the world still shows through the map.
+    #uint GroundColor = 0x1E8A7A62
+    #uint WallColor = 0xD8E6CC94
+    #uint WaterColor = 0x504A7CC8
+    #uint ShoreColor = 0xA06A9AE0
+    #uint BuildingColor = 0x80A0703C
+    #uint BuildingEdgeColor = 0xE8F0B870
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherAutoMap AutoMap
+    -bool MapKeyHeld
+    -vec3 MapExploredAt
+    -int MapFrames
+
+    // Tab opens or closes the map, once per press.
+    StepMapKey(QuaxelInputState& input)
+    {
+        bool down = input.Down[HellfeatherKeys.Tab]
+        if down && !MapKeyHeld { AutoMap.Open = !AutoMap.Open }
+        MapKeyHeld = down
+    }
+
+    // Fits the map to the realm she is in when that changes, and maps the ground
+    // around her every few frames or steps of walking.
+    ExploreMap(QuaxelWorld& world)
+    {
+        vec3 player = world.GetPosition(PlayerNode)
+        if AutoMap.Realm != Terrain.Realm + 0 {
+            vec4 [] sites
+            for site : Terrain.Layout.Sites {
+                vec3 middle = Terrain.WorldPoint(site.X, site.Z)
+                sites += vec4(middle.X, 0.0, middle.Z, site.Radius)
+            }
+            AutoMap.Configure(ScreenMatrix(world), sites, Terrain.Realm + 0)
+            MapFrames = HellfeatherAutoMap.ExploreFrames
+        }
+        MapFrames++
+        if MapFrames < HellfeatherAutoMap.ExploreFrames && Math.Hypot(player.X - MapExploredAt.X, player.Z - MapExploredAt.Z) < HellfeatherAutoMap.ExploreStep { return }
+        MapFrames = 0
+        MapExploredAt = player
+        ExploreAround(player)
+    }
+
+    // Records the ground within RevealRadius of her, as the terrain has it
+    // loaded. Columns not yet streamed in stay unknown for a later look. Here
+    // rather than on the map, since the game's terrain cannot be lent to it.
+    -ExploreAround(vec3 player)
+    {
+        if AutoMap.Realm < 0 { return }
+        vec2 center = AutoMap.TexelOf(player)
+        int span = (int)Math.Ceil(HellfeatherAutoMap.RevealRadius * AutoMap.TexelsPerUnit()) + 1
+        int cu = (int)center.X
+        int cv = (int)center.Y
+        for v : cv - span; v <= cv + span; v++ {
+            for u : cu - span; u <= cu + span; u++ {
+                if !AutoMap.InMap(u, v) { continue }
+                vec3 point = AutoMap.WorldOf((float)u + 0.5, (float)v + 0.5)
+                if Math.Hypot(point.X - player.X, point.Z - player.Z) > HellfeatherAutoMap.RevealRadius { continue }
+                cell : AutoMap.CellFor(Terrain.ColumnKind(Terrain.ColumnAt(point.X), Terrain.ColumnAt(point.Z)))
+                if cell != HellfeatherMapCell.Unknown { AutoMap.Mark(u, v, cell) }
+            }
+        }
+    }
+
+    // The map with her, the people of this realm, its doors and stairs and any
+    // open portal marked on it.
+    DrawAutoMap(QuaxelUi& ui, QuaxelWorld& world, int width, int height)
+    {
+        ExploreMap(world)
+        if !AutoMap.Open { return }
+        HellfeatherInventoryArt.EnsurePainted(ui)
+        vec3 player = world.GetPosition(PlayerNode)
+        // Centered where she stands on screen, so the map lies over her.
+        QuaxelCamera camera = world.GetCamera(CameraNode)
+        camera.UpdateBounds(width, height)
+        vec4 feet = camera.ViewProjection(world.WorldPosition(CameraNode)) * vec4(player, 1.0)
+        int scale = ui.ScaleFor(width, height)
+        vec2 center = vec2((feet.X + 1.0) * 0.5 * (float)(width / scale), (feet.Y + 1.0) * 0.5 * (float)(height / scale))
+        AutoMap.Draw(ui, width, height, player, center)
+        if Terrain.Realm == HellfeatherRealm.Fenmarch { AutoMap.Marker(ui, vec3(HellfeatherShopKeeper.StandX, 0.0, HellfeatherShopKeeper.StandZ), 4, 0xFFE8C04A, false) }
+        for spot : People.Spots {
+            if !spot.Shown || spot.Realm != Terrain.Realm { continue }
+            uint color = 0
+            if spot.Kind == HellfeatherSpotKind.Person { color = 0xFF5CC85C }
+            else if spot.Kind == HellfeatherSpotKind.Door || spot.Kind == HellfeatherSpotKind.StairsUp || spot.Kind == HellfeatherSpotKind.StairsDown { color = 0xFF7AA8E8 }
+            else if spot.Kind == HellfeatherSpotKind.Portal { color = 0xFFE070E8 }
+            if color != (uint)0 { AutoMap.Marker(ui, spot.Feet, 4, color, false) }
+        }
+        AutoMap.Marker(ui, player, 4, 0xFFF4ECD0, true)
+    }
+}
+T{
+    TabTogglesTheMapOncePerPress()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        input.Down[HellfeatherKeys.Tab] = true
+        game.Simulate(world, input, 3)
+        T.IsTrue(game.AutoMap.Open)
+        input.Down[HellfeatherKeys.Tab] = false
+        game.Simulate(world, input, 1)
+        input.Down[HellfeatherKeys.Tab] = true
+        game.Simulate(world, input, 1)
+        T.IsFalse(game.AutoMap.Open)
+    }
+
+    TheMapRecordsTheGroundAroundHerAndKeepsTheScreensOrientation()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.ExploreMap(world)
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.AutoMap.Seen(player))
+        vec2 here = game.AutoMap.TexelOf(player)
+        T.IsTrue(game.AutoMap.InMap((int)here.X, (int)here.Y))
+        // Far beyond what she has seen stays unknown.
+        T.IsFalse(game.AutoMap.Seen(player + vec3(40.0, 0.0, 40.0)))
+        // Map and screen agree on which way is right and which is down.
+        mat4 screen = game.ScreenMatrix(world)
+        vec3 step = vec3(3.0, 0.0, -1.0)
+        vec4 a = screen * vec4(player, 1.0)
+        vec4 b = screen * vec4(player + step, 1.0)
+        vec2 there = game.AutoMap.TexelOf(player + step)
+        T.IsTrue((b.X - a.X > 0.0) == (there.X - here.X > 0.0))
+        T.IsTrue((b.Y - a.Y > 0.0) == (there.Y - here.Y > 0.0))
+        // A texel's world point maps back to it.
+        vec3 back = game.AutoMap.WorldOf(here.X, here.Y)
+        T.IsTrue(Math.Hypot(back.X - player.X, back.Z - player.Z) < 0.01)
+    }
+
+    TheOpenMapDrawsAroundHerOverTheMiddle()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelUi ui()
+        game.ConfigureUi(ui)
+        game.AutoMap.Open = true
+        game.DrawAutoMap(ui, world, 960, 540)
+        T.IsFalse(game.AutoMap.Dirty)
+        vec2 here = game.AutoMap.TexelOf(world.GetPosition(game.PlayerNode))
+        T.IsTrue(ui.AtlasTexel(HellfeatherAutoMap.AtlasX + (int)here.X - game.AutoMap.WindowU, HellfeatherAutoMap.AtlasY + (int)here.Y - game.AutoMap.WindowV) != (uint)0)
+        // The wheel zooms out to the whole record and back, and no further.
+        game.AutoMap.Zoom(-10)
+        T.AreEqual(game.AutoMap.Step, HellfeatherAutoMap.MaxStep)
+        T.IsTrue(HellfeatherAutoMap.Width * HellfeatherAutoMap.MaxStep >= HellfeatherAutoMap.RecordWidth)
+        game.AutoMap.Zoom(10)
+        T.AreEqual(game.AutoMap.Step, 1)
+        ui.Layout(960, 540, 0, 0, false)
+        // The map lies over her, near the middle of the view, clear of the bar.
+        QuaxelUiCommand map = ui.GetCommand(0)
+        T.IsTrue(map.X < 480 && map.X + map.Width > 480)
+        T.IsTrue(map.Y < 270 && map.Y + map.Height > 270)
+        T.IsTrue(map.Y >= HellfeatherAutoMap.ClearTop * 2)
+        T.IsTrue(map.Y + map.Height <= 540 - HellfeatherAutoMap.ClearBottom * 2)
+        // Open ground is faint and walls are strong.
+        T.IsTrue((HellfeatherAutoMap.GroundColor >> 24) < (uint)0x40)
+        T.IsTrue((HellfeatherAutoMap.WallColor >> 24) > (uint)0xC0)
+        // Closed, it draws nothing.
+        ui.ClearOverlay()
+        game.AutoMap.Open = false
+        game.DrawAutoMap(ui, world, 960, 540)
+        ui.Layout(960, 540, 0, 0, false)
+        T.AreEqual(ui.CommandCount, 0)
+    }
+
+    TheMapsAtlasCornerIsFreeOfOtherArt()
+    {
+        QuaxelUi ui()
+        HellfeatherInventoryArt.Paint(ui)
+        for v : 0; v < HellfeatherAutoMap.Height; v++ {
+            for u : 0; u < HellfeatherAutoMap.Width; u++ { T.AreEqual(ui.AtlasTexel(HellfeatherAutoMap.AtlasX + u, HellfeatherAutoMap.AtlasY + v), (uint)0) }
+        }
+        T.IsTrue(HellfeatherAutoMap.AtlasX + HellfeatherAutoMap.Width <= HellfeatherInventoryArt.AtlasWidth)
+        T.IsTrue(HellfeatherAutoMap.AtlasY + HellfeatherAutoMap.Height <= HellfeatherInventoryArt.AtlasHeight)
+    }
+}

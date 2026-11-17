@@ -13,6 +13,21 @@ HellfeatherZoneNames
         return "The Fenmarch"
     }
 
+    // The area level of a zone, which decides what item bases drop there (the
+    // MinLevel and MaxLevel of each LootItem in Source/EnemyData.dk). It rises
+    // with the way the story walks Act I, from Ravenford out to the Undercroft.
+    int Level(int zone)
+    {
+        if zone == HellfeatherZone.Croft + 0 { return 2 }
+        if zone == HellfeatherZone.FordRoad + 0 { return 3 }
+        if zone == HellfeatherZone.FennickWater + 0 { return 5 }
+        if zone == HellfeatherZone.OrrasHill + 0 { return 7 }
+        if zone == HellfeatherZone.HobbsMill + 0 { return 9 }
+        if zone == HellfeatherZone.Undercroft + 0 || zone == HellfeatherZone.UndercroftLanding + 0 { return 10 }
+        if zone == HellfeatherZone.UndercroftDeep + 0 { return 12 }
+        return 1
+    }
+
     // Below the Fenmarch a level has one name, wherever she stands in it.
     string RealmName(HellfeatherRealm realm)
     {
@@ -63,6 +78,23 @@ HellfeatherGame : QuaxelGameInstance
         return best
     }
 
+    // The area level where she stands: below ground the level's, above it the
+    // clearing's.
+    int AreaLevel()
+    {
+        if Terrain.Realm != HellfeatherRealm.Fenmarch { return HellfeatherZoneNames.Level(Terrain.HallZone()) }
+        if ZoneSite < 0 || ZoneSite >= Terrain.Layout.Sites.Len { return 1 }
+        return HellfeatherZoneNames.Level(Terrain.Layout.Sites[ZoneSite].Module)
+    }
+
+    // The area level an enemy's loot rolls at: its group's zone, or where she
+    // stands for one outside the rolled groups, such as a boss.
+    int LootLevel(int i)
+    {
+        int zone = ZoneOf(i)
+        return zone >= 0 ? HellfeatherZoneNames.Level(zone) | AreaLevel()
+    }
+
     // What the corner says: the level's name below, the clearing's above.
     string ZoneName()
     {
@@ -73,6 +105,18 @@ HellfeatherGame : QuaxelGameInstance
     }
 }
 T{
+    // Each zone along the story's road is at least as deep as the one before.
+    AreaLevelsRiseAlongTheRoad()
+    {
+        int [] road = {HellfeatherZone.Ravenford + 0, HellfeatherZone.Croft + 0, HellfeatherZone.FordRoad + 0, HellfeatherZone.FennickWater + 0, HellfeatherZone.OrrasHill + 0, HellfeatherZone.HobbsMill + 0, HellfeatherZone.Undercroft + 0, HellfeatherZone.UndercroftDeep + 0}
+        for i : 1; i < road.Len; i++ { T.IsTrue(HellfeatherZoneNames.Level(road[i]) > HellfeatherZoneNames.Level(road[i - 1])) }
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.StepZone(world.GetPosition(game.PlayerNode), 1.0)
+        T.AreEqual(game.AreaLevel(), 1)
+    }
+
     SheStartsInRavenfordAndTheMillIsHobbs()
     {
         HellfeatherGame game()

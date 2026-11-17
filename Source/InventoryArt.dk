@@ -16,7 +16,10 @@ HellfeatherInventoryArt
     #int GoldY = 232
     #int GoldWidth = 72
     #int GoldHeight = 16
-    #int CloseX = 158
+    // The close button sits in its own socket at the right end of the title
+    // band, which runs from 13 to PanelWidth - 13 and from 6 to 19, clear of
+    // the corner stud.
+    #int CloseX = 150
     #int CloseY = 7
     #int CloseSize = 11
     // Each cell of the coin and action art is two logical pixels wide. Item
@@ -154,8 +157,16 @@ HellfeatherInventoryArt
         Well(ui, GoldX, GoldY, GoldWidth, GoldHeight)
     }
 
+    // A recess cut into the title band, set off from the title by a groove, with
+    // a raised ember-red button in it. Every panel paints the same one.
     PaintClose(QuaxelUi& ui, int top)
     {
+        int bandTop = top + 6
+        int bandHeight = 13
+        Fill(ui, CloseX - 4, bandTop, 1, bandHeight, 0x0a0908)
+        Fill(ui, CloseX - 3, bandTop, 1, bandHeight, 0x4b3b2d)
+        Fill(ui, CloseX - 1, bandTop, CloseSize + 2, bandHeight, 0x0a0908)
+        Fill(ui, CloseX - 1, bandTop + bandHeight - 1, CloseSize + 2, 1, 0x3c3229)
         Raised(ui, CloseX, top + CloseY, CloseSize, CloseSize, 0x6b1c12)
         for i : 2; i < CloseSize - 2; i++ {
             Put(ui, CloseX + i, top + CloseY + i, 0xe8c9a0)
@@ -293,16 +304,15 @@ HellfeatherInventoryScreen
         if !Open { Items.StowHeld() }
     }
 
-    // The warrior's starting kit: her axe, her Leather Armor and Miner's Helmet,
-    // all plain, one rune to learn the board with, and one raven portal home.
+    // The warrior's starting kit: her hand axe, her Leather Armor and Miner's Helmet,
+    // all plain, and one raven portal home. Her Cleave rune starts on the rune board.
     Stock()
     {
         Items.Portals = 1
-        Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.BattleAxe
+        Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.HandAxe
         Items.Equipped[HellfeatherSlot.Body] = HellfeatherItems.LeatherArmor
         Items.Equipped[HellfeatherSlot.Head] = HellfeatherItems.MinersHelmet
         for slot : HellfeatherSlot { Items.EquippedMods[slot].Clear() }
-        Items.Add(HellfeatherItems.RuneCleave)
     }
 
     // True when the mouse is over the panel or carrying an item, so the world
@@ -588,6 +598,14 @@ T{
         T.AreEqual(screen.Items.Equipped[HellfeatherSlot.Head], HellfeatherItems.IronHelm)
     }
 
+    TheCloseButtonSitsInsideTheTitleBand()
+    {
+        // Inside the band, left of the corner stud, on every panel since they share it.
+        T.IsTrue(HellfeatherInventoryArt.CloseX - 4 >= 13)
+        T.IsTrue(HellfeatherInventoryArt.CloseX + HellfeatherInventoryArt.CloseSize + 1 <= HellfeatherInventoryArt.PanelWidth - 13)
+        T.IsTrue(HellfeatherInventoryArt.CloseY >= 6 && HellfeatherInventoryArt.CloseY + HellfeatherInventoryArt.CloseSize <= 19)
+    }
+
     TheCloseButtonClosesAndStowsTheHeldItem()
     {
         HellfeatherInventoryScreen screen
@@ -604,16 +622,17 @@ T{
         T.AreEqual(screen.Items.Bag.Len, 1)
     }
 
-    TheWarriorStartsInHerArmorWithHerAxeAndACleaveRune()
+    TheWarriorStartsInHerArmorWithHerAxeAndAnEmptyBag()
     {
         HellfeatherInventoryScreen screen
         screen.Stock()
-        T.AreEqual(screen.Items.Bag.Len, 1)
-        T.AreEqual(screen.Items.CountOf(HellfeatherItems.RuneCleave), 1)
+        // Her Cleave rune starts on the rune board, not in the bag.
+        T.AreEqual(screen.Items.Bag.Len, 0)
+        T.AreEqual(screen.Items.CountOf(HellfeatherItems.RuneCleave), 0)
         T.AreEqual(screen.Items.Gold, 0)
         for slot : HellfeatherSlot {
             HellfeatherItems expected = HellfeatherItems.None
-            if slot == HellfeatherSlot.MainHand { expected = HellfeatherItems.BattleAxe }
+            if slot == HellfeatherSlot.MainHand { expected = HellfeatherItems.HandAxe }
             if slot == HellfeatherSlot.Body { expected = HellfeatherItems.LeatherArmor }
             if slot == HellfeatherSlot.Head { expected = HellfeatherItems.MinersHelmet }
             T.AreEqual(screen.Items.Equipped[slot], expected)

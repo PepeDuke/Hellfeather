@@ -1,30 +1,54 @@
 // Featherfall: every few minutes in the wild, black feathers rain down for a
-// while. Birds of the Moult grow frenzied as long as it lasts, and slain ones
-// drop more feathers for Edda. With Edda's Quill Charm on, the falling feathers
-// heal instead. Mardra's Moult is the same storm, gathered around her.
+// while. It is heralded: a few ravens fly over first, high across her, and the
+// feathers start to fall once they have passed. Birds of the Moult grow frenzied
+// as long as it lasts, and slain ones drop more feathers for Edda. With Edda's
+// Quill Charm on, the falling feathers heal instead. Mardra's Moult is the same
+// storm, gathered around her.
 HellfeatherFeatherfall
 {
     bool Active
-    // Seconds until the next one starts, or until this one ends.
+    // True while the heralding ravens cross, before the feathers fall.
+    bool Heralding
+    // Seconds until the next one starts, until the feathers fall, or until
+    // this one ends.
     float Timer = 150.0
     -float EffectTimer
     -int Effect = -1
     -float HealCarry
+    // The heralds in the air: a node each and the line it flies along, in
+    // world units.
+    -int [] Heralds
+    -vec3 [] HeraldFrom
+    -vec3 [] HeraldTo
+    -float HeraldTime
+    -int RavenAnimation = -1
+    -QuaxelRandom Random
 
     // Runs the clock. Wild is false in Ravenford and below ground, where no
     // feathers fall and a fall under way stops. Returns health to give back.
     int Step(QuaxelWorld& world, vec3 player, bool wild, bool charm, float deltaSeconds)
     {
         if !wild {
-            if Active { Stop(world) }
+            if Active || Heralding { Stop(world) }
             return 0
         }
         Timer -= deltaSeconds
+        if Heralding {
+            HeraldTime += deltaSeconds
+            FlyHeralds(world)
+            if Timer > 0.0 { return 0 }
+            ClearHeralds(world)
+            Heralding = false
+            Active = true
+            Timer = Seconds
+            EffectTimer = 0.0
+            return 0
+        }
         if !Active {
             if Timer <= 0.0 {
-                Active = true
-                Timer = Seconds
-                EffectTimer = 0.0
+                Heralding = true
+                Timer = HeraldSeconds
+                SendHeralds(world, player)
             }
             return 0
         }
@@ -48,14 +72,85 @@ HellfeatherFeatherfall
     Stop(QuaxelWorld& world)
     {
         Active = false
+        Heralding = false
         Timer = Between
         if Effect >= 0 { world.StopEffect(Effect) }
         Effect = -1
+        ClearHeralds(world)
+    }
+
+    // How many heralds are in the air.
+    int HeraldCount() { return (int)Heralds.Len }
+
+    // A few ravens in a loose line, crossing high over her from one side to the
+    // other. Without the raven model the fall is heralded by the pause alone.
+    -SendHeralds(QuaxelWorld& world, vec3 player)
+    {
+        ClearHeralds(world)
+        HeraldTime = 0.0
+        if RavenAnimation < 0 {
+            Random.Begin((uint)0x0FEA7FA1)
+            RavenAnimation = QuaxelAssets.LoadVoxelAnimation(world, "Assets/Raven.qvox")
+            if RavenAnimation < 0 { return }
+        }
+        float heading = Random.Range(0.0, 6.2831853)
+        vec3 along = vec3(Math.Cos(heading), 0.0, Math.Sin(heading))
+        vec3 side = vec3(-along.Z, 0.0, along.X)
+        float half = HeraldSpeed * HeraldSeconds * 0.5
+        int count = 3 + Random.Below(3)
+        for n : 0; n < count; n++ {
+            // Each a little off the line and behind the one before.
+            float offset = Random.Range(-2.5, 2.5)
+            float behind = (float)n * Random.Range(0.8, 1.6)
+            float height = HeraldHeight + Random.Range(-0.8, 0.8)
+            vec3 from = player + side * offset - along * (half + behind) + vec3(0.0, height, 0.0)
+            vec3 to = from + along * (half * 2.0 + 2.0)
+            int node = world.CreateNode()
+            world.AttachTransform(node, QuaxelTransform.Make(from, vec3(1.0, 1.0, 1.0)))
+            world.SetCatchesEffects(node, false)
+            int visual = world.CreateChild(node)
+            float cell = HellfeatherRavens.Voxel
+            QuaxelTransform pose = QuaxelTransform.Make(vec3(0.0, (float)HellfeatherRavens.Height * cell * 0.5, 0.0), vec3(cell, cell, cell))
+            pose.FacingX = along.X
+            pose.FacingZ = along.Z
+            world.AttachTransform(visual, pose)
+            if !world.AttachAnimator(visual, RavenAnimation) || !world.PlayClip(visual, "fly") {
+                world.DestroyNode(node)
+                continue
+            }
+            Heralds += node
+            HeraldFrom += from
+            HeraldTo += to
+        }
+    }
+
+    // Moves each herald along its line by the time since they set out.
+    -FlyHeralds(QuaxelWorld& world)
+    {
+        float share = Math.Clamp(HeraldTime / HeraldSeconds, 0.0, 1.0)
+        for i : 0; i < Heralds.Len; i++ {
+            QuaxelTransform transform = world.GetTransform(Heralds[i])
+            transform.Position = HeraldFrom[i].Lerp(HeraldTo[i], share)
+            world.SetTransform(Heralds[i], transform)
+        }
+    }
+
+    -ClearHeralds(QuaxelWorld& world)
+    {
+        for node : Heralds { world.DestroyNode(node) }
+        Heralds.Clear()
+        HeraldFrom.Clear()
+        HeraldTo.Clear()
     }
 }
 #{
-    #float Seconds = 40.0
+    // Seconds: the ravens' crossing, the fall itself and the wait between falls.
+    #float HeraldSeconds = 4.0
+    #float Seconds = 20.0
     #float Between = 210.0
+    // How fast and how high above her the heralds fly, in world units.
+    #float HeraldSpeed = 7.0
+    #float HeraldHeight = 6.0
     // Speed and pace of a frenzied bird, against its usual.
     #float Frenzy = 1.35
     #float HealPerSecond = 2.0

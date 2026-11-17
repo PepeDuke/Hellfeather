@@ -1,0 +1,166 @@
+// Indexed ornamental HUD artwork from Pixelový HUD s havrany a portálem.
+// Empty action wells are populated by HellfeatherActionBar at draw time.
+HellfeatherHudFrame
+#{
+    #int CrownHeight = 25
+    #int CrownAtlasX = 224
+    #int CrownAtlasY = 485
+    #int Height = 84
+    // The painting's own width, wider than the compact bar it was made for.
+    #int Width = 272
+    // Where the painting's key plates were, to move its mice onto the new ones.
+    #int PaintedKeyY = 46
+
+    // The frame itself is voxels now (HellfeatherHudVoxels). Only the small
+    // icons are kept from this painting, at their places on the bar's sprite:
+    // the panel buttons down the left and the mice on the two mouse plates.
+    Paint(QuaxelUi& ui)
+    {
+        pixels : Decode()
+        int down = HellfeatherActionArt.KeyY - PaintedKeyY
+        for y : 0; y < HellfeatherActionArt.BarHeight; y++ {
+            for x : 0; x < Width; x++ {
+                // The top rows of the rail hold stray rivet light, not the rune icon.
+                bool rail = x >= 24 && x < 40 && y >= 3 && y < 57
+                bool left = y >= 45 && y < 55 && x >= 68 && x < 80
+                bool right = y >= 45 && y < 55 && x >= 109 && x < 121
+                if !rail && !left && !right { continue }
+                int rgb = pixels[(y + CrownHeight) * Width + x]
+                if !IsIcon(rgb) { continue }
+                // The mice follow their plates, which moved with the compact layout.
+                int toX = x
+                // The painting's buttons were eleven pixels apart; the compact rail's are ten.
+                int toY = y - y / 11 * (11 - HellfeatherActionArt.PanelStep)
+                if left {
+                    toX = x - 68 + HellfeatherActionArt.KeyX(HellfeatherActionSlot.Left)
+                    toY = y + down
+                }
+                if right {
+                    toX = x - 108 + HellfeatherActionArt.KeyX(HellfeatherActionSlot.Right)
+                    toY = y + down
+                }
+                HellfeatherInventoryArt.Put(ui, toX, HellfeatherActionArt.BarAtlasY + toY, rgb)
+            }
+        }
+    }
+
+    // Pixels of the painting that are icon rather than iron: light, or clearly
+    // colored. Lightness and saturation are as in HLS.
+    bool IsIcon(int rgb)
+    {
+        if rgb < 0 { return false }
+        float red = (float)((rgb >> 16) & 255) / 255.0
+        float green = (float)((rgb >> 8) & 255) / 255.0
+        float blue = (float)(rgb & 255) / 255.0
+        float high = Math.Max(red, Math.Max(green, blue))
+        float low = Math.Min(red, Math.Min(green, blue))
+        float lightness = (high + low) * 0.5
+        float saturation = 0.0
+        if high > low { saturation = lightness <= 0.5 ? (high - low) / (high + low) | (high - low) / (2.0 - high - low) }
+        return lightness > 0.4 || (saturation > 0.35 && lightness > 0.22)
+    }
+
+    // Every pixel of the artwork, row by row from the top of the crown, as RGB or
+    // -1 where it is empty. The voxel frame takes its small icons from here.
+    int [] Decode()
+    {
+        string symbols = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+,-/:;<=>?"
+        int [128] colors
+        int [80] palette = {0x141316, 0xfffbdb, 0x6324a0, 0xdb67f3, 0x35185d, 0x6e5239, 0x4c423d, 0xb441e1, 0x2b2627, 0xa4ac91, 0x617284, 0xb57ce4, 0x4d5666, 0x4c3a2a, 0x968e86, 0xfa773a, 0x332d2d, 0xf0b9f5, 0xe7b67f, 0x09090d, 0x766a60, 0x7c6d74, 0xd5c5aa, 0x6f4383, 0x1e1b1f, 0x5d534f, 0x56412f, 0x501e88, 0xeedbb8, 0x401a73, 0x2b2e39, 0x6e8393, 0x7e29bd, 0xcc4df4, 0x8b5da5, 0x343743, 0xc658e5, 0x564d4b, 0x977c5e, 0x524844, 0x261f1d, 0x7f98ac, 0x9f896d, 0x212027, 0x4a4245, 0x434a58, 0x1a171a, 0x252730, 0xf2cd96, 0xc1f1f9, 0x3d2e23, 0x8eb1c4, 0x030307, 0xbfaf9a, 0x644a34, 0xaa9988, 0x3a404e, 0x453c3e, 0x3b3434, 0xffa763, 0x593e66, 0x645957, 0xef8ef5, 0xb49672, 0x463424, 0x33271e, 0xa6d1e4, 0x0f0e12, 0x413938, 0xb1cda2, 0xcaa77c, 0x251345, 0x100a28, 0x983ccd, 0x7d593e, 0x21150c, 0x576474, 0x040515, 0x857c6c, 0x6b6158}
+        for i : 0; i < palette.Len; i++ { colors[(int)CodeUnitAt(symbols, i)] = palette[i] }
+        string [84] rows = {
+            "................................................................................................................................................................................................................................................................................",
+            "................................................................................................................................................................................................................................................................................",
+            "................................................................................................................................................................................................................................................................................",
+            "...........................ufVf<l...............................................................................................................................................................................................................JUlZO...........................",
+            ".........................hCfffAVfC.............................................................................................................................................................................................................jfffpfZ..........................",
+            "........................lAfVU(JwZOkuZ.........................................................................................................................................................................................................UAjZjCuf<.........................",
+            ".......................j<A<CClo:.Z<Vppj...................................................................................................................................................................................................uAVCO.5Q.jjCVA........................",
+            "......................CCCACjC<u0lCZUUuAZ................................................................................................................................................................................................JAf<C<<U8UjA<CjVC.......................",
+            ".....................ljUj<jZjZZh..llh..h................................................................................................................................................................................................ku.hllh.Ujulj<CuU.......................",
+            "...................lCjlZjCZlZh0..k..........................................................................................................................................................................................................Ul..khhhj<CAZZhk....................",
+            "..................UfAZlOZujuOO..J..............................................................................................................................................................................................................(((OhUUjjOlCfC...................",
+            ".................lVjuAV<hU<UO(.O................................................................................................................................................................................................................0.0khjZOjVVAV<..................",
+            "................C<ZCVfAACUjUh.OZ................................................................................................................................................................................................................Ok.OljljAAVAjjV0................",
+            "...............<CZCAACCC<(ZZl.lu................................................................................................................................................................................................................lU.OUukZC<<uVjZ<................",
+            "..............<CkZCjUjujU(jZl0lu................................................................................................................................................................................................................lU.UuC0hjCjjC<UUA(..............",
+            ".............<C.A<hUOUCZkOuUl(ll................................................................................................................................................................................................................Ol(lUCl(uZuju<jZjA..............",
+            "............uA.jAZjCuUlh.UZlhJZ..................................................................................................................................................................................................................l0llUl.UUUhhlAA.jA.............",
+            "...........hA(u<.ujZuZhJ(Ulh00k..................................................................................................................................................................................................................Oh(UUZJklUUlkZ<C.AZ............",
+            "...........AUOAkZ<0(Ulk.llhJhh....................................................................................................................................................................................................................hOkUUh.UUZOju0<j(A0...........",
+            "..........(A(<u<uk.Uuk.klh0.Z(....................................................................................................................................................................................................................(U(khU((UUl.ZZZCOuC...........",
+            "..........Cu0ZuUhkhj(.klh(.u(......................................................................................................................................................................................................................0U(0khJ.huOhZZjhhC0..........",
+            ".........j<.OChluhZO.0ll0.Zl........................................................................................................................................................................................................................Uh.klk..UuhuJuj0jC..........",
+            ".........jk.Cl0ukuO.khhk.JU...(0.................................................................................................................................................................................................................l...l.00lh(.hlhZ(Au.Cl.........",
+            "..........hZJJ<Z0..OhOO....0(Oi<(....UuuZZZZZZZZZZZZZu...................................................................................................................................................................OjZZZZuuZZZZZZZZZUO...k<Ch..h..(lUk(.(luh.jhkU.........",
+            ".........uC0OlZ(..khk.uU...0k(.0Zkllh(0((000((((((((0h...................................................................................................................................................................kkJJ(00((((((((=JkOhhljl.Jh(...(h000O..hZ..Zu..........",
+            "........j<kuuh..0lO0..-A<(jLe.8)wGwG%eee%eeeeeeeee%%%%))wwwwwwwwwwwww))))wwww)wwwwwwwwwwwww))wwwwwwwwwwwwwww)))))))))))))))w)wwwwwwwwwwwwwwwwG))))))wwwwwww))wwwwwwww))))))www)))www)w)wwww))))))))w))))wwwwwwwwwwwwwwwwi8;eeeeeeeeeeeeeeee8GG%w%k)8hKZJVl.0((J..hUlkZC.........",
+            ".......l<ljZ(...h0...b?qV<;KzG?zP??z??KK???zzzzzzz???K?zzzzzzPPPPPPPPPPPPbPPPPPbbbbPPPPPPPPPPPPPPPPzzzzzzzPz?zzzzzzzzzzzzzzzzzzzzzzzzzPPPbPPPPzzzzzzzzzzzzzPzzPPzzPPzPPPPPPPzPPbPPbPPPzPPzzzzzzzzzzPPzPbPzzzPPPPPPPPzPPbbPzzzPPzzzzzzzz???zPPPPPPbLdLKiC<JP8...h..0ujOuZ........",
+            ".......<UU....(Ohl(.i>>;qflqkUqq-qqqqJJ((((((0(0((J0qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq((qqqqqqqqqqqqqqqJ(qqk(qqqqqqqqqqqqqqq(qq00Jqqqqqqqqqqqqqq(qq(0Jqqqqqqqqqqqqqq(kqqqqqqqqqqqqqqqqqqqqqqqqqqquujCq0L>O.Ohk...ljlu(.......",
+            "......jZ(.0h.0(Z...Jwi0qquUqNYqLHiJYyq0OOOOOOOOOOkOhqGwGOOOOeeeeeeeeeeeeeeeeeOeeeeeeeeeeeeOOOO8wOeeeOOOOOOOOOeOkkkkkkkkkOOeOkkkkkOOkkkw8JdwOkkk0kkq(kkkkkkwdkG6Gkkkkk(qq(kk0kk86w8b%kkkkkqqqqJkkk0eGv(z68kkkkkk0q(0kkkk8deewkeOOkkOOOkkkkkkOeeOOOOOeqezJqq8v)..UU..O..llj.......",
+            "......h..Uu.(0ll...OkGqkk((uBq4HfBlZBOOOOOOOOOOOOOOhJG8k(000000((((((((((((0((((((((((((((((00kwJ(0((000000(((((((((((((((00000000000J8eJwk(J(((JqP8q((((0JkOGk(J((JqktE(qJ(((0(eeO(J(((qzt>gGq(((0(hkG0(J((((qJgkq(((J(Ohek(0000000000000(JJ(0(0000JqP6q0.k8G..U0.kl(..hh......",
+            "........UuU.0lh..JwJOkqOOOOJYB(yYqvBy(OOOOOOOOOOOOOO((((Jqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkkk(Jqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq(JkGJ(((((q?1)q(((((JeOGkJ((((JM?dM0q((((0Oe8q((((q?)PSOq((((J8OwJ(((((Jqg1Gq((((JO8(0000000(((((00JJGeqJ0(00(000k0G00w(0.0UJ.lUZ.........",
+            ".......(uj0JOl...(w80)qkOOOkJYyjBqBNqOOOOOOOOOOOOOOh((0JeDooo$DDDD$DDDDDDDDDDDD$DDDDDDD$$o$$ok0kJeD$o$$$DD$DD$$$$$$$DDDDDDDDDDDDD$ooDo(JkGJ(((((JJMwq(((((JOkGkJ(((((8qq1eq((((0ee8J(((((qqtqq(((((J8OwJ(((((q>bM8q((((Jk8(0000000((((0qq8L<<dkq0((((00((80(80iO.Uh.0uul........",
+            ".......uuZ.kU.....(GO)qOOOOOkJy/yYyqOOOOOOOOOOOOOOOh((0qQs%DDDDDDDDDQDDDDDDDDDDDDDD$D$DDD$Do:8(kq5sDQDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQo:OqkGJ(((((JqMvq(((((JOkGkJ(((((qqtKq(((((0ee8J(((((q)t>qJ((((J8kwJ((((q?gqSGq((((Jk8(k0000(0(((0q6PUlCjbKOJ0(((000(h.k8.wJ..U0.ZUj........",
+            "......OCh..lk.......OiqOOOOOOOqNBUqOOOOOOOOOOOOOOOOh((0qDe5oJ0(JJJJJqJJJJJJJJJJJJJJJJJJJJq:dQeJkqQ%5JqJJJJJJJJJJJJJJqqqqqJJJJJJJJJqQsDeqkGJ(((((JqMGq(((((JOkGkJ((((JqtKqq(((((0Oe8q((((JOqqrPq((((J8kwJ((((qgrtStqJ(((JO8(kOe0kk000(qGdiOhOjhOgeq000k0O88.OG.(...ll(.hjl.......",
+            "......CZ..lU.......(OdqOOkk000(0YqOk0000000000000kkO((0qDo$o0kkkk0000000000000k0kkkkkkkkk0seskJ0qso%J00000000000000000000000000000(keseqkGq(((((JkS?JJ((((qOkwkJ((((qrrqPGq(((J0Oe8q((((qt?eM)q((((J8kwJ((((JqqJSGq((((JO8Jk000JJJJqqbvqqqlUjOqJ88qJJJJ(kk.8v......Uh0.lj.......",
+            ".....(CO.Ou0.......0ePqO8GGGGG800OGGGwwwGGGGGGGGGGw8J(0qDoq(000000000000000000000000000000qq:OJ0q5eJ0000000000000000000000000000000(q5Oq08(((((J0ttrPq((((0OkG0(((((JtgtMwq(((0Oe88J((((qJtr6q((((0k8Ow00((((Jqqreq(((J0eeJk00Je%%%JKzvGqJGlhOq0bE)q%e%(JO.G)kJ....0ZO.0jO......",
+            ".....uU.0hl.......0UOzqhGGGwvwwg#?hww))w)wwwwwwwwwv8q(0qQoJ00000000000000000000000000000000J5OJ0q5e(00000000000000000000000000000000J5eJ(G8(((((JqqqqJ((((G8(GGkJ(((Jqqqqq(((JO8OOwOJ(((JqqqqJ(((J0e80G80((((((Jqq((((J8OO(k0Je:o%;KKl8JqP>iz?JqOvE?;%D5e(.86h0.....UUO.Uu......",
+            "....Ojk.hu........0ukzqGhkkk0q5Pd#G=kkk0000000000kkh((0qQoJ00000000000000000000000000000000J5OJ0q5e(00000000000000000000000000000000J5eJ06G888888ee8eh88ee8vkG)ee88888888888eee8e0)888ee88888888eee8)06Ge88888he888eee88G8(k0qosqqdzjZ(KrEN9LLtg0qUtbqqs$J.e6Uk.....(ul..jk.....",
+            "....ClJ.j0........(hebq8hOhh=)I6Gc+q0hhOOOOOOOOOOOhh((0qQoJ00000000000000000000000000000000J5OJ0q5e(00000000000000000000000000000000JsOqObqJJJJJJJJJJJJJJJqOkw0J((((((((((((((J(8Gwq(0(((((((((((((J8ewJ(((((((((((((00qeGJk0J%sqwEzO)rY4-qwq-4YtGqltPqsoJ.8)Ol......0jO.hj.....",
+            "....O(kJ0...........Gdq8hOh=bIgKK?##=kOOOOOOOOOOOOhhJ(0qQoJ00000000000000000000000000000000JsOJ0q5e(00000000000000000000000000000000JseqOdJ00000000000000000()0(0000000000000000h8wJ000000000000000(hO8(000000000000000(eGJk0J%DqKLbbr4==---,,==Nr6qbrqo%J.8v.O.......0Z..U.....",
+            ".....lJ.............)bq8hO08mcOOhksmg(hOOOOOOOOOOOOhJ(0qQoJ00000000000000000000000000000000JseJ0q5eJ00000000000000000000000000000000JseqOdJ00000000000000000()0(0000000000000000e8GJ000000000000000(8O8(000000000000000(OGJk0JeoLEGer,=-,4RRRTT-=,t)0LP%%(.8v............hk.....",
+            "....J0..............)bq8hO=dIImIIIm#g(OOOOOOOOOOOOhhJ(0qQoJ00000000000000000000000000000000JseJ0q5eJ00000000000000000000000000000000q5eqOdJ00000000000000000()k(0000000000000000h8GJ000000000000000(8e8(000000000000000(eGJk00qbrjJE4qRT4T44TTTR4=yt8KEPq0.8d............JO.....",
+            "....................6Pq8hO=sghP?d)OK+=OOOOOOOOOOOOOhJ(0qQ%q00000000000000000000000000000000JseJ0q5eJ00000000000000000000000000000000JsOqOdJ00000000000000000()0(0000000000000000e8GJ000000000000000(8e8(000000000000000(OGJk0JbLi0KL=4RTT,,,,,4TR,-NKdZKGJ.8P...................",
+            "....................vPq8hO=s#qh##)q:I=OOOOOOOOOOOOOhJ(0qQ%J00000000000000000000000000000000JseJ0q5eJ00000000000000000000000000000000JsOqOdJ00000000000000000()0(0000000000000000e8GJ000000000000000(8e8(000000000000000(eGJOqe?wOit--T4T444,44,4TT--Evi)P8.8P...................",
+            "....................6Pq8hO(d+66w))G++(OOOOOOOOOOOOOhJ(0qQ%J00000000000000000000000000000000JseJ0q5eJ00000000000000000000000000000000JsOqOdJ00000000000000000(v0(000000000000000088GJ000000000000000(8O8(000000000000000(eGJk00qUZwy=42R4,,,,,44,RR4=y?0w00.eP...................",
+            "....................6Pq8hkk=dgcgggccO(000000000000khJ(0qD%J00000000000000000000000000000000JsOJ0J5eJ00000000000000000000000000000000JskqOdJ00000000000000000(v0(000000000000000088GJ000000000000000(8O8(000000000000000(eGJk0kJ0lKh-44,,RRRRT,4h4RT-OLGlqk.eP...................",
+            "....................6PqOhw)wl------hG)vvv)vvvv))v)veq(0qD%J00000000000000000000000000000000JseJ0q5eJ00000000000000000000000000000000JskqOdJ00000000000000000(vk(0000000000000000e8GJ000000000000000(8O8(000000000000000(eGJk00%%0zq,4,,R2T,,4,4T,2T-,Nv(qk.eb...................",
+            "....................)PqO8GGhG66666d8hGGGGGG88GGGGGGhq(0qD%J00000000000000000000000000000000JsOJ0q5eJ00000000000000000000000000000000JskqOdJ00000000000000000(6k(000000000000000088GJ000000000000000(8O8(000000000000000(eGJk0(%oUGq,4,42T,44T44R42T,-GvJ00.8P...................",
+            "....................vPqOhOOqK+?cgg+#q0k0000000000kkhJ(0qD%J00000000000000000000000000000000JsOJ0q5eJ00000000000000000000000000000000JskqOdJ00000000000000000(6k(000000000000000088GJ000000000000000(hO8(000000000000000(eGJk0(%$Cwq,,,R2,TT4RR,TR2RT=6b;k0.8P...................",
+            "....................vPqOhh0wmKO)6)bSc=hOOOOOOOOOOOOhJ(0qD%J00000000000000000000000000000000JsOJ0q5e(00000000000000000000000000000000JskqOiJ00000000000000000(v0(0000000000000000e8wJ000000000000000(8O8(000000000000000(OGJk0(%$j)q,4TWR,T,,,T442W2Rq?b;k0.8P...................",
+            "....................vbqOhhOOgcmcKgc+m=OOOOOOOOOOOOOhJ(0qD%J00000000000000000000000000000000JsOJ0qse(00000000000000000000000000000000JskqO6J00000000000000000(600000000000000000088wJ000000000000000(8e8(000000000000000(OG(k0J%$C6q,4R/4,4,,,TRTR/2R=?P;k0.8P...................",
+            "....................)bqhhOhkqPgd?hqKmqOOOOOOOOOOOOOhJ(0qD%q00000000000000000000000000000000JsOJ0qse(00000000000000000000000000000000JskqOPqJJJJJJJJJ(((((JJO(dkqJJJJ(JJJ((((((J088)qJJJJJJJJJJJ((J(JGOGJJJJJJJJJJJJ((((qew(k0J%$Cdq442/,T4,,,TRRT//2-?P;k0.8z...................",
+            "....................vPqhhOOh=Pg8+SK>mqOOOOOOOOOOOOOhJ(0qQ%q00000000000000000000000000000000JsOJ0qseJ00000000000000000000000000000000JskJkdwG888G88G8888888G)kw)GGGGGGGGGGG88888GGkvwGGGGGwGGwwwwGGwww(wwGGGGGG888GGGG8GGwO0k0J%$C6q4T7R42,,,,4RWT//2,Pb;k0.8P...................",
+            "....................vPqhhOOh=Pg(rO0>mqOOOOOOOOOOOOOhJ(0qQ%J00000000000000000000000000000000JseJ0qse(00000000000000000000000000000000JskJk((JqqqqqqqqqqqqqqqqqqqJqJ(((JqJJJqqqqqqqqqqqqqqqqqq((((qqqqqqqqqqqqqqqqqqqqqqJ0((kk0J%$j6q4R7R,R4,,4RW/R//W,Pi;k0.eb...................",
+            "....................vbqhhOOOqg>d+cw>S=OOOOOOOOOOOOOhJ(0qD%J00000000000000000000000000000000JseJ0qse(00000000000000000000000000000000JskJ0((idddPPbbbbbddbPbbbdiibwJ0JGPiddbddddddbbbPPbbbddi0((0idiidbddbbdbbbPbbPbvvbGJ0(kk0J%$j6qTR7R2244T227/RX/W,Pi;O0.8P...................",
+            "....................vdqhhOkecmghvvbm#(OOOOOOOOOOOOOhJ(0qQ%J0000000000000000000000000000000(JsOJ0qseJ00000000000000000000000000000000JskJ0(Odh888888888888G88888Ovbq0(8Gh88888888888GG88888hPOJ(kze888888888888888G88Oviq0(kk0J%$jvqT27R/WTRTR2X2W3/W,?i;O0.8P...................",
+            "....................vdq8hk00Kcg##g#dq0kkkkkkkkkkkkOhJ(0qQ%J0000000000000000000000000000000(JsOJ0qse(00000000000000000000000000000000JseJ((OwqJJJJJJJJJJJJJJJJJJqkiq(0(JJJJJJJJJJJJJJJJJJJJqiOJJkiqJJJJJJJJJJJJJJJJJJqOvq0(kk0J%$jvqT2XR27T2//X/2W3/W-?i;k0.8P...................",
+            "....................vdqO8GGGO0(((((OGG88G8888888G8Ghq(0qQoJ0000000000000000000000000000000(J5OJ0q5eJ00000000000000000000000000000000JskJ((O)J000000000000000000(eiq00000000000000000000000JdOJ(kiJ000000000000000000(8vq0(k00(oouzqTR//TXWT2//a/W3/2-?i;k0.eb...................",
+            "....................)dqOwvv)wwwwwwGGww)wwwwwwwwwww)Oq(0qQoJ0000000000000000000000000000000(J5OJ0q5eJ00000000000000000000000000000000JskJ(JO)J000000000000000000Jeiq(0000000000000000000000JbOJ(kdJ000000000000000000J8vq0(000(o$Zzq42/XRWX//7a3273W2=dwek0.eb...................",
+            "....................vdqhGkkkkkkkkqApfJ0k00000kk00kOhJ(0qQoq0000000000000000000000000000000(J5OJ0qse(00000000000000000000000000000000JskJ(JO)J000000000000000000(eiq(0000000000000000000000JbOJ(kdJ000000000000000000J8vq0(kk0(%$lzl,TRX7R/3a3!WW!/2T8Khek0.eb...................",
+            "....................bdqhhOOhOhOJJqV&f(OOOOOOOOOOOOOhJ(0qQoq0000000000000000000000000000000(J5OJ(qse(00000000000000000000000000000000JskJ(JO)J000000000000000000(e6q(0000000000000000000000JbOJ(kdJ000000000000000000Jhvq0(k00(%$liv-T2/3/2/a3773!/W4iP(%k0.eb...................",
+            "....................bdqhhOOOhOOAVlA&fJOOOOOOOOOOOOOh((0qQoq0000000000000000000000000000000(J5kJ0qseJ00000000000000000000000000000000JskJ(JO)J000000000000000000(e6q(0000000000000000000000JbOJJkdJ000000000000000000Jhvq0(kk0J%DhOyl,RW73a//773H3WR-L)h;k0.eP...................",
+            "....................bdqhhOOhhkkp&j<&fJOOOOOOOOOOOOOh((0qQ$J0000000000000000000000000000000(J5kJ0qseJ00000000000000000000000000000000JskJ(Jk)J000000000000000000Jeiq(0000000000000000000000JbOJJkdJ000000000000000000Jevq0(0k0J$sq8Oy=4R273!HHHH!7W4Le)0880.eb...................",
+            "....................PdqhhOOk(q(f&u<&fJOOOOOOOOOOOOOh((0qQ$Jk000000000000000000000000000000(J5kJ0q5e(00000000000000000000000000000000JskJ(JO)J000000000000000000(eiq(0000000000000000000000JbOJJ0dJ000000000000000000Je)q0(0k0J$5hZ(yi=,2/33!HH!XW4>iqPwz8(.eb...................",
+            "....................Pdq8hOkhVVlp&uA&fqOOOOOOOOOOOOOh((0qQ$Je(00000000000000000000000000000JJ5kJ0q5eJ00000000000000000000000000000000qskJ(JO)J000000000000000000(eiq(0000000000000000000000JbOJJ0dJ000000000000000000Jhvq((0k00e5?lOhEN,,TW7XX7WR,>ih6wEw(0.ed...................",
+            "....................bdq8hO0hppUf&uVnp(OOOOOOOOOOOOOh((0qD$Jk00000000000000000000000000000(%0sOJ0qso((0000000000000000000000000000000kskJ(JO)J000000000000000000(eiq(0000000000000000000000JbOJJkdJ000000000000000000Jhvq((0k0kq6PKwK?Lt6wN4i4TZ)MzetKhhzJk.ed...................",
+            "....................ddq8hO0h&nupn<VnpqOOOOOOOOOOOOOhJ(0q$ocGq((JJJJJJ(((((J((JJJJJJJJJJJJ=:%DeJ0qQQs=((((((JJJ(JJJJJJJJJJJJJJJJJJJ=oDQOJ(JO)J000000000000000000(eiq(0000000000000000000000JdOJJkdJ000000000000000000Jhvq((0k0k(J?z?vv8GEE>K>6K>>w0bOiEv(80.ed...................",
+            "....................ddqGhOJhn&<&nVfnpqkkkkkkkkkkkkOhJ(0q$QDeeeeOeeeeeeeeeeeeeeeeeeeeeeeeeee05eJ0q5o$ekeeeeeeeeeeeeeeeeeeeeeeeeeeeee%kskJ(JO)J000000000000000000(e6q(0000000000000000000000JbOJJkdJ000000000000000000Jhvq0(0k0Oqdthlki(8Jqqz)GZOOq()Jhzrsqk.eb...................",
+            "....................bbqGG8G8wwUwG8Uww8888888888888Ghq(0Jo5$s55:::::555555:55::::55:::::555ss50J0qQ5Qs5:5555:55555555:::5555:::::55sss50((JOvq=JJJJJJJJqJJJJqqqJqOiq((k(qJqqJJJJJJqqJJqJqqJqdOJ(kdqJqqJqqqqJJJJqqqqqJqO6q0(kk0kqziGkOJ(kqqq(vkqqqOkJOqU>cqk.eb...................",
+            "....................bbqOvv)wGG8kkO8GGw)))v)))w)))wv8q((0(JJJqqqJqqqJek00(qqq(000OOqJqqqqqqJJq((((JJJJJqJqqJqOeO0(0qqq((00ekqqqqqqqJJJJ((((kbvCjiivvviiii))v)vi))PiJ0JwPvidiiv)viibddiibivvvzkJ(0biiiiiiiiiiivviddiiiiP)J0(kkkkJhv(qeeee8ee0ek0Oeeee8Jq?8qO.eb...................",
+            "....................d6qOOk0kkJh99EJ0kkkkk0kkkkkkkkkhJ(0((((((0((((JeG0(Jqb))qq((kk(((((((((((((((0((((((((0J88(((qwdZqJJ0Ok((((((((((((((((O8G6Ge88eOJq08e88hww880(((0e8))8eeekJqqJe88e8vGeO((((O886Ge888(qqq(88G8G)880(0(kkkk00Gq8)Gkkk(q(0k00OOkeweqwO(O.eb...................",
+            "....................diqOOOOOh(v*i*0OhhhOOOOOOOOOOOhhJ(0((((((((((((O0J(qDSt1Pq((((((((((((((((((((((((((((((k0JJqP1r+$q(((((((((((((((((((((J0(JqqqqqKt6qqqqqqkJJ(0(((JJ0JqJJq)>>>tkqJqq0(qJ(((((q0O(qqqqK>>E>qqqqqkJJ(000kkkk00OqGOqJ(q8MdqJrKqJJqk8q(00O.eb...................",
+            "...................OviqOOOOOh()*>*(OhhhOOOOOOOOOOOOhJ((((((((((((((O0(J(xFzMSGq0((((((((((((((((((((((((((((O0(qe1S>FF;=((((((((((((((((((000O0(((JqgK8gPq((((O00((((000O(((0qwMGG?eq(((kk((((((0(eOJ((0qt>k)Pq((((e000(00kkkO0((JGOJ(((qrwqqtzq0(JOGq((0k.ed...................",
+            "..................OUGvqOOOOOh0(dEhJOOhhOOOOOOOOOOOOhJ((((((((((((((O0(JJ::)KEeq(((((((((((((((((((((((((((((O0(qOE?bs:;q(((((((((((((((((((0(k0((0q>9qqqS8q(((O0(((((((0O((((qOtqqqJ((((Ok((((((0(Ok(((0q>6qqqJ((((O0(0(00kkkk0(0JGOJ(((qtwqqtPq((JOGJ((0k.86v0.................",
+            "..................0U6dqOOOOh0O9>99?JhOOOOOOOOOOOOOOhJ((((((((((((((O0(JqLC?z>0q(((((((((((((((((((((((((((((O0(q(>Pz<V(q(((((((((((((((((0(0(k0((0q>tqqqMGq(((O0(((((((0O((((qkMtMGq(((JOk(((((0((OOJ((0q>rtrJJ((((O0(0000kkkk0(0JGOJ(((qtrrrSdq((JO8J((0k.GvZ(.................",
+            "...................JPbqOOOOOJb9)bP9qOhOOOOOOOOOOOOOhJ(0((((((((((((O0(qJSMMrMGq0((((((((((((((((((((((((((0(O0(q81SMtM8q0(((((((((((((00(000(k0((0q>tqz(M8q(((e0(((((((0O((((q8r(Oqq(((JOO(((((00(OOJ((0q>>k8J(((((O0(0000kk0k0(0JGOJ(((qr8qqtPq((JO8J((0O.w6(..................",
+            "..................k(bbqOhOh=>*9hPE*EkOhOOOOOOOOOOOOhJ(0((((((((((((O0(JqMSrM9kq0((((((((((((((((((((((((000(O0(q0MSMME0q((((((((((((((((0000(k0(((JJtdPS)q((((e0(((00000O((((q8rqqGkJ((JOk(0((000(OkJ((0qEzqq((((((e0(0(00kkkk0(0JGOJ((JqM)qqr?q0(JO8J((0k.)6hk.................",
+            ".................U?.66qlhOhqEwb9z9q9h0hOOOOOOOOOOOOhJ(0((((((((((((OkJ(qqMSMeq(((((((((((((((((((((((((((00(O(J(qqM1Seq(((((((((((((((kk(0000O0J(((qqrt>dqJ((Je0(0000000O((((qPMrrSwq((Jek(000000(OkJ(((qrKq0((((((O0((0(JeO0k0(0JGOJ((qGMiq0rKq(JJO8J0(k8.Gb.zh................",
+            ".................kwk8>q)Ghh(E**>Z*9*hOhOOOOOOOOOOh88Jkh8000000000008800kq(k0q000Ok000k000kk000000000000000008)k0kqJO(q0kk8e0000000000evG8000088k0k0kJqqqrwJk0eGk0000000kGk00000JJJJ(000kGe0000000086k00k0((0000000OGk000wGe)G8kkO0bwOkkk0J(k0J(0kkOGwkOOew.KbOb(................",
+            "..................(.zrhqJJ(qJ00qqkO0J(((((((((((((((qqqqqqqqqqqqqqqJ(JJJJqqqqqqqJJqqqJJJJqqJJJqqqqqqqqqqqqqqJ(qJJJqqqJJJJJJqJJqJqqqqqqqqqqqqqq(JJJJqJqqqqJJJ((Jqqqqqqqqq(JJJJJqqqqqJJJ(J(qqqqqqqqqq0qJJJJqqJ(JJ((JJ0qqqqqqqqqqqqqqk8eeOkk000kkkkkk0O(qqqqq09K(..................",
+            "...................j>rEod?Gdw)ww)wGG)v666v))))vvvvv6v666666666666666666666d666d66ddddddddddddddd666666dddddd66666v66666666ddddddddbdd66666dd66666666666v))v6v66ddddbbbbbd6ddd6666666666dddddbbddd66v666v6666666666dd66ddddd6666666v)))))))v)66vvvvv666)?)vrtLw..................",
+            "...................hiK?PivGwG8GGwwwwww))ww))www)))))))vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvviiivvvvvvvv))vvvvviiviivvvvvvvvv)vvviiivvvvvvv)))))))vv)vvvvvv))v))))vv)vvvvvvvvvvvviivvvvvvv)vvvvvvvvvvvvvvvvvvvvvvvvvv))vvvvvvvvvvvvvvvvvvvvvvvvvvv)vvvvvvv)))vvvwvKLbk..................",
+            ".....................wJwk..J0h(....................................................................................................................................................................................................................OO(.J.iJw0...................",
+            ".......................h?v.0kl0...................................................................................................................................................................................................................(hh0.h?)......................"
+        }
+        int [] pixels
+        for y : 0; y < Height; y++ {
+            for x : 0; x < Width; x++ {
+                int symbol = (int)CodeUnitAt(rows[y], x)
+                pixels += symbol == 46 ? -1 | colors[symbol]
+            }
+        }
+        return pixels
+    }
+}

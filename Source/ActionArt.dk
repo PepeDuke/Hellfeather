@@ -1,23 +1,41 @@
-// Paints the action bar into the bottom half of the shared sprite atlas: a stone
-// bar framed in iron with a fan of black, ember-tipped feathers at each end, and
-// one icon per action. Icons are 8 x 8 voxels, each two logical pixels wide and
-// flat like the inventory's, over a glow in the action's color.
+HellfeatherHudPanel : int
+#@{
+    Runes,
+    Inventory,
+    Quests,
+    Stats,
+    Passives
+}
+
+// The iron HUD frame, its raven reliefs, and the sprites for its controls.
 HellfeatherActionArt
 #{
-    #int BarAtlasY = 256
-    #int BarWidth = 154
-    #int BarHeight = 40
-    // The stone part of the bar. The feathers reach past it on both sides.
-    #int BodyLeft = 16
-    #int BodyRight = 138
+    #int BarAtlasY = 364
+    #int BarWidth = 243
+    #int BarHeight = 54
+    #int BodyLeft = 20
+    #int BodyRight = 222
     #int Icon = 16
-    #int IconAtlasY = 312
+    #int IconAtlasY = 440
     #int LockX = 120
     #int LockWidth = 12
     #int LockHeight = 14
     #int KeyWidth = 14
     #int KeyHeight = 9
-    #int KeyY = 29
+    #int KeyY = 39
+    #int SmallSlot = 16
+    #int SmallGap = 1
+    #int RackX = 123
+    #int RackY = 3
+    #int MouseIcon = 24
+    #int MouseAtlasY = 462
+    #int NumberIcon = 12
+    #int NumberAtlasY = 492
+    // Left edges of the three raised iron bars that split the bar into sections.
+    #int DividerOne = 50
+    #int DividerTwo = 118
+    #int DividerThree = 191
+    #int DividerWidth = 4
 
     int IconX(int action) { return 2 + (action - 1) * 18 }
 
@@ -31,12 +49,19 @@ HellfeatherActionArt
         y = 0
         width = 0
         height = 0
-        if slot == HellfeatherActionSlot.Left { Set(22, 8, 20, x, y, width, height) }
-        if slot == HellfeatherActionSlot.Right { Set(44, 8, 20, x, y, width, height) }
-        if slot == HellfeatherActionSlot.Q { Set(74, 10, 18, x, y, width, height) }
-        if slot == HellfeatherActionSlot.E { Set(94, 10, 18, x, y, width, height) }
-        if slot == HellfeatherActionSlot.F { Set(114, 10, 18, x, y, width, height) }
+        if slot == HellfeatherActionSlot.Left { Set(56, 6, 28, x, y, width, height) }
+        if slot == HellfeatherActionSlot.Right { Set(88, 6, 28, x, y, width, height) }
+        if slot == HellfeatherActionSlot.Q { Set(123, 26, 22, x, y, width, height) }
+        if slot == HellfeatherActionSlot.E { Set(146, 26, 21, x, y, width, height) }
+        if slot == HellfeatherActionSlot.F { Set(168, 26, 22, x, y, width, height) }
+        if IsSmall(slot) { Set(RackX + (slot - HellfeatherActionSlot.One) * (SmallSlot + SmallGap), RackY, SmallSlot, x, y, width, height) }
+        if IsSmall(slot) { height = 20 }
+        // Q, E and F reach down to the bottom rim; their keys are in the slot.
+        else if slot >= HellfeatherActionSlot.Q { height = 23 }
     }
+
+    // The number-key slots above the bar, drawn by the bar rather than painted into its sprite.
+    bool IsSmall(int slot) { return slot >= HellfeatherActionSlot.One }
 
     -Set(int a, int b, int size, int& x, int& y, int& width, int& height)
     {
@@ -56,6 +81,10 @@ HellfeatherActionArt
             int height = 0
             SlotRect(slot, x, y, width, height)
             if px >= x && py >= y && px < x + width && py < y + height { return slot }
+            if slot < HellfeatherActionSlot.Q && py >= KeyY && py < KeyY + KeyHeight {
+                int key = x + width / 2 - KeyWidth / 2
+                if px >= key && px < key + KeyWidth { return slot }
+            }
         }
         return -1
     }
@@ -73,126 +102,51 @@ HellfeatherActionArt
 
     Paint(QuaxelUi& ui)
     {
-        PaintFeathers(ui, -1)
-        PaintFeathers(ui, 1)
-        PaintBody(ui)
-        for slot : HellfeatherActionSlot { PaintSlot(ui, slot) }
+        HellfeatherHudFrame.Paint(ui)
         for action : HellfeatherAction { if action != HellfeatherAction.None { PaintIcon(ui, action, IconX(action), IconY(action)) } }
+        // Full icon art at each slot size, including the small numbered keys.
+        for action : HellfeatherAction {
+            if action == HellfeatherAction.None { continue }
+            ResizeIcon(ui, action, MouseIcon, MouseAtlasY)
+            ResizeIcon(ui, action, NumberIcon, NumberAtlasY)
+        }
         PaintLock(ui, LockX, IconAtlasY)
     }
 
-    -Put(QuaxelUi& ui, int x, int y, int rgb) { HellfeatherInventoryArt.Put(ui, x, BarAtlasY + y, rgb) }
-
-    -Fill(QuaxelUi& ui, int x, int y, int width, int height, int rgb) { HellfeatherInventoryArt.Fill(ui, x, BarAtlasY + y, width, height, rgb) }
-
-    -Raised(QuaxelUi& ui, int x, int y, int width, int height, int rgb) { HellfeatherInventoryArt.Raised(ui, x, BarAtlasY + y, width, height, rgb) }
-
-    // Four feathers fan out like a folded wing from one end of the bar. Side is -1
-    // for the left end and 1 for the right.
-    -PaintFeathers(QuaxelUi& ui, int side)
+    -ResizeIcon(QuaxelUi& ui, int action, int side, int atlasY)
     {
-        float anchorX = side < 0 ? (float)BodyLeft + 2.0 | (float)BodyRight - 2.0
-        float anchorY = 19.0
-        float [4] angles = {-38.0, -12.0, 14.0, 40.0}
-        float [4] lengths = {12.0, 15.0, 15.0, 11.0}
-        for y : 0; y < BarHeight; y++ {
-            for x : 0; x < BarWidth; x++ {
-                float px = (float)x + 0.5 - anchorX
-                float py = (float)y + 0.5 - anchorY
-                for i : 0; i < 4; i++ {
-                    float radians = angles[i] * 0.01745329
-                    float axisX = Math.Cos(radians) * (float)side
-                    float axisY = Math.Sin(radians)
-                    float along = px * axisX + py * axisY
-                    if along < 0.0 || along > lengths[i] { continue }
-                    float share = along / lengths[i]
-                    float across = py * axisX - px * axisY
-                    float half = 3.0 * Math.Sin(3.1415927 * Math.Pow(share, 0.62)) + 0.5
-                    if Math.Abs(across) > half { continue }
-                    int color = 0
-                    if Math.Abs(across) < 0.6 { color = 0xa89f88 }
-                    else if share > 0.72 { color = HellfeatherArt.Shade(0xe2561c, (int)(share * 125.0)) }
-                    else {
-                        int barb = (int)((along + Math.Abs(across) * 1.4) / 2.0)
-                        color = HellfeatherArt.Shade(0x2b2626, (barb & 1) == 0 ? 85 | 130)
-                    }
-                    // A dark edge keeps each feather apart from the one beneath it.
-                    if Math.Abs(across) > half - 0.8 { color = 0x0d0b0a }
-                    Put(ui, x, y, color)
-                }
+        for y : 0; y < side; y++ {
+            for x : 0; x < side; x++ {
+                uint pixel = ui.AtlasTexel(IconX(action) + x * Icon / side, IconAtlasY + y * Icon / side)
+                ui.SetAtlasTexel(action * side + x, atlasY + y, pixel)
             }
         }
     }
 
-    -PaintBody(QuaxelUi& ui)
+    #int PanelX = 23
+    #int PanelY = 1
+    #int PanelStep = 10
+    #int PanelWidth = 26
+    #int PanelHeight = 10
+
+    int PanelAt(int x, int y)
     {
-        int top = 2
-        for y : top; y < BarHeight; y++ {
-            int course = y / 6
-            for x : BodyLeft; x < BodyRight; x++ {
-                int along = x + (course & 1) * 3
-                int tone = HellfeatherArt.Shade(0x2c2824, 84 + HellfeatherArt.Hash(along / 6, course, 23) % 32)
-                if along % 6 == 5 || y % 6 == 5 { tone = HellfeatherArt.Shade(tone, 52) }
-                else if along % 6 == 0 || y % 6 == 0 { tone = HellfeatherArt.Shade(tone, 128) }
-                Put(ui, x, y, tone)
-            }
-        }
-        int metal = 0x4b3b2d
-        int width = BodyRight - BodyLeft
-        for i : 0; i < width / 8 + 1; i++ {
-            int x = BodyLeft + i * 8
-            int run = Math.Min(8, BodyRight - x)
-            if run <= 0 { continue }
-            Raised(ui, x, top, run, 4, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 5, 2) % 26))
-            Raised(ui, x, BarHeight - 4, run, 4, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 6, 2) % 26))
-        }
-        for i : 0; i < BarHeight / 8 + 1; i++ {
-            int y = top + i * 8
-            int run = Math.Min(8, BarHeight - y)
-            if run <= 0 { continue }
-            Raised(ui, BodyLeft, y, 4, run, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 7, 2) % 26))
-            Raised(ui, BodyRight - 4, y, 4, run, HellfeatherArt.Shade(metal, 88 + HellfeatherArt.Hash(i, 8, 2) % 26))
-        }
-        // A line of ember under the top band, as on the inventory's title.
-        Fill(ui, BodyLeft + 4, top + 4, width - 8, 1, 0x8a2f12)
-        Fill(ui, BodyLeft + 4, top + 5, width - 8, 1, 0x3c170b)
-        // The pillar between the mouse slots and the key slots, with a gold stud.
-        Raised(ui, 66, 9, 6, 26, 0x3d3128)
-        Raised(ui, 65, 14, 8, 8, 0x6b4f2c)
-        Raised(ui, 67, 16, 4, 4, 0xa87a3a)
-        Fill(ui, 68, 17, 2, 2, 0xd8a93a)
-        // A small spike crowns the pillar above the top band.
-        Fill(ui, 68, 0, 2, 2, 0x8f6a1e)
-        Fill(ui, 67, 1, 4, 1, 0x6b4f2c)
-        Put(ui, 68, 0, 0xd8a93a)
+        if x < 0 || x >= PanelWidth || y < 0 { return -1 }
+        int panel = y / PanelStep
+        if y % PanelStep >= PanelHeight || !IsValid((HellfeatherHudPanel)panel) { return -1 }
+        return panel
     }
 
-    -PaintSlot(QuaxelUi& ui, int slot)
+    string PanelName(int panel)
     {
-        int x = 0
-        int y = 0
-        int width = 0
-        int height = 0
-        SlotRect(slot, x, y, width, height)
-        HellfeatherInventoryArt.Well(ui, x, BarAtlasY + y, width, height)
-        int key = KeyX(slot)
-        Raised(ui, key, KeyY, KeyWidth, KeyHeight, 0x2e2621)
-        Fill(ui, key + 1, KeyY + 1, KeyWidth - 2, KeyHeight - 2, 0x1c1714)
-        if slot == HellfeatherActionSlot.Left || slot == HellfeatherActionSlot.Right { PaintMouse(ui, key + 5, KeyY + 1, slot == HellfeatherActionSlot.Left) }
+        string [5] names = {"Runes", "Inventory", "Quests", "Stats", "Passives"}
+        return names[panel]
     }
 
-    // A five by seven mouse with the button that triggers the slot lit.
-    -PaintMouse(QuaxelUi& ui, int x, int y, bool left)
+    string PanelKey(int panel)
     {
-        int body = 0xc8bfa8
-        int edge = 0x6a6156
-        int lit = 0xe2561c
-        Fill(ui, x + 1, y, 3, 1, body)
-        Fill(ui, x, y + 1, 5, 5, body)
-        Fill(ui, x + 1, y + 6, 3, 1, body)
-        Fill(ui, x + 2, y + 1, 1, 2, edge)
-        Fill(ui, x, y + 3, 5, 1, edge)
-        Fill(ui, left ? x | x + 3, y + 1, 2, 2, lit)
+        string [5] keys = {"R", "I", "L", "C", "P"}
+        return keys[panel]
     }
 
     -int TintOf(int action)
@@ -320,12 +274,35 @@ T{
             int width = 0
             int height = 0
             HellfeatherActionArt.SlotRect(a, x, y, width, height)
-            T.IsTrue(width >= HellfeatherActionArt.Icon && height >= HellfeatherActionArt.Icon)
-            T.IsTrue(x > HellfeatherActionArt.BodyLeft + 4 && x + width < HellfeatherActionArt.BodyRight - 4)
-            T.IsTrue(y + height < HellfeatherActionArt.KeyY)
+            T.IsTrue(width >= HellfeatherActionArt.NumberIcon && height >= HellfeatherActionArt.NumberIcon)
+            if HellfeatherActionArt.IsSmall(a) {
+                // The number row sits inside the frame, above Q/E/F.
+                T.IsTrue(x >= HellfeatherActionArt.BodyLeft && x + width <= HellfeatherActionArt.BodyRight)
+                T.IsTrue(y + height <= 29)
+                T.IsTrue(width < 22)
+            }
+            else {
+                T.IsTrue(x >= HellfeatherActionArt.BodyLeft + 4 && x + width < HellfeatherActionArt.BodyRight - 4)
+                // The mouse slots stand over their key plates; Q, E and F stop at the bottom rim.
+                if a < HellfeatherActionSlot.Q { T.IsTrue(y + height < HellfeatherActionArt.KeyY) }
+                else { T.IsTrue(y + height <= HellfeatherHudVoxelArt.BodyBottom - 2) }
+            }
             T.AreEqual(HellfeatherActionArt.SlotAt(x, y), a)
             T.AreEqual(HellfeatherActionArt.SlotAt(x + width - 1, y + height - 1), a)
         }
+        // The small row sits over the key slots.
+        int qx = 0
+        int fx = 0
+        int firstX = 0
+        int lastX = 0
+        int y = 0
+        int w = 0
+        int h = 0
+        HellfeatherActionArt.SlotRect(HellfeatherActionSlot.Q, qx, y, w, h)
+        HellfeatherActionArt.SlotRect(HellfeatherActionSlot.F, fx, y, w, h)
+        HellfeatherActionArt.SlotRect(HellfeatherActionSlot.One, firstX, y, w, h)
+        HellfeatherActionArt.SlotRect(HellfeatherActionSlot.Four, lastX, y, w, h)
+        T.IsTrue(firstX <= qx && lastX + w >= fx + 18)
     }
 
     TheBarAndIconsFitBelowTheInventoryArt()
@@ -337,8 +314,10 @@ T{
         int last = 0
         for action : HellfeatherAction { last = Math.Max(last, HellfeatherActionArt.IconX(action) + HellfeatherActionArt.Icon) }
         T.IsTrue(last <= HellfeatherActionArt.LockX)
-        // The stone under the first slot's well and the axe icon are both painted.
-        T.IsTrue(ui.AtlasTexel(HellfeatherActionArt.BodyLeft + 6, HellfeatherActionArt.BarAtlasY + 30) != (uint)0)
+        // The rune button's gem and the axe icon are both painted, and the iron
+        // around them is left to the voxel frame.
+        T.IsTrue(ui.AtlasTexel(28, HellfeatherActionArt.BarAtlasY + 4) != (uint)0)
+        T.AreEqual(ui.AtlasTexel(HellfeatherActionArt.BodyLeft + 6, HellfeatherActionArt.BarAtlasY + 30), (uint)0)
         T.IsTrue(ui.AtlasTexel(HellfeatherActionArt.IconX(HellfeatherAction.Attack) + 1, HellfeatherActionArt.IconAtlasY + 1) != (uint)0)
     }
 }

@@ -30,6 +30,7 @@ HellfeatherGroundItems
     bool ShowLabels = true
     -int [] Volumes
     -float [] Heights
+    -float [] Cells
     -HellfeatherGroundLabel [] Labels
     -int Dropped
 
@@ -37,13 +38,16 @@ HellfeatherGroundItems
     {
         Volumes += -1
         Heights += 0.0
+        Cells += HellfeatherItemArt.ModelVoxel
         for item : HellfeatherItems {
             if item == HellfeatherItems.None { continue }
             int height = 0
             int volume = HellfeatherItemArt.BuildModel(world, item, height)
             if volume < 0 { return false }
+            float cell = HellfeatherItemArt.ModelVoxelOf(item)
             Volumes += volume
-            Heights += (float)height * HellfeatherItemArt.ModelVoxel
+            Heights += (float)height * cell
+            Cells += cell
         }
         return true
     }
@@ -62,7 +66,7 @@ HellfeatherGroundItems
     bool Place(QuaxelWorld& world, HellfeatherItems item, vec3 ground)
     {
         int node = world.CreateNode()
-        float cell = HellfeatherItemArt.ModelVoxel
+        float cell = Cells[item]
         QuaxelTransform pose = QuaxelTransform.Make(vec3(ground.X, ground.Y + Heights[item] * 0.5, ground.Z), vec3(cell, cell, cell))
         // Picture rows run down the screen, give or take the way it happened to land.
         Dropped++
@@ -473,6 +477,39 @@ T{
         input.SetDown(QuaxelKey.Alt, true)
         game.Simulate(world, input, 2)
         T.IsTrue(game.Ground.ShowLabels)
+    }
+
+    ARightClickOverAnItemStillUsesItsSlot()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int visual = game.Controllers[0].VisualNode
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.Ground.Place(world, HellfeatherItems.Ring, player))
+        game.Ground.Hovered = 0
+        game.SampleRightClick(480, 270, true)
+        QuaxelInputState input
+        game.Simulate(world, input, 1)
+        T.IsTrue(world.CurrentClipName(visual) == "attack")
+        T.AreEqual(game.Ground.Entries.Len, 1)
+    }
+
+    ALeftClickOnAnItemOutOfReachSwingsInstead()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int visual = game.Controllers[0].VisualNode
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.Ground.Place(world, HellfeatherItems.Ring, player + vec3(HellfeatherGroundItems.PickupReach + 2.0, 0.0, 0.0)))
+        T.IsFalse(game.Ground.InReach(0, player))
+        game.Ground.Hovered = 0
+        game.ClickWorld(world, 480, 270, true)
+        QuaxelInputState input
+        game.Simulate(world, input, 1)
+        T.IsTrue(world.CurrentClipName(visual) == "attack")
+        T.AreEqual(game.Ground.Entries.Len, 1)
     }
 
     ClickingATitleDoesNotSwing()

@@ -15,6 +15,8 @@
 //                 from 0.0 to 1.0. An enemy only ever drops loot once. GoldChance
 //                 is the chance a successful roll also drops MinGold to MaxGold.
 // LootItem        goes inside a LootTable. Weight is its share of the drops.
+//                 MinLevel and MaxLevel bound the area level it drops at
+//                 (HellfeatherZoneNames.Level), so later zones roll better bases.
 // EnemySpawnRules how the level is filled and when groups wake up.
 //
 // Act I. Each zone of HellfeatherZone rolls only its own groups, the Undercroft's
@@ -22,6 +24,14 @@
 // coarser voxels, so Height and VoxelSize are what the tool printed. StandIn is
 // the model to wear if a file is missing. Move picks the enemy's one move (two
 // for elites), and Feathers is the most black feathers it can drop.
+//
+// Damage is the physical part of each blow. Fire, Cold and Lightning add that
+// much of an element on top, which her resistances lower: the marsh leeches and
+// pond drakes bite cold, the Undercroft's wires spark lightning and the ring's
+// brood burn. Accuracy cancels her defense and Armor makes her blows miss; see
+// Source/Combat.dk. Both rise from zone to zone.
+// Rank colors the name on the nameplate shown while the mouse is over one: Normal,
+// Magic, Rare or Unique, like item rarity.
 HellfeatherEnemyData
 #{
     markup Build()
@@ -31,31 +41,31 @@ HellfeatherEnemyData
 
             <EnemyKind Name="EvilDuck" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 Radius=0.5 Speed=2.0 Reach=1.2 Notice=14.0 MaxHealth=60 Damage=10 Feathers=2 Loot="Duck drops"/>
 
-            <EnemyKind Name="RoadDrake" Model="Assets/RoadDrake.qvox" StandIn="EvilDuck" StandInScale=1.4 Height=78 VoxelSize=0.0319 Radius=0.75 Speed=1.6 Reach=1.5 Notice=14.0 MaxHealth=140 Damage=18 Experience=25 Move=HellfeatherMove.Charge Feathers=4 Loot="Duck drops"/>
-            <EnemyKind Name="CarrionRook" Model="Assets/CarrionRook.qvox" StandIn="EvilDuck" StandInScale=0.6 Height=44 VoxelSize=0.025 Radius=0.35 Speed=2.6 Reach=1.0 Notice=12.0 MaxHealth=20 Damage=6 Experience=6 Move=HellfeatherMove.HopPeck Feathers=1/>
+            <EnemyKind Name="RoadDrake" Rank=HellfeatherEnemyRank.Rare Model="Assets/RoadDrake.qvox" StandIn="EvilDuck" StandInScale=1.4 Height=78 VoxelSize=0.0319 Radius=0.75 Speed=1.6 Reach=1.5 Notice=14.0 MaxHealth=140 Damage=18 Accuracy=10 Armor=10 Experience=25 Move=HellfeatherMove.Charge Feathers=4 Loot="Duck drops"/>
+            <EnemyKind Name="CarrionRook" Model="Assets/CarrionRook.qvox" StandIn="EvilDuck" StandInScale=0.6 Height=44 VoxelSize=0.025 Radius=0.35 Speed=2.6 Reach=1.0 Notice=12.0 MaxHealth=20 Damage=6 Accuracy=5 Experience=6 Move=HellfeatherMove.HopPeck Feathers=1/>
             <EnemyKind Name="TitheStray" Model="Assets/TitheStray.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=72 VoxelSize=0.025 Radius=0.45 Speed=1.2 Reach=1.2 Notice=10.0 MaxHealth=40 Damage=4 Experience=8 Move=HellfeatherMove.Passive Loot="Tithe bracelet"/>
 
-            <EnemyKind Name="ReedDuck" Model="Assets/ReedDuck.qvox" StandIn="EvilDuck" StandInScale=0.95 Height=67 VoxelSize=0.025 Radius=0.5 Speed=2.0 Reach=1.2 Notice=14.0 MaxHealth=75 Damage=11 Experience=12 Feathers=2 Loot="Duck drops"/>
+            <EnemyKind Name="ReedDuck" Model="Assets/ReedDuck.qvox" StandIn="EvilDuck" StandInScale=0.95 Height=67 VoxelSize=0.025 Radius=0.5 Speed=2.0 Reach=1.2 Notice=14.0 MaxHealth=75 Damage=11 Accuracy=10 Experience=12 Feathers=2 Loot="Duck drops"/>
             <EnemyKind Name="Duckling" Model="Assets/Duckling.qvox" StandIn="EvilDuck" StandInScale=0.4 Height=27 VoxelSize=0.025 Radius=0.3 Speed=2.6 Reach=0.8 Notice=12.0 MaxHealth=8 Damage=3 Experience=2 Feathers=1/>
-            <EnemyKind Name="MoultedGander" Model="Assets/MoultedGander.qvox" StandIn="EvilDuck" StandInScale=1.3 Height=76 VoxelSize=0.0306 Radius=0.7 Speed=1.7 Reach=1.6 Notice=14.0 MaxHealth=120 Damage=16 Experience=20 Move=HellfeatherMove.WingSlam Feathers=4 Loot="Duck drops"/>
-            <EnemyKind Name="BlackHoneyLeech" Model="Assets/BlackHoneyLeech.qvox" StandIn="EvilDuck" StandInScale=0.35 Height=35 VoxelSize=0.025 Radius=0.35 Speed=0.6 Reach=0.9 Notice=8.0 MaxHealth=30 Damage=8 Experience=5/>
-            <EnemyKind Name="OldGreyneck" Model="Assets/OldGreyneck.qvox" StandIn="EvilDuck" StandInScale=1.5 Height=72 VoxelSize=0.0347 Radius=0.8 Speed=1.9 Reach=1.8 Notice=16.0 MaxHealth=420 Damage=22 Experience=150 Move=HellfeatherMove.WingSlam Feathers=12 Loot="Greyneck"/>
+            <EnemyKind Name="MoultedGander" Rank=HellfeatherEnemyRank.Rare Model="Assets/MoultedGander.qvox" StandIn="EvilDuck" StandInScale=1.3 Height=76 VoxelSize=0.0306 Radius=0.7 Speed=1.7 Reach=1.6 Notice=14.0 MaxHealth=120 Damage=16 Accuracy=12 Armor=10 Experience=20 Move=HellfeatherMove.WingSlam Feathers=4 Loot="Duck drops"/>
+            <EnemyKind Name="BlackHoneyLeech" Model="Assets/BlackHoneyLeech.qvox" StandIn="EvilDuck" StandInScale=0.35 Height=35 VoxelSize=0.025 Radius=0.35 Speed=0.6 Reach=0.9 Notice=8.0 MaxHealth=30 Damage=4 Cold=5 Accuracy=10 Experience=5/>
+            <EnemyKind Name="OldGreyneck" Rank=HellfeatherEnemyRank.Unique Model="Assets/OldGreyneck.qvox" StandIn="EvilDuck" StandInScale=1.5 Height=72 VoxelSize=0.0347 Radius=0.8 Speed=1.9 Reach=1.8 Notice=16.0 MaxHealth=420 Damage=22 Accuracy=20 Armor=20 Experience=150 Move=HellfeatherMove.WingSlam Feathers=12 Loot="Greyneck"/>
 
-            <EnemyKind Name="PilgrimPenitent" Model="Assets/PilgrimPenitent.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=83 VoxelSize=0.0306 Radius=0.45 Speed=1.3 Reach=2.0 Notice=12.0 MaxHealth=70 Damage=17 Experience=14 Move=HellfeatherMove.PoleSwing StrikeFrame=4 Loot="Duck drops"/>
-            <EnemyKind Name="BlackHoneyFiend" Model="Assets/BlackHoneyFiend.qvox" StandIn="EvilDuck" StandInScale=1.05 Height=70 VoxelSize=0.025 Radius=0.45 Speed=2.0 Reach=1.2 Notice=16.0 MaxHealth=55 Damage=10 Experience=16 Move=HellfeatherMove.Rush Loot="Duck drops"/>
-            <EnemyKind Name="GallowsRook" Model="Assets/GallowsRook.qvox" StandIn="EvilDuck" StandInScale=0.65 Height=51 VoxelSize=0.025 Radius=0.35 Speed=3.0 Reach=1.0 Notice=10.0 MaxHealth=28 Damage=10 Experience=10 Move=HellfeatherMove.Dive Feathers=1/>
+            <EnemyKind Name="PilgrimPenitent" Rank=HellfeatherEnemyRank.Magic Model="Assets/PilgrimPenitent.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=83 VoxelSize=0.0306 Radius=0.45 Speed=1.3 Reach=2.0 Notice=12.0 MaxHealth=70 Damage=17 Accuracy=20 Experience=14 Move=HellfeatherMove.PoleSwing StrikeFrame=4 Loot="Duck drops"/>
+            <EnemyKind Name="BlackHoneyFiend" Rank=HellfeatherEnemyRank.Magic Model="Assets/BlackHoneyFiend.qvox" StandIn="EvilDuck" StandInScale=1.05 Height=70 VoxelSize=0.025 Radius=0.45 Speed=2.0 Reach=1.2 Notice=16.0 MaxHealth=55 Damage=10 Accuracy=20 Armor=5 Experience=16 Move=HellfeatherMove.Rush Loot="Duck drops"/>
+            <EnemyKind Name="GallowsRook" Model="Assets/GallowsRook.qvox" StandIn="EvilDuck" StandInScale=0.65 Height=51 VoxelSize=0.025 Radius=0.35 Speed=3.0 Reach=1.0 Notice=10.0 MaxHealth=28 Damage=10 Accuracy=25 Experience=10 Move=HellfeatherMove.Dive Feathers=1/>
 
-            <EnemyKind Name="PondDrake" Model="Assets/PondDrake.qvox" StandIn="EvilDuck" StandInScale=1.05 Height=76 VoxelSize=0.025 Radius=0.55 Speed=1.6 Reach=6.0 Notice=12.0 MaxHealth=80 Damage=14 Experience=18 Move=HellfeatherMove.Spit Feathers=2 Loot="Duck drops"/>
-            <EnemyKind Name="MillhandThrall" Model="Assets/MillhandThrall.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=81 VoxelSize=0.0257 Radius=0.5 Speed=1.4 Reach=1.5 Notice=12.0 MaxHealth=90 Damage=16 Experience=18 Move=HellfeatherMove.SackSwing Loot="Duck drops"/>
-            <EnemyKind Name="Cuffman" Model="Assets/Cuffman.qvox" StandIn="EvilDuck" StandInScale=1.15 Height=90 VoxelSize=0.0264 Radius=0.5 Speed=1.8 Reach=1.5 Notice=14.0 MaxHealth=130 Damage=18 Experience=26 Move=HellfeatherMove.Shield Loot="Duck drops"/>
-            <EnemyKind Name="BladelockArbalist" Model="Assets/BladelockArbalist.qvox" StandIn="EvilDuck" StandInScale=1.15 Height=77 VoxelSize=0.0264 Radius=0.5 Speed=1.8 Reach=9.0 Notice=16.0 MaxHealth=80 Damage=20 Experience=26 Move=HellfeatherMove.Bolt Loot="Duck drops"/>
-            <EnemyKind Name="SergeantOttar" Model="Assets/SergeantOttar.qvox" StandIn="EvilDuck" StandInScale=1.2 Height=91 VoxelSize=0.0278 Radius=0.55 Speed=2.0 Reach=1.6 Notice=18.0 MaxHealth=320 Damage=22 Experience=120 Move=HellfeatherMove.Shield Loot="Duck drops"/>
+            <EnemyKind Name="PondDrake" Rank=HellfeatherEnemyRank.Magic Model="Assets/PondDrake.qvox" StandIn="EvilDuck" StandInScale=1.05 Height=76 VoxelSize=0.025 Radius=0.55 Speed=1.6 Reach=6.0 Notice=12.0 MaxHealth=80 Damage=6 Cold=9 Accuracy=25 Armor=10 Experience=18 Move=HellfeatherMove.Spit Feathers=2 Loot="Duck drops"/>
+            <EnemyKind Name="MillhandThrall" Rank=HellfeatherEnemyRank.Magic Model="Assets/MillhandThrall.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=81 VoxelSize=0.0257 Radius=0.5 Speed=1.4 Reach=1.5 Notice=12.0 MaxHealth=90 Damage=16 Accuracy=20 Armor=10 Experience=18 Move=HellfeatherMove.SackSwing Loot="Duck drops"/>
+            <EnemyKind Name="Cuffman" Rank=HellfeatherEnemyRank.Rare Model="Assets/Cuffman.qvox" StandIn="EvilDuck" StandInScale=1.15 Height=90 VoxelSize=0.0264 Radius=0.5 Speed=1.8 Reach=1.5 Notice=14.0 MaxHealth=130 Damage=18 Accuracy=25 Armor=35 Experience=26 Move=HellfeatherMove.Shield Loot="Duck drops"/>
+            <EnemyKind Name="BladelockArbalist" Rank=HellfeatherEnemyRank.Magic Model="Assets/BladelockArbalist.qvox" StandIn="EvilDuck" StandInScale=1.15 Height=77 VoxelSize=0.0264 Radius=0.5 Speed=1.8 Reach=9.0 Notice=16.0 MaxHealth=80 Damage=20 Accuracy=35 Armor=15 Experience=26 Move=HellfeatherMove.Bolt Loot="Duck drops"/>
+            <EnemyKind Name="SergeantOttar" Rank=HellfeatherEnemyRank.Unique Model="Assets/SergeantOttar.qvox" StandIn="EvilDuck" StandInScale=1.2 Height=91 VoxelSize=0.0278 Radius=0.55 Speed=2.0 Reach=1.6 Notice=18.0 MaxHealth=320 Damage=22 Accuracy=35 Armor=45 Experience=120 Move=HellfeatherMove.Shield Loot="Duck drops"/>
 
-            <EnemyKind Name="HollowedBearer" Model="Assets/HollowedBearer.qvox" StandIn="EvilDuck" StandInScale=1.4 Height=71 VoxelSize=0.0333 Radius=0.6 Speed=0.0 Reach=1.6 Notice=6.0 MaxHealth=90 Damage=12 Experience=20 Move=HellfeatherMove.Chained/>
-            <EnemyKind Name="BroodDrake" Model="Assets/BroodDrake.qvox" StandIn="EvilDuck" StandInScale=1.2 Height=79 VoxelSize=0.0278 Radius=0.6 Speed=2.4 Reach=1.4 Notice=14.0 MaxHealth=110 Damage=16 Experience=22 Move=HellfeatherMove.HopPeck Feathers=3 Loot="Duck drops"/>
-            <EnemyKind Name="SilverSpark" Model="Assets/SilverSpark.qvox" StandIn="EvilDuck" StandInScale=0.25 Height=16 VoxelSize=0.03 Radius=0.3 Speed=2.0 Reach=0.6 Notice=20.0 MaxHealth=25 Damage=12 Experience=8 Move=HellfeatherMove.Spark/>
-            <EnemyKind Name="RingKeeperWarden" Model="Assets/RingKeeperWarden.qvox" StandIn="EvilDuck" StandInScale=1.3 Height=86 VoxelSize=0.0292 Radius=0.6 Speed=1.8 Reach=1.8 Notice=14.0 MaxHealth=360 Damage=26 Experience=90 Move=HellfeatherMove.RingPull Loot="Warden"/>
-            <EnemyKind Name="Mardra" Model="Assets/Mardra.qvox" StandIn="EvilDuck" StandInScale=1.7 Height=72 VoxelSize=0.0389 Radius=0.9 Speed=1.6 Reach=2.0 Notice=18.0 MaxHealth=1400 Damage=28 Experience=600 Move=HellfeatherMove.Brood Feathers=20/>
+            <EnemyKind Name="HollowedBearer" Rank=HellfeatherEnemyRank.Magic Model="Assets/HollowedBearer.qvox" StandIn="EvilDuck" StandInScale=1.4 Height=71 VoxelSize=0.0333 Radius=0.6 Speed=0.0 Reach=1.6 Notice=6.0 MaxHealth=90 Damage=8 Cold=5 Accuracy=30 Armor=20 Experience=20 Move=HellfeatherMove.Chained/>
+            <EnemyKind Name="BroodDrake" Rank=HellfeatherEnemyRank.Rare Model="Assets/BroodDrake.qvox" StandIn="EvilDuck" StandInScale=1.2 Height=79 VoxelSize=0.0278 Radius=0.6 Speed=2.4 Reach=1.4 Notice=14.0 MaxHealth=110 Damage=11 Fire=6 Accuracy=35 Armor=15 Experience=22 Move=HellfeatherMove.HopPeck Feathers=3 Loot="Duck drops"/>
+            <EnemyKind Name="SilverSpark" Model="Assets/SilverSpark.qvox" StandIn="EvilDuck" StandInScale=0.25 Height=16 VoxelSize=0.03 Radius=0.3 Speed=2.0 Reach=0.6 Notice=20.0 MaxHealth=25 Damage=4 Lightning=9 Accuracy=40 Experience=8 Move=HellfeatherMove.Spark/>
+            <EnemyKind Name="RingKeeperWarden" Rank=HellfeatherEnemyRank.Unique Model="Assets/RingKeeperWarden.qvox" StandIn="EvilDuck" StandInScale=1.3 Height=86 VoxelSize=0.0292 Radius=0.6 Speed=1.8 Reach=1.8 Notice=14.0 MaxHealth=360 Damage=18 Fire=9 Accuracy=40 Armor=40 Experience=90 Move=HellfeatherMove.RingPull Loot="Warden"/>
+            <EnemyKind Name="Mardra" Rank=HellfeatherEnemyRank.Unique Model="Assets/Mardra.qvox" StandIn="EvilDuck" StandInScale=1.7 Height=72 VoxelSize=0.0389 Radius=0.9 Speed=1.6 Reach=2.0 Notice=18.0 MaxHealth=1400 Damage=19 Fire=11 Accuracy=45 Armor=40 Experience=600 Move=HellfeatherMove.Brood Feathers=20/>
 
             <LootTable Name="Duck drops" Chance=0.35 Rolls=1 GoldChance=0.35 MinGold=20 MaxGold=100>
                 <LootItem Item=HellfeatherItems.HealthPotion Weight=30/>
@@ -74,6 +84,23 @@ HellfeatherEnemyData
                 <LootItem Item=HellfeatherItems.RuneCleave Weight=4/>
                 <LootItem Item=HellfeatherItems.RuneWarCry Weight=3/>
                 <LootItem Item=HellfeatherItems.RuneDash Weight=3/>
+                <LootItem Item=HellfeatherItems.HandAxe Weight=4 MaxLevel=4/>
+                <LootItem Item=HellfeatherItems.HeavyBelt Weight=5 MinLevel=4/>
+                <LootItem Item=HellfeatherItems.ChainCoif Weight=4 MinLevel=4/>
+                <LootItem Item=HellfeatherItems.Falchion Weight=4 MinLevel=4/>
+                <LootItem Item=HellfeatherItems.RingMail Weight=3 MinLevel=4/>
+                <LootItem Item=HellfeatherItems.ChainGloves Weight=5 MinLevel=5/>
+                <LootItem Item=HellfeatherItems.ChainBoots Weight=5 MinLevel=5/>
+                <LootItem Item=HellfeatherItems.GarnetRing Weight=2 MinLevel=5/>
+                <LootItem Item=HellfeatherItems.KiteShield Weight=4 MinLevel=6/>
+                <LootItem Item=HellfeatherItems.BattleAxe Weight=3 MinLevel=6/>
+                <LootItem Item=HellfeatherItems.PlatedBelt Weight=4 MinLevel=8/>
+                <LootItem Item=HellfeatherItems.RavenAmulet Weight=2 MinLevel=8/>
+                <LootItem Item=HellfeatherItems.Gauntlets Weight=4 MinLevel=9/>
+                <LootItem Item=HellfeatherItems.PlateBoots Weight=4 MinLevel=9/>
+                <LootItem Item=HellfeatherItems.GreatHelm Weight=3 MinLevel=9/>
+                <LootItem Item=HellfeatherItems.FlangedMace Weight=3 MinLevel=9/>
+                <LootItem Item=HellfeatherItems.ScaleMail Weight=2 MinLevel=9/>
             </LootTable>
             <LootTable Name="Tithe bracelet" Chance=0.5 Rolls=1>
                 <LootItem Item=HellfeatherItems.TitheBracelet Weight=1/>
@@ -179,10 +206,11 @@ HellfeatherEnemyData
     }
 
     // One respawning duck a few steps from the player, for tests of combat.
+    // Its accuracy is past any defense she can wear, so its pecks always land.
     markup BesideThePlayer()
     {
         return {
-            <EnemyKind Name="EvilDuck" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 Radius=0.5 Speed=2.0 Reach=1.2 Notice=14.0 MaxHealth=60 Damage=10/>
+            <EnemyKind Name="EvilDuck" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 Radius=0.5 Speed=2.0 Reach=1.2 Notice=14.0 MaxHealth=60 Damage=10 Accuracy=500/>
             <EnemyPlacement Kind="EvilDuck" X=3.0 Z=-3.0 Respawns=true/>
         }
     }
@@ -236,6 +264,47 @@ T{
         }
         // Lowland, crofts, road, marsh, hill and mill.
         T.AreEqual(zonesSeen.Len, 6)
+    }
+
+    // The duck drops of Ravenford's road never hold a late base, the Mill's hold
+    // them all, and the starting hand axe is left behind in the early zones.
+    LaterZonesRollBetterBases()
+    {
+        HellfeatherEnemySpawner spawner()
+        QuaxelWorld world()
+        spawner.Data = HellfeatherEnemyData.Build()
+        T.IsTrue(spawner.Load(world))
+        int loot = spawner.Table.LootNamed("Duck drops")
+        T.IsTrue(loot >= 0)
+        spawner.LootRandom.Begin((uint)77)
+        int early = 0
+        int late = 0
+        int axes = 0
+        for n : 0; n < 3000; n++ {
+            item : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.FordRoad + 0))
+            if item == HellfeatherItems.ScaleMail || item == HellfeatherItems.GreatHelm || item == HellfeatherItems.Falchion { early++ }
+            mill : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.HobbsMill + 0))
+            if mill == HellfeatherItems.ScaleMail || mill == HellfeatherItems.GreatHelm || mill == HellfeatherItems.FlangedMace { late++ }
+            if mill == HellfeatherItems.HandAxe { axes++ }
+        }
+        T.AreEqual(early, 0)
+        T.IsTrue(late > 0)
+        T.AreEqual(axes, 0)
+    }
+
+    // Every item base that can be worn drops somewhere, or is given.
+    EveryWornBaseDropsSomewhere()
+    {
+        HellfeatherEnemySpawner spawner()
+        QuaxelWorld world()
+        spawner.Data = HellfeatherEnemyData.Build()
+        T.IsTrue(spawner.Load(world))
+        HellfeatherItems [] bases = {HellfeatherItems.HandAxe, HellfeatherItems.Falchion, HellfeatherItems.FlangedMace, HellfeatherItems.BattleAxe, HellfeatherItems.KiteShield, HellfeatherItems.ChainCoif, HellfeatherItems.GreatHelm, HellfeatherItems.RingMail, HellfeatherItems.ScaleMail, HellfeatherItems.ChainGloves, HellfeatherItems.Gauntlets, HellfeatherItems.ChainBoots, HellfeatherItems.PlateBoots, HellfeatherItems.HeavyBelt, HellfeatherItems.PlatedBelt, HellfeatherItems.GarnetRing, HellfeatherItems.RavenAmulet}
+        for wanted : bases {
+            bool found = false
+            for entry : spawner.Table.LootItems { if entry.Item == wanted { found = true } }
+            T.IsTrue(found)
+        }
     }
 
     // Until a kind's own model exists, it wears its stand-in's at its own scale.

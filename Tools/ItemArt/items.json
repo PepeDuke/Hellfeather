@@ -76,6 +76,103 @@
       "colors": "JMNbuDX",
       "seed": 11,
       "hole": "f03cf0"
+    },
+    "HandAxe": {
+      "prompt": "a small woodsman's hatchet with a single steel axe blade on one side only and a short wooden handle, vertical, blade at top",
+      "colors": "SsdDWwnLlc",
+      "seed": 11
+    },
+    "MillstoneMaul": {
+      "prompt": "a long two-handed war hammer, its wooden handle topped with a heavy round grey stone millstone wheel bound with iron bands, vertical, handle at bottom, head at top",
+      "colors": "TtxXdDsWwn",
+      "rotate": 180
+    },
+    "EddasQuillCharm": {
+      "prompt": "a round silver charm pendant with a short glossy blue-black raven feather fanned across it and a small cyan bead, no chain",
+      "colors": "SsdDuBbvV",
+      "crop_top": 0.45
+    },
+    "JessasWaterwalkers": {
+      "prompt": "a single tall boot of dark oiled leather with a shimmering blue water sheen and silver buckles, side view",
+      "colors": "QLlcnubBAsS"
+    },
+    "MarrasThimble": {
+      "prompt": "a silver sewing thimble with a steel needle pierced through it and a small red gem",
+      "colors": "SsdDrRm",
+      "shadow": false
+    },
+    "MardrasRingShards": {
+      "prompt": "three jagged broken shards of a dark iron ring threaded on a thin red cord, faint glowing orange cracks",
+      "colors": "sdDrmoy"
+    },
+    "GreyneckQuill": {
+      "prompt": "a round pewter amulet with a short wide grey goose feather fanned across it, no chain",
+      "colors": "SsdDTtxeE",
+      "crop_top": 0.25
+    },
+    "Falchion": {
+      "prompt": "a curved single-edged steel falchion sword, the broad blade curving backward toward a clipped point like a scimitar, iron crossguard and leather grip, vertical, point up",
+      "colors": "SsdDLlcWwn",
+      "shadow": false,
+      "seed": 11
+    },
+    "FlangedMace": {
+      "prompt": "a heavy iron flanged mace with a ribbed steel head on a wooden haft, vertical, head at top",
+      "colors": "SsdDWwnLlc"
+    },
+    "RingMail": {
+      "prompt": "a shirt of riveted iron ring mail armor with short sleeves and a leather collar, front view",
+      "colors": "SsdDLlcQ"
+    },
+    "ScaleMail": {
+      "prompt": "an empty sleeveless coat of overlapping steel scale armor with gold trim, laid flat, front view, no person, no helmet",
+      "colors": "SsdDgGHLlc"
+    },
+    "KiteShield": {
+      "prompt": "a tall kite shield painted dark red with a black raven emblem and a steel rim, front view",
+      "colors": "SsdDrRmX"
+    },
+    "ChainCoif": {
+      "prompt": "an empty chain mail coif hood made of iron rings, no face, front view",
+      "colors": "SsdDc"
+    },
+    "GreatHelm": {
+      "prompt": "an empty flat-topped steel great helm with narrow eye slits and breathing holes, no face, front view",
+      "colors": "SsdDgG"
+    },
+    "ChainBoots": {
+      "prompt": "a single boot of chain mail over brown leather with an iron toe cap, side view",
+      "colors": "SsdDLlcw"
+    },
+    "PlateBoots": {
+      "prompt": "a single steel plate armor boot, sabaton and greave, side view",
+      "colors": "SsdDgG"
+    },
+    "ChainGloves": {
+      "prompt": "a pair of chain mail gloves with leather cuffs",
+      "colors": "SsdDLlc"
+    },
+    "Gauntlets": {
+      "prompt": "a pair of steel plate gauntlets with gold rivets",
+      "colors": "SsdDgGH"
+    },
+    "HeavyBelt": {
+      "prompt": "a wide thick leather belt studded with iron rivets and an iron buckle, horizontal",
+      "colors": "LlcQsdDw"
+    },
+    "PlatedBelt": {
+      "prompt": "a belt of overlapping steel plates on leather with a gold buckle, horizontal",
+      "colors": "SsdDLlgG"
+    },
+    "GarnetRing": {
+      "prompt": "a gold ring with a deep red garnet gem",
+      "colors": "gGHRrmP"
+    },
+    "RavenAmulet": {
+      "prompt": "a silver pendant shaped like a raven bird skull with a long pointed beak and a blue gem in the eye socket, no chain",
+      "colors": "SsdDeEbBu",
+      "seed": 3,
+      "shadow": false
     }
   },
   "parts": {

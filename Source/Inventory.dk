@@ -96,7 +96,26 @@ HellfeatherItems : int
     MinersHelmet,
     // Bought at the shop and kept as a count, as feathers are. Each opens one
     // portal home to Ravenford.
-    RavenPortal
+    RavenPortal,
+    // Wren's own woodsman's axe. She starts with it.
+    HandAxe,
+    // Bases that drop only in later zones; the loot tables in Source/EnemyData.dk
+    // give each the zone level it needs.
+    Falchion,
+    FlangedMace,
+    KiteShield,
+    ChainCoif,
+    GreatHelm,
+    RingMail,
+    ScaleMail,
+    ChainGloves,
+    Gauntlets,
+    ChainBoots,
+    PlateBoots,
+    HeavyBelt,
+    PlatedBelt,
+    GarnetRing,
+    RavenAmulet
 }
 
 HellfeatherItems
@@ -115,8 +134,8 @@ HellfeatherItems
 
     HellfeatherItemKind Get(HellfeatherItems item)
     {
-        if item == HellfeatherItems.BattleAxe { return Make("Battle Axe", "Damage 20", 2, 3, HellfeatherGear.Weapon, 300) }
-        if item == HellfeatherItems.ShortSword { return Make("Short Sword", "Damage 12", 1, 3, HellfeatherGear.Weapon, 120) }
+        if item == HellfeatherItems.BattleAxe { return Make("Battle Axe", "Damage 16-24", 2, 3, HellfeatherGear.Weapon, 300) }
+        if item == HellfeatherItems.ShortSword { return Make("Short Sword", "Damage 9-15", 1, 3, HellfeatherGear.Weapon, 120) }
         if item == HellfeatherItems.RoundShield { return Make("Round Shield", "Defense 8", 2, 2, HellfeatherGear.Shield, 100) }
         if item == HellfeatherItems.IronHelm { return Make("Iron Helm", "Defense 5", 2, 2, HellfeatherGear.Head, 90) }
         if item == HellfeatherItems.LeatherArmor { return Make("Leather Armor", "Defense 12", 2, 3, HellfeatherGear.Body, 160) }
@@ -143,9 +162,25 @@ HellfeatherItems
         if item == HellfeatherItems.MarrasThimble { return Make("Marra's Thimble", "Defense 6, Strength 3", 1, 1, HellfeatherGear.Ring, 420) }
         if item == HellfeatherItems.MardrasRingShards { return Make("Mardra's Ring Shards", "Heal 2 per hit", 1, 1, HellfeatherGear.Neck, 600) }
         if item == HellfeatherItems.GreyneckQuill { return Make("Greyneck's Quill", "Agility 6", 1, 1, HellfeatherGear.Neck, 380) }
-        if item == HellfeatherItems.MillstoneMaul { return Make("Millstone Maul", "Damage 32", 2, 3, HellfeatherGear.Weapon, 520) }
+        if item == HellfeatherItems.MillstoneMaul { return Make("Millstone Maul", "Damage 24-40", 2, 3, HellfeatherGear.Weapon, 520) }
         if item == HellfeatherItems.MinersHelmet { return Make("Miner's Helmet", "Defense 2", 2, 2, HellfeatherGear.Head, 40) }
         if item == HellfeatherItems.RavenPortal { return Make("Raven Portal", "Opens a way to town: H", 1, 1, HellfeatherGear.None, 50) }
+        if item == HellfeatherItems.HandAxe { return Make("Hand Axe", "Damage 10", 1, 3, HellfeatherGear.Weapon, 60) }
+        if item == HellfeatherItems.Falchion { return Make("Falchion", "Damage 16", 1, 3, HellfeatherGear.Weapon, 220) }
+        if item == HellfeatherItems.FlangedMace { return Make("Flanged Mace", "Damage 26", 1, 3, HellfeatherGear.Weapon, 400) }
+        if item == HellfeatherItems.KiteShield { return Make("Kite Shield", "Defense 14", 2, 3, HellfeatherGear.Shield, 240) }
+        if item == HellfeatherItems.ChainCoif { return Make("Chain Coif", "Defense 8", 2, 2, HellfeatherGear.Head, 150) }
+        if item == HellfeatherItems.GreatHelm { return Make("Great Helm", "Defense 12", 2, 2, HellfeatherGear.Head, 320) }
+        if item == HellfeatherItems.RingMail { return Make("Ring Mail", "Defense 20", 2, 3, HellfeatherGear.Body, 280) }
+        if item == HellfeatherItems.ScaleMail { return Make("Scale Mail", "Defense 30", 2, 3, HellfeatherGear.Body, 480) }
+        if item == HellfeatherItems.ChainGloves { return Make("Chain Gloves", "Defense 5", 2, 2, HellfeatherGear.Hands, 120) }
+        if item == HellfeatherItems.Gauntlets { return Make("Gauntlets", "Defense 9", 2, 2, HellfeatherGear.Hands, 260) }
+        if item == HellfeatherItems.ChainBoots { return Make("Chain Boots", "Defense 5", 2, 2, HellfeatherGear.Feet, 120) }
+        if item == HellfeatherItems.PlateBoots { return Make("Plate Boots", "Defense 9", 2, 2, HellfeatherGear.Feet, 260) }
+        if item == HellfeatherItems.HeavyBelt { return Make("Heavy Belt", "Defense 4", 2, 1, HellfeatherGear.Waist, 100) }
+        if item == HellfeatherItems.PlatedBelt { return Make("Plated Belt", "Defense 7", 2, 1, HellfeatherGear.Waist, 220) }
+        if item == HellfeatherItems.GarnetRing { return Make("Garnet Ring", "Strength 2", 1, 1, HellfeatherGear.Ring, 300) }
+        if item == HellfeatherItems.RavenAmulet { return Make("Raven Amulet", "Mana 15", 1, 1, HellfeatherGear.Neck, 360) }
         return Make("", "", 1, 1, HellfeatherGear.None, 0)
     }
 }

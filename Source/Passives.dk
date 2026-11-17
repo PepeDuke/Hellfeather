@@ -289,7 +289,7 @@ HellfeatherPassiveTree
         if stat == HellfeatherPassiveStat.Mana { return value + " maximum mana" }
         if stat == HellfeatherPassiveStat.DamagePercent { return value + "% damage" }
         if stat == HellfeatherPassiveStat.Defense { return value + " defense" }
-        if stat == HellfeatherPassiveStat.HitChance { return value + "% hit chance" }
+        if stat == HellfeatherPassiveStat.HitChance { return value + " accuracy" }
         return value + "% move speed"
     }
 
@@ -397,9 +397,11 @@ T{
         T.AreEqual(stats.Strength, HellfeatherStats.BaseStrength + 2)
         T.AreEqual(stats.MaxHealth, HellfeatherStats.BaseHealth + 8)
         // Percent damage applies after strength.
-        stats.WeaponDamage = 20
+        stats.AddWeaponDamage(20, 30)
         stats.DamagePercent = 10
-        T.AreEqual(stats.Damage(), (20 + stats.Strength) * 110 / 100)
+        damage : stats.Damage()
+        T.AreEqual(damage.Min, (20 + stats.Strength) * 110 / 100)
+        T.AreEqual(damage.Max, (30 + stats.Strength) * 110 / 100)
     }
 
     EveryPassiveDescribesItself()

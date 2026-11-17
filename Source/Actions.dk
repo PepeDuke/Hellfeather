@@ -72,14 +72,19 @@ HellfeatherActionMeans
     int [7] Stock
 }
 
-// The bar's five slots, named for what triggers them.
+// The bar's slots, named for what triggers them. One to Four are the smaller
+// slots above Q, E and F, used with the number keys.
 HellfeatherActionSlot : int
 #@{
     Left,
     Right,
     Q,
     E,
-    F
+    F,
+    One,
+    Two,
+    Three,
+    Four
 }
 
 // Which action sits in each slot, which actions the warrior knows, and what is
@@ -87,7 +92,7 @@ HellfeatherActionSlot : int
 // Kills only counts; runes, not kills, teach agilities.
 HellfeatherActionSlots
 {
-    HellfeatherAction [5] Assigned
+    HellfeatherAction [9] Assigned
     bool [7] Known
     float [7] Cooldowns
     int Kills
@@ -182,6 +187,17 @@ T{
         T.IsFalse(slots.Known[HellfeatherAction.Cleave])
     }
 
+    TheNumberSlotsStartEmptyAndTakeAnyKnownAction()
+    {
+        HellfeatherActionSlots slots
+        slots.Stock()
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.One], HellfeatherAction.None)
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.Four], HellfeatherAction.None)
+        T.IsTrue(slots.Assign(HellfeatherActionSlot.Two, HellfeatherAction.ManaPotion))
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.Two], HellfeatherAction.ManaPotion)
+        T.IsFalse(slots.Assign(HellfeatherActionSlot.Four, HellfeatherAction.Dash))
+    }
+
     OnlyKnownActionsCanBeAssigned()
     {
         HellfeatherActionSlots slots
@@ -212,7 +228,16 @@ T{
         T.AreEqual(slots.Assigned[HellfeatherActionSlot.Right], HellfeatherAction.Cleave)
         slots.SetKnown(HellfeatherAction.WarCry, true)
         T.AreEqual(slots.Assigned[HellfeatherActionSlot.F], HellfeatherAction.WarCry)
-        // Every slot is full, so Dash waits in the picker.
+        // The bar is full, so Dash goes to the first number slot. With those
+        // full too, it would wait in the picker.
+        slots.SetKnown(HellfeatherAction.Dash, true)
+        T.AreEqual(slots.Assigned[HellfeatherActionSlot.One], HellfeatherAction.Dash)
+        slots.Assigned[HellfeatherActionSlot.One] = HellfeatherAction.None
+        slots.Known[HellfeatherAction.Dash] = false
+        slots.Assign(HellfeatherActionSlot.One, HellfeatherAction.Attack)
+        slots.Assign(HellfeatherActionSlot.Two, HellfeatherAction.Attack)
+        slots.Assign(HellfeatherActionSlot.Three, HellfeatherAction.Attack)
+        slots.Assign(HellfeatherActionSlot.Four, HellfeatherAction.Attack)
         slots.SetKnown(HellfeatherAction.Dash, true)
         for slot : HellfeatherActionSlot { T.AreNotEqual(slots.Assigned[slot], HellfeatherAction.Dash) }
         // Losing the rune keeps the slot but not the skill, and getting it back

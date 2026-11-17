@@ -98,8 +98,20 @@ HellfeatherItemArt
         return -1
     }
 
-    // Potions and helmets stand up and are round. Everything else lies flat.
-    bool Stands(HellfeatherItems item) { return item == HellfeatherItems.HealthPotion || item == HellfeatherItems.ManaPotion || item == HellfeatherItems.IronHelm || item == HellfeatherItems.MinersHelmet }
+    // Potions stand up and are round. Everything else lies flat, but for what
+    // lies on the ground as she wears it.
+    bool Stands(HellfeatherItems item) { return item == HellfeatherItems.HealthPotion || item == HellfeatherItems.ManaPotion }
+
+    // Helmets keep their shape on the ground: the model she wears on her head
+    // (Tools/Models/gear.py), standing still, rather than one made from the picture.
+    bool WornOnGround(HellfeatherItems item)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        return kind.Gear == HellfeatherGear.Head && Length(HellfeatherWarrior.GearModel(item)) > 0
+    }
+
+    // World units per voxel of an item's ground model.
+    float ModelVoxelOf(HellfeatherItems item) { return WornOnGround(item) ? HellfeatherWarrior.VoxelSize | ModelVoxel }
 
     // Puffs a flat item up toward its middle, with dark lines pressed in.
     // Cells within two of an edge rise half as high, within four three quarters.
@@ -172,28 +184,46 @@ HellfeatherItemArt
         return volume
     }
 
-    // Act I's items borrow the drawing of the plain item they look most like,
-    // until they have pictures of their own in Assets/ItemArt.
+    // Items without a picture of their own in Assets/ItemArt borrow the drawing
+    // of the plain item they look most like.
     HellfeatherItems Likeness(HellfeatherItems item)
     {
         if item == HellfeatherItems.BlackFeather || item == HellfeatherItems.LanternToken { return HellfeatherItems.Scroll }
-        if item == HellfeatherItems.TitheBracelet || item == HellfeatherItems.MarrasThimble || item == HellfeatherItems.GreyKey { return HellfeatherItems.Ring }
+        if item == HellfeatherItems.TitheBracelet || item == HellfeatherItems.MarrasThimble || item == HellfeatherItems.GreyKey || item == HellfeatherItems.GarnetRing { return HellfeatherItems.Ring }
         if item == HellfeatherItems.BlackHoney { return HellfeatherItems.ManaPotion }
-        if item == HellfeatherItems.EddasQuillCharm || item == HellfeatherItems.MardrasRingShards || item == HellfeatherItems.GreyneckQuill { return HellfeatherItems.Amulet }
-        if item == HellfeatherItems.JessasWaterwalkers { return HellfeatherItems.Boots }
+        if item == HellfeatherItems.EddasQuillCharm || item == HellfeatherItems.MardrasRingShards || item == HellfeatherItems.GreyneckQuill || item == HellfeatherItems.RavenAmulet { return HellfeatherItems.Amulet }
+        if item == HellfeatherItems.JessasWaterwalkers || item == HellfeatherItems.ChainBoots || item == HellfeatherItems.PlateBoots { return HellfeatherItems.Boots }
         if item == HellfeatherItems.MillstoneMaul { return HellfeatherItems.BattleAxe }
+        if item == HellfeatherItems.HandAxe || item == HellfeatherItems.Falchion || item == HellfeatherItems.FlangedMace { return HellfeatherItems.ShortSword }
+        if item == HellfeatherItems.KiteShield { return HellfeatherItems.RoundShield }
+        if item == HellfeatherItems.ChainCoif || item == HellfeatherItems.GreatHelm { return HellfeatherItems.IronHelm }
+        if item == HellfeatherItems.RingMail || item == HellfeatherItems.ScaleMail { return HellfeatherItems.LeatherArmor }
+        if item == HellfeatherItems.ChainGloves || item == HellfeatherItems.Gauntlets { return HellfeatherItems.Gloves }
+        if item == HellfeatherItems.HeavyBelt || item == HellfeatherItems.PlatedBelt { return HellfeatherItems.Belt }
         return item
     }
 
-    // Draws an item, or the item it borrows its looks from.
-    Picture(HellfeatherItems item, HellfeatherItemPicture& p) { Draw(Likeness(item), p) }
+    // Draws an item, or the item it borrows its looks from while it has no picture.
+    Picture(HellfeatherItems item, HellfeatherItemPicture& p)
+    {
+        Draw(item, p)
+        if p.Rows.Len == 0 { Draw(Likeness(item), p) }
+    }
 
-    // The volume for an item, or -1. Height is its size in voxels along Y.
+    // The volume for an item, or -1. Height is its size in voxels along Y, and
+    // ModelVoxelOf the world size of each.
     int BuildModel(QuaxelWorld& world, HellfeatherItems item, int& height)
     {
+        if WornOnGround(item) {
+            int worn = QuaxelAssets.LoadVoxelModel(world, HellfeatherWarrior.GearModel(item))
+            if worn < 0 { return -1 }
+            ivec3 size = world.VolumeSize(worn)
+            height = size.Y
+            return worn
+        }
         HellfeatherItemPicture picture
         Picture(item, picture)
-        if Stands(Likeness(item)) { return Revolve(world, picture, height) }
+        if Stands(item) { return Revolve(world, picture, height) }
         return Lay(world, picture, height)
     }
 }

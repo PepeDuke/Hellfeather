@@ -10,29 +10,53 @@ HellfeatherWarrior
     #float VoxelSize = 0.025
 
     // Height of the volume's center when she lies on her back: half the box's
-    // 70 cells less the depth of her back, which the coat brings out from cell
-    // 29 to 26.
+    // 68 cells less the depth of her back, which the coat brings out from cell
+    // 28 to 25.
     float LyingCenterHeight(HellfeatherItems body)
     {
-        return body == HellfeatherItems.LeatherArmor ? 0.225 | 0.15
+        return body != HellfeatherItems.None ? 0.225 | 0.15
     }
 
-    // Her body model for what she wears.
+    // The clip an action plays: attack for a swing, cleave for the level sweep
+    // and shout for the war cry. Each has a twin ending in "_walk" with the
+    // walk's legs under the same upper body, so she can act on the move.
+    string ActionClip(HellfeatherAction action, bool moving)
+    {
+        string clip = "attack"
+        if action == HellfeatherAction.Cleave { clip = "cleave" }
+        if action == HellfeatherAction.WarCry { clip = "shout" }
+        return moving ? clip + "_walk" | clip
+    }
+
+    // Swings strike on AxeStrikeFrame and cannot be interrupted.
+    bool IsSwingClip(string clip) { return clip == "attack" || clip == "attack_walk" || clip == "cleave" || clip == "cleave_walk" }
+
+    // The war cry plays over walking and standing until it ends or a swing starts.
+    bool IsShoutClip(string clip) { return clip == "shout" || clip == "shout_walk" }
+
+    // Her body model for what she wears. Every body armor shows as the Leather
+    // Armor until it has a model of its own.
     string BodyModel(HellfeatherItems body)
     {
-        if body == HellfeatherItems.LeatherArmor { return "Assets/WarriorLeatherArmor.qvox" }
+        if body != HellfeatherItems.None { return "Assets/WarriorLeatherArmor.qvox" }
         return "Assets/Warrior.qvox"
     }
 
     // The model an item shows when worn or held, or "" for none.
     string GearModel(HellfeatherItems item)
     {
+        if item == HellfeatherItems.HandAxe { return "Assets/HandAxe.qvox" }
         if item == HellfeatherItems.BattleAxe { return "Assets/BattleAxe.qvox" }
+        if item == HellfeatherItems.Falchion { return "Assets/Falchion.qvox" }
+        if item == HellfeatherItems.FlangedMace { return "Assets/FlangedMace.qvox" }
         if item == HellfeatherItems.ShortSword { return "Assets/ShortSword.qvox" }
         if item == HellfeatherItems.MillstoneMaul { return "Assets/MillstoneMaul.qvox" }
         if item == HellfeatherItems.RoundShield { return "Assets/RoundShield.qvox" }
+        if item == HellfeatherItems.KiteShield { return "Assets/KiteShield.qvox" }
         if item == HellfeatherItems.IronHelm { return "Assets/IronHelm.qvox" }
         if item == HellfeatherItems.MinersHelmet { return "Assets/MinersHelmet.qvox" }
+        if item == HellfeatherItems.ChainCoif { return "Assets/ChainCoif.qvox" }
+        if item == HellfeatherItems.GreatHelm { return "Assets/GreatHelm.qvox" }
         return ""
     }
 }

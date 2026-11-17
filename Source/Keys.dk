@@ -1,0 +1,9 @@
+// Windows virtual-key codes for keys QuaxelKey does not name yet. The engine
+// samples every one of the 256 codes into QuaxelInputState.Down, so the game
+// reads these straight from that array.
+HellfeatherKeys
+#{
+    #int Tab = 9
+    // The digit 1 above the letters. 2, 3 and 4 follow it.
+    #int One = 49
+}

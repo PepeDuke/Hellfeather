@@ -1,4 +1,4 @@
-"""Builds the models of the gear Wren wears and holds, which ride the sockets on
+﻿"""Builds the models of the gear Wren wears and holds, which ride the sockets on
 her body model (player.py): helmets on `head`, shields on `hand_l`, weapons on
 `hand_r`. Each is a static .qvox with a `grip` socket, the point and turn the
 engine lines up with her socket (Quaxel-Engine Docs/VoxelModels.md).
@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import act1  # noqa: E402
 import player  # noqa: E402
 from figure import Rig, capsule, ellipsoid, fit, minus, where  # noqa: E402
-from kit import BRASS, GLOW, IRON, LEATHER, SILVER, STONE, WOOD, WOOD_DARK, compact, hash2, pick  # noqa: E402
+from kit import BRASS, CLOTH_RED, GLOW, IRON, LEATHER, RAVEN, SILVER, STONE, WOOD, WOOD_DARK, compact, hash2, pick  # noqa: E402
 from people import speckled  # noqa: E402
 
 
@@ -133,12 +133,144 @@ def millstone_maul():
     return r
 
 
+def chain_coif():
+    """A hood of iron rings over the skull and down to the shoulders, open at the
+    face, rows of rings catching the light in turn."""
+    hx, hy, hz = player.HEAD
+    r = new_rig(player.HEAD)
+    hood = where(ellipsoid((0, hy + 0.6, hz - 0.6), (5.6, 6.8, 5.8)), lambda x, y, z: y > hy - 5.4)
+    face = lambda x, y, z: (z > hz + 0.6) & (y < hy + 2.4) & (y > hy - 4.6) & (np.abs(x) < 3.4)  # noqa: E731
+
+    def rings(x, y, z, pose):
+        row = np.floor((y - hy) / 1.0).astype(int)
+        lit = (row + np.floor(np.arctan2(z - hz, x) * 4).astype(int)) % 2 == 0
+        return np.where(lit, IRON[1], IRON[0])
+    r.part('root', minus(hood, face), rings)
+    # A leather band where the hood meets the brow.
+    r.part('root', where(ellipsoid((0, hy + 0.6, hz - 0.6), (5.9, 6.9, 6.1)), lambda x, y, z: (y > hy + 2.4) & (y < hy + 3.2)), LEATHER[2])
+    return r
+
+
+def great_helm():
+    """A flat-topped steel great helm that closes over the whole head, with a
+    dark eye slit, a row of breathing holes and a gold cross down the front."""
+    hx, hy, hz = player.HEAD
+    r = new_rig(player.HEAD)
+
+    def pot(x, y, z):
+        return (np.hypot(x / 5.6, (z - hz + 0.4) / 5.8) <= 1.0) & (y > hy - 5.6) & (y < hy + 6.0)
+    pot.box = (np.array([-5.7, hy - 5.7, hz - 6.3]), np.array([5.7, hy + 6.1, hz + 5.5]))
+
+    def plates(x, y, z, pose):
+        out = np.where(hash2(np.floor(x).astype(int), np.floor(y).astype(int), 414) < 0.5, SILVER[1], IRON[1])
+        front = z > hz + 3.0
+        slit = front & (np.abs(y - (hy + 1.2)) < 0.6) & (np.abs(x) > 0.7)
+        holes = front & (np.abs(y - (hy - 2.2)) < 0.5) & (np.floor(x + 0.5).astype(int) % 2 == 0) & (np.abs(x) > 1.2)
+        cross = front & ((np.abs(x) < 0.7) | (np.abs(y - (hy + 1.2)) < 0.4) & ~slit)
+        out = np.where(cross, BRASS[0], out)
+        return np.where(slit | holes, IRON[0], out)
+    r.part('root', pot, plates)
+    r.part('root', where(ellipsoid((0, hy + 6.0, hz - 0.4), (5.6, 0.8, 5.8)), lambda x, y, z: True), IRON[1])
+    return r
+
+
+def kite_shield():
+    """A tall kite shield painted dark red, rounded at the top and coming to a
+    point below, a steel rim and a black raven across its face. Built and gripped
+    like the round shield."""
+    r = new_rig((0, 0, -1.6))
+
+    def outline(x, y):
+        top = np.hypot(x / 7.0, np.maximum(y - 4.0, 0) / 5.0) <= 1.0
+        below = (y <= 4.0) & (np.abs(x) <= 7.0 * np.clip((y + 14.0) / 18.0, 0, 1))
+        return top & (y <= 9.0) | below & (y >= -14.0)
+
+    def board(x, y, z):
+        return outline(x, y) & (np.abs(z) < 0.8)
+    board.box = (np.array([-7.2, -14.2, -0.9]), np.array([7.2, 9.2, 0.9]))
+
+    def paint(x, y, z, pose):
+        rim = ~outline(x * 1.16, (y - 1.0) * 1.12 + 1.0)
+        bird = (np.hypot(x / 3.6, (y - 1.0) / 1.2) <= 1.0) | (np.hypot(x / 1.2, (y - 1.5) / 3.6) <= 1.0)
+        out = np.where(bird & (z > 0), RAVEN[0], CLOTH_RED[1])
+        return np.where(rim, IRON[1], out)
+    r.part('root', board, paint)
+    r.part('root', capsule((-2.5, 0, -1.4), (2.5, 0, -1.4), 0.6), LEATHER[2])
+    return r
+
+
+def hand_axe():
+    """Wren's woodsman's hand axe: a short ash handle wrapped at the grip and one
+    bearded steel blade. Built like the Battle Axe: the haft along +Y, the blade
+    in the XY plane toward -X, which hangs back when she carries it."""
+    r = new_rig((0, 0, 0), yaw=-90)
+    r.part('root', capsule((0, -4.0, 0), (0, 17.0, 0), 0.9), lambda x, y, z, pose: np.where(np.floor(y * 0.7) % 7 == 0, WOOD[2], WOOD[0]))
+    r.part('root', capsule((0, -3.0, 0), (0, 2.5, 0), 1.1), LEATHER[2])
+
+    def blade(x, y, z):
+        # Narrow at the eye, widening to a curved bit that hangs down in a beard.
+        reach = (-x - 0.6) / 7.0
+        low = 11.0 - 4.5 * np.clip(reach, 0, None) ** 1.5
+        high = 16.5 + 1.5 * reach
+        return (x < -0.6) & (x > -7.6) & (y > low) & (y < high) & (np.abs(z) < 0.6 - 0.3 * reach)
+    blade.box = (np.array([-7.7, 5.5, -0.7]), np.array([-0.5, 18.2, 0.7]))
+    r.part('root', blade, lambda x, y, z, pose: np.where(x < -6.2, SILVER[0], SILVER[1]))
+    # The eye of the head around the haft, and a short poll behind it.
+    r.part('root', capsule((1.6, 14.2, 0), (-1.0, 14.2, 0), 1.5), IRON[1])
+    return r
+
+
+def falchion():
+    """A falchion: a broad single-edged blade that swells toward its clipped
+    point, an iron crossguard and a leather grip. Built like the short sword,
+    its edge toward -X like the axes' blades."""
+    r = new_rig((0, 0, 0), yaw=-90)
+    r.part('root', capsule((0, -3.5, 0), (0, 3.5, 0), 0.8), LEATHER[2])
+    r.part('root', ellipsoid((0, -4.6, 0), (1.1, 1.0, 1.0)), IRON[1])
+    r.part('root', capsule((-3.6, 4.4, 0), (3.6, 4.4, 0), 0.8), IRON[1])
+
+    def blade(x, y, z):
+        # The back stays straight; the edge bellies out and sweeps up to the point.
+        edge = 1.3 + 1.4 * np.clip((y - 5) / 20, 0, 1)
+        edge = np.where(y > 25, edge * np.clip((30 - y) / 5, 0, 1), edge)
+        return (x <= 1.1) & (x >= -edge) & (np.abs(z) < 0.5) & (y > 5) & (y < 30)
+    blade.box = (np.array([-2.8, 5, -0.6]), np.array([1.2, 30, 0.6]))
+    r.part('root', blade, lambda x, y, z, pose: np.where(x < -1.6, SILVER[0], SILVER[1]))
+    return r
+
+
+def flanged_mace():
+    """A flanged mace: a steel head of six upright flanges on an iron-banded
+    wooden haft."""
+    r = new_rig((0, 0, 0), yaw=-90)
+    r.part('root', capsule((0, -4.0, 0), (0, 22.0, 0), 0.9), lambda x, y, z, pose: np.where(np.floor(y) % 8 == 0, IRON[0], WOOD[1]))
+    r.part('root', capsule((0, -3.0, 0), (0, 2.5, 0), 1.1), LEATHER[2])
+    r.part('root', capsule((0, 18.0, 0), (0, 26.0, 0), 1.8), IRON[1])
+
+    def flanges(x, y, z):
+        angle = np.arctan2(z, x)
+        sector = np.abs(((angle / (np.pi / 3)) % 1.0) - 0.5) > 0.38
+        radius = np.hypot(x, z)
+        swell = 1.8 + 2.4 * np.sin(np.clip((y - 18.0) / 8.0, 0, 1) * np.pi)
+        return sector & (radius < swell) & (y > 18.0) & (y < 26.0)
+    flanges.box = (np.array([-4.3, 17.9, -4.3]), np.array([4.3, 26.1, 4.3]))
+    r.part('root', flanges, lambda x, y, z, pose: np.where(np.hypot(x, z) > 3.2, SILVER[0], SILVER[1]))
+    r.part('root', ellipsoid((0, 27.0, 0), (1.2, 1.4, 1.2)), SILVER[1])
+    return r
+
+
 GEAR = {
     'MinersHelmet': miners_helmet,
     'IronHelm': iron_helm,
     'RoundShield': round_shield,
     'ShortSword': short_sword,
     'MillstoneMaul': millstone_maul,
+    'HandAxe': hand_axe,
+    'Falchion': falchion,
+    'FlangedMace': flanged_mace,
+    'KiteShield': kite_shield,
+    'ChainCoif': chain_coif,
+    'GreatHelm': great_helm,
 }
 
 

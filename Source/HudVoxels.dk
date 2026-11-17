@@ -1,0 +1,570 @@
+// The iron frame of the action bar and the two ravens perched on its corners,
+// built from voxels and held in front of the camera like the globes. It is
+// modeled in bar pixels: X runs right and Y down from the bar's top left, as on
+// the UI grid, and D is the height toward the viewer. The bar draws its icons
+// and letters over it.
+HellfeatherHudVoxelArt
+#{
+    // Voxels per UI pixel, across the screen.
+    #float Detail = 1.5
+    #int GridWide = 420
+    #int GridTall = 150
+    // The bar pixel at the middle of the volume.
+    #float CenterX = 121.5
+    #float CenterY = 12.0
+    // Heights the volume covers, in pixels toward the viewer.
+    #float Nearest = 15.0
+    #float Farthest = -15.0
+    #int BodyLeft = 20
+    #int BodyRight = 222
+    #int BodyTop = 0
+    #int BodyBottom = 53
+    // The relief covers the body, one column per pixel.
+    #int ReliefWide = 243
+    #int ReliefTall = 54
+    #int Empty = -100
+    // Ravens sit this far behind the plate, so the frame's border covers them
+    // where they cling to its sides.
+    #float RavenDepth = -7.0
+    #float RavenScale = 1.2
+    // How far the wings sit in front of the rest of the raven, to clear the rim.
+    #float WingLift = 9.0
+    // Each raven grips the outer side of the frame this far below its top, so it
+    // hugs the border and its tail hangs down beside it.
+    #float RavenDrop = 12.0
+    #int RavenOut = 2
+
+    #int Iron = 0x2e2a27
+    #int IronDark = 0x1c1918
+    #int IronLight = 0x5d564d
+    #int IronEdge = 0x7a7064
+    #int Rivet = 0x9b8a6a
+    #int RivetBright = 0xd5c5aa
+    #int Bronze = 0x7d593e
+    #int BronzeBright = 0xb49672
+    #int Well = 0x0f0e12
+    #int WellShadow = 0x07060a
+    #int Feather = 0x1b1d27
+    #int FeatherMid = 0x272c3b
+    #int Sheen = 0x4a5878
+    #int SheenBright = 0x7484a8
+    #int Beak = 0x2f2f36
+    #int BeakBright = 0x8c8c96
+    #int Talon = 0x9b8f78
+    #int Eye = 0xf0a830
+    #int Pupil = 0x3a1808
+    #int Line = 0x0e0f15
+    #int Gloss = 0x3e3a62
+
+    -float Sq(float value) { return value * value }
+
+    // True inside the portal's arch, grown outward by Grow pixels.
+    bool InPortal(int x, int y, int grow)
+    {
+        float left = (float)HellfeatherActionBar.PortalX
+        float top = (float)HellfeatherActionBar.PortalY
+        float wide = (float)HellfeatherActionBar.PortalSize
+        float bottom = top + (float)HellfeatherActionBar.PortalHeight - 1.0 + (float)grow
+        float middle = left + wide * 0.5 - 0.5
+        float radius = wide * 0.5 + (float)grow
+        // Center of the half circle that crowns the arch.
+        float crown = top + wide * 0.5
+        float px = (float)x
+        float py = (float)y
+        if px < middle - radius || px > middle + radius || py > bottom || py < top - (float)grow { return false }
+        if py < crown { return Sq(px - middle) + Sq(py - crown) <= radius * radius }
+        return true
+    }
+
+    // Height and color of the relief at one pixel column.
+    Relief(int x, int y, int& height, int& color)
+    {
+        height = Empty
+        color = 0
+        if x < BodyLeft || x > BodyRight || y < BodyTop || y > BodyBottom { return }
+        int n = HellfeatherArt.Hash(x, y, 7)
+        height = 2
+        color = HellfeatherArt.Shade(0x221e1c, 88 + n % 18)
+        // Brushed grain across the back plate.
+        if (y * 7 + (x / 9) * 3) % 11 == 0 { color = HellfeatherArt.Shade(color, 80) }
+        int edge = Math.Min(Math.Min(x - BodyLeft, BodyRight - x), Math.Min(y - BodyTop, BodyBottom - y))
+        if edge < 3 {
+            height = edge == 0 ? 4 | 5
+            color = HellfeatherArt.Shade(edge == 0 ? IronLight | Iron, 90 + n % 20)
+            if y == BodyTop || (edge == 1 && y < 3) { color = HellfeatherArt.Shade(IronEdge, 95 + n % 10) }
+            int along = (x - BodyLeft) % 16
+            if edge >= 1 && (y == 2 || y > BodyBottom - 3) && (along == 7 || along == 8) && x >= HellfeatherActionArt.DividerOne && x < HellfeatherActionArt.DividerThree + HellfeatherActionArt.DividerWidth {
+                height = 6
+                color = along == 7 ? RivetBright | Rivet
+            }
+        }
+        // The groove the experience bar fills.
+        if y == 1 && x >= HellfeatherActionArt.DividerOne && x < HellfeatherActionArt.DividerThree + HellfeatherActionArt.DividerWidth {
+            height = 2
+            color = 0x100c0a
+        }
+        // Studded caps on the four corners.
+        int [4] capX = {BodyLeft + 3, BodyRight - 3, BodyLeft + 3, BodyRight - 3}
+        int [4] capY = {BodyTop + 3, BodyTop + 3, BodyBottom - 3, BodyBottom - 3}
+        for i : 0; i < 4; i++ {
+            int dx = Math.Abs(x - capX[i])
+            int dy = Math.Abs(y - capY[i])
+            if dx > 4 || dy > 4 { continue }
+            int step = Math.Max(dx, dy)
+            height = 9 - step
+            if step > 1 { color = HellfeatherArt.Shade(IronLight, 70 + (4 - step) * 12) }
+            else { color = dx + dy == 0 ? RivetBright | Rivet }
+        }
+        if height > 5 || edge < 3 { return }
+        RailRelief(x, y, n, height, color)
+        DividerRelief(x, y, n, height, color)
+        WellRelief(x, y, n, height, color)
+        KeyRelief(x, y, n, height, color)
+        PortalRelief(x, y, n, height, color)
+    }
+
+    // The five panel buttons down the left. The bar draws their icons.
+    -RailRelief(int x, int y, int n, int& height, int& color)
+    {
+        int first = HellfeatherActionArt.PanelX
+        int last = first + HellfeatherActionArt.PanelWidth - 1
+        int step = HellfeatherActionArt.PanelStep
+        if x < first || x > last || y < 1 || y > 5 * step { return }
+        int row = (y - 1) % step
+        if row == step - 1 || x == first || x == last {
+            height = 2
+            color = IronDark
+        }
+        else {
+            height = 3
+            color = row == 0 ? HellfeatherArt.Shade(IronLight, 85) | HellfeatherArt.Shade(0x34302c, 88 + n % 14)
+        }
+    }
+
+    -DividerRelief(int x, int y, int n, int& height, int& color)
+    {
+        int [3] starts = {HellfeatherActionArt.DividerOne, HellfeatherActionArt.DividerTwo, HellfeatherActionArt.DividerThree}
+        for i : 0; i < 3; i++ {
+            int a = starts[i]
+            int b = a + HellfeatherActionArt.DividerWidth - 1
+            if x < a || x > b || y < 3 || y > BodyBottom - 3 { continue }
+            bool inner = x > a && x < b
+            height = inner ? 5 | 4
+            color = x != a ? HellfeatherArt.Shade(Iron, 95 + n % 15) | HellfeatherArt.Shade(IronLight, 90)
+            if inner && (y == 8 || y == 9 || y == BodyBottom - 10 || y == BodyBottom - 9) {
+                height = 6
+                color = Rivet
+            }
+        }
+    }
+
+    // Each action slot is a pit sunk into the plate. The mouse slots have bronze lips.
+    -WellRelief(int x, int y, int n, int& height, int& color)
+    {
+        for slot : HellfeatherActionSlot {
+            int sx = 0
+            int sy = 0
+            int sw = 0
+            int sh = 0
+            HellfeatherActionArt.SlotRect(slot, sx, sy, sw, sh)
+            if x < sx - 1 || x > sx + sw || y < sy - 1 || y > sy + sh { continue }
+            int ring = Math.Min(Math.Min(x - sx + 1, sx + sw - x), Math.Min(y - sy + 1, sy + sh - y))
+            if slot < HellfeatherActionSlot.Q {
+                if ring == 0 {
+                    height = 4
+                    color = Bronze
+                }
+                else if ring == 1 {
+                    height = 5
+                    color = y == sy || x == sx ? BronzeBright | Bronze
+                }
+                else if ring == 2 {
+                    height = 1
+                    color = WellShadow
+                }
+                else {
+                    height = 0
+                    color = HellfeatherArt.Shade(Well, 90 + n % 20)
+                }
+            }
+            else if ring == 0 {
+                height = 3
+                color = y == sy - 1 ? IronLight | Iron
+            }
+            else if ring == 1 {
+                height = 1
+                color = WellShadow
+            }
+            else {
+                height = 0
+                color = HellfeatherArt.Shade(Well, 90 + n % 20)
+            }
+        }
+    }
+
+    // Raised plates under the slots. The bar draws the keys on them.
+    -KeyRelief(int x, int y, int n, int& height, int& color)
+    {
+        int width = HellfeatherActionArt.KeyWidth
+        int top = HellfeatherActionArt.KeyY
+        int bottom = top + HellfeatherActionArt.KeyHeight - 1
+        if y < top || y > bottom { return }
+        // Only the two mouse slots and the portal have plates; Q, E and F carry
+        // their letters inside the slot.
+        for i : 0; i < 3; i++ {
+            int left = i < 2 ? HellfeatherActionArt.KeyX(HellfeatherActionSlot.Left + i) | HellfeatherActionBar.PortalX + HellfeatherActionBar.PortalSize / 2 - width / 2
+            if x < left || x >= left + width { continue }
+            int ring = Math.Min(Math.Min(x - left, left + width - 1 - x), Math.Min(y - top, bottom - y))
+            height = ring == 0 ? 3 | 4
+            color = ring == 0 ? HellfeatherArt.Shade(IronLight, 80) | HellfeatherArt.Shade(0x3a3434, 90 + n % 12)
+        }
+    }
+
+    // An iron arch around a swirling well of violet, with a gem for its keystone.
+    -PortalRelief(int x, int y, int n, int& height, int& color)
+    {
+        float middle = (float)HellfeatherActionBar.PortalX + (float)HellfeatherActionBar.PortalSize * 0.5 - 0.5
+        if InPortal(x, y, 2) {
+            if !InPortal(x, y, 0) {
+                height = 6
+                color = InPortal(x, y, 1) ? HellfeatherArt.Shade(IronLight, 85 + n % 20) | Iron
+            }
+            else {
+                float dx = ((float)x - middle) / ((float)HellfeatherActionBar.PortalSize * 0.5)
+                float dy = ((float)y - (float)HellfeatherActionBar.PortalY - (float)HellfeatherActionBar.PortalHeight * 0.5) / ((float)HellfeatherActionBar.PortalHeight * 0.5)
+                float r = Math.Hypot(dx, dy)
+                float swirl = Math.Sin(Math.Atan2(dy, dx) * 2.0 + r * 9.0)
+                int percent = (int)(70.0 + (1.0 - Math.Min(r, 1.0)) * 110.0 + swirl * 25.0)
+                height = r > 0.55 ? -1 | 0
+                color = HellfeatherArt.Shade(swirl > 0.2 ? 0x7e29bd | 0x501e88, percent)
+                if r < 0.18 { color = HellfeatherArt.Shade(0xdb67f3, 110) }
+            }
+        }
+        int top = HellfeatherActionBar.PortalY
+        if Math.Abs((float)x - middle) <= 1.5 && y >= top - 3 && y <= top - 1 {
+            height = 8
+            color = y > top - 3 ? 0xdb67f3 | 0xf0b9f5
+        }
+    }
+
+    // Color of a raven at a point, or -1. A runs forward along its gaze, B up and
+    // C toward the viewer, in pixels from where its feet grip. It sits upright,
+    // its folded wing reaching down the back and its long tail hanging below.
+    // Feathers show by their glossy light rims, as on a real raven.
+    int RavenColor(float a, float b, float c)
+    {
+        int n = HellfeatherArt.Hash((int)(a * 3.0), (int)(b * 3.0), (int)(c * 3.0))
+        int best = -1
+        float side = Math.Abs(Math.Abs(c) - 1.6)
+        float [2] toes = {-1.0, 2.2}
+        for i : 0; i < 2; i++ { if Math.Abs(a - toes[i]) <= 1.1 && b >= -1.0 && b <= 1.0 && side <= 0.8 { return Talon } }
+        if Math.Abs(a - 0.3) <= 0.8 && b >= 0.0 && b <= 4.0 && side <= 0.7 { return HellfeatherArt.Shade(Talon, 55) }
+        float along = 0.0
+        float across = 0.0
+        // The tail: a long narrow wedge, its middle feathers longest.
+        Axis(a, b, -3.0, 4.0, 252.0, along, across)
+        if along >= 0.0 && along <= 25.0 && Math.Abs(c - 1.0) <= 1.2 {
+            float half = 2.0 + along * 0.05
+            if Math.Abs(across) <= half && along <= 25.0 - Math.Abs(across) * 1.2 {
+                float vane = Wrap(across + half, 1.3)
+                best = vane < 0.35 ? Sheen | Feather
+                if along > 23.2 - Math.Abs(across) { best = HellfeatherArt.Shade(Sheen, 120) }
+            }
+        }
+        // The body, upright with the chest bulging forward.
+        Axis(a, b, -1.5, 10.0, 65.0, along, across)
+        float chest = across > 0.0 ? 7.0 | 5.0
+        if Sq(along / 10.0) + Sq(across / chest) + Sq(c / 5.5) <= 1.0 {
+            best = HellfeatherArt.Shade(n % 4 != 0 ? FeatherMid | Feather, 92 + n % 14)
+            // Small breast feathers in rows, their rims catching the light.
+            float rows = along * 0.9 + 20.0
+            if across > 1.0 && Wrap(rows, 1.0) < 0.3 && ((int)rows + (int)c) % 2 == 0 { best = HellfeatherArt.Shade(Sheen, 85) }
+        }
+        // The neck, with ruffled hackles.
+        Axis(a, b, 1.5, 19.0, 75.0, along, across)
+        if Sq(along / 5.5) + Sq(across / 4.2) + Sq(c / 4.0) <= 1.0 {
+            best = HellfeatherArt.Shade(FeatherMid, 90 + n % 15)
+            if across > 1.5 && (int)((along + 6.0) * 1.6) % 2 == 0 { best = HellfeatherArt.Shade(Sheen, 75) }
+        }
+        // Shaggy throat feathers jut forward under the beak.
+        if a >= 2.5 && a <= 6.5 && b >= 15.5 && b <= 20.5 && Math.Abs(c) <= 2.5 {
+            bool odd = (int)(b * 2.0) % 2 == 1
+            if a - 2.5 <= ((b - 15.5) * 0.8 + 2.5) * (odd ? 1.0 | 0.6) { best = odd ? HellfeatherArt.Shade(FeatherMid, 85 + n % 20) | Line }
+        }
+        // The head, flat on top and a little long.
+        float headB = b - 23.0
+        float headHigh = headB > 0.0 ? 4.0 | 4.6
+        if Sq((a - 3.2) / 4.8) + Sq(headB / headHigh) + Sq(c / 4.0) <= 1.0 {
+            best = HellfeatherArt.Shade(headB > 2.2 ? Sheen | FeatherMid, 88 + n % 15)
+            if Math.Abs(a - 5.0) <= 0.8 && Math.Abs(b - 23.6) <= 0.8 && Math.Abs(c) > 2.6 { best = a > 4.8 ? Eye | Pupil }
+        }
+        // A heavy straight beak, hooked at the tip.
+        if a >= 6.5 && a <= 14.0 {
+            float share = (a - 6.5) / 7.5
+            float middle = 22.6 - share * 0.6 - share * share * share * share * 1.6
+            float r = 2.3 * (1.0 - share * 0.85) + 0.3
+            if Sq(b - middle) + Sq(c * 1.15) <= r * r { best = b > middle + r * 0.5 ? BeakBright | Beak }
+        }
+        return best
+    }
+
+    // The folded wing on a raven's near side, from the shoulder down over the
+    // tail, in the raven's own frame (see RavenColor), or -1.
+    int WingColor(float a, float b, float c)
+    {
+        int n = HellfeatherArt.Hash((int)(a * 3.0), (int)(b * 3.0), (int)(c * 3.0))
+        float along = 0.0
+        float across = 0.0
+        Axis(a, b, -0.5, 17.0, 248.0, along, across)
+        if along >= 0.0 && along <= 21.0 {
+            float width = along < 7.0 ? 3.5 + along * 0.25 | 5.25 * (1.0 - (along - 7.0) / 16.0) + 0.6
+            if Math.Abs(across) <= width && Math.Abs(c - 4.6 + along * 0.05) <= 1.2 {
+                if across < -width + 0.9 { return SheenBright }
+                else if across > width - 0.6 { return Line }
+                else if along < 9.0 {
+                    // Coverts: rounded scallops in staggered rows, with light rims.
+                    int row = (int)(along / 2.4)
+                    float offset = Wrap(across + (float)(row % 2) * 1.2, 2.4)
+                    bool rim = Wrap(along, 2.4) > 1.6 + Math.Abs(offset - 1.2) * 0.5
+                    return rim ? Sheen | (n % 3 != 0 ? FeatherMid | Feather)
+                }
+                else {
+                    // Primaries: long feathers with glossy rims between them.
+                    float vane = Wrap(across + width, 1.8)
+                    return vane < 0.45 ? Sheen | (vane > 1.4 ? Gloss | Feather)
+                }
+            }
+        }
+        return -1
+    }
+
+    // A point's coordinates along and across an axis through (fromA, fromB),
+    // pointing Degrees counterclockwise from forward.
+    -Axis(float a, float b, float fromA, float fromB, float degrees, float& along, float& across)
+    {
+        float radians = degrees * 0.01745329
+        float da = a - fromA
+        float db = b - fromB
+        along = da * Math.Cos(radians) + db * Math.Sin(radians)
+        across = db * Math.Cos(radians) - da * Math.Sin(radians)
+    }
+
+    // Value modulo Size, always from 0 up to Size.
+    -float Wrap(float value, float size) { return value - (float)(int)(value / size) * size }
+
+    // Claw tips of a raven clinging behind the frame, in pixels: A inward from
+    // its perch, B up from it and D toward the viewer. Each toe comes round the
+    // outer side of the rim, runs over its top and hooks down its inner edge.
+    int ClawColor(float a, float b, float d)
+    {
+        float [4] toes = {-2.2, -0.8, 1.6, 3.0}
+        for i : 0; i < 4; i++ {
+            if Math.Abs(b - toes[i]) > 0.6 { continue }
+            if a >= 0.0 && a < 2.0 && d >= -4.0 && d <= 6.0 { return HellfeatherArt.Shade(Talon, 70) }
+            if a >= 2.0 && a < 4.5 && d >= 5.0 && d <= 6.5 { return Talon }
+            if a >= 4.5 && a < 5.5 && d >= 3.0 && d <= 6.0 { return 0x2a2622 }
+        }
+        return -1
+    }
+
+    int ModelColor(float x, float y, float d, int [] & heights, int [] & colors)
+    {
+        // Claw tips are the only part of a raven in front of the frame.
+        for i : 0; i < 2; i++ {
+            float perch = i == 0 ? (float)(BodyLeft - RavenOut) | (float)(BodyRight + RavenOut)
+            int claw = ClawColor(i == 0 ? x - perch | perch - x, (float)BodyTop + RavenDrop - y, d)
+            if claw >= 0 { return claw }
+        }
+        // The wings lie over the frame's border, lifted in front of it. Seen
+        // straight down the view, depth does not move them on screen.
+        for i : 0; i < 2; i++ {
+            float perch = i == 0 ? (float)(BodyLeft - RavenOut) | (float)(BodyRight + RavenOut)
+            float a = i == 0 ? x - perch | perch - x
+            float b = (float)BodyTop + RavenDrop - y
+            int wing = WingColor(a / RavenScale, b / RavenScale, (d - RavenDepth - WingLift) / RavenScale)
+            if wing >= 0 { return wing }
+        }
+        // The frame next: the rest of each raven sits behind it.
+        if x >= 0.0 && y >= 0.0 && (int)x < ReliefWide && (int)y < ReliefTall {
+            int at = (int)y * ReliefWide + (int)x
+            int height = heights[at]
+            if height != Empty && d >= -2.0 && d <= (float)height { return d > (float)(height - 1) ? colors[at] | HellfeatherArt.Shade(colors[at], 70) }
+        }
+        for i : 0; i < 2; i++ {
+            float perch = i == 0 ? (float)(BodyLeft - RavenOut) | (float)(BodyRight + RavenOut)
+            float a = i == 0 ? x - perch | perch - x
+            float b = (float)BodyTop + RavenDrop - y
+            if a < -30.0 || a > 22.0 || b < -26.0 || b > 34.0 { continue }
+            int raven = RavenColor(a / RavenScale, b / RavenScale, (d - RavenDepth) / RavenScale)
+            if raven >= 0 { return raven }
+        }
+        return -1
+    }
+}
+
+// The voxel HUD in the scene. It is built on the first frame that has a window,
+// so headless runs never pay for it.
+HellfeatherHudVoxels
+{
+    int Node
+    int Volume = -1
+    // Each eye voxel as x, y, z and its raven, for blinking.
+    -int [] Eyes
+    -int [] EyeColors
+    -float [2] BlinkSeconds
+    -bool [2] Shut
+    -int Blinks
+    -int CameraNode
+
+    bool Spawn(QuaxelWorld& world, int camera)
+    {
+        CameraNode = camera
+        Node = world.CreateChild(camera)
+        world.AttachTransform(Node, QuaxelTransform.Make(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)))
+        BlinkSeconds[0] = 2.5
+        BlinkSeconds[1] = 4.0
+        return Node != 0
+    }
+
+    // Heights and colors of every column of the relief.
+    BuildRelief(int [] & heights, int [] & colors)
+    {
+        for y : 0; y < HellfeatherHudVoxelArt.ReliefTall; y++ {
+            for x : 0; x < HellfeatherHudVoxelArt.ReliefWide; x++ {
+                int height = 0
+                int color = 0
+                HellfeatherHudVoxelArt.Relief(x, y, height, color)
+                heights += height
+                colors += color
+            }
+        }
+    }
+
+    // Fills the volume on the iso grid the camera looks along, as the globes do:
+    // U runs right, V up and W toward the viewer.
+    bool Build(QuaxelWorld& world)
+    {
+        int [] heights
+        int [] colors
+        BuildRelief(heights, colors)
+        int wide = HellfeatherHudVoxelArt.GridWide
+        int tall = HellfeatherHudVoxelArt.GridTall
+        Volume = world.CreateVolume(wide, tall, wide)
+        if Volume < 0 { return false }
+        float detail = HellfeatherHudVoxelArt.Detail
+        int half = wide / 2
+        int halfTall = tall / 2
+        float root3 = 1.7320508
+        for gx : -half; gx < half; gx++ {
+            for gz : -half; gz < half; gz++ {
+                // Only the thin slab of W the HUD occupies.
+                int low = Math.Max(-halfTall, (int)(HellfeatherHudVoxelArt.Farthest * detail * root3) - gx - gz - 1)
+                int high = Math.Min(halfTall, (int)(HellfeatherHudVoxelArt.Nearest * detail * root3) - gx - gz + 2)
+                for gy : low; gy < high; gy++ {
+                    float px = (float)gx + 0.5
+                    float py = (float)gy + 0.5
+                    float pz = (float)gz + 0.5
+                    float x = HellfeatherHudVoxelArt.CenterX + (px - pz) * 0.70710678 / detail
+                    float y = HellfeatherHudVoxelArt.CenterY - (2.0 * py - px - pz) * 0.40824829 / detail
+                    if x < -4.0 || x > (float)HellfeatherActionArt.BarWidth + 4.0 || y < -32.0 || y > 60.0 { continue }
+                    int color = HellfeatherHudVoxelArt.ModelColor(x, y, (px + py + pz) * 0.57735027 / detail, heights, colors)
+                    if color < 0 { continue }
+                    world.SetVoxel(Volume, gx + half, gy + halfTall, gz + half, HellfeatherArt.Rgb(color))
+                    if color == HellfeatherHudVoxelArt.Eye || color == HellfeatherHudVoxelArt.Pupil {
+                        Eyes += gx + half
+                        Eyes += gy + halfTall
+                        Eyes += gz + half
+                        Eyes += x < HellfeatherHudVoxelArt.CenterX ? 0 | 1
+                        EyeColors += HellfeatherArt.Rgb(color)
+                    }
+                }
+            }
+        }
+        return world.AttachVoxels(Node, Volume)
+    }
+
+    // Each raven blinks on its own, every few seconds.
+    Step(QuaxelWorld& world, float deltaSeconds)
+    {
+        if Volume < 0 { return }
+        for raven : 0; raven < 2; raven++ {
+            BlinkSeconds[raven] -= deltaSeconds
+            if BlinkSeconds[raven] > 0.0 { continue }
+            Shut[raven] = !Shut[raven]
+            Blinks++
+            BlinkSeconds[raven] = Shut[raven] ? 0.14 | 2.5 + (float)(HellfeatherArt.Hash(Blinks, raven, 11) % 400) / 100.0
+            int lid = HellfeatherArt.Rgb(HellfeatherHudVoxelArt.FeatherMid)
+            for i : 0; i < EyeColors.Len; i++ {
+                if Eyes[i * 4 + 3] != raven { continue }
+                world.SetVoxel(Volume, Eyes[i * 4], Eyes[i * 4 + 1], Eyes[i * 4 + 2], Shut[raven] ? lid | EyeColors[i])
+            }
+        }
+    }
+
+    // Lines the frame up with the bar on the UI grid. BarLeft and BarTop are in
+    // UI pixels, and Scale is screen pixels per UI pixel.
+    Anchor(QuaxelWorld& world, int width, int height, int barLeft, int barTop, int scale)
+    {
+        if width <= 0 || height <= 0 { return }
+        if Volume < 0 && !Build(world) { return }
+        QuaxelCamera camera = world.GetCamera(CameraNode)
+        camera.UpdateBounds(width, height)
+        float perPixel = 2.0 * camera.BoundsHalfWidth / (float)width
+        float screenX = ((float)barLeft + HellfeatherHudVoxelArt.CenterX) * (float)scale
+        float screenY = ((float)barTop + HellfeatherHudVoxelArt.CenterY) * (float)scale
+        vec3 forward = camera.Forward()
+        vec3 right = camera.Right()
+        vec3 up = right.Cross(forward)
+        QuaxelTransform pose = world.GetTransform(Node)
+        pose.Position = right * (screenX * perPixel - camera.BoundsHalfWidth) + up * (camera.BoundsHalfHeight - screenY * perPixel) + forward * Depth
+        float cell = perPixel * (float)scale / HellfeatherHudVoxelArt.Detail
+        pose.Scale = vec3(cell, cell, cell)
+        world.SetTransform(Node, pose)
+    }
+}
+#{
+    // Behind the eye like the globes. Less negative is farther from the viewer,
+    // so the globes stay in front where the two overlap.
+    #float Depth = -29.0
+}
+T{
+    TheFrameIsRaisedAroundSunkenWellsAndTheRavensPerchAboveIt()
+    {
+        HellfeatherHudVoxels hud
+        int [] heights
+        int [] colors
+        hud.BuildRelief(heights, colors)
+        int wide = HellfeatherHudVoxelArt.ReliefWide
+        int x = 0
+        int y = 0
+        int w = 0
+        int h = 0
+        HellfeatherActionArt.SlotRect(HellfeatherActionSlot.Left, x, y, w, h)
+        int floor = heights[(y + h / 2) * wide + x + w / 2]
+        int lip = heights[(y - 1) * wide + x + w / 2]
+        T.IsTrue(floor < lip)
+        T.AreEqual(heights[0], HellfeatherHudVoxelArt.Empty)
+        // A raven's body hugs the left side of the frame, level with its top.
+        float perch = (float)(HellfeatherHudVoxelArt.BodyLeft - HellfeatherHudVoxelArt.RavenOut)
+        // Its claws hook over the front of the side rim.
+        float rimTop = (float)(HellfeatherHudVoxelArt.BodyLeft + 1)
+        T.AreEqual(HellfeatherHudVoxelArt.ModelColor(rimTop, HellfeatherHudVoxelArt.RavenDrop + 0.8, 6.0, heights, colors), HellfeatherHudVoxelArt.Talon)
+        T.IsTrue(HellfeatherHudVoxelArt.ModelColor(perch, 0.0, HellfeatherHudVoxelArt.RavenDepth, heights, colors) >= 0)
+        T.IsTrue(HellfeatherHudVoxelArt.ModelColor(HellfeatherHudVoxelArt.CenterX, -12.0, 0.0, heights, colors) < 0)
+        // The frame and the bar agree on where the body is.
+        T.AreEqual(HellfeatherHudVoxelArt.BodyLeft, HellfeatherActionArt.BodyLeft)
+        T.AreEqual(HellfeatherHudVoxelArt.BodyRight, HellfeatherActionArt.BodyRight)
+        T.AreEqual(HellfeatherHudVoxelArt.ReliefWide, HellfeatherActionArt.BarWidth)
+        // Rail buttons stand proud of the plate, with gaps between them.
+        T.AreEqual(heights[5 * wide + 30], 3)
+        T.AreEqual(heights[HellfeatherActionArt.PanelStep * wide + 30], 2)
+    }
+
+    TheVolumeIsBuiltOnlyWhenAWindowAnchorsIt()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.AreEqual(game.HudVoxels.Volume, -1)
+    }
+}

@@ -5,8 +5,9 @@ oilcloth coat over a leather jerkin, a miner's leather cap with its lamp pushed
 back, a grey scarf over her mouth for the Grey Cough, her right sleeve rolled to
 show the Tithe-mark, a silver lattice from wrist to elbow (Story.md).
 
-The game (Warrior.dk, HellfeatherGame.dk) plays three clips: idle, walk and
-attack, and her axe, Assets/BattleAxe.qvox, rides the `hand_r` socket that every
+The game (Warrior.dk, HellfeatherGame.dk) plays idle and walk, and for her
+actions attack, cleave and shout, each with a twin ending in _walk that has the
+walk's legs under the same upper body, for acting on the move. Her axe, Assets/BattleAxe.qvox, rides the `hand_r` socket that every
 frame carries. The swing lands on frame 3 (HellfeatherGame.AxeStrikeFrame).
 HellfeatherWarrior.Height must be the model's box height, the middle number the
 build prints, because the game stands her by half of it; VoxelSize stays 0.025.
@@ -52,6 +53,10 @@ def wren(armor=False):
 
     # The body as she is: bare legs and feet, shorts, the vest.
     legs(b, skin, SKIN[1], gap=3.4, thigh=(2.9, 2.2), shin=(2.1, 1.5))
+    # Coat tails hang from the waist on each side and follow their leg (see
+    # COAT_FOLLOW). Both outfits have the bones, so they share clips.
+    r.bone('r_coat', (-3.6, 39, 0), 'root')
+    r.bone('l_coat', (3.6, 39, 0), 'root')
     for name, sx in (('r_hip', -3.6), ('l_hip', 3.6)):
         b.part(name, capsule((sx * 1.05, 34, 0), (sx, 27.5, 0.2), 3.7, 3.4), speckled(SHORTS, 408, 2, 2))
     b.part('root', column(29, 39, flat(7.6), flat(5.6), flat(0.2)), speckled(SHORTS, 408, 2, 2))
@@ -87,8 +92,14 @@ def wren(armor=False):
             b.part(knee, capsule((side, 17.5, 0.4), (side, 16.0, 0.4), 3.3), LEATHER[3])
             b.part(knee, union(ellipsoid((side, 1.6, 1.9), (2.5, 1.7, 3.6)), capsule((side, 3, 0), (side, 1.2, 0.5), 2.1)), FACE_DARK[0])
         # The long coat, open in front to show the jerkin, to just below the knee.
+        # Its tails hang from the coat bones rather than the root, split down the
+        # back like a riding coat's vent, so each tail swings with its leg instead
+        # of the leg pushing through it.
         opening = coat_front(1.8, 5.0, hem=14)
-        b.skirt(coat, hem=14, flare=3.6, wave=0.4, front_cut=opening, grow=0.6)
+        tails, _, _ = b.skirt(coat, hem=14, flare=3.6, wave=0.4, front_cut=opening, grow=0.6)
+        r.parts.pop()
+        b.part('r_coat', where(tails, lambda x, y, z: x < 0.6), coat)
+        b.part('l_coat', where(tails, lambda x, y, z: x > -0.6), coat)
 
         def chest(x, y, z, pose):
             out = coat(x, y, z, pose)
@@ -102,8 +113,9 @@ def wren(armor=False):
         b.torso(chest, grow=0.7)
         b.belt(LEATHER[2], y=37, buckle=BRASS[0], height=2.2)
         b.part('chest', capsule((-6.5, 54.5, 4.8), (6.5, 38.5, 7.2), 0.9), LEATHER[2])
-        b.part('root', ellipsoid((6.8, 34.0, 6.8), (2.6, 3.0, 1.8)), LEATHER[1])
-        b.part('root', ellipsoid((-6.0, 33.6, 7.2), (2.0, 2.4, 1.6)), LEATHER[1])
+        # Pouches on the coat tails, so they ride with the cloth.
+        b.part('l_coat', ellipsoid((6.8, 34.0, 6.8), (2.6, 3.0, 1.8)), LEATHER[1])
+        b.part('r_coat', ellipsoid((-6.0, 33.6, 7.2), (2.0, 2.4, 1.6)), LEATHER[1])
         # Sleeves: the right rolled above the Tithe-mark, the left full, gloved.
         b.part('r_shoulder', capsule((-9.0, 53, 0), (-10.6, 42, 1.0), 3.3, 3.0), coat)
         b.part('r_elbow', capsule((-10.6, 42.5, 1.0), (-10.65, 40.6, 1.2), 3.4), MUD[1])
@@ -126,6 +138,36 @@ def wren(armor=False):
     r.socket('head', 'head', HEAD)
     return b
 
+# How far each coat tail turns with its leg, as a share of the hip's pitch.
+COAT_FOLLOW = 0.8
+# One walk cycle: eight frames of 76 milliseconds.
+WALK_MS = 8 * 76
+LEGS = ('r_hip', 'l_hip', 'r_knee', 'l_knee', 'offset')
+
+
+def walk_legs(a):
+    """Hips, knees and the bob of the walk at phase a, in radians."""
+    s = math.sin(a)
+    return {'r_hip': (-26 * s, 0, 0), 'l_hip': (26 * s, 0, 0),
+            # Each knee bends as its leg swings through.
+            'r_knee': (6 + 26 * max(0.0, -math.sin(a - 0.6)), 0, 0),
+            'l_knee': (6 + 26 * max(0.0, math.sin(a - 0.6)), 0, 0),
+            'offset': (0, -0.8 * (1 - abs(math.cos(a))), 0)}
+
+
+def walking(frames):
+    """The same frames with the walk's legs under them, for using an action on
+    the move. The upper body keeps the action's pose and timing; the legs and
+    the bob come from the walk at the matching moment of its cycle."""
+    out, at = [], 0
+    for pose, ms in frames:
+        upper = {k: v for k, v in pose.items() if k not in LEGS}
+        upper.update(walk_legs(2 * math.pi * (at + ms / 2) / WALK_MS))
+        out.append((upper, ms))
+        at += ms
+    return out
+
+
 def clips():
     hunch = {'chest': (5, 0, 0), 'head': (-4, 0, 0)}
 
@@ -133,6 +175,10 @@ def clips():
         out = dict(hunch)
         for k, v in pose.items():
             out[k] = tuple(a + b for a, b in zip(out.get(k, (0, 0, 0)), v)) if isinstance(v, tuple) else v
+        # The coat tails follow the legs, so a stride never pokes through them.
+        for side in ('r', 'l'):
+            pitch = out.get(f'{side}_hip', (0, 0, 0))[0]
+            out[f'{side}_coat'] = (pitch * COAT_FOLLOW, 0, 0)
         return out
     idle = [
         ({}, 500), ({'chest': (1, 0, 0)}, 500), ({'chest': (2, 0, 0), 'head': (2, 8, 0)}, 500), ({'chest': (1, 0, 0), 'head': (1, 4, 0)}, 500),
@@ -146,27 +192,53 @@ def clips():
     for k in range(8):
         a = k * math.pi / 4
         s = math.sin(a)
-        walk.append(({'r_hip': (-26 * s, 0, 0), 'l_hip': (26 * s, 0, 0),
-                      # Each knee bends as its leg swings through.
-                      'r_knee': (6 + 26 * max(0.0, -math.sin(a - 0.6)), 0, 0),
-                      'l_knee': (6 + 26 * max(0.0, math.sin(a - 0.6)), 0, 0),
-                      'chest': (8, 0, 3 * s), 'head': (-4, 0, -2 * s),
-                      'r_shoulder': (16 * s, 0, 0), 'l_shoulder': (-16 * s, 0, 0), 'l_elbow': (-12, 0, 0), 'r_elbow': (-14, 0, 0),
-                      'offset': (0, -0.8 * (1 - abs(math.cos(a))), 0)}, 76))
+        walk.append((dict(walk_legs(a), **{
+            'chest': (8, 0, 3 * s), 'head': (-4, 0, -2 * s),
+            'r_shoulder': (16 * s, 0, 0), 'l_shoulder': (-16 * s, 0, 0), 'l_elbow': (-12, 0, 0), 'r_elbow': (-14, 0, 0)}), 76))
     step = {'l_hip': (-22, 0, 0), 'r_hip': (12, 0, 0), 'l_knee': (14, 0, 0), 'r_knee': (8, 0, 0)}
+    # The chest twists little against the hips and the shoulder takes the rest,
+    # so the coat stays whole around the belt.
     attack = [
-        ({'r_shoulder': (-30, 0, -10), 'r_elbow': (-40, 0, 0), 'chest': (4, -10, 0)}, 72),
-        (dict(step, r_shoulder=(-125, 0, -14), r_elbow=(-70, 0, 0), chest=(-6, -20, 0), head=(-4, 0, 0), l_shoulder=(-30, 0, 10)), 95),
-        (dict(step, r_shoulder=(-165, 0, -10), r_elbow=(-80, 0, 0), chest=(-12, -24, 0), head=(-6, 0, 0), l_shoulder=(-40, 0, 14)), 48),
+        ({'r_shoulder': (-30, -6, -10), 'r_elbow': (-40, 0, 0), 'chest': (4, -6, 0)}, 72),
+        (dict(step, r_shoulder=(-125, -8, -14), r_elbow=(-70, 0, 0), chest=(-6, -10, 0), head=(-4, -6, 0), l_shoulder=(-30, 0, 10)), 95),
+        (dict(step, r_shoulder=(-165, -8, -10), r_elbow=(-80, 0, 0), chest=(-12, -12, 0), head=(-6, -6, 0), l_shoulder=(-40, 0, 14)), 48),
         # The blow lands here, frame 3.
-        (dict(step, r_shoulder=(-75, 0, 0), r_elbow=(-8, 0, 0), chest=(22, 16, 0), head=(6, 0, 0), l_shoulder=(10, 0, 8), offset=(0, -1.0, 0)), 48),
-        (dict(step, r_shoulder=(-25, 0, 8), r_elbow=(0, 0, 0), chest=(28, 22, 0), head=(8, 0, 0), l_shoulder=(16, 0, 8), offset=(0, -1.5, 0)), 80),
-        ({'r_shoulder': (-20, 0, 0), 'r_elbow': (-20, 0, 0), 'chest': (14, 8, 0), 'l_hip': (-8, 0, 0)}, 85),
+        (dict(step, r_shoulder=(-75, 8, 0), r_elbow=(-8, 0, 0), chest=(22, 8, 0), head=(6, 4, 0), l_shoulder=(10, 0, 8), offset=(0, -1.0, 0)), 48),
+        (dict(step, r_shoulder=(-25, 10, 8), r_elbow=(0, 0, 0), chest=(28, 10, 0), head=(8, 4, 0), l_shoulder=(16, 0, 8), offset=(0, -1.5, 0)), 80),
+        ({'r_shoulder': (-20, 0, 0), 'r_elbow': (-20, 0, 0), 'chest': (14, 4, 0), 'l_hip': (-8, 0, 0)}, 85),
         ({'r_shoulder': (-8, 0, 0), 'chest': (6, 2, 0)}, 70),
     ]
-    return [('idle', True, [(with_hunch(p), ms) for p, ms in idle]),
-             ('walk', True, [(with_hunch(p), ms) for p, ms in walk]),
-             ('attack', False, [(with_hunch(p), ms) for p, ms in attack])]
+    # Cleave: the axe held out level and swept across in front of her, from
+    # her right side to her left. The blow lands on frame 3 as it passes the front.
+    brace = {'l_hip': (-16, 0, 6), 'r_hip': (8, 0, -6), 'l_knee': (12, 0, 0), 'r_knee': (10, 0, 0), 'offset': (0, -0.8, 0)}
+    cleave = [
+        ({'r_shoulder': (-50, -40, -20), 'r_elbow': (-30, 0, 0), 'chest': (4, -8, 0), 'l_shoulder': (-20, 0, 10)}, 70),
+        (dict(brace, r_shoulder=(-80, -95, 0), r_elbow=(-15, 0, 0), chest=(2, -14, 0), head=(0, -8, 0), l_shoulder=(-35, 20, 20), l_elbow=(-30, 0, 0)), 110),
+        (dict(brace, r_shoulder=(-88, -55, 0), r_elbow=(-5, 0, 0), chest=(4, -8, 0), head=(0, -4, 0), l_shoulder=(-30, 10, 18), l_elbow=(-30, 0, 0)), 40),
+        # The blow lands here, frame 3: the axe straight out in front.
+        (dict(brace, r_shoulder=(-90, 5, 0), r_elbow=(0, 0, 0), chest=(8, 4, 0), head=(2, 2, 0), l_shoulder=(-10, 0, 14), l_elbow=(-20, 0, 0)), 45),
+        (dict(brace, r_shoulder=(-85, 60, 0), r_elbow=(-5, 0, 0), chest=(10, 12, 0), head=(4, 6, 0), l_shoulder=(10, 0, 12)), 60),
+        (dict(brace, r_shoulder=(-70, 80, 10), r_elbow=(-20, 0, 0), chest=(10, 14, 0), head=(4, 6, 0), l_shoulder=(12, 0, 10)), 90),
+        ({'r_shoulder': (-35, 30, 0), 'r_elbow': (-25, 0, 0), 'chest': (8, 6, 0), 'l_hip': (-6, 0, 0)}, 85),
+        ({'r_shoulder': (-10, 0, 0), 'chest': (4, 2, 0)}, 70),
+    ]
+    # War Cry: she gathers herself, then throws her arms wide and her head back
+    # and yells, holds it, and settles.
+    stance = {'l_hip': (-6, 0, 10), 'r_hip': (4, 0, -10), 'l_knee': (8, 0, 0), 'r_knee': (8, 0, 0), 'offset': (0, -0.6, 0)}
+    shout = [
+        ({'chest': (16, 0, 0), 'head': (8, 0, 0), 'r_shoulder': (-30, 0, 20), 'l_shoulder': (-30, 0, -20), 'r_elbow': (-70, 0, 0), 'l_elbow': (-70, 0, 0)}, 110),
+        (dict(stance, chest=(-14, 0, 0), head=(-18, 0, 0), r_shoulder=(-20, 0, -70), l_shoulder=(-20, 0, 70), r_elbow=(-50, 0, 0), l_elbow=(-50, 0, 0), mouth=2), 90),
+        (dict(stance, chest=(-16, 0, 0), head=(-20, 0, 0), r_shoulder=(-25, 0, -75), l_shoulder=(-25, 0, 75), r_elbow=(-60, 0, 0), l_elbow=(-60, 0, 0), mouth=2), 260),
+        (dict(stance, chest=(-8, 0, 0), head=(-10, 0, 0), r_shoulder=(-15, 0, -45), l_shoulder=(-15, 0, 45), r_elbow=(-35, 0, 0), l_elbow=(-35, 0, 0), mouth=1), 120),
+        ({'chest': (2, 0, 0), 'r_shoulder': (-8, 0, -10), 'l_shoulder': (-8, 0, 10)}, 110),
+    ]
+    out = [('idle', True, idle), ('walk', True, walk)]
+    # Each action has a standing clip and a twin with walking legs; the game
+    # picks one with HellfeatherWarrior.ActionClip.
+    for name, frames in (('attack', attack), ('cleave', cleave), ('shout', shout)):
+        out.append((name, False, frames))
+        out.append((name + '_walk', False, walking(frames)))
+    return [(name, looping, [(with_hunch(p), ms) for p, ms in frames]) for name, looping, frames in out]
 
 
 def main():

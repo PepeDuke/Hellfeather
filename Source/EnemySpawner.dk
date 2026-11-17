@@ -99,17 +99,25 @@ EnemyMember
     }
 }
 
-// One possible drop inside a LootTable.
+// One possible drop inside a LootTable. It drops only where the area level is
+// at least MinLevel and, when MaxLevel is above 0, at most MaxLevel, so later
+// zones roll better bases (HellfeatherZoneNames.Level).
 LootItem
 {
     HellfeatherItems Item
     int Weight = 1
+    int MinLevel
+    int MaxLevel
+
+    // Any level below 0 fits every item.
+    bool Fits(int level) { return level < 0 || level >= MinLevel && (MaxLevel <= 0 || level <= MaxLevel) }
 
     AddLootItem(EnemyTable& table)
     {
         if Item == HellfeatherItems.None { table.Fail("a LootItem has no valid Item") }
         if Item == HellfeatherItems.Gold { table.Fail("a LootItem cannot be Gold, use GoldChance on the LootTable") }
         if Weight <= 0 { table.Fail("a LootItem needs a Weight above 0") }
+        if MaxLevel > 0 && MaxLevel < MinLevel { table.Fail("a LootItem needs MinLevel <= MaxLevel") }
         table.LootItems += this
     }
 }
@@ -364,13 +372,23 @@ HellfeatherEnemySpawner
         return Table.Kinds[kind].Animation >= 0
     }
 
-    // One roll of a loot table. Returns an item, or HellfeatherItems.None for no drop.
-    HellfeatherItems RollLoot(int loot)
+    // One roll of a loot table, whatever the level. Returns an item, or
+    // HellfeatherItems.None for no drop.
+    HellfeatherItems RollLoot(int loot) { return RollLootAt(loot, HellfeatherEnemySpawner.AnyLevel) }
+
+    // One roll of a loot table among the items that drop at an area level.
+    HellfeatherItems RollLootAt(int loot, int level)
     {
         if LootRandom.Unit() >= Table.Loots[loot].Chance { return HellfeatherItems.None }
-        int roll = LootRandom.Below(Table.Loots[loot].TotalWeight)
         int first = Table.Loots[loot].FirstItem
+        int total = 0
         for i : first; i < first + Table.Loots[loot].ItemCount; i++ {
+            if Table.LootItems[i].Fits(level) { total += Table.LootItems[i].Weight }
+        }
+        if total == 0 { return HellfeatherItems.None }
+        int roll = LootRandom.Below(total)
+        for i : first; i < first + Table.Loots[loot].ItemCount; i++ {
+            if !Table.LootItems[i].Fits(level) { continue }
             roll -= Table.LootItems[i].Weight
             if roll < 0 { return Table.LootItems[i].Item }
         }
@@ -391,6 +409,8 @@ HellfeatherEnemySpawner
     // World units. Four rings of 0.75 search up to 3 units from a rolled spot.
     #int SearchRings = 4
     #float SearchStep = 0.75
+    // The area level of a roll that ignores levels.
+    #int AnyLevel = -1
 }
 T{
     AGroupKeepsItsMembersTogetherAndWithinItsRolledCounts()
@@ -585,8 +605,8 @@ T{
             <LootTable Name="Missed" Chance=0.0 GoldChance=1.0 MinGold=20 MaxGold=20>
                 <LootItem Item=HellfeatherItems.Ring/>
             </LootTable>
-            <EnemyKind Name="Rich" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=20 Loot="Rich"/>
-            <EnemyKind Name="Poor" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=20 Loot="Missed"/>
+            <EnemyKind Name="Rich" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=10 Loot="Rich"/>
+            <EnemyKind Name="Poor" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=10 Loot="Missed"/>
             <EnemyPlacement Kind="Rich" X=1.0 Z=0.0/>
             <EnemyPlacement Kind="Poor" X=-1.0 Z=0.0/>
         }
@@ -627,7 +647,7 @@ T{
             <LootTable Name="Sure" Chance=1.0 Rolls=2>
                 <LootItem Item=HellfeatherItems.Ring/>
             </LootTable>
-            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=20 Loot="Sure"/>
+            <EnemyKind Name="Duck" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 MaxHealth=10 Loot="Sure"/>
             <EnemyPlacement Kind="Duck" X=1.0 Z=0.0 Respawns=true/>
         }
         T.IsTrue(game.Prepare(world))

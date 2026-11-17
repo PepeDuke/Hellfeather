@@ -314,6 +314,10 @@ def main():
         return [pad * (width + 2)] * MARGIN + [pad + r + pad for r in rows] + [pad * (width + 2)] * MARGIN
 
     for name, item in config['items'].items():
+        if not (ROOT / 'Assets/ItemArt' / f'{name}.png').exists():
+            # Not generated yet: the game draws the item it borrows its looks from.
+            print(f'{name}: no image in Assets/ItemArt, skipped')
+            continue
         cells_wide, cells_tall = sizes[name]
         width, height = cells_wide * CELL - 2 * MARGIN, cells_tall * CELL - 2 * MARGIN
         pictures[name] = framed(picture(name, item, width, height), width)

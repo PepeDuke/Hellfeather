@@ -122,11 +122,12 @@ HellfeatherGame : QuaxelGameInstance
         return world.CurrentClipName(visual) == "attack" && animator.Playing
     }
 
-    // Hurts her if she is still within reach, and can push her back.
+    // Hurts her if she is still within reach and does not dodge, and can push
+    // her back. Damage is the physical part; the kind adds its elements.
     -Land(QuaxelWorld& world, int i, float reach, int damage, float knock)
     {
         if PlayerGap(world, i) > reach + PeckDodgeMargin() { return }
-        DamagePlayer(world, damage)
+        if !HitPlayerAs(world, Enemies[i].Kind, damage) { return }
         if knock > 0.0 { Knock(world, world.GetPosition(Enemies[i].Node), knock) }
     }
 
@@ -306,7 +307,7 @@ HellfeatherGame : QuaxelGameInstance
             vec3 after = world.GetPosition(Enemies[i].Node)
             if Enemies[i].Strikes == 0 && PlayerGap(world, i) < Enemies[i].Radius + PlayerRadius() + 0.3 {
                 Enemies[i].Strikes = 1
-                DamagePlayer(world, Enemies[i].Damage)
+                HitPlayer(world, i)
                 Knock(world, after, 1.2)
             }
             bool blocked = Math.Hypot(after.X - before.X, after.Z - before.Z) < 0.01
@@ -461,7 +462,7 @@ HellfeatherGame : QuaxelGameInstance
         }
         if phase == 2 && Enemies[i].Strikes == 0 && PlayerGap(world, i) < 0.9 {
             Enemies[i].Strikes = 1
-            DamagePlayer(world, Enemies[i].Damage)
+            HitPlayer(world, i)
         }
         if left <= 0.05 || Enemies[i].PhaseTime > 4.0 {
             if phase == 2 { NextPhase(i, 3) }
@@ -483,7 +484,7 @@ HellfeatherGame : QuaxelGameInstance
             if Enemies[i].PhaseTime < aimSeconds - 0.2 { Enemies[i].Aim = direction }
             if Enemies[i].PhaseTime < aimSeconds { return }
             vec3 from = world.GetPosition(Enemies[i].Node)
-            Fire(world, from + Enemies[i].Aim * 0.6, Enemies[i].Aim, bolt)
+            Fire(world, from + Enemies[i].Aim * 0.6, Enemies[i].Aim, bolt, Enemies[i].Kind)
             world.SetAnimationSpeed(visual, 1.0)
             NextPhase(i, 0)
             Enemies[i].Cooldown = bolt ? 2.5 | 2.6
@@ -598,13 +599,13 @@ HellfeatherGame : QuaxelGameInstance
         world.PlayClip(visual, "walk")
         if Enemies[i].Cooldown <= 0.0 && PlayerGap(world, i) < Enemies[i].Reach + PlayerRadius() * 0.5 {
             world.PlayClip(visual, "attack")
-            DamagePlayer(world, Enemies[i].Damage)
+            HitPlayer(world, i)
             Enemies[i].Cooldown = 1.0
         }
     }
 
-    // Starts a shot along a direction.
-    -Fire(QuaxelWorld& world, vec3 from, vec3 direction, bool bolt)
+    // Starts a shot along a direction. It carries the kind's damage, accuracy and elements.
+    -Fire(QuaxelWorld& world, vec3 from, vec3 direction, bool bolt, int kind)
     {
         int volume = bolt ? Landmarks.Bolt | Landmarks.Spit
         if volume < 0 { return }
@@ -620,7 +621,8 @@ HellfeatherGame : QuaxelGameInstance
         shot.Position = from + vec3(0.0, 0.3, 0.0)
         shot.Velocity = direction * (bolt ? HellfeatherMoves.BoltSpeed | HellfeatherMoves.SpitSpeed)
         shot.Life = bolt ? 1.4 | 3.0
-        shot.Damage = bolt ? 20 | 14
+        shot.Kind = kind
+        shot.Damage = Spawner.Table.Kinds[kind].Damage
         shot.Radius = bolt ? 0.3 | 0.4
         Shots += shot
     }
@@ -633,7 +635,7 @@ HellfeatherGame : QuaxelGameInstance
             shot.Life -= deltaSeconds
             shot.Position = shot.Position + shot.Velocity * deltaSeconds
             bool hit = Math.Hypot(shot.Position.X - player.X, shot.Position.Z - player.Z) < shot.Radius + PlayerRadius()
-            if hit && PlayerHealth > 0 { DamagePlayer(world, shot.Damage) }
+            if hit && PlayerHealth > 0 { HitPlayerAs(world, shot.Kind, shot.Damage) }
             if hit || shot.Life <= 0.0 || Terrain.IsBlocked(shot.Position.X, shot.Position.Z) {
                 world.DestroyNode(shot.Node)
                 Shots -= shot
