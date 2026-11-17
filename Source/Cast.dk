@@ -164,8 +164,18 @@ HellfeatherGame : QuaxelGameInstance
         return TravelTo(world, realm, arrival, down)
     }
 
+    // Each level's enemies while she is away, kept as she left them: the slain
+    // stay slain. Each kept enemy and encounter is marked with its level, and
+    // a kept encounter's First indexes KeptEnemies.
+    -EnemyController [] KeptEnemies
+    -int [] KeptEnemyRealm
+    -EnemyEncounter [] KeptEncounters
+    -int [] KeptEncounterRealm
+    -bool [3] Kept
+
     // Travel to a chosen point of a level, as a raven portal takes her. The
-    // level is built again even when she stays on it.
+    // terrain is built again even when she stays on it, but the enemies are
+    // the ones she left there; a level is only rolled the first time.
     bool TravelTo(QuaxelWorld& world, HellfeatherRealm realm, vec3 arrival, bool down)
     {
         Talk.Close()
@@ -173,8 +183,7 @@ HellfeatherGame : QuaxelGameInstance
         for i : 0; i < Spawner.Encounters.Len; i++ {
             if Spawner.Encounters[i].Awake { SleepEncounter(world, i) }
         }
-        Spawner.Encounters.Clear()
-        Enemies.Clear()
+        KeepLevel(Terrain.Realm)
         ClearShots(world)
         Ravens.Clear(world)
         Featherfall.Stop(world)
@@ -187,8 +196,11 @@ HellfeatherGame : QuaxelGameInstance
         world.SetTransform(PlayerNode, transform)
         if realm == HellfeatherRealm.Fenmarch { SetUpRavens(world) }
         else { SetUpUndercroft(world, realm) }
-        PopulateEnemies()
-        AddUniques()
+        bool fresh = !ReturnToLevel(realm)
+        if fresh {
+            PopulateEnemies()
+            AddUniques()
+        }
         if realm == HellfeatherRealm.Undercroft && !Quests.PondWoke {
             // The pond wakes behind her: brood climbs out of the channel.
             Quests.PondWoke = true
@@ -196,12 +208,73 @@ HellfeatherGame : QuaxelGameInstance
             for n : 0; n < 3; n++ { AddScripted(world, "BroodDrake", arrival.X - 2.0 + (float)n * 2.0, arrival.Z - 3.5) }
             Banner.Show("The pond wakes", 3.0)
         }
-        if realm == HellfeatherRealm.UndercroftDeep && Quests.Millrace < 3 {
+        if fresh && realm == HellfeatherRealm.UndercroftDeep && Quests.Millrace < 3 {
             vec3 deepest = Deepest()
             AddScripted(world, "Mardra", deepest.X, deepest.Z + 1.5)
         }
         Banner.Show(realm == HellfeatherRealm.Fenmarch ? "Hobb's Mill" | (realm == HellfeatherRealm.Undercroft ? "The Millrace Undercroft" | "The Undercroft, deeper"), 2.5)
         return UpdateSpawns(world, world.GetPosition(PlayerNode))
+    }
+
+    // Moves the level's enemies and their encounters into its keeping.
+    -KeepLevel(HellfeatherRealm realm)
+    {
+        int r = realm + 0
+        int start = (int)KeptEnemies.Len
+        for enemy : Enemies {
+            KeptEnemies += enemy
+            KeptEnemyRealm += r
+        }
+        for encounter : Spawner.Encounters {
+            EnemyEncounter kept = encounter
+            kept.First += start
+            KeptEncounters += kept
+            KeptEncounterRealm += r
+        }
+        Kept[r] = true
+        Spawner.Encounters.Clear()
+        Enemies.Clear()
+    }
+
+    // Brings back what a level held when she left it. False the first time,
+    // when there is nothing kept and the level must be rolled.
+    -bool ReturnToLevel(HellfeatherRealm realm)
+    {
+        int r = realm + 0
+        if !Kept[r] { return false }
+        // A level's enemies were kept together, in one run.
+        int start = (int)KeptEnemies.Len
+        int count = 0
+        for i : 0; i < KeptEnemyRealm.Len; i++ {
+            if KeptEnemyRealm[i] != r { continue }
+            start = Math.Min(start, (int)i)
+            count++
+        }
+        for i : 0; i < KeptEncounters.Len; i++ {
+            if KeptEncounterRealm[i] != r { continue }
+            EnemyEncounter encounter = KeptEncounters[i]
+            int first = encounter.First
+            encounter.First = (int)Enemies.Len
+            for k : first; k < first + encounter.Count; k++ {
+                EnemyController enemy = KeptEnemies[k]
+                Enemies += enemy
+            }
+            Spawner.Encounters += encounter
+        }
+        for i : (int)KeptEncounters.Len - 1; i >= 0; i-- {
+            if KeptEncounterRealm[i] == r {
+                KeptEncounters -= [i]
+                KeptEncounterRealm -= [i]
+            } else if KeptEncounters[i].First >= start + count {
+                KeptEncounters[i].First -= count
+            }
+        }
+        for n : 0; n < count; n++ {
+            KeptEnemies -= [start]
+            KeptEnemyRealm -= [start]
+        }
+        Kept[r] = false
+        return true
     }
 
     // Old Greyneck and two of his flock, in the biggest clearing of Fennick

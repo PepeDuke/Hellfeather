@@ -63,6 +63,8 @@ HellfeatherGame : QuaxelGameInstance
 {
     // Whose shelves the shop window holds, or None before anyone traded.
     HellfeatherMerchant Trading = HellfeatherMerchant.None
+    // Whether the bag was opened for trading, so it closes with the shop.
+    bool BagForTrade
 
     // Fills every merchant's shelves and puts them all in the stash.
     StockMerchants(uint seed)
@@ -99,12 +101,13 @@ HellfeatherGame : QuaxelGameInstance
         Shop.BlurbOne = HellfeatherMerchants.BlurbOne(merchant)
         Shop.BlurbTwo = HellfeatherMerchants.BlurbTwo(merchant)
         Shop.Open = true
-        // The inventory takes the left side while trading.
+        // The shop takes the left side, so the panels there close, and the bag
+        // opens in its place on the right.
         StatsScreen.Open = false
         Passives.Open = false
         Runes.Open = false
         QuestLog.Open = false
-        Inventory.OnLeft = true
+        BagForTrade = true
         if !Inventory.Open { Inventory.Toggle() }
     }
 
@@ -182,7 +185,7 @@ T{
         game.OpenShop(HellfeatherMerchant.Edda)
         T.IsTrue(game.Shop.Open)
         T.IsTrue(game.Inventory.Open)
-        T.IsTrue(game.Inventory.OnLeft)
+        T.IsTrue(game.BagForTrade)
         game.Inventory.Items.Gold = 100
         // Edda's first shelf holds endless health potions.
         game.Shop.BuyRequest = 0
@@ -217,7 +220,25 @@ T{
         game.SyncShop(world)
         T.IsFalse(game.Shop.Open)
         T.IsFalse(game.Inventory.Open)
-        T.IsFalse(game.Inventory.OnLeft)
+        T.IsFalse(game.BagForTrade)
+    }
+
+    // The price the bag shows while trading is what the merchant then pays.
+    TheBagShowsWhatAMerchantPays()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenShop(HellfeatherMerchant.Marra)
+        HellfeatherItemMods magic = HellfeatherItemMods.RollAs(HellfeatherItems.Gloves, HellfeatherRarity.Magic, 7)
+        int shown = HellfeatherShop.SellValue(HellfeatherItems.Gloves, magic)
+        game.Inventory.Items.Gold = 0
+        game.Inventory.Items.Held = HellfeatherItems.Gloves
+        game.Inventory.Items.HeldMods = magic
+        game.Shop.SellRequest = true
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.Gold, shown)
+        T.IsTrue(shown > HellfeatherShop.SellValue(HellfeatherItems.Gloves, game.Inventory.Items.HeldMods))
     }
 
     ClosingTheInventoryClosesTheShop()
@@ -229,6 +250,6 @@ T{
         game.Inventory.Toggle()
         game.SyncShop(world)
         T.IsFalse(game.Shop.Open)
-        T.IsFalse(game.Inventory.OnLeft)
+        T.IsFalse(game.BagForTrade)
     }
 }

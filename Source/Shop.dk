@@ -193,7 +193,7 @@ HellfeatherShop
 
     // Magic items cost twice as much and rare ones four times, either way.
     // What he pays for an item: a quarter of its listed price, more for magic and rare.
-    int SellPriceWith(HellfeatherItems item, HellfeatherItemMods mods) { return Math.Max(1, BuyPrice(item) * HellfeatherItemMods.PriceFactor(mods.Rarity) / 4) }
+    int SellPriceWith(HellfeatherItems item, HellfeatherItemMods mods) { return HellfeatherShop.SellValue(item, mods) }
 
     // What he asks for it: always exactly four times what he pays.
     int BuyPriceWith(HellfeatherItems item, HellfeatherItemMods mods) { return SellPriceWith(item, mods) * BuyBackFactor }
@@ -236,8 +236,16 @@ HellfeatherShop
 }
 #{
     #int Columns = 10
-    // How many times what he pays the shopkeeper asks for the same item.
+    // How many times what a merchant pays they ask for the same item.
     #int BuyBackFactor = 4
+
+    // What any merchant pays for an item: a quarter of its listed price, more
+    // for magic and rare. The bag shows it on items while a shop is open.
+    int SellValue(HellfeatherItems item, HellfeatherItemMods mods)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        return Math.Max(1, kind.Price * HellfeatherItemMods.PriceFactor(mods.Rarity) / 4)
+    }
     // The share of shelved gear that comes out magic.
     #float MagicShare = 0.35
     #int Rows = 7
@@ -379,7 +387,8 @@ HellfeatherShopScreen
         MouseWasDown = down
         if !Open { return }
         Scale = ui.ScaleFor(width, height)
-        PanelX = Math.Max(0, width / Scale - HellfeatherInventoryArt.PanelWidth - HellfeatherInventoryScreen.Margin)
+        // On the left, like the other panels, with the bag in its own place on the right.
+        PanelX = HellfeatherInventoryScreen.Margin
         PanelY = Math.Max(0, (height / Scale - HellfeatherInventoryArt.PanelHeight) / 2)
         int pointerX = mouseX / Scale - PanelX
         int pointerY = mouseY / Scale - PanelY

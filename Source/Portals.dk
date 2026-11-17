@@ -231,6 +231,40 @@ T{
         T.IsTrue(field < 0 || !game.People.Spots[field].Shown)
     }
 
+    // A trip home and back leaves the level as she left it: the slain stay
+    // slain and nothing new is rolled, out in the Fenmarch and below it alike.
+    APortalTripKeepsTheLevelsEnemies()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Inventory.Items.Portals = 3
+        // Out in the Fenmarch, by the mill.
+        vec3 mill = game.MillDoor + vec3(0.0, 0.0, 2.5)
+        HellfeatherActOne.Stand(game, world, mill.X, mill.Z, 2)
+        long fen = game.Enemies.Len
+        game.Enemies[0].Health = 0
+        T.IsTrue(game.OpenPortal(world))
+        T.IsTrue(game.UsePortal(world, game.FindPortal(HellfeatherPortals.FieldTitle)))
+        T.IsTrue(game.UsePortal(world, game.FindPortal(HellfeatherPortals.TownTitle)))
+        T.AreEqual(game.Enemies.Len, fen)
+        T.AreEqual(game.Enemies[0].Health, 0)
+        // Down in the Undercroft, with the pond's brood among the rolled ones.
+        game.Quests.Millrace = 1
+        T.IsTrue(game.Travel(world, HellfeatherRealm.Undercroft, true))
+        long below = game.Enemies.Len
+        int slain = (int)below - 1
+        game.Enemies[slain].Health = 0
+        T.IsTrue(game.OpenPortal(world))
+        T.IsTrue(game.UsePortal(world, game.FindPortal(HellfeatherPortals.FieldTitle)))
+        // Ravenford's level is the one she left.
+        T.AreEqual(game.Enemies.Len, fen)
+        T.AreEqual(game.Enemies[0].Health, 0)
+        T.IsTrue(game.UsePortal(world, game.FindPortal(HellfeatherPortals.TownTitle)))
+        T.AreEqual(game.Enemies.Len, below)
+        T.AreEqual(game.Enemies[slain].Health, 0)
+    }
+
     TheHKeyOpensAPortal()
     {
         HellfeatherGame game()

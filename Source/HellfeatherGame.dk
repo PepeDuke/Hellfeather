@@ -168,8 +168,8 @@ HellfeatherGame : QuaxelGameInstance
     SyncShop(QuaxelWorld& world)
     {
         if Shop.Open && (!Inventory.Open || FarFromMerchant(world)) { Shop.Open = false }
-        if !Shop.Open && Inventory.OnLeft {
-            Inventory.OnLeft = false
+        if !Shop.Open && BagForTrade {
+            BagForTrade = false
             if Inventory.Open { Inventory.Toggle() }
         }
     }
@@ -977,9 +977,8 @@ HellfeatherGame : QuaxelGameInstance
         if hasWindow {
             // Under the inventory, which covers it when the window is too narrow for both.
             int clearWidth = Inventory.Open ? Inventory.PanelLeft * Inventory.PanelScale | windowWidth
-            if Shop.Open { clearWidth = Shop.PanelLeft * Shop.PanelScale }
             // Worked out here, since the stats panel places itself after the bar.
-            int coveredLeft = StatsScreen.Open || Passives.Open || Runes.Open || QuestLog.Open ? (HellfeatherStatsScreen.Margin + HellfeatherInventoryArt.PanelWidth) * ui.ScaleFor(windowWidth, windowHeight) | 0
+            int coveredLeft = StatsScreen.Open || Passives.Open || Runes.Open || QuestLog.Open || Shop.Open ? (HellfeatherStatsScreen.Margin + HellfeatherInventoryArt.PanelWidth) * ui.ScaleFor(windowWidth, windowHeight) | 0
             Actions.CoveredLeft = coveredLeft
             Actions.ExperienceShare = Passives.Level.Share()
             Actions.UnspentPoints = Passives.Open ? 0 | Passives.Points()
@@ -1013,6 +1012,7 @@ HellfeatherGame : QuaxelGameInstance
             Runes.Held = Inventory.Items.Held
             Runes.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
             Inventory.Items.ReplaceHeld(Runes.Held)
+            Inventory.Trading = Shop.Open
             Inventory.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
             if Actions.PanelRequest >= 0 {
                 ToggleHudPanel((HellfeatherHudPanel)Actions.PanelRequest)

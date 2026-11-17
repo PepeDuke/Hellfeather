@@ -6,19 +6,19 @@ Issues found during testing:
 [x] the bresire fire base is kanda wrong althou the fire looks good it starts on gay plane whitch does not look good maybe add the fire bit-in and make bit of a bowl in
 [x] add mini-map tab should open it
 [x] reeve hollan and its building and jessa's garret is way to the side  maybe move them and the building somewhere closer to the fire thay look un-importatnt or add road and section that leads you to them.
-[] remove the shopkeeper and add to the main NPCs shop option (does not need to be to all, maybe like 2-3 and give them a theme of what thay sell)
-[] shop window should be on the left and the inventory on right.
-[] talking to NPSs looks odd they do not talk thay have kinda like a cut-off sentence bud way displayed always. lets have a topics/shop that you can talk about and also we want possibly a diffrent way of talking that would be more interesting i would like a mode where we hide UI and you have the player model on the left saying something and the NPS on the Right responding kida like dating sim/JRPG style only we have the normal vexel model closer to the screen.
-[] there is way too many ducks when i exist fist setlement, for first time player this would be overwealinmg 
-[] the cleave rune should be already in the runes slot from the start.
-[] X in the UI screens is not in the right spot it looks like it does not belong to the UI and is just overlayed on top
-[] Cleave should have deffrent animation posibly sweep across infron od the character and it should have effect
-[] defence is bit like a doge in a way the higher the defence the harder is to hit the player and vice versa the enemy but there should be always a way for you to hit, so the calucation something like accurace of  0  and armour of 100 is 20% doge, 100 accuracy and 100 aroumr is 0% doge,  0 accuracy and 1000 armour is like 35%  doge and so on.
-[] player model improvements: when walking the legs clip trugh the armour/coat
+[x] remove the shopkeeper and add to the main NPCs shop option (does not need to be to all, maybe like 2-3 and give them a theme of what thay sell)
+[x] shop window should be on the left and the inventory on right.
+[x] talking to NPSs looks odd they do not talk thay have kinda like a cut-off sentence bud way displayed always. lets have a topics/shop that you can talk about and also we want possibly a diffrent way of talking that would be more interesting i would like a mode where we hide UI and you have the player model on the left saying something and the NPS on the Right responding kida like dating sim/JRPG style only we have the normal vexel model closer to the screen.
+[x] there is way too many ducks when i exist fist setlement, for first time player this would be overwealinmg 
+[x] the cleave rune should be already in the runes slot from the start.
+[x] X in the UI screens is not in the right spot it looks like it does not belong to the UI and is just overlayed on top
+[x] Cleave should have deffrent animation posibly sweep across infron od the character and it should have effect
+[x] defence is bit like a doge in a way the higher the defence the harder is to hit the player and vice versa the enemy but there should be always a way for you to hit, so the calucation something like accurace of  0  and armour of 100 is 20% doge, 100 accuracy and 100 aroumr is 0% doge,  0 accuracy and 1000 armour is like 35%  doge and so on.
+[x] player model improvements: when walking the legs clip trugh the armour/coat
 							  when attacking and walking it mix the two animation long a hip section
-[] weapon dmg needs range not just flat number
-[] when shop is open the the items in inventory should have showen sell price
-[] protal should not reset the level (respawn enemies)
+[x] weapon dmg needs range not just flat number
+[x] when shop is open the the items in inventory should have showen sell price
+[x] protal should not reset the level (respawn enemies)
 [] add waypoint system this should be done using the fireplace make it clicable and change the fire to blue color, in key location (1 per region/zone) should be fireplaces, trey should start un-lit first and thay should be lit/activated when clicked on/ you walk near.
 [] reads look skuffed re-work them.
 [] fether fall event lasts too long and maybe it should start by few ravens flying over and then the fether should start to fall.

@@ -37,7 +37,7 @@ HellfeatherEnemyData
     markup Build()
     {
         return {
-            <EnemySpawnRules MinGroups=2 MaxGroups=4/>
+            <EnemySpawnRules MinGroups=2 MaxGroups=4 GentleRadius=75.0 GentleGroups=1/>
 
             <EnemyKind Name="EvilDuck" Model="Assets/EvilDuck.qvox" Height=72 VoxelSize=0.025 Radius=0.5 Speed=2.0 Reach=1.2 Notice=14.0 MaxHealth=60 Damage=10 Feathers=2 Loot="Duck drops"/>
 
@@ -130,7 +130,7 @@ HellfeatherEnemyData
             </EnemyGroup>
 
             <EnemyGroup Name="Ford flock" Zone=HellfeatherZone.FordRoad Weight=55 Spread=2.5>
-                <EnemyMember Kind="EvilDuck" Min=3 Max=6/>
+                <EnemyMember Kind="EvilDuck" Min=3 Max=5/>
             </EnemyGroup>
             <EnemyGroup Name="Drake and flock" Zone=HellfeatherZone.FordRoad Weight=20 Spread=2.5>
                 <EnemyMember Kind="RoadDrake" Min=1 Max=1/>
@@ -232,6 +232,39 @@ T{
             T.IsTrue(game.Spawner.Table.Kinds[game.Enemies[encounter.First].Kind].Name == "OldGreyneck")
         }
         T.AreEqual(uniques, 1)
+    }
+
+    // The clearings just out of town hold one group each, so a first walk out
+    // of the gate meets a few ducks and not a crowd. The Ford Road still holds
+    // more than the dozen Reeve wants cleared.
+    TheFirstClearingsOutOfTownAreGentle()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        vec3 start = game.Terrain.WorldPoint(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].X, game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Z)
+        int gentle = 0
+        for i : 0; i < game.Terrain.Layout.Sites.Len; i++ {
+            if i == game.Terrain.SpawnSiteIndex { continue }
+            QuaxelTerrainSite site = game.Terrain.Layout.Sites[i]
+            vec3 middle = game.Terrain.WorldPoint(site.X, site.Z)
+            if Math.Hypot(middle.X - start.X, middle.Z - start.Z) > game.Spawner.Table.Rules.GentleRadius { continue }
+            gentle++
+            int groups = 0
+            for encounter : game.Spawner.Encounters {
+                if encounter.Group >= 0 && Math.Hypot(encounter.Center.X - middle.X, encounter.Center.Z - middle.Z) <= site.Radius { groups++ }
+            }
+            T.IsTrue(groups <= game.Spawner.Table.Rules.GentleGroups)
+        }
+        T.IsTrue(gentle > 0)
+        int ford = 0
+        for encounter : game.Spawner.Encounters {
+            if encounter.Group < 0 || game.Spawner.Table.Groups[encounter.Group].Zone != HellfeatherZone.FordRoad + 0 { continue }
+            for i : encounter.First; i < encounter.First + encounter.Count; i++ {
+                if game.Spawner.Table.Kinds[game.Enemies[i].Kind].Feathers > 0 { ford++ }
+            }
+        }
+        T.IsTrue(ford >= HellfeatherQuests.DucksWanted + 4)
     }
 
     // A group only ever spawns in a clearing of its own zone, and every zone

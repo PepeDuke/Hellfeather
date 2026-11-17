@@ -29,6 +29,10 @@ EnemySpawnRules
     // Rolled for each clearing except the one the player starts in.
     int MinGroups = 2
     int MaxGroups = 4
+    // Clearings whose middle is within GentleRadius world units of the start
+    // roll at most GentleGroups, so the first fight out of town is a small one.
+    float GentleRadius = 0.0
+    int GentleGroups = 1
     // World units a group keeps from the clearing's edge and from other groups.
     float EdgeMargin = 3.0
     float GroupSpacing = 8.0
@@ -782,18 +786,23 @@ HellfeatherGame : QuaxelGameInstance
             Spawner.Encounters += encounter
         }
         if Spawner.Table.Groups.Len == 0 { return }
+        vec3 start = Terrain.WorldPoint(Terrain.Layout.Sites[Terrain.SpawnSiteIndex].X, Terrain.Layout.Sites[Terrain.SpawnSiteIndex].Z)
         for i : 0; i < Terrain.Layout.Sites.Len; i++ {
-            if i != Terrain.SpawnSiteIndex { PopulateClearing(Terrain.Layout.Sites[i]) }
+            if i == Terrain.SpawnSiteIndex { continue }
+            vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[i].X, Terrain.Layout.Sites[i].Z)
+            bool gentle = Math.Hypot(middle.X - start.X, middle.Z - start.Z) <= Spawner.Table.Rules.GentleRadius
+            PopulateClearing(Terrain.Layout.Sites[i], gentle)
         }
     }
 
-    -PopulateClearing(QuaxelTerrainSite site)
+    -PopulateClearing(QuaxelTerrainSite site, bool gentle)
     {
         QuaxelRandom random
         random.Begin(site.Seed ^ (uint)0x7A3D9E15)
         int firstHere = (int)Spawner.Encounters.Len
         int rules = Spawner.Table.Rules.MaxGroups - Spawner.Table.Rules.MinGroups + 1
         int groups = Spawner.Table.Rules.MinGroups + random.Below(rules)
+        if gentle { groups = Math.Min(groups, Spawner.Table.Rules.GentleGroups) }
         for n : 0; n < groups; n++ {
             vec3 center = vec3(0.0, 0.0, 0.0)
             if FindGroupCenter(site, random, firstHere, center) {
