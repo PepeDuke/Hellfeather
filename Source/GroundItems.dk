@@ -98,7 +98,7 @@ HellfeatherGroundItems
         return true
     }
 
-    // A handful of black feathers, counted rather than carried.
+    // A handful of black feathers. Taking them fills stacks in the bag.
     bool PlaceFeathers(QuaxelWorld& world, int amount, vec3 ground)
     {
         if !Place(world, HellfeatherItems.BlackFeather, ground) { return false }

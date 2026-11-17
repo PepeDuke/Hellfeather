@@ -43,6 +43,8 @@ HellfeatherItemMods
 {
     HellfeatherRarity Rarity
     int Count
+    // How many of a stacking item, such as black feathers, this one is. 0 is one.
+    int Stack
     HellfeatherModKind [5] Kinds
     int [5] Values
 
@@ -66,7 +68,11 @@ HellfeatherItemMods
     {
         Rarity = HellfeatherRarity.Common
         Count = 0
+        Stack = 0
     }
+
+    // How many of the item these mods go with: one, or a stack's size.
+    int Amount() { return Math.Max(1, Stack) }
 
     // Adds every mod to the warrior's stats.
     ApplyTo(HellfeatherStats& stats)

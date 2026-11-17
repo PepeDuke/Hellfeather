@@ -173,6 +173,11 @@
       "colors": "SsdDeEbBu",
       "seed": 3,
       "shadow": false
+    },
+    "BlackFeather": {
+      "prompt": "a single glossy black raven flight feather with a blue sheen, lying diagonally",
+      "colors": "DdubBs",
+      "shadow": false
     }
   },
   "parts": {

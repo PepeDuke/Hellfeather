@@ -49,7 +49,16 @@ HellfeatherGame : QuaxelGameInstance
     }
 
     // Places Act I's people, once, after the Fenmarch's layout is known.
-    SetUpCast()
+    // How far a placed model reaches from its center along X or Z, in world
+    // units, from its voxels; Half's square when it was not placed.
+    -float ReachOf(QuaxelWorld& world, int placement, int half, bool alongZ)
+    {
+        if placement < 0 { return (float)half * QuaxelTerrain.Cell }
+        ivec3 cells = world.VolumeCells(Terrain.Placements[placement].Volume)
+        return (float)(alongZ ? cells.Z | cells.X) * Terrain.Placements[placement].VoxelSize * 0.5
+    }
+
+    SetUpCast(QuaxelWorld& world)
     {
         HellfeatherRealm fen = HellfeatherRealm.Fenmarch
         People.AddPerson(HellfeatherPerson.Matthew, "Matthew", fen, HellfeatherCast.MatthewAt(), "Assets/Matthew.qvox", 0.0264, 72)
@@ -64,7 +73,8 @@ HellfeatherGame : QuaxelGameInstance
         // The hospice gate faces +Z, and Jessa's bed stands in the outer ward.
         int hospice = PlacementOf(Terrain.Hill.Hospice)
         vec3 gate = hospice >= 0 ? Terrain.PlacementPosition(hospice) | ZoneMiddle(HellfeatherZone.OrrasHill)
-        float front = (float)Terrain.Hill.HospiceHalf * QuaxelTerrain.Cell
+        // People stand by the walls themselves, now only the walls block.
+        float front = ReachOf(world, hospice, Terrain.Hill.HospiceHalf, true)
         People.AddPerson(HellfeatherPerson.Carmine, "Sister Carmine", fen, Flat(gate) + vec3(-2.2, 0.0, front + 1.4), "Assets/SisterCarmine.qvox", 0.025, 72)
         int bed = People.AddModel(HellfeatherSpotKind.Person, "Jessa Brune", fen, Flat(gate) + vec3(2.6, 0.0, front + 1.9), Landmarks.JessaBed, 0.025, 40)
         People.Spots[bed].Person = HellfeatherPerson.Jessa
@@ -74,13 +84,14 @@ HellfeatherGame : QuaxelGameInstance
         // Old Hobb outside his mill, the low door at the water, Lise on the stair.
         int mill = PlacementOf(Terrain.Mill.Mill)
         vec3 millAt = mill >= 0 ? Terrain.PlacementPosition(mill) | ZoneMiddle(HellfeatherZone.HobbsMill)
-        float face = (float)Terrain.Mill.MillHalf * QuaxelTerrain.Cell
+        float face = ReachOf(world, mill, Terrain.Mill.MillHalf, true)
+        float side = ReachOf(world, mill, Terrain.Mill.MillHalf, false)
         People.AddPerson(HellfeatherPerson.OldHobb, "Old Hobb", fen, Flat(millAt) + vec3(-2.8, 0.0, face + 1.0), "Assets/OldHobb.qvox", 0.025, 68)
         MillDoor = Flat(millAt) + vec3(1.4, 0.0, face + 0.4)
         int door = People.AddModel(HellfeatherSpotKind.Door, "Millrace door", fen, MillDoor, Landmarks.Doorway, HellfeatherArt.FineVoxel, HellfeatherLandmarks.DoorHeight)
         People.Spots[door].FacingX = 0.0
         People.Spots[door].FacingZ = 1.0
-        int lise = People.AddPerson(HellfeatherPerson.Lise, "Lise Hobb", fen, Flat(millAt) + vec3(face + 0.9, 0.0, 1.0), "Assets/LiseHobb.qvox", 0.025, 72)
+        int lise = People.AddPerson(HellfeatherPerson.Lise, "Lise Hobb", fen, Flat(millAt) + vec3(side + 0.9, 0.0, 1.0), "Assets/LiseHobb.qvox", 0.025, 72)
         People.Spots[lise].Shown = false
     }
 
@@ -308,6 +319,8 @@ HellfeatherGame : QuaxelGameInstance
     string StartAt
     // Starts a conversation with the first person in reach, for looking at it.
     bool TalkOnStart
+    // Gives her a few feathers and opens the ravens' hoard once Edda is near.
+    bool HoardOnStart
 
     // Moves her to StartAt at the start of a run, with the quests that lead
     // there taken, so a place can be looked at without walking to it.
@@ -362,20 +375,27 @@ HellfeatherGame : QuaxelGameInstance
                 }
             }
         }
+        if HoardOnStart && !FarFromMerchantPerson(world, HellfeatherPerson.Edda) {
+            HoardOnStart = false
+            Inventory.Items.AddStack(HellfeatherItems.BlackFeather, 13)
+            OpenShop(HellfeatherMerchant.Ravens)
+        }
         if !Ravens.Step(world, player, deltaSeconds) { Print("Ravens failed to spawn") }
         bool charm = Inventory.Items.Equipped[HellfeatherSlot.Neck] == HellfeatherItems.EddasQuillCharm
+        bool wasHeralding = Featherfall.Heralding
         int heal = Featherfall.Step(world, player, InTheWild(player), charm, deltaSeconds)
+        if Featherfall.Heralding && !wasHeralding { Banner.Show("Ravens pass overhead", 2.5) }
         if heal > 0 && PlayerHealth > 0 { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + heal) }
         if Featherfall.Active && Featherfall.Timer > HellfeatherFeatherfall.Seconds - deltaSeconds * 1.5 { Banner.Show("Featherfall", 3.0) }
         // Some of what falls settles where it can be picked up for Edda.
         if Featherfall.Active {
             FeatherDrift -= deltaSeconds
             if FeatherDrift <= 0.0 {
-                FeatherDrift = 6.0
+                FeatherDrift = 9.0
                 float angle = Spawner.LootRandom.Range(0.0, 6.2831853)
                 float distance = Spawner.LootRandom.Range(3.0, 6.0)
                 vec3 spot = vec3(player.X + Math.Cos(angle) * distance, 0.0, player.Z + Math.Sin(angle) * distance)
-                if !Terrain.CircleBlocked(spot.X, spot.Z, 0.3) { Ground.PlaceFeathers(world, 1 + Spawner.LootRandom.Below(2), vec3(spot.X, RestingY(spot.X, spot.Z), spot.Z)) }
+                if !Terrain.CircleBlocked(spot.X, spot.Z, 0.3) { Ground.PlaceFeathers(world, 1, vec3(spot.X, RestingY(spot.X, spot.Z), spot.Z)) }
             }
         }
         Banner.Step(deltaSeconds)

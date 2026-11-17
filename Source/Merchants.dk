@@ -9,7 +9,9 @@ HellfeatherMerchant : int
     None: -1,
     Edda,
     Marra,
-    Moth
+    Moth,
+    // Edda's ravens: base gear wrapped up, bought blind with black feathers.
+    Ravens
 }
 
 HellfeatherMerchants
@@ -22,6 +24,7 @@ HellfeatherMerchants
         if merchant == HellfeatherMerchant.Edda { return "THE ROOKERY" }
         if merchant == HellfeatherMerchant.Marra { return "SENN'S NEEDLEHOUSE" }
         if merchant == HellfeatherMerchant.Moth { return "THE LANTERN & MOTH" }
+        if merchant == HellfeatherMerchant.Ravens { return "THE RAVENS' HOARD" }
         return "SHOP"
     }
 
@@ -31,6 +34,7 @@ HellfeatherMerchants
         if merchant == HellfeatherMerchant.Edda { return "Potions, portals and" }
         if merchant == HellfeatherMerchant.Marra { return "Coats, boots, belts" }
         if merchant == HellfeatherMerchant.Moth { return "Runes and blades," }
+        if merchant == HellfeatherMerchant.Ravens { return "Finds off the dead," }
         return ""
     }
 
@@ -39,6 +43,7 @@ HellfeatherMerchants
         if merchant == HellfeatherMerchant.Edda { return "charms for the road." }
         if merchant == HellfeatherMerchant.Marra { return "and mended armour." }
         if merchant == HellfeatherMerchant.Moth { return "no questions asked." }
+        if merchant == HellfeatherMerchant.Ravens { return "wrapped. For feathers." }
         return ""
     }
 
@@ -47,6 +52,7 @@ HellfeatherMerchants
         if merchant == HellfeatherMerchant.Edda { return HellfeatherPerson.Edda }
         if merchant == HellfeatherMerchant.Marra { return HellfeatherPerson.Marra }
         if merchant == HellfeatherMerchant.Moth { return HellfeatherPerson.Moth }
+        if merchant == HellfeatherMerchant.Ravens { return HellfeatherPerson.Edda }
         return HellfeatherPerson.None
     }
 
@@ -97,6 +103,7 @@ HellfeatherGame : QuaxelGameInstance
             Shop.Shop.Unstash(merchant + 0)
             Trading = merchant
         }
+        Shop.Shop.ForFeathers = merchant == HellfeatherMerchant.Ravens
         Shop.Title = HellfeatherMerchants.Title(merchant)
         Shop.BlurbOne = HellfeatherMerchants.BlurbOne(merchant)
         Shop.BlurbTwo = HellfeatherMerchants.BlurbTwo(merchant)
@@ -111,10 +118,35 @@ HellfeatherGame : QuaxelGameInstance
         if !Inventory.Open { Inventory.Toggle() }
     }
 
-    // True when she has walked away from whoever she is trading with.
-    -bool FarFromMerchant(QuaxelWorld& world)
+    // What the shop window's prices are paid from: gold, or feathers at the hoard.
+    int Purse() { return Shop.Shop.ForFeathers ? Inventory.Items.FeatherCount() | Inventory.Items.Gold }
+
+    // Buys a wrapped find from the hoard: its rarity is rolled only now, and
+    // another find takes its place on the shelf.
+    -BuyFromHoard(int index)
     {
-        int spot = People.FindPerson(HellfeatherMerchants.PersonOf(Trading))
+        item : Shop.Shop.Stock[index].Item
+        int price = Shop.Shop.PriceOf(index)
+        HellfeatherItemMods mods = HellfeatherShop.RollHoard(item, Spawner.LootRandom.Unit(), Spawner.LootRandom.Below(1000000))
+        if !Inventory.Items.AddWith(item, mods) {
+            Shop.Say("No room in your bag")
+            return
+        }
+        Inventory.Items.TakeStack(HellfeatherItems.BlackFeather, price)
+        Shop.Shop.Take(index)
+        Shop.Shop.AddHoardFind()
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        if mods.Rarity == HellfeatherRarity.Rare { Banner.Show("A rare " + kind.Name + "!", 2.5) }
+        else if mods.Rarity == HellfeatherRarity.Magic { Banner.Show("A magic " + kind.Name, 2.0) }
+        else { Banner.Show("Just a plain " + kind.Name, 2.0) }
+    }
+
+    // True when she has walked away from whoever she is trading with.
+    -bool FarFromMerchant(QuaxelWorld& world) { return FarFromMerchantPerson(world, HellfeatherMerchants.PersonOf(Trading)) }
+
+    -bool FarFromMerchantPerson(QuaxelWorld& world, HellfeatherPerson person)
+    {
+        int spot = People.FindPerson(person)
         if spot < 0 { return true }
         vec3 feet = People.Spots[spot].Feet
         vec3 player = world.GetPosition(PlayerNode)
@@ -239,6 +271,79 @@ T{
         game.ApplyShopRequests()
         T.AreEqual(game.Inventory.Items.Gold, shown)
         T.IsTrue(shown > HellfeatherShop.SellValue(HellfeatherItems.Gloves, game.Inventory.Items.HeldMods))
+    }
+
+    // The hoard shows plain bases priced in feathers, and buying one rolls it:
+    // the feathers go, the item comes, and another find fills the shelf.
+    TheRavensTradeWrappedFindsForFeathers()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenShop(HellfeatherMerchant.Ravens)
+        T.IsTrue(game.Shop.Shop.ForFeathers)
+        long shelved = game.Shop.Shop.Stock.Len
+        T.IsTrue(shelved >= 8)
+        for entry : game.Shop.Shop.Stock { T.IsTrue(entry.Mods.Rarity == HellfeatherRarity.Common && entry.Mods.Count == 0) }
+        int price = game.Shop.Shop.PriceOf(0)
+        T.IsTrue(price >= 2)
+        // Gold buys nothing here.
+        long carried = game.Inventory.Items.Bag.Len
+        game.Inventory.Items.Gold = 100000
+        game.Shop.BuyRequest = 0
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.Bag.Len, carried)
+        game.Inventory.Items.AddStack(HellfeatherItems.BlackFeather, price + 2)
+        item : game.Shop.Shop.Stock[0].Item
+        int before = game.Inventory.Items.CountOf(item)
+        game.Shop.BuyRequest = 0
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.FeatherCount(), 2)
+        T.AreEqual(game.Inventory.Items.Gold, 100000)
+        T.AreEqual(game.Inventory.Items.CountOf(item), before + 1)
+        T.AreEqual(game.Shop.Shop.Stock.Len, shelved)
+        // The ravens don't buy, and other merchants don't take feathers.
+        game.Inventory.Items.Held = HellfeatherItems.Ring
+        game.Shop.SellRequest = true
+        game.ApplyShopRequests()
+        T.IsTrue(game.Inventory.Items.Held == HellfeatherItems.Ring)
+        game.OpenShop(HellfeatherMerchant.Edda)
+        T.IsFalse(game.Shop.Shop.ForFeathers)
+        game.Inventory.Items.ClearHeld()
+        game.Inventory.Items.Held = HellfeatherItems.BlackFeather
+        game.Shop.SellRequest = true
+        game.ApplyShopRequests()
+        T.IsTrue(game.Inventory.Items.Held == HellfeatherItems.BlackFeather)
+    }
+
+    // Over many buys some finds come out magic and a few rare.
+    HoardFindsAreSometimesMagicAndRarelyRare()
+    {
+        int magic = 0
+        int rare = 0
+        for n : 0; n < 400; n++ {
+            HellfeatherItemMods mods = HellfeatherShop.RollHoard(HellfeatherItems.Ring, (float)n / 400.0, n)
+            if mods.Rarity == HellfeatherRarity.Magic { magic++ }
+            if mods.Rarity == HellfeatherRarity.Rare { rare++ }
+        }
+        T.IsTrue(rare > 20 && rare < 70)
+        T.IsTrue(magic > 100 && magic < 200)
+    }
+
+    // Edda offers the hoard in every conversation.
+    EddaOffersTheHoard()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Use(world, game.People.FindPerson(HellfeatherPerson.Edda))
+        bool offered = false
+        for reply : game.Talk.Replies { if reply == HellfeatherReply.Hoard { offered = true } }
+        T.IsTrue(offered)
+        game.Answer(world, HellfeatherReply.Hoard)
+        T.IsTrue(game.Shop.Open)
+        T.IsTrue(game.Trading == HellfeatherMerchant.Ravens)
+        T.AreEqual(game.Shop.Title, "THE RAVENS' HOARD")
     }
 
     ClosingTheInventoryClosesTheShop()

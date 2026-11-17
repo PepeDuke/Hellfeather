@@ -1,6 +1,7 @@
 // Featherfall: every few minutes in the wild, black feathers rain down for a
-// while. It is heralded: a few ravens fly over first, high across her, and the
-// feathers start to fall once they have passed. Birds of the Moult grow frenzied
+// short while. It is heralded: a flock of ravens flies low over her first,
+// shedding the first few feathers as they pass, and the fall starts once they
+// have gone. Birds of the Moult grow frenzied
 // as long as it lasts, and slain ones drop more feathers for Edda. With Edda's
 // Quill Charm on, the falling feathers heal instead. Mardra's Moult is the same
 // storm, gathered around her.
@@ -21,6 +22,7 @@ HellfeatherFeatherfall
     -vec3 [] HeraldFrom
     -vec3 [] HeraldTo
     -float HeraldTime
+    -bool HeraldsShed
     -int RavenAnimation = -1
     -QuaxelRandom Random
 
@@ -36,6 +38,11 @@ HellfeatherFeatherfall
         if Heralding {
             HeraldTime += deltaSeconds
             FlyHeralds(world)
+            // Past halfway each raven drops a few feathers behind it.
+            if !HeraldsShed && HeraldTime > HeraldSeconds * 0.45 {
+                HeraldsShed = true
+                for node : Heralds { world.StartEffect(ShedStyle(), world.GetPosition(node), vec3(0.0, -1.0, 0.0)) }
+            }
             if Timer > 0.0 { return 0 }
             ClearHeralds(world)
             Heralding = false
@@ -56,9 +63,10 @@ HellfeatherFeatherfall
             Stop(world)
             return 0
         }
-        // A new burst over her every few seconds, so the storm follows her.
+        // A new burst over her every few seconds, so the storm follows her,
+        // none in the last seconds so it thins out as it ends.
         EffectTimer -= deltaSeconds
-        if EffectTimer <= 0.0 {
+        if EffectTimer <= 0.0 && Timer > TailSeconds {
             Effect = world.StartEffect(Style(), player + vec3(0.0, 6.0, 0.0), vec3(0.0, -1.0, 0.0))
             EffectTimer = 3.5
         }
@@ -82,12 +90,13 @@ HellfeatherFeatherfall
     // How many heralds are in the air.
     int HeraldCount() { return (int)Heralds.Len }
 
-    // A few ravens in a loose line, crossing high over her from one side to the
-    // other. Without the raven model the fall is heralded by the pause alone.
+    // A flock of ravens in a loose wedge, crossing low over her from one side
+    // of the screen to the other. Without the raven model the fall is heralded by the pause alone.
     -SendHeralds(QuaxelWorld& world, vec3 player)
     {
         ClearHeralds(world)
         HeraldTime = 0.0
+        HeraldsShed = false
         if RavenAnimation < 0 {
             Random.Begin((uint)0x0FEA7FA1)
             RavenAnimation = QuaxelAssets.LoadVoxelAnimation(world, "Assets/Raven.qvox")
@@ -97,11 +106,12 @@ HellfeatherFeatherfall
         vec3 along = vec3(Math.Cos(heading), 0.0, Math.Sin(heading))
         vec3 side = vec3(-along.Z, 0.0, along.X)
         float half = HeraldSpeed * HeraldSeconds * 0.5
-        int count = 3 + Random.Below(3)
+        int count = 5 + Random.Below(4)
         for n : 0; n < count; n++ {
-            // Each a little off the line and behind the one before.
-            float offset = Random.Range(-2.5, 2.5)
-            float behind = (float)n * Random.Range(0.8, 1.6)
+            // A wedge: the leader in front, the rest to either side and behind.
+            float wing = (float)((n + 1) / 2) * (n % 2 == 0 ? 1.0 | -1.0)
+            float offset = wing * Random.Range(0.9, 1.4) + Random.Range(-0.3, 0.3)
+            float behind = Math.Abs(wing) * Random.Range(0.9, 1.3)
             float height = HeraldHeight + Random.Range(-0.8, 0.8)
             vec3 from = player + side * offset - along * (half + behind) + vec3(0.0, height, 0.0)
             vec3 to = from + along * (half * 2.0 + 2.0)
@@ -145,15 +155,33 @@ HellfeatherFeatherfall
 }
 #{
     // Seconds: the ravens' crossing, the fall itself and the wait between falls.
-    #float HeraldSeconds = 4.0
-    #float Seconds = 20.0
+    // The fall's last seconds start no new bursts, so it thins out.
+    #float HeraldSeconds = 6.0
+    #float Seconds = 10.0
+    #float TailSeconds = 3.0
     #float Between = 210.0
     // How fast and how high above her the heralds fly, in world units.
-    #float HeraldSpeed = 7.0
-    #float HeraldHeight = 6.0
+    #float HeraldSpeed = 5.0
+    #float HeraldHeight = 3.5
     // Speed and pace of a frenzied bird, against its usual.
     #float Frenzy = 1.35
+    // The share of common birds of the Moult that drop any feathers when slain.
+    #float DropChance = 0.3
     #float HealPerSecond = 2.0
+
+    // A few feathers shed by a passing raven, drifting down behind it.
+    QuaxelEffectStyle ShedStyle()
+    {
+        QuaxelEffectStyle style = Style()
+        style.MaxParticles = 16
+        style.Rate = 10.0
+        style.EmitSeconds = 1.5
+        style.SpawnRadius = 0.4
+        style.LifeMin = 3.0
+        style.LifeMax = 4.5
+        style.StainSeconds = 3.0
+        return style
+    }
 
     // Black feathers drifting down over a wide square, settling on what they hit.
     QuaxelEffectStyle Style()

@@ -420,7 +420,10 @@ HellfeatherInventoryScreen
         DrawTooltip(ui, mouseX, mouseY, pointerX, pointerY)
         if Items.Held != HellfeatherItems.None {
             HellfeatherItemKind kind = HellfeatherItems.Get(Items.Held)
-            Icon(ui, Items.Held, mouseX - kind.Width * HellfeatherInventoryArt.Cell / 2, mouseY - kind.Height * HellfeatherInventoryArt.Cell / 2)
+            int heldX = mouseX - kind.Width * HellfeatherInventoryArt.Cell / 2
+            int heldY = mouseY - kind.Height * HellfeatherInventoryArt.Cell / 2
+            Icon(ui, Items.Held, heldX, heldY)
+            if HellfeatherItems.StackMost(Items.Held) > 1 { StackCount(ui, Items.HeldMods.Amount(), heldX, heldY) }
         }
     }
 
@@ -465,7 +468,16 @@ HellfeatherInventoryScreen
             // A soft tint marks which cells an item fills.
             Highlight(ui, x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, hovered ? 0x40FFFFFF | HellfeatherItemMods.TintOf(Items.Bag[i].Mods.Rarity))
             Icon(ui, item, OnGridX(x), OnGridY(y))
+            if HellfeatherItems.StackMost(item) > 1 { StackCount(ui, Items.Bag[i].Mods.Amount(), OnGridX(x), OnGridY(y)) }
         }
+    }
+
+    // How many a stack holds, small in the bottom right of its cell.
+    -StackCount(QuaxelUi& ui, int amount, int x, int y)
+    {
+        string count = QuaxelUi.FormatInt(amount)
+        int cell = HellfeatherInventoryArt.Cell
+        ui.OverlayText(x + cell - (int)Length(count) * 6, y + cell - 8, count, 0xFFF0E6D2)
     }
 
     -DrawTooltip(QuaxelUi& ui, int mouseX, int mouseY, int pointerX, int pointerY)
@@ -488,10 +500,17 @@ HellfeatherInventoryScreen
         }
         if item == HellfeatherItems.None { return }
         HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        // A stack says how full it is, out of how many a cell holds.
+        int most = HellfeatherItems.StackMost(item)
+        if most > 1 {
+            kind.Name = QuaxelUi.FormatInt(mods.Amount()) + " " + kind.Name + (mods.Amount() == 1 ? "" | "s")
+            kind.Detail = "Stack " + QuaxelUi.FormatInt(mods.Amount()) + " of " + QuaxelUi.FormatInt(most) + ". " + kind.Detail
+        }
         // The name in its rarity's color, the base stat, then one line per mod.
         int characters = (int)Math.Max(Length(kind.Name), Length(kind.Detail))
         for i : 0; i < mods.Count; i++ { characters = Math.Max(characters, (int)Length(mods.Line(i))) }
         string price = Trading ? "Sells for " + QuaxelUi.FormatInt(HellfeatherShop.SellValue(item, mods)) + " gold" | ""
+        if Trading && !HellfeatherShop.Buys(item) { price = "Merchants don't buy these" }
         characters = Math.Max(characters, (int)Length(price))
         int boxWidth = characters * 6 + 12
         int boxHeight = 26 + mods.Count * 11 + (Trading ? 13 | 0)

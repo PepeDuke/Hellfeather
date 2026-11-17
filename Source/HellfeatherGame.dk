@@ -182,8 +182,9 @@ HellfeatherGame : QuaxelGameInstance
         Shop.BuyRequest = -1
         Shop.SellRequest = false
         if index >= 0 {
-            HellfeatherShopResult quote = Shop.Shop.Quote(index, Inventory.Items.Gold)
-            if quote == HellfeatherShopResult.TooPoor { Shop.Say("Not enough gold") }
+            HellfeatherShopResult quote = Shop.Shop.Quote(index, Purse())
+            if quote == HellfeatherShopResult.TooPoor { Shop.Say(Shop.Shop.ForFeathers ? "Not enough feathers" | "Not enough gold") }
+            else if quote == HellfeatherShopResult.Done && Shop.Shop.ForFeathers { BuyFromHoard(index) }
             else if quote == HellfeatherShopResult.Done {
                 item : Shop.Shop.Stock[index].Item
                 // Portals go to their count, not the bag.
@@ -260,7 +261,7 @@ HellfeatherGame : QuaxelGameInstance
         Terrain.Hall.Props = props
         Terrain.Landing.Props = props
         if !Terrain.Configure(FenmarchConfig()) || !Terrain.Start(world, vec3(0.0, 0.0, 0.0)) { return false }
-        SetUpCast()
+        SetUpCast(world)
         SetUpWaypoints()
         SetUpRavens(world)
         return true
@@ -650,13 +651,17 @@ HellfeatherGame : QuaxelGameInstance
         return damage
     }
 
-    // Black feathers from a slain bird of the Moult, more in a Featherfall.
+    // Black feathers from a slain bird of the Moult: now and then from a
+    // common one, always from the strong, and one more in a Featherfall.
     -DropFeathers(QuaxelWorld& world, int index)
     {
         int most = Spawner.Table.Kinds[Enemies[index].Kind].Feathers
         if most <= 0 { return }
+        bool common = Spawner.Table.Kinds[Enemies[index].Kind].Rank == HellfeatherEnemyRank.Normal
+        if common && !Featherfall.Active && Spawner.LootRandom.Unit() >= HellfeatherFeatherfall.DropChance { return }
         int amount = 1 + Spawner.LootRandom.Below(most)
-        if Featherfall.Active { amount += 2 }
+        if common { amount = Math.Min(amount, 2) }
+        if Featherfall.Active { amount += 1 }
         Ground.PlaceFeathers(world, amount, DropSpotAround(world.GetPosition(Enemies[index].Node)))
     }
 
@@ -821,7 +826,11 @@ HellfeatherGame : QuaxelGameInstance
     bool DropHeld(QuaxelWorld& world)
     {
         item : Inventory.Items.Held
-        if item == HellfeatherItems.None || !Ground.PlaceWith(world, item, Inventory.Items.HeldMods, DropSpotAround(world.GetPosition(PlayerNode))) { return false }
+        if item == HellfeatherItems.None { return false }
+        vec3 spot = DropSpotAround(world.GetPosition(PlayerNode))
+        if item == HellfeatherItems.BlackFeather {
+            if !Ground.PlaceFeathers(world, Inventory.Items.HeldMods.Amount(), spot) { return false }
+        } else if !Ground.PlaceWith(world, item, Inventory.Items.HeldMods, spot) { return false }
         Inventory.Items.ClearHeld()
         return true
     }
@@ -861,7 +870,16 @@ HellfeatherGame : QuaxelGameInstance
     {
         if !Ground.InReach(index, world.GetPosition(PlayerNode)) { return false }
         if Ground.Entries[index].Item == HellfeatherItems.Gold { Inventory.Items.Gold += Ground.Entries[index].Amount }
-        else if Ground.Entries[index].Item == HellfeatherItems.BlackFeather { Inventory.Items.Feathers += Ground.Entries[index].Amount }
+        else if Ground.Entries[index].Item == HellfeatherItems.BlackFeather {
+            // As many as there is room for; the rest stay on the ground.
+            int amount = Math.Max(1, Ground.Entries[index].Amount)
+            int left = Inventory.Items.AddStack(HellfeatherItems.BlackFeather, amount)
+            if left == amount { return false }
+            if left > 0 {
+                Ground.Entries[index].Amount = left
+                return true
+            }
+        }
         else if Ground.Entries[index].Item == HellfeatherItems.RavenPortal {
             if !Inventory.Items.AddPortals(Math.Max(1, Ground.Entries[index].Amount)) { return false }
         }
@@ -998,7 +1016,7 @@ HellfeatherGame : QuaxelGameInstance
             }
             // Before the inventory, which draws the item on the cursor over every panel.
             Shop.HeldMods = Inventory.Items.HeldMods
-            Shop.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, Inventory.Items.Gold, Inventory.Items.Held)
+            Shop.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, Purse(), Inventory.Items.Held)
             ApplyShopRequests()
             stats : Stats()
             StatsScreen.Level = Passives.Level.Level
@@ -1006,6 +1024,7 @@ HellfeatherGame : QuaxelGameInstance
             StatsScreen.ToNext = Passives.Level.ToNext()
             StatsScreen.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, stats, PlayerHealth, PlayerMana)
             Passives.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, rightDown)
+            Quests.FeathersHeld = Inventory.Items.FeatherCount()
             HellfeatherQuests progress = Quests
             QuestLog.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, progress)
             // The board and the bag share the cursor's item.

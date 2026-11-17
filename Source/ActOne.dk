@@ -73,6 +73,38 @@ T{
         T.IsFalse(game.Talk.CloseUp)
     }
 
+    // A building blocks only what it covers seen from above: just past its
+    // walls on the sides the camera sees is open ground, as where Carmine
+    // stands at the hospice gate, and its middle is solid.
+    BuildingsBlockOnlyTheirOwnGroundPlan()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int [2] volumes = {game.Terrain.Hill.Hospice, game.Terrain.Mill.Mill}
+        int checkedCount = 0
+        for volume : volumes {
+            for i : 0; i < game.Terrain.Placements.Len; i++ {
+                if game.Terrain.Placements[i].Volume != volume { continue }
+                vec3 at = game.Terrain.PlacementPosition(i)
+                int calls = 0
+                while !game.Terrain.IsReady(at) && calls < 4000 {
+                    T.IsTrue(game.Terrain.Stream(world, at, 100000))
+                    calls++
+                }
+                ivec3 cells = world.VolumeCells(volume)
+                float voxel = game.Terrain.Placements[i].VoxelSize
+                float halfX = (float)cells.X * voxel * 0.5
+                float halfZ = (float)cells.Z * voxel * 0.5
+                T.IsTrue(game.Terrain.IsBlocked(at.X, at.Z))
+                T.IsFalse(game.Terrain.IsBlocked(at.X, at.Z + halfZ + 0.3))
+                T.IsFalse(game.Terrain.IsBlocked(at.X + halfX + 0.3, at.Z))
+                checkedCount++
+            }
+        }
+        T.AreEqual(checkedCount, 2)
+    }
+
     // The hospice's people stand at its gate, and the mill's at its door.
     HospiceAndMillPeopleStandByTheirBuildings()
     {
@@ -89,6 +121,10 @@ T{
         vec3 gate = game.Terrain.PlacementPosition(hospice)
         vec3 carmine = game.People.Spots[game.People.FindPerson(HellfeatherPerson.Carmine)].Feet
         T.IsTrue(Math.Hypot(carmine.X - gate.X, carmine.Z - gate.Z) < 9.0)
+        // Close in front of the gate, on open ground.
+        ivec3 cells = world.VolumeCells(game.Terrain.Hill.Hospice)
+        float wall = (float)cells.Z * game.Terrain.Placements[hospice].VoxelSize * 0.5
+        T.IsTrue(carmine.Z - gate.Z < wall + 2.0)
         vec3 door = game.MillDoor
         vec3 millAt = game.Terrain.PlacementPosition(mill)
         T.IsTrue(Math.Hypot(door.X - millAt.X, door.Z - millAt.Z) < 5.0)
@@ -260,15 +296,16 @@ T{
         fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0)
         T.IsTrue(fall.Heralding)
         T.IsFalse(fall.Active)
-        T.IsTrue(fall.HeraldCount() >= 3)
-        for n : 0; n < 4; n++ { fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0) }
+        T.IsTrue(fall.HeraldCount() >= 5)
+        for n : 0; n < 6; n++ { fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0) }
         T.IsTrue(fall.Active)
         T.IsFalse(fall.Heralding)
         T.AreEqual(fall.HeraldCount(), 0)
         int healed = 0
-        for n : 0; n < 10; n++ { healed += fall.Step(world, vec3(80.0, 0.0, 0.0), true, true, 1.0) }
-        T.AreEqual(healed, 20)
-        for n : 0; n < 10; n++ { fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0) }
+        for n : 0; n < 5; n++ { healed += fall.Step(world, vec3(80.0, 0.0, 0.0), true, true, 1.0) }
+        T.AreEqual(healed, 10)
+        // The fall itself is short.
+        for n : 0; n < 5; n++ { fall.Step(world, vec3(80.0, 0.0, 0.0), true, false, 1.0) }
         T.IsFalse(fall.Active)
     }
 
@@ -288,7 +325,7 @@ T{
         T.AreEqual(fall.HeraldCount(), 0)
     }
 
-    // Edda takes twenty feathers for her charm, and the Ford's bounty pays.
+    // Edda takes twelve feathers for her charm, and the Ford's bounty pays.
     FeathersOnTheFordPaysTwice()
     {
         HellfeatherGame game()
@@ -299,11 +336,11 @@ T{
         game.Use(world, reeve)
         game.Answer(world, HellfeatherReply.TakeBounty)
         T.AreEqual(game.Quests.Ford, 1)
-        game.Inventory.Items.Feathers = 23
+        game.Inventory.Items.AddStack(HellfeatherItems.BlackFeather, 15)
         T.IsTrue(game.HasNews(edda))
         game.Use(world, edda)
         game.Answer(world, HellfeatherReply.GiveFeathers)
-        T.AreEqual(game.Inventory.Items.Feathers, 3)
+        T.AreEqual(game.Inventory.Items.FeatherCount(), 3)
         T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.EddasQuillCharm), 1)
         game.Quests.DucksCleared = HellfeatherQuests.DucksWanted
         T.IsTrue(game.HasNews(reeve))

@@ -67,7 +67,7 @@ HellfeatherEnemyData
             <EnemyKind Name="RingKeeperWarden" Rank=HellfeatherEnemyRank.Unique Model="Assets/RingKeeperWarden.qvox" StandIn="EvilDuck" StandInScale=1.3 Height=86 VoxelSize=0.0292 Radius=0.6 Speed=1.8 Reach=1.8 Notice=14.0 MaxHealth=360 Damage=18 Fire=9 Accuracy=40 Armor=40 Experience=90 Move=HellfeatherMove.RingPull Loot="Warden"/>
             <EnemyKind Name="Mardra" Rank=HellfeatherEnemyRank.Unique Model="Assets/Mardra.qvox" StandIn="EvilDuck" StandInScale=1.7 Height=72 VoxelSize=0.0389 Radius=0.9 Speed=1.6 Reach=2.0 Notice=18.0 MaxHealth=1400 Damage=19 Fire=11 Accuracy=45 Armor=40 Experience=600 Move=HellfeatherMove.Brood Feathers=20/>
 
-            <LootTable Name="Duck drops" Chance=0.35 Rolls=1 GoldChance=0.35 MinGold=20 MaxGold=100>
+            <LootTable Name="Duck drops" Chance=0.35 Rolls=1 GoldChance=0.6 MinGold=30 MaxGold=130>
                 <LootItem Item=HellfeatherItems.HealthPotion Weight=30/>
                 <LootItem Item=HellfeatherItems.ManaPotion Weight=20/>
                 <LootItem Item=HellfeatherItems.Scroll Weight=8/>
@@ -105,10 +105,10 @@ HellfeatherEnemyData
             <LootTable Name="Tithe bracelet" Chance=0.5 Rolls=1>
                 <LootItem Item=HellfeatherItems.TitheBracelet Weight=1/>
             </LootTable>
-            <LootTable Name="Greyneck" Chance=1.0 Rolls=1 GoldChance=1.0 MinGold=120 MaxGold=200>
+            <LootTable Name="Greyneck" Chance=1.0 Rolls=1 GoldChance=1.0 MinGold=200 MaxGold=320>
                 <LootItem Item=HellfeatherItems.GreyneckQuill Weight=1/>
             </LootTable>
-            <LootTable Name="Warden" Chance=1.0 Rolls=2 GoldChance=0.8 MinGold=80 MaxGold=160>
+            <LootTable Name="Warden" Chance=1.0 Rolls=2 GoldChance=1.0 MinGold=120 MaxGold=240>
                 <LootItem Item=HellfeatherItems.HealthPotion Weight=4/>
                 <LootItem Item=HellfeatherItems.MillstoneMaul Weight=1/>
             </LootTable>

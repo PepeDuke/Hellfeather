@@ -50,6 +50,8 @@ HellfeatherItemArt
     #float ModelVoxel = 0.03125
     // How many voxels a flat item rises at its thickest.
     #int Thickness = 8
+    // Voxels across the black feathers' ground model.
+    #int FeatherModel = 30
 
     int ColorOf(int code)
     {
@@ -111,7 +113,12 @@ HellfeatherItemArt
     }
 
     // World units per voxel of an item's ground model.
-    float ModelVoxelOf(HellfeatherItems item) { return WornOnGround(item) ? HellfeatherWarrior.VoxelSize | ModelVoxel }
+    // Black feathers are built finer than a picture's cells, and shown larger.
+    float ModelVoxelOf(HellfeatherItems item)
+    {
+        if item == HellfeatherItems.BlackFeather { return ModelVoxel * 1.5 }
+        return WornOnGround(item) ? HellfeatherWarrior.VoxelSize | ModelVoxel
+    }
 
     // Puffs a flat item up toward its middle, with dark lines pressed in.
     // Cells within two of an edge rise half as high, within four three quarters.
@@ -140,6 +147,70 @@ HellfeatherItemArt
         int row = (int)picture.Rows.Len - 1
         while row > 0 && picture.RowIsEmpty(row) { row-- }
         return row
+    }
+
+    // Three black flight feathers fanned on the ground, one voxel thin: a pale
+    // quill curving from its bare root to the tip, the vane wider on one side,
+    // its edges curling up and parted here and there, black with a blue sheen
+    // along the quill.
+    -int BuildFeathers(QuaxelWorld& world, int& height)
+    {
+        height = 3
+        int size = FeatherModel
+        int volume = world.CreateVolume(size, height, size)
+        if volume < 0 { return -1 }
+        for feather : 0; feather < 3; feather++ {
+            float angle = 0.35 + (float)feather * 0.62
+            float length = (float)(size - 6) * (feather == 1 ? 0.95 | 0.8)
+            float fromX = 4.0 + (float)feather * 2.0
+            float fromZ = (float)size - 5.0 - (float)feather * 1.5
+            float alongX = Math.Cos(angle)
+            float alongZ = -Math.Sin(angle)
+            float acrossX = -alongZ
+            float acrossZ = alongX
+            int steps = (int)(length * 2.0)
+            for step : 0; step <= steps; step++ {
+                float t = (float)step / (float)steps
+                float bend = Math.Sin(t * 3.1415927) * 1.6
+                float qx = fromX + alongX * length * t + acrossX * bend
+                float qz = fromZ + alongZ * length * t + acrossZ * bend
+                int y = feather == 1 ? 1 | 0
+                SetFeather(world, volume, qx, (float)y, qz, 0x8a9096)
+                if t < 0.18 { continue }
+                // The vane: wider on the near side, tapering to the tip.
+                float u = (t - 0.18) / 0.82
+                float swell = Math.Sin(Math.Min(1.0, u * 1.4) * 1.5707963) * (1.0 - u * u * u)
+                // Parted barbs: a few gaps on the broad side.
+                bool parted = (feather + (int)(t * 13.0)) % 5 == 0
+                for side : 0; side < 2; side++ {
+                    float wide = (side == 0 ? 4.5 | 3.0) * swell
+                    float sign = side == 0 ? 1.0 | -1.0
+                    if side == 0 && parted { wide = Math.Min(wide, 1.0) }
+                    float reach = 0.5
+                    while reach <= wide {
+                        // The barbs sweep toward the tip.
+                        float bx = qx + (acrossX * sign + alongX * 0.45) * reach
+                        float bz = qz + (acrossZ * sign + alongZ * 0.45) * reach
+                        int color = reach < 1.6 && side == 0 ? 0x1f2b52 | 0x14151b
+                        if reach > wide - 0.8 { color = 0x0c0c10 }
+                        // The outer edge curls up a little.
+                        float lift = reach > wide - 1.2 && wide > 2.5 ? 1.0 | 0.0
+                        SetFeather(world, volume, bx, (float)y + lift, bz, color)
+                        reach += 0.5
+                    }
+                }
+            }
+        }
+        return volume
+    }
+
+    -SetFeather(QuaxelWorld& world, int volume, float x, float y, float z, int color)
+    {
+        int vx = (int)x
+        int vz = (int)z
+        int vy = Math.Clamp((int)y, 0, 2)
+        if vx < 0 || vz < 0 || vx >= FeatherModel || vz >= FeatherModel { return }
+        world.SetVoxel(volume, vx, vy, vz, HellfeatherArt.Rgb(color))
     }
 
     -int Lay(QuaxelWorld& world, HellfeatherItemPicture& picture, int& height)
@@ -188,7 +259,7 @@ HellfeatherItemArt
     // of the plain item they look most like.
     HellfeatherItems Likeness(HellfeatherItems item)
     {
-        if item == HellfeatherItems.BlackFeather || item == HellfeatherItems.LanternToken { return HellfeatherItems.Scroll }
+        if item == HellfeatherItems.LanternToken { return HellfeatherItems.Scroll }
         if item == HellfeatherItems.TitheBracelet || item == HellfeatherItems.MarrasThimble || item == HellfeatherItems.GreyKey || item == HellfeatherItems.GarnetRing { return HellfeatherItems.Ring }
         if item == HellfeatherItems.BlackHoney { return HellfeatherItems.ManaPotion }
         if item == HellfeatherItems.EddasQuillCharm || item == HellfeatherItems.MardrasRingShards || item == HellfeatherItems.GreyneckQuill || item == HellfeatherItems.RavenAmulet { return HellfeatherItems.Amulet }
@@ -221,6 +292,7 @@ HellfeatherItemArt
             height = size.Y
             return worn
         }
+        if item == HellfeatherItems.BlackFeather { return BuildFeathers(world, height) }
         HellfeatherItemPicture picture
         Picture(item, picture)
         if Stands(item) { return Revolve(world, picture, height) }

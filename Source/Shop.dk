@@ -18,6 +18,9 @@ HellfeatherShop
     -int [] ShelvedBy
     // Moves on with each shelved piece of gear, so each rolls differently.
     -uint RollSeed = 1
+    // True while the shelves are the ravens' hoard: prices are in black
+    // feathers, nothing is bought from her, and what she buys is rolled then.
+    bool ForFeathers
 
     // Potions and scrolls never run out. Each piece of gear is a single one, and
     // some of it is magic. He never stocks rare items himself, though one the
@@ -76,6 +79,23 @@ HellfeatherShop
             Add(HellfeatherItems.ShortSword, false)
             Add(HellfeatherItems.ShortSword, false)
             Add(HellfeatherItems.Amulet, false)
+        } else if merchant == HellfeatherMerchant.Ravens {
+            for n : 0; n < HellfeatherShop.HoardShelves; n++ { AddHoardFind() }
+        }
+    }
+
+    // Shelves one wrapped find from the hoard: a plain base, its rarity unseen.
+    AddHoardFind()
+    {
+        QuaxelRandom random
+        random.Begin(RollSeed * (uint)2654435761 + (uint)17)
+        RollSeed += (uint)7919
+        HellfeatherItems [] finds = {HellfeatherItems.Ring, HellfeatherItems.Amulet, HellfeatherItems.GarnetRing, HellfeatherItems.RavenAmulet, HellfeatherItems.Gloves, HellfeatherItems.Boots, HellfeatherItems.Belt, HellfeatherItems.IronHelm, HellfeatherItems.ChainCoif, HellfeatherItems.RoundShield, HellfeatherItems.KiteShield, HellfeatherItems.LeatherArmor, HellfeatherItems.RingMail, HellfeatherItems.ShortSword, HellfeatherItems.Falchion, HellfeatherItems.FlangedMace, HellfeatherItems.BattleAxe, HellfeatherItems.ChainGloves, HellfeatherItems.ChainBoots, HellfeatherItems.HeavyBelt}
+        HellfeatherItemMods plain
+        plain.Clear()
+        // A big find may not fit; a smaller one is tried in its place.
+        for attempt : 0; attempt < 6; attempt++ {
+            if AddWith(finds[random.Below((int)finds.Len)], plain, false) { return }
         }
     }
 
@@ -198,8 +218,8 @@ HellfeatherShop
     // What he asks for it: always exactly four times what he pays.
     int BuyPriceWith(HellfeatherItems item, HellfeatherItemMods mods) { return SellPriceWith(item, mods) * BuyBackFactor }
 
-    // What a shelved item costs.
-    int PriceOf(int index) { return BuyPriceWith(Stock[index].Item, Stock[index].Mods) }
+    // What a shelved item costs, in gold or, at the hoard, in feathers.
+    int PriceOf(int index) { return ForFeathers ? HellfeatherShop.FeatherPrice(Stock[index].Item) | BuyPriceWith(Stock[index].Item, Stock[index].Mods) }
 
     // Whether the shelved item at index can be bought with this much gold.
     HellfeatherShopResult Quote(int index, int gold)
@@ -229,7 +249,7 @@ HellfeatherShop
     // As Receive, for an item with mods. They stay with it on the shelf.
     int ReceiveWith(HellfeatherItems item, HellfeatherItemMods mods)
     {
-        if item == HellfeatherItems.None || item == HellfeatherItems.Gold { return 0 }
+        if ForFeathers || !HellfeatherShop.Buys(item) { return 0 }
         if mods.Count > 0 || !HasEndless(item) { AddWith(item, mods, false) }
         return SellPriceWith(item, mods)
     }
@@ -248,6 +268,33 @@ HellfeatherShop
     }
     // The share of shelved gear that comes out magic.
     #float MagicShare = 0.35
+    // How many wrapped finds the ravens' hoard shows, and the shares of them
+    // that turn out rare and magic when bought.
+    #int HoardShelves = 10
+    #float HoardRare = 0.1
+    #float HoardMagic = 0.35
+
+    // Whether merchants take an item at all. Gold is money, and black feathers
+    // only Edda's ravens want.
+    bool Buys(HellfeatherItems item) { return item != HellfeatherItems.None && item != HellfeatherItems.Gold && item != HellfeatherItems.BlackFeather }
+
+    // What a wrapped find costs in black feathers, by what it is.
+    int FeatherPrice(HellfeatherItems item)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        return Math.Max(2, kind.Price / 40)
+    }
+
+    // A find's rarity, rolled as it is bought: Chance from 0 to 1 picks rare,
+    // magic or plain, and Seed the mods.
+    HellfeatherItemMods RollHoard(HellfeatherItems item, float chance, int seed)
+    {
+        if chance < HoardRare { return HellfeatherItemMods.RollAs(item, HellfeatherRarity.Rare, seed) }
+        if chance < HoardRare + HoardMagic { return HellfeatherItemMods.RollAs(item, HellfeatherRarity.Magic, seed) }
+        HellfeatherItemMods plain
+        plain.Clear()
+        return plain
+    }
     #int Rows = 7
 }
 T{
@@ -450,6 +497,7 @@ HellfeatherShopScreen
             int y = PanelY + HellfeatherShopArt.GridY + Shop.Stock[i].Y * cell
             uint tint = 0x28385070
             if Shop.Stock[i].Mods.Rarity != HellfeatherRarity.Common { tint = HellfeatherItemMods.TintOf(Shop.Stock[i].Mods.Rarity) }
+            if Shop.ForFeathers { tint = 0x30302440 }
             if i == hovered { tint = gold >= Shop.PriceOf(i) ? 0x40FFFFFF | 0x50C04030 }
             ui.OverlayRect(x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, tint)
             ui.OverlayOutlinedSprite(x, y, HellfeatherInventoryArt.IconX(Shop.Stock[i].Item), HellfeatherInventoryArt.IconY(Shop.Stock[i].Item), kind.Width * cell, kind.Height * cell, HellfeatherInventoryArt.IconOutline)
@@ -458,7 +506,14 @@ HellfeatherShopScreen
         if selling { ui.OverlayRect(PanelX + HellfeatherShopArt.GridX, PanelY + HellfeatherShopArt.GridY, HellfeatherShop.Columns * cell, HellfeatherShop.Rows * cell, 0x3040C060) }
         DrawInfo(ui, hovered, selling, gold, held)
         string purse = QuaxelUi.FormatInt(gold)
-        ui.OverlayText(PanelX + HellfeatherInventoryArt.GoldX + HellfeatherInventoryArt.GoldWidth - 4 - (int)Length(purse) * 6, PanelY + HellfeatherInventoryArt.GoldY + 5, purse, 0xFFDCAE3E)
+        uint purseColor = 0xFFDCAE3E
+        if Shop.ForFeathers {
+            // Feathers, not coins: a feather over the coin well.
+            ui.OverlayRect(PanelX + HellfeatherInventoryArt.GoldX + 1, PanelY + HellfeatherInventoryArt.GoldY + 1, 22, 14, 0xFF14110E)
+            ui.OverlayOutlinedSprite(PanelX + HellfeatherInventoryArt.GoldX, PanelY + HellfeatherInventoryArt.GoldY, HellfeatherInventoryArt.IconX(HellfeatherItems.BlackFeather), HellfeatherInventoryArt.IconY(HellfeatherItems.BlackFeather), 16, 16, HellfeatherInventoryArt.IconOutline)
+            purseColor = 0xFF9DB4F0
+        }
+        ui.OverlayText(PanelX + HellfeatherInventoryArt.GoldX + HellfeatherInventoryArt.GoldWidth - 4 - (int)Length(purse) * 6, PanelY + HellfeatherInventoryArt.GoldY + 5, purse, purseColor)
     }
 
     -Line(QuaxelUi& ui, int row, string text, uint color)
@@ -468,11 +523,29 @@ HellfeatherShopScreen
 
     -DrawInfo(QuaxelUi& ui, int hovered, bool selling, int gold, HellfeatherItems held)
     {
+        if selling && (Shop.ForFeathers || !HellfeatherShop.Buys(held)) {
+            HellfeatherItemKind refused = HellfeatherItems.Get(held)
+            Line(ui, 0, refused.Name, HellfeatherItemMods.ColorOf(HeldMods.Rarity))
+            Line(ui, 2, Shop.ForFeathers ? "The ravens don't buy." | "Not wanted here.", 0xFFD05A40)
+            if held == HellfeatherItems.BlackFeather { Line(ui, 3, "Edda's ravens take them.", 0xFF8C8880) }
+            return
+        }
         if selling {
             HellfeatherItemKind carried = HellfeatherItems.Get(held)
             Line(ui, 0, carried.Name, HellfeatherItemMods.ColorOf(HeldMods.Rarity))
             Line(ui, 2, "Sell for " + QuaxelUi.FormatInt(Shop.SellPriceWith(held, HeldMods)) + " gold", 0xFFDCAE3E)
             Line(ui, 4, "Click to sell", 0xFF8C8880)
+            return
+        }
+        if hovered >= 0 && Shop.ForFeathers {
+            HellfeatherItemKind find = HellfeatherItems.Get(Shop.Stock[hovered].Item)
+            int cost = Shop.PriceOf(hovered)
+            Line(ui, 0, find.Name + ", wrapped", 0xFFC8CCD4)
+            Line(ui, 1, "Plain, magic or rare:", 0xFF8FB4FF)
+            Line(ui, 2, "unseen until bought.", 0xFF8FB4FF)
+            Line(ui, 3, QuaxelUi.FormatInt(cost) + " black feathers", gold >= cost ? 0xFF9DB4F0 | 0xFFD05A40)
+            Line(ui, 4, "Click to buy", 0xFF8C8880)
+            if NoticeFrames > 0 { Line(ui, 5, Notice, 0xFFD05A40) }
             return
         }
         if hovered >= 0 {
@@ -495,6 +568,12 @@ HellfeatherShopScreen
         }
         Line(ui, 0, BlurbOne, 0xFFC8CCD4)
         Line(ui, 1, BlurbTwo, 0xFFC8CCD4)
+        if Shop.ForFeathers {
+            Line(ui, 3, "Pay in black feathers.", 0xFF8C8880)
+            Line(ui, 4, "What's inside is rolled", 0xFF8C8880)
+            Line(ui, 5, "when you buy it.", 0xFF8C8880)
+            return
+        }
         Line(ui, 3, "Click an item to buy.", 0xFF8C8880)
         Line(ui, 4, "Bring one from your", 0xFF8C8880)
         Line(ui, 5, "bag here to sell it.", 0xFF8C8880)

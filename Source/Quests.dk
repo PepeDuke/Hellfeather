@@ -24,6 +24,8 @@ HellfeatherReply : int
     MothRaid,
     TakeKey,
     Browse,
+    // Opens the ravens' hoard at Edda's, bought with black feathers.
+    Hoard,
     OpenMillrace,
     Sever,
     LiseWindow,
@@ -43,6 +45,10 @@ HellfeatherQuests
     int Ford
     int DucksCleared
     bool FeathersGiven
+    // How many feathers she carries, for the log. The game sets it.
+    int FeathersHeld
+    // Whether Edda has told her what the ravens trade.
+    bool HoardTold
     bool ReevePaid
     // I-3: 1 the garret is open, 2 searched, 3 the Red Cuffs, 4 done.
     int Rooms
@@ -147,7 +153,8 @@ HellfeatherQuests
                 if FeathersGiven { lines += "Edda has her feathers." }
                 else {
                     lines += "Edda at the Rookery wants"
-                    lines += "twenty black feathers."
+                    lines += "twelve black feathers."
+                    lines += "Carrying " + QuaxelUi.FormatInt(Math.Min(FeathersHeld, HellfeatherQuests.FeathersWanted)) + "/" + QuaxelUi.FormatInt(HellfeatherQuests.FeathersWanted) + "."
                 }
             }
         } else if quest == 2 {
@@ -258,7 +265,7 @@ HellfeatherQuests
 }
 #{
     #int DucksWanted = 12
-    #int FeathersWanted = 20
+    #int FeathersWanted = 12
     // Every act has this many quests, one for each slot of the log.
     #int PerAct = 6
 
@@ -306,7 +313,7 @@ HellfeatherGame : QuaxelGameInstance
         if person == HellfeatherPerson.Carmine { return q.Moult == 1 }
         if person == HellfeatherPerson.Jessa { return q.Moult == 2 }
         if person == HellfeatherPerson.Reeve { return q.Ford == 0 || (q.Ford == 1 && q.DucksCleared >= HellfeatherQuests.DucksWanted && !q.ReevePaid) }
-        if person == HellfeatherPerson.Edda { return !q.FeathersGiven && Inventory.Items.Feathers >= HellfeatherQuests.FeathersWanted }
+        if person == HellfeatherPerson.Edda { return !q.FeathersGiven && Inventory.Items.FeatherCount() >= HellfeatherQuests.FeathersWanted }
         if person == HellfeatherPerson.Marra { return q.Moult >= 3 && q.Seamstress == 0 }
         if person == HellfeatherPerson.Moth { return (q.Dark == 0 && Carries(HellfeatherItems.LanternToken)) || q.Dark == 2 }
         if person == HellfeatherPerson.Vale { return q.Rooms == 2 }
@@ -426,6 +433,7 @@ HellfeatherGame : QuaxelGameInstance
         if forced { return }
         AddTopics(person)
         if Sells(person) { Talk.Offer("Trade", HellfeatherReply.Browse) }
+        if person == HellfeatherPerson.Edda { Talk.Offer("What have the ravens found?", HellfeatherReply.Hoard) }
         Talk.Offer("Farewell", HellfeatherReply.Leave)
     }
 
@@ -494,15 +502,20 @@ HellfeatherGame : QuaxelGameInstance
             if Carries(HellfeatherItems.TitheBracelet) {
                 Talk.Say("That bracelet. Tin, off the tithe rolls. They put them on the ones sent to the mill.")
             }
-            if !q.FeathersGiven && Inventory.Items.Feathers >= HellfeatherQuests.FeathersWanted {
-                Talk.Say("Twenty. Good. The ravens eat what we can't.")
+            if !q.FeathersGiven && Inventory.Items.FeatherCount() >= HellfeatherQuests.FeathersWanted {
+                Talk.Say("Twelve. Good. The ravens eat what we can't.")
                 Talk.Say("Take this. It knows more about feathers than about people. Like me.")
-                Talk.Offer("Hand over twenty feathers", HellfeatherReply.GiveFeathers)
+                Talk.Offer("Hand over twelve feathers", HellfeatherReply.GiveFeathers)
             } else if !q.FeathersGiven {
-                Talk.Say("Black feathers. Twenty. They come off the ducks, thicker when the sky rains them.")
-                Talk.Reply("I have " + QuaxelUi.FormatInt(Inventory.Items.Feathers) + ".")
+                Talk.Say("Black feathers. Twelve of them. They come off the ducks, thicker when the sky rains them.")
+                Talk.Reply("I have " + QuaxelUi.FormatInt(Inventory.Items.FeatherCount()) + ".")
             } else {
                 Talk.Say("The ravens know you now. That isn't always a kindness.")
+            }
+            if !Quests.HoardTold {
+                Quests.HoardTold = true
+                Talk.Say("Any feathers past that, the ravens trade for. They bring me what they pick off the dead, wrapped up. I don't open the bundles.")
+                Talk.Say("Mostly it's plain. Now and then there's something in it that still hums.")
             }
         } else if person == HellfeatherPerson.Marra {
             BeginTalk("Marra Senn", spot)
@@ -621,7 +634,7 @@ HellfeatherGame : QuaxelGameInstance
             GainExperience(60)
             if Quests.FeathersGiven { Quests.Ford = 2 }
         } else if reply == HellfeatherReply.GiveFeathers {
-            Inventory.Items.Feathers -= HellfeatherQuests.FeathersWanted
+            Inventory.Items.TakeStack(HellfeatherItems.BlackFeather, HellfeatherQuests.FeathersWanted)
             Quests.FeathersGiven = true
             Give(world, HellfeatherItems.EddasQuillCharm)
             GainExperience(60)
@@ -670,6 +683,8 @@ HellfeatherGame : QuaxelGameInstance
             GainExperience(120)
             int vale = People.FindPerson(HellfeatherPerson.Vale)
             if vale >= 0 { People.Spots[vale].Shown = false }
+        } else if reply == HellfeatherReply.Hoard {
+            OpenShop(HellfeatherMerchant.Ravens)
         } else if reply == HellfeatherReply.Browse {
             if spot >= 0 && spot < People.Spots.Len { OpenShop(HellfeatherMerchants.Of(People.Spots[spot].Person)) }
         } else if reply == HellfeatherReply.OpenMillrace {

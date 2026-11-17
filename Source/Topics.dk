@@ -129,6 +129,7 @@ HellfeatherGame : QuaxelGameInstance
             case HellfeatherTopic.EddaFeathers:
                 Talk.Say("Nine days they've fallen, and not off any bird I know. The ducks drink what's under them and turn.")
                 Talk.Say("Bring me what you find. The ravens are hungry and I'm too old to go wading.")
+                Talk.Say("They pay for them, in their way. Whatever they've picked off the dead.")
                 break
             case HellfeatherTopic.EddaRookery:
                 Talk.Say("Since my mother had it. Ravens remember faces. So does the town. Neither forgives.")

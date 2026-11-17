@@ -43,6 +43,7 @@ HellfeatherItemArt
         else if item == HellfeatherItems.PlatedBelt { PicturePlatedBelt(p) }
         else if item == HellfeatherItems.GarnetRing { PictureGarnetRing(p) }
         else if item == HellfeatherItems.RavenAmulet { PictureRavenAmulet(p) }
+        else if item == HellfeatherItems.BlackFeather { PictureBlackFeather(p) }
         else if item == HellfeatherItems.RuneCleave { PictureRuneCleave(p) }
         else if item == HellfeatherItems.RuneWarCry { PictureRuneWarCry(p) }
         else if item == HellfeatherItems.RuneDash { PictureRuneDash(p) }
@@ -1195,6 +1196,21 @@ HellfeatherItemArt
         p.Row(12, ".......ds.......")
         p.Row(13, ".......ss.......")
         p.Row(14, ".......dd.......")
+    }
+
+    -PictureBlackFeather(HellfeatherItemPicture& p)
+    {
+        p.Row(1, ".............uD.")
+        p.Row(2, "............udD.")
+        p.Row(3, "..........uuddD.")
+        p.Row(4, ".........uuddD..")
+        p.Row(5, "........uuudDu..")
+        p.Row(6, "........uudDuu..")
+        p.Row(7, ".......uudDDb...")
+        p.Row(8, "......uudDDDD...")
+        p.Row(9, "......udDubD....")
+        p.Row(10, ".....udduu......")
+        p.Row(11, ".....ddu........")
     }
 
     -PictureRuneCleave(HellfeatherItemPicture& p)

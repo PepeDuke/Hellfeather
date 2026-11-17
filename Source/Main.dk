@@ -3,6 +3,8 @@
 //     Hellfeather.exe --start mill    starts somewhere else, for looking at it:
 //                                     matthew, edda, hospice, marsh, mill, undercroft or deep
 //     Hellfeather.exe --talk          talks to the first person in reach once they appear
+//     Hellfeather.exe --featherfall   starts a Featherfall a few seconds in, out in the wild
+//     Hellfeather.exe --start edda --hoard   13 feathers and the ravens' hoard open
 Main(string [] args)
 {
     Print("Hellfeather / Quaxel")
@@ -37,6 +39,8 @@ Main(string [] args)
         }
         if args[i] == "--start" && i + 1 < args.Len { game.StartAt = args[i + 1] }
         if args[i] == "--talk" { game.TalkOnStart = true }
+        if args[i] == "--featherfall" { game.Featherfall.Timer = 4.0 }
+        if args[i] == "--hoard" { game.HoardOnStart = true }
     }
     if game.Benchmark.Enabled {
         if !QuaxelPlatform.SupportsWindowing() {

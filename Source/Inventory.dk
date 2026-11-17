@@ -80,7 +80,8 @@ HellfeatherItems : int
     RuneCleave,
     RuneWarCry,
     RuneDash,
-    // Act I. Black feathers are a count, as gold is, and go to Edda.
+    // Act I. Black feathers stack in the bag, FeatherStack to a cell. Edda
+    // wants some, and her ravens trade their finds for more.
     BlackFeather,
     TitheBracelet,
     BlackHoney,
@@ -152,7 +153,7 @@ HellfeatherItems
         if item == HellfeatherItems.RuneCleave { return Make("Cleave Rune", "War rune: Cleave", 2, 1, HellfeatherGear.None, 180) }
         if item == HellfeatherItems.RuneWarCry { return Make("War Cry Rune", "War rune: War Cry", 2, 2, HellfeatherGear.None, 260) }
         if item == HellfeatherItems.RuneDash { return Make("Dash Rune", "Wind rune: Dash", 1, 2, HellfeatherGear.None, 180) }
-        if item == HellfeatherItems.BlackFeather { return Make("Black Feather", "For Edda's ravens", 1, 1, HellfeatherGear.None, 0) }
+        if item == HellfeatherItems.BlackFeather { return Make("Black Feather", "Edda's ravens trade for these", 1, 1, HellfeatherGear.None, 0) }
         if item == HellfeatherItems.TitheBracelet { return Make("Tithe Bracelet", "Tin. Warm, somehow", 1, 1, HellfeatherGear.None, 5) }
         if item == HellfeatherItems.BlackHoney { return Make("Black Honey", "Double damage, 20 s", 1, 1, HellfeatherGear.None, 0) }
         if item == HellfeatherItems.LanternToken { return Make("Lantern Token", "Lantern & Moth", 1, 1, HellfeatherGear.None, 0) }
@@ -183,6 +184,10 @@ HellfeatherItems
         if item == HellfeatherItems.RavenAmulet { return Make("Raven Amulet", "Mana 15", 1, 1, HellfeatherGear.Neck, 360) }
         return Make("", "", 1, 1, HellfeatherGear.None, 0)
     }
+
+    // How many of an item one bag cell holds. Only black feathers stack.
+    int StackMost(HellfeatherItems item) { return item == HellfeatherItems.BlackFeather ? FeatherStack | 1 }
+    #int FeatherStack = 5
 }
 
 // An item in the backpack. X and Y are its top-left cell.
@@ -204,8 +209,6 @@ HellfeatherInventory
     HellfeatherItems Held
     HellfeatherItemMods HeldMods
     int Gold
-    // Black feathers for Edda, kept in a pouch rather than the bag.
-    int Feathers
     // Raven portals, counted like feathers, at most MaxPortals.
     int Portals
 
@@ -300,7 +303,21 @@ HellfeatherInventory
         return AddWith(item, none)
     }
 
+    // A stacking item tops up a stack that has room for all of it first.
     bool AddWith(HellfeatherItems item, HellfeatherItemMods mods)
+    {
+        int most = HellfeatherItems.StackMost(item)
+        if most > 1 {
+            for i : 0; i < Bag.Len; i++ {
+                if Bag[i].Item != item || Bag[i].Mods.Amount() + mods.Amount() > most { continue }
+                Bag[i].Mods.Stack = Bag[i].Mods.Amount() + mods.Amount()
+                return true
+            }
+        }
+        return PlaceNew(item, mods)
+    }
+
+    -bool PlaceNew(HellfeatherItems item, HellfeatherItemMods mods)
     {
         for x : 0; x < Columns; x++ {
             for y : 0; y < Rows; y++ {
@@ -311,6 +328,63 @@ HellfeatherInventory
             }
         }
         return false
+    }
+
+    // Adds a number of a stacking item, filling the stacks there are and then
+    // new cells. Returns how many did not fit.
+    int AddStack(HellfeatherItems item, int amount)
+    {
+        int most = HellfeatherItems.StackMost(item)
+        for i : 0; i < Bag.Len; i++ {
+            if amount <= 0 { break }
+            if Bag[i].Item != item || Bag[i].Mods.Amount() >= most { continue }
+            int take = Math.Min(most - Bag[i].Mods.Amount(), amount)
+            Bag[i].Mods.Stack = Bag[i].Mods.Amount() + take
+            amount -= take
+        }
+        while amount > 0 {
+            HellfeatherItemMods stack
+            stack.Clear()
+            stack.Stack = Math.Min(most, amount)
+            if !PlaceNew(item, stack) { return amount }
+            amount -= stack.Stack
+        }
+        return 0
+    }
+
+    // How many of an item the bag and the cursor hold, stacks counted in full.
+    int AmountOf(HellfeatherItems item)
+    {
+        int amount = 0
+        for entry : Bag {
+            if entry.Item == item { amount += entry.Mods.Amount() }
+        }
+        if Held == item { amount += HeldMods.Amount() }
+        return amount
+    }
+
+    int FeatherCount() { return AmountOf(HellfeatherItems.BlackFeather) }
+
+    // Takes a number of an item out of the bag, from the last stacks first.
+    // False, taking nothing, if the bag holds fewer.
+    bool TakeStack(HellfeatherItems item, int amount)
+    {
+        int inBag = 0
+        for entry : Bag {
+            if entry.Item == item { inBag += entry.Mods.Amount() }
+        }
+        if inBag < amount { return false }
+        int i = (int)Bag.Len - 1
+        while i >= 0 && amount > 0 {
+            if Bag[i].Item == item {
+                int take = Math.Min(Bag[i].Mods.Amount(), amount)
+                amount -= take
+                if take == Bag[i].Mods.Amount() { RemoveEntry(i) }
+                else { Bag[i].Mods.Stack = Bag[i].Mods.Amount() - take }
+            }
+            i--
+        }
+        return true
     }
 
     // Picks up the item covering a cell. Does nothing while already holding one.
@@ -337,6 +411,15 @@ HellfeatherInventory
         if !CanDrop(x, y) { return false }
         int only = -1
         CountOverlaps(Held, x, y, only)
+        // A stack dropped on a stack of the same fills it, and keeps the rest.
+        int most = HellfeatherItems.StackMost(Held)
+        if only >= 0 && most > 1 && Bag[only].Item == Held && Bag[only].Mods.Amount() < most {
+            int move = Math.Min(most - Bag[only].Mods.Amount(), HeldMods.Amount())
+            Bag[only].Mods.Stack = Bag[only].Mods.Amount() + move
+            if move >= HeldMods.Amount() { ClearHeld() }
+            else { HeldMods.Stack = HeldMods.Amount() - move }
+            return true
+        }
         swapped : HellfeatherItems.None
         HellfeatherItemMods swappedMods
         swappedMods.Clear()
@@ -405,6 +488,59 @@ HellfeatherInventory
     #int MaxPortals = 20
 }
 T{
+    FeathersStackFiveToACell()
+    {
+        HellfeatherInventory bag
+        T.AreEqual(bag.AddStack(HellfeatherItems.BlackFeather, 7), 0)
+        T.AreEqual(bag.Bag.Len, 2)
+        T.AreEqual(bag.FeatherCount(), 7)
+        T.AreEqual(bag.AddStack(HellfeatherItems.BlackFeather, 3), 0)
+        T.AreEqual(bag.Bag.Len, 2)
+        T.AreEqual(bag.FeatherCount(), 10)
+        T.IsFalse(bag.TakeStack(HellfeatherItems.BlackFeather, 11))
+        T.AreEqual(bag.FeatherCount(), 10)
+        T.IsTrue(bag.TakeStack(HellfeatherItems.BlackFeather, 6))
+        T.AreEqual(bag.FeatherCount(), 4)
+        T.AreEqual(bag.Bag.Len, 1)
+    }
+
+    // Black feathers lie on the ground as thin feathers of their own, a few
+    // voxels high and mostly open ground, not a puffed-up copy of an icon.
+    BlackFeathersHaveTheirOwnThinModel()
+    {
+        QuaxelWorld world()
+        int height = 0
+        int volume = HellfeatherItemArt.BuildModel(world, HellfeatherItems.BlackFeather, height)
+        T.IsTrue(volume >= 0)
+        T.AreEqual(height, 3)
+        int filled = 0
+        int size = HellfeatherItemArt.FeatherModel
+        for x : 0; x < size; x++ {
+            for z : 0; z < size; z++ {
+                for y : 0; y < height; y++ {
+                    if world.GetVoxel(volume, x, y, z) >= 0 { filled++ }
+                }
+            }
+        }
+        T.IsTrue(filled > 60)
+        T.IsTrue(filled < size * size / 2)
+    }
+
+    // A held stack fills a stack it is dropped on, and keeps what is left over.
+    AHeldStackFillsAStackItIsDroppedOn()
+    {
+        HellfeatherInventory bag
+        bag.AddStack(HellfeatherItems.BlackFeather, 2)
+        bag.Held = HellfeatherItems.BlackFeather
+        bag.HeldMods.Clear()
+        bag.HeldMods.Stack = 4
+        T.IsTrue(bag.Drop(bag.Bag[0].X, bag.Bag[0].Y))
+        T.AreEqual(bag.Bag[0].Mods.Amount(), 5)
+        T.IsTrue(bag.Held == HellfeatherItems.BlackFeather)
+        T.AreEqual(bag.HeldMods.Amount(), 1)
+        T.AreEqual(bag.FeatherCount(), 6)
+    }
+
     ItemsFillTheBagWithoutOverlapping()
     {
         HellfeatherInventory bag

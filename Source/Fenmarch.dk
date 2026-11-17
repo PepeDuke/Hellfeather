@@ -227,42 +227,123 @@ HobbsMill : QuaxelTerrainModule
 // Code-built props of the Fenmarch. They join the shared HellfeatherProps.
 FenmarchArt
 #{
-    #int ReedsWidth = 24
+    #int ReedsWidth = 28
     #int ReedsHeight = 40
     #int ShrineWidth = 32
     #int ShrineHeight = 64
 
-    // A clump of reeds and cattails with a black feather or two caught in it.
+    // A clump of reeds, stalk by stalk: thin single-voxel stalks gathered
+    // toward the middle on a little mound of mud, tallest in the middle, each
+    // curving more toward its tip, splayed outward and leaning together with
+    // the wind off the water. Dark olive at the waterline, green-olive up the
+    // stalk and dry straw at the tips. A third are broader leaf blades that
+    // bend further. Variant 0 is common reed with pale feathery plumes,
+    // variant 1 cattails with brown heads and a spike. A black feather is
+    // caught in each.
     BuildReeds(QuaxelWorld& world, int volume, int variant)
     {
         QuaxelRandom random
         random.Begin((uint)(variant + 11) * (uint)7919)
-        for stalk : 0; stalk < 26; stalk++ {
-            int x = 12 + (int)random.Range(-9.0, 9.0)
-            int z = 12 + (int)random.Range(-9.0, 9.0)
-            int height = 16 + random.Below(ReedsHeight - 18)
-            // Stalks lean a little, one voxel per lean steps.
-            int lean = 5 + random.Below(8)
-            int dx = random.Below(3) - 1
-            int dz = random.Below(3) - 1
-            int tone = (stalk % 3) == 0 ? 0x5b5f30 | 0x6f6a3c
-            for y : 0; y < height; y++ {
-                int shade = y < 4 ? 70 | (85 + HellfeatherArt.Hash(x, y, z) % 25)
-                int sx = Math.Clamp(x + dx * (y / lean), 0, ReedsWidth - 1)
-                int sz = Math.Clamp(z + dz * (y / lean), 0, ReedsWidth - 1)
-                world.SetVoxel(volume, sx, y, sz, HellfeatherArt.Rgb(HellfeatherArt.Shade(tone, shade)))
-                // Every third stalk carries a cattail head near its top.
-                if stalk % 3 == 1 && y >= height - 6 && y < height - 1 && sx + 1 < ReedsWidth {
-                    world.SetVoxel(volume, sx + 1, y, sz, HellfeatherArt.Rgb(0x3a2416))
+        float middle = (float)ReedsWidth * 0.5
+        float spread = (float)ReedsWidth * 0.5 - 4.0
+        float windX = variant == 0 ? 0.55 | -0.35
+        float windZ = variant == 0 ? 0.3 | 0.55
+        // Mud and old roots at the foot, a little higher in the middle.
+        for x : 0; x < ReedsWidth; x++ {
+            for z : 0; z < ReedsWidth; z++ {
+                float d = Math.Hypot((float)x + 0.5 - middle, (float)z + 0.5 - middle)
+                float edge = spread * 0.75 + (float)(HellfeatherArt.Hash(x, 5, z) % 3)
+                if d > edge { continue }
+                int mud = HellfeatherArt.Rgb(HellfeatherArt.Shade(0x2e2619, 80 + HellfeatherArt.Hash(x, 1, z) % 35))
+                world.SetVoxel(volume, x, 0, z, mud)
+                if d < edge * 0.5 { world.SetVoxel(volume, x, 1, z, mud) }
+            }
+        }
+        int stalks = variant == 0 ? 56 | 44
+        for stalk : 0; stalk < stalks; stalk++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float r = spread * Math.Sqrt(random.Unit()) * random.Range(0.55, 1.0)
+            float bx = middle + Math.Cos(angle) * r
+            float bz = middle + Math.Sin(angle) * r
+            float near = 1.0 - r / spread
+            int height = (int)((float)(ReedsHeight - 3) * (0.42 + 0.42 * near + random.Range(0.0, 0.16)))
+            bool blade = random.Unit() < 0.33
+            float bend = blade ? random.Range(4.0, 7.0) | random.Range(1.0, 3.0)
+            // Outward from the middle, and with the wind.
+            float outX = Math.Cos(angle) * (0.4 + r / spread) + windX
+            float outZ = Math.Sin(angle) * (0.4 + r / spread) + windZ
+            float length = Math.Max(0.001, Math.Hypot(outX, outZ))
+            outX = outX / length
+            outZ = outZ / length
+            int tone = 0x5f6a2e
+            int pick = random.Below(3)
+            if pick == 1 { tone = 0x6e7336 }
+            if pick == 2 { tone = 0x857a3c }
+            int lastX = -1
+            int lastZ = -1
+            for y : 1; y < height; y++ {
+                float t = (float)y / (float)height
+                float off = bend * t * t
+                int vx = Math.Clamp((int)Math.Round(bx + outX * off), 0, ReedsWidth - 1)
+                int vz = Math.Clamp((int)Math.Round(bz + outZ * off), 0, ReedsWidth - 1)
+                int color = ReedColor(tone, t)
+                int shade = 88 + HellfeatherArt.Hash(vx, y, vz) % 22
+                world.SetVoxel(volume, vx, y, vz, HellfeatherArt.Rgb(HellfeatherArt.Shade(color, shade)))
+                // A blade is two voxels wide through its middle.
+                if blade && t > 0.2 && t < 0.7 {
+                    int wx = Math.Clamp(vx + (outZ > 0.0 ? 1 | -1), 0, ReedsWidth - 1)
+                    world.SetVoxel(volume, wx, y, vz, HellfeatherArt.Rgb(HellfeatherArt.Shade(color, shade - 12)))
+                }
+                lastX = vx
+                lastZ = vz
+            }
+            if blade { continue }
+            if variant == 1 && stalk % 4 == 0 && height > 14 {
+                // A cattail head below the tip: a 2 by 2 brown sausage, darker
+                // on one side, with the bare spike of the stalk above it.
+                int top = height - 3
+                for y : top - 7; y < top; y++ {
+                    for a : 0; a < 2; a++ {
+                        for b : 0; b < 2; b++ {
+                            int hx = Math.Clamp(lastX + a, 0, ReedsWidth - 1)
+                            int hz = Math.Clamp(lastZ + b, 0, ReedsWidth - 1)
+                            int brown = HellfeatherArt.Shade(0x5a3820, (a + b == 0 ? 112 | 88) + HellfeatherArt.Hash(hx, y, hz) % 12)
+                            world.SetVoxel(volume, hx, y, hz, HellfeatherArt.Rgb(brown))
+                        }
+                    }
+                }
+            } else if variant == 0 && stalk % 3 == 0 && height > 14 {
+                // A loose plume of pale seed around the tip.
+                for n : 0; n < 9; n++ {
+                    int px = Math.Clamp(lastX + random.Below(3) - 1, 0, ReedsWidth - 1)
+                    int pz = Math.Clamp(lastZ + random.Below(3) - 1, 0, ReedsWidth - 1)
+                    int py = Math.Clamp(height - 1 - random.Below(5), 0, ReedsHeight - 1)
+                    world.SetVoxel(volume, px, py, pz, HellfeatherArt.Rgb(HellfeatherArt.Shade(0xcdbb8c, 85 + random.Below(25))))
                 }
             }
         }
         // A black feather snagged across the stalks.
-        int fx = 6 + variant * 6
+        int fx = 7 + variant * 5
         for n : 0; n < 6; n++ {
             int color = n == 0 ? 0x2a2540 | 0x121016
-            world.SetVoxel(volume, fx + n, 18 + n / 2, 12, HellfeatherArt.Rgb(color))
+            world.SetVoxel(volume, fx + n, 16 + n / 2, (int)middle, HellfeatherArt.Rgb(color))
         }
+    }
+
+    // A reed's color up its length, T from 0 at the mud to 1 at the tip.
+    -int ReedColor(int tone, float t)
+    {
+        if t < 0.15 { return MixColor(0x3a3820, tone, t / 0.15) }
+        if t < 0.7 { return tone }
+        return MixColor(tone, 0xb7a25c, (t - 0.7) / 0.3)
+    }
+
+    -int MixColor(int from, int to, float t)
+    {
+        int red = (int)((float)((from >> 16) & 255) + (float)(((to >> 16) & 255) - ((from >> 16) & 255)) * t)
+        int green = (int)((float)((from >> 8) & 255) + (float)(((to >> 8) & 255) - ((from >> 8) & 255)) * t)
+        int blue = (int)((float)(from & 255) + (float)((to & 255) - (from & 255)) * t)
+        return (red << 16) | (green << 8) | blue
     }
 
     // A wooden shrine post with a little slate roof, hung with grey cloth and
@@ -298,6 +379,26 @@ FenmarchArt
     }
 }
 T{
+    // Reeds are stalks with air between them, not a solid block: halfway up a
+    // clump most of its square is empty, and the cattails carry brown heads.
+    ReedsAreStalksNotABlock()
+    {
+        QuaxelWorld world()
+        for variant : 0; variant < 2; variant++ {
+            int volume = world.CreateVolume(FenmarchArt.ReedsWidth, FenmarchArt.ReedsHeight, FenmarchArt.ReedsWidth)
+            FenmarchArt.BuildReeds(world, volume, variant)
+            int filled = 0
+            int y = FenmarchArt.ReedsHeight / 3
+            for x : 0; x < FenmarchArt.ReedsWidth; x++ {
+                for z : 0; z < FenmarchArt.ReedsWidth; z++ {
+                    if world.GetVoxel(volume, x, y, z) >= 0 { filled++ }
+                }
+            }
+            T.IsTrue(filled > 10)
+            T.IsTrue(filled * 5 < FenmarchArt.ReedsWidth * FenmarchArt.ReedsWidth)
+        }
+    }
+
     // The story's order: the Ford Road is just outside, the mill is farthest out,
     // and the hill and the mill are each a single clearing.
     ActOneZonesLieInStoryOrder()
