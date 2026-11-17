@@ -6,4 +6,7 @@ HellfeatherKeys
     #int Tab = 9
     // The digit 1 above the letters. 2, 3 and 4 follow it.
     #int One = 49
+    #int Enter = 13
+    #int Escape = 27
+    #int Space = 32
 }

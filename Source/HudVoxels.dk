@@ -501,6 +501,15 @@ HellfeatherHudVoxels
         }
     }
 
+    // Puts the frame out of view, as while a close-up hides the HUD.
+    Stow(QuaxelWorld& world)
+    {
+        if Node == 0 { return }
+        QuaxelTransform pose = world.GetTransform(Node)
+        pose.Position = vec3(0.0, -1000.0, 0.0)
+        world.SetTransform(Node, pose)
+    }
+
     // Lines the frame up with the bar on the UI grid. BarLeft and BarTop are in
     // UI pixels, and Scale is screen pixels per UI pixel.
     Anchor(QuaxelWorld& world, int width, int height, int barLeft, int barTop, int scale)

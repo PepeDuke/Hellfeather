@@ -13,6 +13,9 @@ HellfeatherShopEntry
 HellfeatherShop
 {
     HellfeatherShopEntry [] Stock
+    // Other merchants' shelves while this one is shown, and whose each entry is.
+    -HellfeatherShopEntry [] Shelved
+    -int [] ShelvedBy
     // Moves on with each shelved piece of gear, so each rolls differently.
     -uint RollSeed = 1
 
@@ -41,6 +44,72 @@ HellfeatherShop
         Add(HellfeatherItems.RuneCleave, false)
         Add(HellfeatherItems.RuneWarCry, false)
         Add(HellfeatherItems.RuneDash, false)
+    }
+
+    // A merchant's own shelves: what they deal in, the everyday goods endless
+    // and the rest one of each.
+    RestockFor(HellfeatherMerchant merchant, uint seed)
+    {
+        Stock.Clear()
+        RollSeed = seed
+        if merchant == HellfeatherMerchant.Edda {
+            Add(HellfeatherItems.HealthPotion, true)
+            Add(HellfeatherItems.ManaPotion, true)
+            Add(HellfeatherItems.Scroll, true)
+            Add(HellfeatherItems.RavenPortal, true)
+            Add(HellfeatherItems.Ring, false)
+            Add(HellfeatherItems.Amulet, false)
+            Add(HellfeatherItems.Ring, false)
+        } else if merchant == HellfeatherMerchant.Marra {
+            Add(HellfeatherItems.LeatherArmor, false)
+            Add(HellfeatherItems.IronHelm, false)
+            Add(HellfeatherItems.RoundShield, false)
+            Add(HellfeatherItems.Gloves, false)
+            Add(HellfeatherItems.Boots, false)
+            Add(HellfeatherItems.Belt, false)
+            Add(HellfeatherItems.Gloves, false)
+            Add(HellfeatherItems.Boots, false)
+        } else if merchant == HellfeatherMerchant.Moth {
+            Add(HellfeatherItems.RuneCleave, false)
+            Add(HellfeatherItems.RuneWarCry, false)
+            Add(HellfeatherItems.RuneDash, false)
+            Add(HellfeatherItems.ShortSword, false)
+            Add(HellfeatherItems.ShortSword, false)
+            Add(HellfeatherItems.Amulet, false)
+        }
+    }
+
+    // Moves every shelved entry into the stash, each marked with its owner,
+    // for when another merchant's shelves take the window.
+    Stash(int owner)
+    {
+        for entry : Stock {
+            Shelved += entry
+            ShelvedBy += owner
+        }
+        Stock.Clear()
+    }
+
+    // Takes an owner's entries back out of the stash, where they stood before.
+    Unstash(int owner)
+    {
+        int i = 0
+        while i < Shelved.Len {
+            if ShelvedBy[i] == owner {
+                HellfeatherShopEntry entry = Shelved[i]
+                Stock += entry
+                Shelved -= [i]
+                ShelvedBy -= [i]
+            } else {
+                i++
+            }
+        }
+    }
+
+    ClearStash()
+    {
+        Shelved.Clear()
+        ShelvedBy.Clear()
     }
 
     // The index of the entry covering a cell, or -1.
@@ -273,6 +342,10 @@ HellfeatherShopScreen
 {
     HellfeatherShop Shop
     bool Open
+    // The shop's name over the shelves, and two lines on what it sells.
+    string Title = "SHOP"
+    string BlurbOne = "Potions, scrolls and"
+    string BlurbTwo = "gear for the road."
     -bool MouseWasDown
     -int Scale = 1
     -int PanelX
@@ -360,8 +433,7 @@ HellfeatherShopScreen
     {
         int cell = HellfeatherInventoryArt.Cell
         ui.OverlaySprite(PanelX, PanelY, 0, HellfeatherShopArt.Top, HellfeatherInventoryArt.PanelWidth, HellfeatherInventoryArt.PanelHeight)
-        string title = "SHOPKEEPER"
-        ui.OverlayText(PanelX + (HellfeatherInventoryArt.PanelWidth - (int)Length(title) * 6) / 2, PanelY + 9, title, 0xFFE8B070)
+        ui.OverlayText(PanelX + (HellfeatherInventoryArt.PanelWidth - (int)Length(Title) * 6) / 2, PanelY + 9, Title, 0xFFE8B070)
         int hovered = held == HellfeatherItems.None ? Hovered(pointerX, pointerY) | -1
         for i : 0; i < Shop.Stock.Len; i++ {
             HellfeatherItemKind kind = HellfeatherItems.Get(Shop.Stock[i].Item)
@@ -412,8 +484,8 @@ HellfeatherShopScreen
             if NoticeFrames > 0 { Line(ui, 5, Notice, 0xFFD05A40) }
             return
         }
-        Line(ui, 0, "Potions, scrolls and", 0xFFC8CCD4)
-        Line(ui, 1, "gear for the road.", 0xFFC8CCD4)
+        Line(ui, 0, BlurbOne, 0xFFC8CCD4)
+        Line(ui, 1, BlurbTwo, 0xFFC8CCD4)
         Line(ui, 3, "Click an item to buy.", 0xFF8C8880)
         Line(ui, 4, "Bring one from your", 0xFF8C8880)
         Line(ui, 5, "bag here to sell it.", 0xFF8C8880)

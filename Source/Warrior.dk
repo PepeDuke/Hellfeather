@@ -109,6 +109,16 @@ HellfeatherWardrobe
         return true
     }
 
+    // Forgets the visual it dressed, whose nodes are gone, so the next Dress
+    // starts over on a new one. Loaded models are kept.
+    Forget()
+    {
+        Dressed = false
+        MainHandNode = 0
+        OffHandNode = 0
+        HeadNode = 0
+    }
+
     // Takes the old node off the socket and puts the item's model there.
     // Returns the new node, 0 when the item shows nothing, or -1 on failure.
     -int Wear(QuaxelWorld& world, int visual, HellfeatherItems item, string socket, int old)

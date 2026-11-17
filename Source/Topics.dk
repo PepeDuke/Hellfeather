@@ -1,0 +1,186 @@
+// Things Wren can ask people about, besides their quests. Each topic is a
+// question she asks and the answer she gets; a topic shows only once the
+// story has reached it, and stays to be asked again.
+HellfeatherTopic : int
+#@{
+    MatthewWho,
+    MatthewWhy,
+    MatthewArm,
+    EddaRavens,
+    EddaFeathers,
+    EddaRookery,
+    ReeveRoad,
+    ReeveTown,
+    MarraMending,
+    MarraJessa,
+    MarraRunes,
+    MothStock,
+    MothLattice,
+    CarmineHospice,
+    CarminePen,
+    HobbMill,
+    HobbSon
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // Offers the topics a person has to talk about now.
+    AddTopics(HellfeatherPerson person)
+    {
+        HellfeatherQuests q = Quests
+        if person == HellfeatherPerson.Matthew {
+            Ask(HellfeatherTopic.MatthewWho)
+            if q.Moult >= 1 && q.Moult < 4 { Ask(HellfeatherTopic.MatthewWhy) }
+            if q.TitheMark { Ask(HellfeatherTopic.MatthewArm) }
+        } else if person == HellfeatherPerson.Edda {
+            Ask(HellfeatherTopic.EddaRavens)
+            Ask(HellfeatherTopic.EddaFeathers)
+            Ask(HellfeatherTopic.EddaRookery)
+        } else if person == HellfeatherPerson.Reeve {
+            Ask(HellfeatherTopic.ReeveRoad)
+            Ask(HellfeatherTopic.ReeveTown)
+        } else if person == HellfeatherPerson.Marra {
+            Ask(HellfeatherTopic.MarraMending)
+            if q.Seamstress >= 1 { Ask(HellfeatherTopic.MarraJessa) }
+            if q.TitheMark { Ask(HellfeatherTopic.MarraRunes) }
+        } else if person == HellfeatherPerson.Moth {
+            if q.Dark >= 3 { Ask(HellfeatherTopic.MothStock) }
+            if q.Dark >= 2 { Ask(HellfeatherTopic.MothLattice) }
+        } else if person == HellfeatherPerson.Carmine {
+            Ask(HellfeatherTopic.CarmineHospice)
+            Ask(HellfeatherTopic.CarminePen)
+        } else if person == HellfeatherPerson.OldHobb {
+            Ask(HellfeatherTopic.HobbMill)
+            if q.Millrace < 4 { Ask(HellfeatherTopic.HobbSon) }
+        }
+    }
+
+    -Ask(HellfeatherTopic topic) { Talk.Ask(Question(topic), topic + 0) }
+
+    // What Wren says to bring a topic up, which is also its reply's text.
+    string Question(HellfeatherTopic topic)
+    {
+        Switch (topic)
+        {
+            case HellfeatherTopic.MatthewWho:
+                return "Who are you, exactly?"
+            case HellfeatherTopic.MatthewWhy:
+                return "Why do you care why she did it?"
+            case HellfeatherTopic.MatthewArm:
+                return "What did she put in my arm?"
+            case HellfeatherTopic.EddaRavens:
+                return "Why so many ravens?"
+            case HellfeatherTopic.EddaFeathers:
+                return "What are the black feathers?"
+            case HellfeatherTopic.EddaRookery:
+                return "How long have you kept the rookery?"
+            case HellfeatherTopic.ReeveRoad:
+                return "What's wrong with the Ford Road?"
+            case HellfeatherTopic.ReeveTown:
+                return "How is Ravenford holding up?"
+            case HellfeatherTopic.MarraMending:
+                return "You mend armour?"
+            case HellfeatherTopic.MarraJessa:
+                return "Tell me about Jessa."
+            case HellfeatherTopic.MarraRunes:
+                return "What are runes, really?"
+            case HellfeatherTopic.MothStock:
+                return "What do you sell?"
+            case HellfeatherTopic.MothLattice:
+                return "What is a carrier lattice?"
+            case HellfeatherTopic.CarmineHospice:
+                return "What is this place?"
+            case HellfeatherTopic.CarminePen:
+                return "Why do you keep clicking that pen?"
+            case HellfeatherTopic.HobbMill:
+                return "Tell me about the mill."
+            case HellfeatherTopic.HobbSon:
+                return "Your son?"
+            default:
+                return ""
+        }
+    }
+
+    // Wren asks, and the one she is talking to answers. The replies stay.
+    Discuss(HellfeatherPerson person, int topic)
+    {
+        if topic < 0 || topic >= HellfeatherTopic.Count { return }
+        HellfeatherTopic which = (HellfeatherTopic)topic
+        Talk.Continue()
+        Talk.Reply(Question(which))
+        Switch (which)
+        {
+            case HellfeatherTopic.MatthewWho:
+                Talk.Say("A journeyman.")
+                Talk.Reply("Of which guild?")
+                Talk.Say("Of the journey, mostly.")
+                Talk.Narrate("He smiles as if you had said something kind.")
+                break
+            case HellfeatherTopic.MatthewWhy:
+                Talk.Say("Everyone knows what she did. I collect the other half. Reasons keep better than coin, Miss Carrow.")
+                break
+            case HellfeatherTopic.MatthewArm:
+                Talk.Say("Something that was hers. Treat it as an inheritance. They are rarely what we would choose.")
+                break
+            case HellfeatherTopic.EddaRavens:
+                Talk.Say("They eat the feathers. Nothing else will. Without them the moult would settle on Ravenford like snow.")
+                Talk.Say("You've seen what the ducks became. Think on what we'd become.")
+                break
+            case HellfeatherTopic.EddaFeathers:
+                Talk.Say("Nine days they've fallen, and not off any bird I know. The ducks drink what's under them and turn.")
+                Talk.Say("Bring me what you find. The ravens are hungry and I'm too old to go wading.")
+                break
+            case HellfeatherTopic.EddaRookery:
+                Talk.Say("Since my mother had it. Ravens remember faces. So does the town. Neither forgives.")
+                break
+            case HellfeatherTopic.ReeveRoad:
+                Talk.Say("Ducks. Laugh if you want. They've had a carter's hand and two mules.")
+                Talk.Say("The guild won't send a wagon until it's clear, and a town with one road eats what comes down it.")
+                break
+            case HellfeatherTopic.ReeveTown:
+                Talk.Say("One gate, one road, and ravens on every roof. We hold up because nobody wants us enough to knock.")
+                break
+            case HellfeatherTopic.MarraMending:
+                Talk.Say("Two silver a seam. Leather, mail, and the odd heart, though that costs more and never holds.")
+                break
+            case HellfeatherTopic.MarraJessa:
+                Talk.Say("She could weave a word into wool so it held. Rain, fear, a promise.")
+                Talk.Say("Then she started holding things that weren't hers to hold.")
+                break
+            case HellfeatherTopic.MarraRunes:
+                Talk.Say("Other people's handwriting, worn on the skin. Your arm takes them now.")
+                Talk.Say("Mind whose words you let it wear.")
+                break
+            case HellfeatherTopic.MothStock:
+                Talk.Say("Runes. Relics nobody has named yet. Things that fell off a cart that was never there.")
+                break
+            case HellfeatherTopic.MothLattice:
+                Talk.Say("A shape in you that holds what flows. The Tithe builds people to carry.")
+                Talk.Say("Either you were built, or you were lucky. I'd hate to guess which.")
+                break
+            case HellfeatherTopic.CarmineHospice:
+                Talk.Say("Saint Orra's. People come here to be cared for, and they are. Thoroughly.")
+                Talk.Narrate("Click. Click.")
+                break
+            case HellfeatherTopic.CarminePen:
+                Talk.Say("To count. Ten minutes go faster when you count them.")
+                break
+            case HellfeatherTopic.HobbMill:
+                Talk.Say("Three generations of Hobbs. The wheel turns, the stones grind, and nobody asks what's under the race.")
+                Talk.Say("Don't you start.")
+                break
+            case HellfeatherTopic.HobbSon:
+                Talk.Say("Taken for the mill's work, they said. Below. Some nights I hear him through the floor.")
+                break
+            default:
+                break
+        }
+    }
+}
+T{
+    EveryTopicHasAQuestion()
+    {
+        HellfeatherGame game()
+        for topic : HellfeatherTopic { T.IsTrue(Length(game.Question(topic)) > 0) }
+    }
+}

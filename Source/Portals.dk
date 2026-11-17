@@ -250,6 +250,7 @@ T{
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
+        game.OpenShop(HellfeatherMerchant.Edda)
         int index = -1
         for i : 0; i < game.Shop.Shop.Stock.Len; i++ {
             if game.Shop.Shop.Stock[i].Item == HellfeatherItems.RavenPortal { index = (int)i }

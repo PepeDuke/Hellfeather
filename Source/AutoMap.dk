@@ -384,11 +384,11 @@ HellfeatherGame : QuaxelGameInstance
         int scale = ui.ScaleFor(width, height)
         vec2 center = vec2((feet.X + 1.0) * 0.5 * (float)(width / scale), (feet.Y + 1.0) * 0.5 * (float)(height / scale))
         AutoMap.Draw(ui, width, height, player, center)
-        if Terrain.Realm == HellfeatherRealm.Fenmarch { AutoMap.Marker(ui, vec3(HellfeatherShopKeeper.StandX, 0.0, HellfeatherShopKeeper.StandZ), 4, 0xFFE8C04A, false) }
         for spot : People.Spots {
             if !spot.Shown || spot.Realm != Terrain.Realm { continue }
             uint color = 0
-            if spot.Kind == HellfeatherSpotKind.Person { color = 0xFF5CC85C }
+            // Merchants in gold, the rest of the people in green.
+            if spot.Kind == HellfeatherSpotKind.Person { color = Sells(spot.Person) ? 0xFFE8C04A | 0xFF5CC85C }
             else if spot.Kind == HellfeatherSpotKind.Door || spot.Kind == HellfeatherSpotKind.StairsUp || spot.Kind == HellfeatherSpotKind.StairsDown { color = 0xFF7AA8E8 }
             else if spot.Kind == HellfeatherSpotKind.Portal { color = 0xFFE070E8 }
             if color != (uint)0 { AutoMap.Marker(ui, spot.Feet, 4, color, false) }

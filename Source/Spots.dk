@@ -156,7 +156,7 @@ HellfeatherSpots
     }
 
     // A person's model, loaded once.
-    -int AnimationFor(QuaxelWorld& world, string path)
+    int AnimationFor(QuaxelWorld& world, string path)
     {
         for i : 0; i < Paths.Len; i++ {
             if Paths[i] == path { return Animations[i] }

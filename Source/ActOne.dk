@@ -44,6 +44,35 @@ T{
         T.AreEqual(game.Inventory.Items.Gold, gold + 50)
     }
 
+    // People are talked to in a close-up, and asking about a topic keeps the
+    // conversation going with Wren's question and the same replies.
+    ATopicIsAnsweredWithoutEndingTheConversation()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int matthew = game.People.FindPerson(HellfeatherPerson.Matthew)
+        game.Use(world, matthew)
+        T.IsTrue(game.Talk.CloseUp)
+        T.IsTrue(game.Talk.Replies[0] == HellfeatherReply.TakeCommission)
+        T.IsTrue(game.Talk.Replies[1] == HellfeatherReply.Topic)
+        T.IsTrue(game.Talk.Replies[game.Talk.Replies.Len - 1] == HellfeatherReply.Leave)
+        long replies = game.Talk.Replies.Len
+        game.Talk.Pick(1)
+        game.Answer(world, game.Talk.Chosen)
+        T.IsTrue(game.Talk.Open)
+        T.AreEqual(game.Talk.Replies.Len, replies)
+        T.IsTrue(game.Talk.Beats[0].Voice == HellfeatherVoice.Wren)
+        T.IsTrue(game.Talk.Beats.Len > 1)
+        game.Answer(world, HellfeatherReply.Leave)
+        T.IsFalse(game.Talk.Open)
+        // Doors and things keep the plain panel.
+        int garret = game.People.FindKind(HellfeatherSpotKind.Garret, HellfeatherRealm.Fenmarch)
+        game.Use(world, garret)
+        T.IsTrue(game.Talk.Open)
+        T.IsFalse(game.Talk.CloseUp)
+    }
+
     // The hospice's people stand at its gate, and the mill's at its door.
     HospiceAndMillPeopleStandByTheirBuildings()
     {

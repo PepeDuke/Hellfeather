@@ -1,63 +1,303 @@
-// A conversation: who speaks, a few lines, and the replies to choose from. The
-// panel sits at the top of the screen, over the world, and a click on a reply
-// hands its code to the quests. Lines are written short enough not to wrap.
+// Who a beat of a conversation belongs to: Wren, the one she talks to, or no
+// one, for what she sees and does.
+HellfeatherVoice : int
+#@{
+    Narration, Wren, Them
+}
+
+// One thing said or seen, written as a whole sentence or two. The box wraps it.
+HellfeatherBeat
+{
+    HellfeatherVoice Voice
+    string Text
+}
+
+// A conversation. With people it is a close-up: the HUD hides, Wren stands
+// large on the left and the one she talks to on the right, and a box along the
+// bottom types out one beat at a time. A click, Space or Enter finishes a beat
+// or moves to the next. After the last beat the replies show, and a click on
+// one (or its number key) hands its code to the game. Topics are replies that
+// keep the conversation going: the game answers them with more beats and the
+// same replies come back, with the asked ones dimmed. Doors and things use a
+// plain panel at the top that shows every beat at once.
 HellfeatherDialogue
 {
     bool Open
     string Speaker
-    string [] Lines
+    bool CloseUp
+    HellfeatherBeat [] Beats
+    // The beat on screen in a close-up. At Beats.Len the replies show.
+    int Beat
     string [] Options
     HellfeatherReply [] Replies
+    // For a Topic reply, which topic; -1 for the rest.
+    int [] Topics
+    bool [] Asked
     // The spot being talked to, or -1.
     int Spot = -1
-    // The reply picked by the last Update, or None.
+    // The reply picked by the last Update, or None, and its topic.
     HellfeatherReply Chosen = HellfeatherReply.None
+    int ChosenTopic = -1
+    // Characters of the current beat shown so far.
+    -float Shown
+    -float Clock
     -int Hovered = -1
     -bool MouseWasDown = true
+    // Key presses from the fixed step, kept until the next Update reads them.
+    -bool AdvancePressed
+    -bool LeavePressed
+    -int NumberPressed
+    -bool AdvanceWasDown = true
+    -bool LeaveWasDown = true
+    -int NumberWasDown
     -int PanelX
     -int PanelY
     -int PanelWidth
     -int PanelHeight
     -int Scale = 1
 
-    Begin(string speaker, int spot)
+    Begin(string speaker, int spot, bool closeUp)
     {
         Open = true
         Speaker = speaker
-        Lines.Clear()
+        CloseUp = closeUp
+        Beats.Clear()
         Options.Clear()
         Replies.Clear()
+        Topics.Clear()
+        Asked.Clear()
+        Beat = 0
+        Shown = 0.0
         Spot = spot
         Chosen = HellfeatherReply.None
-        // A click that opened it must be let go before a reply can be clicked.
+        ChosenTopic = -1
+        // A click or key that opened it must be let go before it counts.
         MouseWasDown = true
+        AdvanceWasDown = true
+        LeaveWasDown = true
+        AdvancePressed = false
+        LeavePressed = false
+        NumberPressed = 0
     }
 
-    Say(string line) { Lines += line }
+    // Drops the beats but keeps the replies, for the answer to a topic.
+    Continue()
+    {
+        Beats.Clear()
+        Beat = 0
+        Shown = 0.0
+    }
+
+    // The one being talked to says something. Written without quote marks.
+    Say(string text) { Add(HellfeatherVoice.Them, text) }
+
+    // Wren says something.
+    Reply(string text) { Add(HellfeatherVoice.Wren, text) }
+
+    // What she sees, or what someone does.
+    Narrate(string text) { Add(HellfeatherVoice.Narration, text) }
+
+    -Add(HellfeatherVoice voice, string text)
+    {
+        HellfeatherBeat beat
+        beat.Voice = voice
+        beat.Text = text
+        Beats += beat
+    }
 
     Offer(string text, HellfeatherReply reply)
     {
         Options += text
         Replies += reply
+        Topics += -1
+        Asked += false
+    }
+
+    // A reply that asks about something and keeps talking.
+    Ask(string text, int topic)
+    {
+        Options += text
+        Replies += HellfeatherReply.Topic
+        Topics += topic
+        Asked += false
     }
 
     Close()
     {
         Open = false
+        CloseUp = false
         Spot = -1
+    }
+
+    // Whether the replies are showing: always on the plain panel, and in a
+    // close-up once every beat has been read.
+    bool Choosing() { return !CloseUp || Beat >= Beats.Len }
+
+    // The voice of the beat on screen, or Narration when there is none.
+    HellfeatherVoice Voice()
+    {
+        if !CloseUp || Beat >= Beats.Len { return HellfeatherVoice.Narration }
+        return Beats[Beat].Voice
+    }
+
+    // Whether the current beat is still being typed out.
+    bool Typing() { return CloseUp && Beat < Beats.Len && Shown < (float)Length(Beats[Beat].Text) }
+
+    // Types out the current beat and takes key presses. NumberDown is 1 to 9
+    // for a digit key held, or 0.
+    Step(float deltaSeconds, bool advanceDown, bool leaveDown, int numberDown)
+    {
+        Clock += deltaSeconds
+        if !Open {
+            AdvanceWasDown = advanceDown
+            LeaveWasDown = leaveDown
+            NumberWasDown = numberDown
+            return
+        }
+        if Typing() { Shown += deltaSeconds * CharactersPerSecond }
+        if advanceDown && !AdvanceWasDown { AdvancePressed = true }
+        if leaveDown && !LeaveWasDown { LeavePressed = true }
+        if numberDown > 0 && numberDown != NumberWasDown { NumberPressed = numberDown }
+        AdvanceWasDown = advanceDown
+        LeaveWasDown = leaveDown
+        NumberWasDown = numberDown
+    }
+
+    // Finishes the beat being typed, or moves to the next.
+    Advance()
+    {
+        if Beat >= Beats.Len { return }
+        if Typing() {
+            Shown = (float)Length(Beats[Beat].Text)
+            return
+        }
+        Beat++
+        Shown = 0.0
+    }
+
+    Pick(int index)
+    {
+        if index < 0 || index >= Options.Len { return }
+        Chosen = Replies[index]
+        ChosenTopic = Topics[index]
+        if Chosen == HellfeatherReply.Topic { Asked[index] = true }
+    }
+
+    // Escape takes the Leave reply when there is one; a reply that must be
+    // made, like the last words of the dying, cannot be walked away from.
+    int LeaveIndex()
+    {
+        for n : 0; n < Replies.Len; n++ {
+            if Replies[n] == HellfeatherReply.Leave { return n }
+        }
+        return -1
     }
 
     Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool mouseDown)
     {
         Chosen = HellfeatherReply.None
+        ChosenTopic = -1
         if !Open {
             MouseWasDown = mouseDown
+            AdvancePressed = false
+            LeavePressed = false
+            NumberPressed = 0
             return
         }
         Scale = ui.ScaleFor(width, height)
+        bool pressed = mouseDown && !MouseWasDown
+        MouseWasDown = mouseDown
+        if CloseUp { DrawCloseUp(ui, width, height, mouseX, mouseY) }
+        else { DrawPanel(ui, width, height, mouseX, mouseY) }
+        if !Choosing() {
+            if pressed || AdvancePressed { Advance() }
+            // Escape skips ahead to the replies.
+            if LeavePressed { Beat = (int)Beats.Len }
+        } else {
+            if pressed && Hovered >= 0 { Pick(Hovered) }
+            else if NumberPressed > 0 && NumberPressed <= Options.Len { Pick(NumberPressed - 1) }
+            else if LeavePressed && LeaveIndex() >= 0 { Pick(LeaveIndex()) }
+            else if AdvancePressed && Options.Len == 1 { Pick(0) }
+        }
+        AdvancePressed = false
+        LeavePressed = false
+        NumberPressed = 0
+    }
+
+    // Letterbox bars, the speaker's name on their side, the beat being typed
+    // in a box along the bottom, and the replies above it in the middle.
+    -DrawCloseUp(QuaxelUi& ui, int width, int height, int mouseX, int mouseY)
+    {
+        int gridWidth = width / Scale
+        int gridHeight = height / Scale
+        int boxTop = gridHeight - BoxHeight
+        ui.OverlayRect(0, 0, gridWidth, BarHeight, 0xF0000000)
+        ui.OverlayRect(0, BarHeight, gridWidth, 1, 0xFF3A2C1E)
+        ui.OverlayRect(0, boxTop, gridWidth, BoxHeight, 0xF00C0907)
+        ui.OverlayRect(0, boxTop, gridWidth, 1, 0xFF6A5236)
+        ui.OverlayRect(0, boxTop + 2, gridWidth, 1, 0xFF2A2018)
+        int textLeft = Math.Max(8, gridWidth / 6)
+        int textWidth = gridWidth - textLeft * 2
+        int columns = Math.Max(10, (textWidth + 1) / 6)
+        // The beat on screen, or the last one under the replies.
+        int showing = Beat < Beats.Len ? Beat | (int)Beats.Len - 1
+        if showing >= 0 {
+            HellfeatherBeat beat = Beats[showing]
+            string who = beat.Voice == HellfeatherVoice.Wren ? "Wren" | Speaker
+            if beat.Voice != HellfeatherVoice.Narration {
+                int plateWidth = (int)Length(who) * 6 - 1 + 12
+                int plateX = beat.Voice == HellfeatherVoice.Wren ? textLeft | textLeft + textWidth - plateWidth
+                ui.OverlayRect(plateX, boxTop - 7, plateWidth, 13, 0xFF1A130D)
+                ui.OverlayRect(plateX, boxTop - 7, plateWidth, 1, 0xFF8A6A42)
+                ui.OverlayRect(plateX, boxTop + 5, plateWidth, 1, 0xFF8A6A42)
+                ui.OverlayRect(plateX, boxTop - 7, 1, 13, 0xFF8A6A42)
+                ui.OverlayRect(plateX + plateWidth - 1, boxTop - 7, 1, 13, 0xFF8A6A42)
+                ui.OverlayText(plateX + 6, boxTop - 4, who, beat.Voice == HellfeatherVoice.Wren ? 0xFFB8C8D8 | 0xFFE0B860)
+            }
+            uint color = 0xFFE6DED0
+            if beat.Voice == HellfeatherVoice.Wren { color = 0xFFD4DCE4 }
+            if beat.Voice == HellfeatherVoice.Narration { color = 0xFFA89C88 }
+            int reveal = showing == Beat ? (int)Shown | (int)Length(beat.Text)
+            lines : Wrap(beat.Text, columns)
+            int y = boxTop + 12
+            for line : lines {
+                if reveal <= 0 { break }
+                int count = (int)Length(line)
+                ui.OverlayText(textLeft, y, count <= reveal ? line | Prefix(line, reveal), color)
+                reveal -= count
+                y += 11
+            }
+            // A blinking mark when there is more to read.
+            if !Typing() && !Choosing() && Math.Mod(Clock, 1.0) < 0.6 { ui.OverlayText(textLeft + textWidth - 5, gridHeight - 12, ">", 0xFFE0B860) }
+        }
+        Hovered = -1
+        if !Choosing() || Options.Len == 0 { return }
+        int widest = 0
+        for n : 0; n < Options.Len; n++ { widest = Math.Max(widest, (int)Length(Options[n]) + 3) }
+        int listWidth = Math.Min(gridWidth - 16, Math.Max(120, widest * 6 + 16))
+        int listHeight = (int)Options.Len * RowHeight + 8
+        int listX = (gridWidth - listWidth) / 2
+        int listY = boxTop - 12 - listHeight
+        ui.OverlayRect(listX, listY, listWidth, listHeight, 0xE8100C0A)
+        ui.OverlayRect(listX, listY, listWidth, 1, 0xFF6A5236)
+        ui.OverlayRect(listX, listY + listHeight - 1, listWidth, 1, 0xFF6A5236)
+        ui.OverlayRect(listX, listY, 1, listHeight, 0xFF6A5236)
+        ui.OverlayRect(listX + listWidth - 1, listY, 1, listHeight, 0xFF6A5236)
+        DrawOptions(ui, listX, listY + 4, listWidth, mouseX, mouseY)
+    }
+
+    // The plain panel at the top: the name, every beat, and the replies.
+    -DrawPanel(QuaxelUi& ui, int width, int height, int mouseX, int mouseY)
+    {
         int gridWidth = width / Scale
         PanelWidth = Math.Min(gridWidth - 8, 292)
-        PanelHeight = 16 + (int)Lines.Len * 9 + 4 + (int)Options.Len * 10 + 4
+        int columns = (PanelWidth - 12 + 1) / 6
+        int lineCount = 0
+        for beat : Beats {
+            lines : Wrap(Quoted(beat.Voice, beat.Text), columns)
+            lineCount += (int)lines.Len
+        }
+        PanelHeight = 16 + lineCount * 9 + 4 + (int)Options.Len * RowHeight + 4
         PanelX = (gridWidth - PanelWidth) / 2
         PanelY = 22
         ui.OverlayRect(PanelX, PanelY, PanelWidth, PanelHeight, 0xE8100C0A)
@@ -66,32 +306,153 @@ HellfeatherDialogue
         ui.OverlayRect(PanelX, PanelY, 1, PanelHeight, 0xFF6A5236)
         ui.OverlayRect(PanelX + PanelWidth - 1, PanelY, 1, PanelHeight, 0xFF6A5236)
         ui.OverlayText(PanelX + 6, PanelY + 5, Speaker, 0xFFE0B860)
-        for n : 0; n < Lines.Len; n++ { ui.OverlayText(PanelX + 6, PanelY + 16 + n * 9, Lines[n], 0xFFE6DED0) }
+        int y = PanelY + 16
+        for beat : Beats {
+            uint color = beat.Voice == HellfeatherVoice.Narration ? 0xFFB8AC98 | 0xFFE6DED0
+            lines : Wrap(Quoted(beat.Voice, beat.Text), columns)
+            for line : lines {
+                ui.OverlayText(PanelX + 6, y, line, color)
+                y += 9
+            }
+        }
+        DrawOptions(ui, PanelX, y + 4, PanelWidth, mouseX, mouseY)
+    }
+
+    // Numbered replies, one row each, finding the one under the mouse.
+    -DrawOptions(QuaxelUi& ui, int left, int top, int wide, int mouseX, int mouseY)
+    {
         int x = mouseX / Scale
         int y = mouseY / Scale
         Hovered = -1
-        int top = PanelY + 20 + (int)Lines.Len * 9
         for n : 0; n < Options.Len; n++ {
-            int rowY = top + n * 10
-            bool over = x >= PanelX + 3 && x < PanelX + PanelWidth - 3 && y >= rowY - 1 && y < rowY + 9
+            int rowY = top + n * RowHeight
+            bool over = x >= left + 3 && x < left + wide - 3 && y >= rowY - 1 && y < rowY + RowHeight - 1
             if over {
                 Hovered = n
-                ui.OverlayRect(PanelX + 3, rowY - 1, PanelWidth - 6, 10, 0x60A07840)
+                ui.OverlayRect(left + 3, rowY - 1, wide - 6, RowHeight, 0x60A07840)
             }
-            ui.OverlayText(PanelX + 8, rowY, QuaxelUi.FormatInt(n + 1) + ". " + Options[n], over ? 0xFFFFD27A | 0xFFC9B48A)
+            uint color = Asked[n] ? 0xFF8C806C | 0xFFC9B48A
+            if over { color = 0xFFFFD27A }
+            ui.OverlayText(left + 8, rowY + 1, QuaxelUi.FormatInt(n + 1) + ". " + Options[n], color)
         }
-        bool pressed = mouseDown && !MouseWasDown
-        if pressed && Hovered >= 0 { Chosen = Replies[Hovered] }
-        MouseWasDown = mouseDown
     }
 
-    // Whether the panel is under a point in window pixels.
+    // Speech wears quote marks on the plain panel, which has no portraits.
+    -string Quoted(HellfeatherVoice voice, string text)
+    {
+        if voice == HellfeatherVoice.Narration { return text }
+        return "'" + text + "'"
+    }
+
+    // Whether the dialogue is under a point in window pixels. A close-up
+    // takes the whole window.
     bool Captures(int mouseX, int mouseY)
     {
         if !Open { return false }
+        if CloseUp { return true }
         int x = mouseX / Scale
         int y = mouseY / Scale
         return x >= PanelX && y >= PanelY && x < PanelX + PanelWidth && y < PanelY + PanelHeight
+    }
+}
+#{
+    #float CharactersPerSecond = 55.0
+    // UI pixels.
+    #int BarHeight = 18
+    #int BoxHeight = 62
+    #int RowHeight = 11
+
+    // Breaks text into lines of at most Columns characters, at spaces. A word
+    // longer than a line is cut where the line ends.
+    string [] Wrap(string text, int columns)
+    {
+        string [] lines
+        string line = ""
+        string word = ""
+        int lineLength = 0
+        int wordLength = 0
+        long count = Length(text)
+        for i : (long)0; i <= count; i++ {
+            bool space = i == count || CodeUnitAt(text, i) == (uint)32
+            if !space {
+                word = word + (string)char((int)CodeUnitAt(text, i))
+                wordLength++
+                if wordLength < columns { continue }
+            }
+            if wordLength > 0 {
+                int needed = lineLength == 0 ? wordLength | lineLength + 1 + wordLength
+                if needed > columns {
+                    lines += line
+                    line = word
+                    lineLength = wordLength
+                } else {
+                    line = lineLength == 0 ? word | line + " " + word
+                    lineLength = needed
+                }
+                word = ""
+                wordLength = 0
+            }
+        }
+        if lineLength > 0 { lines += line }
+        return lines
+    }
+
+    // The first Count characters of a text.
+    string Prefix(string text, int count)
+    {
+        string result = ""
+        long end = Math.Min((long)count, Length(text))
+        for i : (long)0; i < end; i++ { result = result + (string)char((int)CodeUnitAt(text, i)) }
+        return result
+    }
+}
+T{
+    WrapBreaksAtSpacesWithinTheColumns()
+    {
+        lines : HellfeatherDialogue.Wrap("A weaver, Jessa Brune, is dying at Saint Orra's", 16)
+        T.AreEqual(lines.Len, (long)3)
+        T.AreEqual(lines[0], "A weaver, Jessa")
+        T.AreEqual(lines[1], "Brune, is dying")
+        T.AreEqual(lines[2], "at Saint Orra's")
+        empty : HellfeatherDialogue.Wrap("", 10)
+        T.AreEqual(empty.Len, (long)0)
+    }
+
+    WrapCutsAWordLongerThanTheLine()
+    {
+        lines : HellfeatherDialogue.Wrap("abcdefgh ij", 4)
+        T.AreEqual(lines[0], "abcd")
+        T.AreEqual(lines[1], "efgh")
+        T.AreEqual(lines[2], "ij")
+    }
+
+    ACloseUpShowsOneBeatAtATimeThenTheReplies()
+    {
+        HellfeatherDialogue talk
+        talk.Begin("Matthew", 0, true)
+        talk.Say("Sit.")
+        talk.Reply("I'll stand.")
+        talk.Ask("Who are you?", 3)
+        talk.Offer("Farewell", HellfeatherReply.Leave)
+        T.IsFalse(talk.Choosing())
+        T.IsTrue(talk.Voice() == HellfeatherVoice.Them)
+        talk.Advance()
+        T.IsTrue(talk.Voice() == HellfeatherVoice.Them)
+        talk.Advance()
+        T.IsTrue(talk.Voice() == HellfeatherVoice.Wren)
+        talk.Step(1.0, false, false, 0)
+        talk.Advance()
+        T.IsTrue(talk.Choosing())
+        talk.Pick(0)
+        T.IsTrue(talk.Chosen == HellfeatherReply.Topic)
+        T.AreEqual(talk.ChosenTopic, 3)
+        T.IsTrue(talk.Asked[0])
+        talk.Continue()
+        T.IsTrue(talk.Choosing())
+        talk.Say("A journeyman.")
+        T.IsFalse(talk.Choosing())
+        T.AreEqual(talk.Options.Len, (long)2)
+        T.AreEqual(talk.LeaveIndex(), 1)
     }
 }
 

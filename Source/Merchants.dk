@@ -1,0 +1,234 @@
+// The people of Ravenford who trade, each with shelves of their own: Edda at
+// the Rookery keeps potions, portals and charms, Marra at the Needlehouse
+// coats, boots and mended armour, and Moth, once he is introduced, runes and
+// blades. Trade is a reply in their conversation. The shop window shows one
+// merchant's shelves at a time; the others wait in a stash, so what one sells
+// or buys back stays with them.
+HellfeatherMerchant : int
+#@{
+    None: -1,
+    Edda,
+    Marra,
+    Moth
+}
+
+HellfeatherMerchants
+#{
+    // World units along the ground beyond which a shop closes.
+    #float LeaveReach = 4.5
+
+    string Title(HellfeatherMerchant merchant)
+    {
+        if merchant == HellfeatherMerchant.Edda { return "THE ROOKERY" }
+        if merchant == HellfeatherMerchant.Marra { return "SENN'S NEEDLEHOUSE" }
+        if merchant == HellfeatherMerchant.Moth { return "THE LANTERN & MOTH" }
+        return "SHOP"
+    }
+
+    // Two short lines on what a merchant sells.
+    string BlurbOne(HellfeatherMerchant merchant)
+    {
+        if merchant == HellfeatherMerchant.Edda { return "Potions, portals and" }
+        if merchant == HellfeatherMerchant.Marra { return "Coats, boots, belts" }
+        if merchant == HellfeatherMerchant.Moth { return "Runes and blades," }
+        return ""
+    }
+
+    string BlurbTwo(HellfeatherMerchant merchant)
+    {
+        if merchant == HellfeatherMerchant.Edda { return "charms for the road." }
+        if merchant == HellfeatherMerchant.Marra { return "and mended armour." }
+        if merchant == HellfeatherMerchant.Moth { return "no questions asked." }
+        return ""
+    }
+
+    HellfeatherPerson PersonOf(HellfeatherMerchant merchant)
+    {
+        if merchant == HellfeatherMerchant.Edda { return HellfeatherPerson.Edda }
+        if merchant == HellfeatherMerchant.Marra { return HellfeatherPerson.Marra }
+        if merchant == HellfeatherMerchant.Moth { return HellfeatherPerson.Moth }
+        return HellfeatherPerson.None
+    }
+
+    HellfeatherMerchant Of(HellfeatherPerson person)
+    {
+        if person == HellfeatherPerson.Edda { return HellfeatherMerchant.Edda }
+        if person == HellfeatherPerson.Marra { return HellfeatherMerchant.Marra }
+        if person == HellfeatherPerson.Moth { return HellfeatherMerchant.Moth }
+        return HellfeatherMerchant.None
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // Whose shelves the shop window holds, or None before anyone traded.
+    HellfeatherMerchant Trading = HellfeatherMerchant.None
+
+    // Fills every merchant's shelves and puts them all in the stash.
+    StockMerchants(uint seed)
+    {
+        Shop.Shop.Stock.Clear()
+        Shop.Shop.ClearStash()
+        Trading = HellfeatherMerchant.None
+        for merchant : HellfeatherMerchant {
+            if merchant == HellfeatherMerchant.None { continue }
+            Shop.Shop.RestockFor(merchant, seed + (uint)(merchant + 1) * (uint)7919)
+            Shop.Shop.Stash(merchant + 0)
+        }
+    }
+
+    // Whether a person trades with her yet. Moth opens only once he knows her.
+    bool Sells(HellfeatherPerson person)
+    {
+        HellfeatherMerchant merchant = HellfeatherMerchants.Of(person)
+        if merchant == HellfeatherMerchant.None { return false }
+        if merchant == HellfeatherMerchant.Moth { return Quests.Dark >= 3 }
+        return true
+    }
+
+    // Opens a merchant's shop on the right with the inventory beside it on the left.
+    OpenShop(HellfeatherMerchant merchant)
+    {
+        if merchant == HellfeatherMerchant.None { return }
+        if Trading != merchant {
+            if Trading != HellfeatherMerchant.None { Shop.Shop.Stash(Trading + 0) }
+            Shop.Shop.Unstash(merchant + 0)
+            Trading = merchant
+        }
+        Shop.Title = HellfeatherMerchants.Title(merchant)
+        Shop.BlurbOne = HellfeatherMerchants.BlurbOne(merchant)
+        Shop.BlurbTwo = HellfeatherMerchants.BlurbTwo(merchant)
+        Shop.Open = true
+        // The inventory takes the left side while trading.
+        StatsScreen.Open = false
+        Passives.Open = false
+        Runes.Open = false
+        QuestLog.Open = false
+        Inventory.OnLeft = true
+        if !Inventory.Open { Inventory.Toggle() }
+    }
+
+    // True when she has walked away from whoever she is trading with.
+    -bool FarFromMerchant(QuaxelWorld& world)
+    {
+        int spot = People.FindPerson(HellfeatherMerchants.PersonOf(Trading))
+        if spot < 0 { return true }
+        vec3 feet = People.Spots[spot].Feet
+        vec3 player = world.GetPosition(PlayerNode)
+        return Math.Hypot(feet.X - player.X, feet.Z - player.Z) > HellfeatherMerchants.LeaveReach
+    }
+}
+T{
+    EachMerchantSellsTheirOwnTrade()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenShop(HellfeatherMerchant.Edda)
+        T.IsTrue(game.Shop.Shop.Stock[0].Item == HellfeatherItems.HealthPotion)
+        T.AreEqual(game.Shop.Title, "THE ROOKERY")
+        game.OpenShop(HellfeatherMerchant.Marra)
+        T.IsTrue(game.Shop.Shop.Stock[0].Item == HellfeatherItems.LeatherArmor)
+        T.IsFalse(game.Shop.Shop.HasEndless(HellfeatherItems.HealthPotion))
+        game.OpenShop(HellfeatherMerchant.Moth)
+        T.IsTrue(game.Shop.Shop.Stock[0].Item == HellfeatherItems.RuneCleave)
+    }
+
+    WhatAMerchantSoldStaysSoldAfterVisitingAnother()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenShop(HellfeatherMerchant.Marra)
+        long shelved = game.Shop.Shop.Stock.Len
+        game.Inventory.Items.Gold = 100000
+        game.Shop.BuyRequest = 0
+        game.ApplyShopRequests()
+        T.AreEqual(game.Shop.Shop.Stock.Len, shelved - 1)
+        game.OpenShop(HellfeatherMerchant.Edda)
+        game.OpenShop(HellfeatherMerchant.Marra)
+        T.AreEqual(game.Shop.Shop.Stock.Len, shelved - 1)
+    }
+
+    MothTradesOnlyOnceHeKnowsHer()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(game.Sells(HellfeatherPerson.Edda))
+        T.IsTrue(game.Sells(HellfeatherPerson.Marra))
+        T.IsFalse(game.Sells(HellfeatherPerson.Moth))
+        T.IsFalse(game.Sells(HellfeatherPerson.Matthew))
+        game.Quests.Dark = 3
+        T.IsTrue(game.Sells(HellfeatherPerson.Moth))
+        // Trade is a reply in a merchant's conversation, and opens their shop.
+        int edda = game.People.FindPerson(HellfeatherPerson.Edda)
+        game.Use(world, edda)
+        int trade = -1
+        for i : 0; i < game.Talk.Replies.Len; i++ {
+            if game.Talk.Replies[i] == HellfeatherReply.Browse { trade = (int)i }
+        }
+        T.IsTrue(trade >= 0)
+        game.Answer(world, HellfeatherReply.Browse)
+        T.IsTrue(game.Shop.Open)
+        T.IsTrue(game.Trading == HellfeatherMerchant.Edda)
+    }
+
+    TradingMovesGoldAndItems()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenShop(HellfeatherMerchant.Edda)
+        T.IsTrue(game.Shop.Open)
+        T.IsTrue(game.Inventory.Open)
+        T.IsTrue(game.Inventory.OnLeft)
+        game.Inventory.Items.Gold = 100
+        // Edda's first shelf holds endless health potions.
+        game.Shop.BuyRequest = 0
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), 1)
+        T.AreEqual(game.Inventory.Items.Gold, 100 - game.Shop.Shop.PriceOf(0))
+        game.Inventory.Items.Gold = 5
+        game.Shop.BuyRequest = 0
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), 1)
+        game.Inventory.Items.Held = HellfeatherItems.Ring
+        game.Shop.SellRequest = true
+        game.ApplyShopRequests()
+        T.AreEqual(game.Inventory.Items.Held, HellfeatherItems.None)
+        T.AreEqual(game.Inventory.Items.Gold, 60)
+    }
+
+    WalkingAwayClosesBothWindows()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        vec3 feet = game.People.Spots[game.People.FindPerson(HellfeatherPerson.Edda)].Feet
+        QuaxelTransform pose = world.GetTransform(game.PlayerNode)
+        pose.Position = vec3(feet.X - 2.0, pose.Position.Y, feet.Z)
+        world.SetTransform(game.PlayerNode, pose)
+        game.OpenShop(HellfeatherMerchant.Edda)
+        game.SyncShop(world)
+        T.IsTrue(game.Shop.Open)
+        pose.Position = vec3(feet.X - 8.0, pose.Position.Y, feet.Z)
+        world.SetTransform(game.PlayerNode, pose)
+        game.SyncShop(world)
+        T.IsFalse(game.Shop.Open)
+        T.IsFalse(game.Inventory.Open)
+        T.IsFalse(game.Inventory.OnLeft)
+    }
+
+    ClosingTheInventoryClosesTheShop()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenShop(HellfeatherMerchant.Edda)
+        game.Inventory.Toggle()
+        game.SyncShop(world)
+        T.IsFalse(game.Shop.Open)
+        T.IsFalse(game.Inventory.OnLeft)
+    }
+}

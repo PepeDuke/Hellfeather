@@ -296,6 +296,13 @@ HellfeatherGlobes
         Mana.Step(world, manaShare, deltaSeconds)
     }
 
+    // Puts both globes out of view, as while a close-up hides the HUD.
+    Stow(QuaxelWorld& world)
+    {
+        Health.Place(world, vec3(0.0, -1000.0, 0.0))
+        Mana.Place(world, vec3(0.0, -1000.0, 0.0))
+    }
+
     // Offsets are from the center of the view along the camera's own axes.
     // ClearWidth is how many pixels from the left a panel leaves uncovered.
     Anchor(QuaxelWorld& world, int width, int height, int clearWidth)

@@ -1,7 +1,8 @@
 // Hellfeather supplies the game. Quaxel owns the main loop.
 //
 //     Hellfeather.exe --start mill    starts somewhere else, for looking at it:
-//                                     matthew, hospice, marsh, mill, undercroft or deep
+//                                     matthew, edda, hospice, marsh, mill, undercroft or deep
+//     Hellfeather.exe --talk          talks to the first person in reach once they appear
 Main(string [] args)
 {
     Print("Hellfeather / Quaxel")
@@ -35,6 +36,7 @@ Main(string [] args)
             game.Benchmark.RecordFrameTimes = true
         }
         if args[i] == "--start" && i + 1 < args.Len { game.StartAt = args[i + 1] }
+        if args[i] == "--talk" { game.TalkOnStart = true }
     }
     if game.Benchmark.Enabled {
         if !QuaxelPlatform.SupportsWindowing() {

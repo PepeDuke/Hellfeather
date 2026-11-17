@@ -1,0 +1,196 @@
+// Wren and the one she talks to, standing large on either side of the view
+// while a close-up conversation lasts. Both are children of the camera, held
+// in front of the world like the globes, and tilted back so that the camera
+// looks at them level instead of from above. They slide in from the sides. The
+// one speaking plays their talk clip.
+HellfeatherCloseUp
+{
+    bool Shown
+    -int CameraNode
+    -int WrenRoot
+    -int WrenVisual
+    -int ThemRoot
+    -int ThemVisual
+    // How far they have slid in, 0 to 1.
+    -float Entered
+    -HellfeatherWardrobe Wardrobe
+
+    // Builds both figures. Animation is the person's model, with its voxel size
+    // and box height. Gear is what Wren has on. Returns false if a model would
+    // not attach.
+    bool Show(QuaxelWorld& world, int camera, int animation, float voxel, int height, HellfeatherItems body, HellfeatherItems mainHand, HellfeatherItems offHand, HellfeatherItems head)
+    {
+        Hide(world)
+        CameraNode = camera
+        Entered = 0.0
+        WrenRoot = MakeRoot(world)
+        WrenVisual = MakeVisual(world, WrenRoot, HellfeatherWarrior.VoxelSize, HellfeatherWarrior.Height, 1.0)
+        Wardrobe.Forget()
+        if !Wardrobe.Dress(world, WrenVisual, body, mainHand, offHand, head) { return false }
+        world.PlayClip(WrenVisual, "idle")
+        ThemRoot = MakeRoot(world)
+        ThemVisual = MakeVisual(world, ThemRoot, voxel, height, -1.0)
+        if animation < 0 || !world.AttachAnimator(ThemVisual, animation) { return false }
+        world.PlayClip(ThemVisual, "idle")
+        Shown = true
+        return true
+    }
+
+    Hide(QuaxelWorld& world)
+    {
+        if !Shown { return }
+        world.DestroyNode(WrenRoot)
+        world.DestroyNode(ThemRoot)
+        WrenRoot = 0
+        WrenVisual = 0
+        ThemRoot = 0
+        ThemVisual = 0
+        Shown = false
+    }
+
+    -int MakeRoot(QuaxelWorld& world)
+    {
+        int root = world.CreateChild(CameraNode)
+        world.AttachTransform(root, QuaxelTransform.Make(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)))
+        world.SetCatchesEffects(root, false)
+        return root
+    }
+
+    // The figure stands on its root, scaled so that Wren is Tall view-heights
+    // high, and turned toward the middle of the screen: Turn is 1 to face
+    // right, for Wren on the left, and -1 to face left.
+    -int MakeVisual(QuaxelWorld& world, int root, float voxel, int height, float turn)
+    {
+        int visual = world.CreateChild(root)
+        world.SetCatchesEffects(visual, false)
+        QuaxelTransform pose = QuaxelTransform.Make(vec3(0.0, (float)height * voxel * 0.5, 0.0), vec3(voxel, voxel, voxel))
+        // In the root's frame, which is tilted to face the camera, the facing
+        // of (0.707, 0.707) looks straight out of the screen and the camera's
+        // right is (0.707, -0.707).
+        float c = Math.Cos(TurnRadians)
+        float s = Math.Sin(TurnRadians) * turn
+        pose.FacingX = 0.70710678 * (c + s)
+        pose.FacingZ = 0.70710678 * (c - s)
+        world.AttachTransform(visual, pose)
+        return visual
+    }
+
+    // The talk clip on whoever is speaking, idle on the other.
+    Speaking(QuaxelWorld& world, HellfeatherVoice voice, bool typing)
+    {
+        if !Shown { return }
+        world.PlayClip(ThemVisual, voice == HellfeatherVoice.Them && typing ? "talk" | "idle")
+    }
+
+    // Slides them in.
+    Step(float deltaSeconds)
+    {
+        if Shown { Entered = Math.Min(1.0, Entered + deltaSeconds / SlideSeconds) }
+    }
+
+    // Places both figures for the window.
+    Anchor(QuaxelWorld& world, int width, int height)
+    {
+        if !Shown || width <= 0 || height <= 0 { return }
+        float ease = 1.0 - (1.0 - Entered) * (1.0 - Entered) * (1.0 - Entered)
+        QuaxelCamera camera = world.GetCamera(CameraNode)
+        camera.UpdateBounds(width, height)
+        float halfWidth = camera.BoundsHalfWidth
+        float halfHeight = camera.BoundsHalfHeight
+        vec3 forward = camera.Forward()
+        vec3 right = camera.Right()
+        vec3 up = right.Cross(forward)
+        // Turns the world's up into the camera's, about the camera's right.
+        vec3 axis = vec3(0.0, 1.0, 0.0).Cross(up)
+        float w = 1.0 + up.Y
+        float length = Math.Sqrt(axis.X * axis.X + axis.Y * axis.Y + axis.Z * axis.Z + w * w)
+        quat tilt = quat(axis.X / length, axis.Y / length, axis.Z / length, w / length)
+        // Sized to the height of the view, so they fill it at any window shape.
+        float scale = halfHeight * 2.0 * Tall / ((float)HellfeatherWarrior.Height * HellfeatherWarrior.VoxelSize)
+        float feet = -halfHeight - halfHeight * 2.0 * Sunk
+        float across = Math.Min(halfWidth * Across, halfHeight * 1.1)
+        float slide = (1.0 - ease) * halfWidth
+        Place(world, WrenRoot, right * (-across - slide) + up * feet + forward * Depth, tilt, scale)
+        Place(world, ThemRoot, right * (across + slide) + up * feet + forward * Depth, tilt, scale)
+    }
+
+    -Place(QuaxelWorld& world, int root, vec3 position, quat tilt, float scale)
+    {
+        QuaxelTransform pose = world.GetTransform(root)
+        pose.Position = position
+        pose.Rotation = tilt
+        pose.Scale = vec3(scale, scale, scale)
+        world.SetTransform(root, pose)
+    }
+}
+#{
+    // Behind the eye like the globes, and deep enough that the figures' depth
+    // stays inside the camera's near plane at -40.
+    #float Depth = -33.0
+    // Wren's box height as a share of the view's height.
+    #float Tall = 1.0
+    // How far below the bottom edge her feet stand, as a share of the view.
+    #float Sunk = 0.18
+    // The middle of each figure from the center, as a share of the half width.
+    #float Across = 0.6
+    // How far each turns toward the other from facing the viewer.
+    #float TurnRadians = 0.8
+    #float SlideSeconds = 0.35
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherCloseUp CloseUp
+
+    // True while a close-up conversation has the screen.
+    bool InCloseUp() { return Talk.Open && Talk.CloseUp }
+
+    // Types out the conversation and hands it Space or Enter to go on, Escape
+    // to leave and the digits to pick a reply.
+    -StepTalk(QuaxelInputState& input, float deltaSeconds)
+    {
+        int number = 0
+        for digit : 1; digit <= 9; digit++ {
+            if input.Down[HellfeatherKeys.One + digit - 1] { number = digit }
+        }
+        bool advance = input.Down[HellfeatherKeys.Space] || input.Down[HellfeatherKeys.Enter]
+        Talk.Step(deltaSeconds, advance, input.Down[HellfeatherKeys.Escape], number)
+        CloseUp.Step(deltaSeconds)
+    }
+
+    // The close-up's frame: the two figures, the conversation and nothing of
+    // the HUD. A click here never reaches the world.
+    -UpdateCloseUpUi(QuaxelUi& ui, QuaxelWorld& world, int width, int height, int mouseX, int mouseY, bool mouseDown, bool rightDown)
+    {
+        if !CloseUp.Shown && !ShowCloseUp(world) {
+            // Without the figures it is a plain conversation.
+            Talk.CloseUp = false
+            return
+        }
+        Globes.Stow(world)
+        HudVoxels.Stow(world)
+        CloseUp.Speaking(world, Talk.Voice(), Talk.Typing())
+        CloseUp.Anchor(world, width, height)
+        ui.SetVisible("fps", false)
+        Talk.Update(ui, width, height, mouseX, mouseY, mouseDown)
+        if Talk.Chosen != HellfeatherReply.None { Answer(world, Talk.Chosen) }
+        Banner.Draw(ui, width, height)
+        // So that letting go of the button that ended it does not swing.
+        MouseHeld = mouseDown
+        RightMouseHeld = rightDown
+    }
+
+    -bool ShowCloseUp(QuaxelWorld& world)
+    {
+        int spot = Talk.Spot
+        if spot < 0 || spot >= People.Spots.Len || Length(People.Spots[spot].Model) == 0 { return false }
+        int animation = People.AnimationFor(world, People.Spots[spot].Model)
+        HellfeatherItems body = Inventory.Items.Equipped[HellfeatherSlot.Body]
+        HellfeatherItems mainHand = Inventory.Items.Equipped[HellfeatherSlot.MainHand]
+        HellfeatherItems offHand = Inventory.Items.Equipped[HellfeatherSlot.OffHand]
+        HellfeatherItems head = Inventory.Items.Equipped[HellfeatherSlot.Head]
+        if CloseUp.Show(world, CameraNode, animation, People.Spots[spot].Voxel, People.Spots[spot].Height, body, mainHand, offHand, head) { return true }
+        CloseUp.Hide(world)
+        return false
+    }
+}

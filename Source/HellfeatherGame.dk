@@ -44,7 +44,6 @@ HellfeatherGame : QuaxelGameInstance
     HellfeatherHudVoxels HudVoxels
     HellfeatherGroundItems Ground
     HellfeatherFires Fires
-    HellfeatherShopKeeper Keeper
     HellfeatherShopScreen Shop
 
     int WindowWidth() { return Benchmark.Enabled ? 1920 | 960 }
@@ -156,8 +155,8 @@ HellfeatherGame : QuaxelGameInstance
         Actions.Slots.LearnedSeconds = 0.0
         long clock = 0
         QuaxelPlatform.ReadClock(clock)
-        Shop.Shop.RestockSeeded((uint)(clock & (long)0x7FFFFFFF))
-        bool ready = SpawnTerrain(world) && SpawnPlayer(world) && SpawnKeeper(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world) && GoToStart(world)
+        StockMerchants((uint)(clock & (long)0x7FFFFFFF))
+        bool ready = SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world) && GoToStart(world)
         if ready && Benchmark.Enabled && Benchmark.LightCount >= 0 {
             Fires.EmitPointLights = false
             Benchmark.PlaceLights(world, world.WorldPosition(PlayerNode))
@@ -165,31 +164,10 @@ HellfeatherGame : QuaxelGameInstance
         return ready
     }
 
-    -bool SpawnKeeper(QuaxelWorld& world)
-    {
-        float x = HellfeatherShopKeeper.StandX
-        float z = HellfeatherShopKeeper.StandZ
-        return Keeper.Spawn(world, vec3(x, Terrain.GroundY(x, z), z))
-    }
-
-    // Opens the shop on the right with the inventory beside it on the left.
-    OpenShop()
-    {
-        Shop.Open = true
-        ShopIsMoth = false
-        // The inventory takes the left side while trading.
-        StatsScreen.Open = false
-        Passives.Open = false
-        Runes.Open = false
-        QuestLog.Open = false
-        Inventory.OnLeft = true
-        if !Inventory.Open { Inventory.Toggle() }
-    }
-
     // The two windows open and close together. Walking away closes both.
     SyncShop(QuaxelWorld& world)
     {
-        if Shop.Open && (!Inventory.Open || FarFromKeeper(world)) { Shop.Open = false }
+        if Shop.Open && (!Inventory.Open || FarFromMerchant(world)) { Shop.Open = false }
         if !Shop.Open && Inventory.OnLeft {
             Inventory.OnLeft = false
             if Inventory.Open { Inventory.Toggle() }
@@ -233,17 +211,6 @@ HellfeatherGame : QuaxelGameInstance
         }
     }
 
-    // Moth keeps a shop too; it closes when she walks away from him instead.
-    bool ShopIsMoth
-
-    -bool FarFromKeeper(QuaxelWorld& world)
-    {
-        vec3 feet = Keeper.Feet(world)
-        int moth = People.FindPerson(HellfeatherPerson.Moth)
-        if ShopIsMoth && moth >= 0 { feet = People.Spots[moth].Feet }
-        vec3 player = world.GetPosition(PlayerNode)
-        return Math.Hypot(feet.X - player.X, feet.Z - player.Z) > HellfeatherShopKeeper.LeaveReach
-    }
 
     // The Fenmarch's terrain. The Undercroft's levels have their own.
     QuaxelTerrainConfig FenmarchConfig()
@@ -400,32 +367,37 @@ HellfeatherGame : QuaxelGameInstance
         if activeCamera == 0 { return }
         // Puts on whatever she equipped since the last step.
         for controller : Controllers { DressPlayer(world, controller.VisualNode) }
+        // A close-up conversation takes the keys and holds her still.
+        bool talking = InCloseUp()
+        StepTalk(input, deltaSeconds)
         bool inventoryKey = input.IsDown(QuaxelKey.I)
-        if inventoryKey && !InventoryKeyHeld { ToggleHudPanel(HellfeatherHudPanel.Inventory) }
+        if inventoryKey && !InventoryKeyHeld && !talking { ToggleHudPanel(HellfeatherHudPanel.Inventory) }
         InventoryKeyHeld = inventoryKey
         bool statsKey = input.IsDown(QuaxelKey.C)
-        if statsKey && !StatsKeyHeld { ToggleHudPanel(HellfeatherHudPanel.Stats) }
+        if statsKey && !StatsKeyHeld && !talking { ToggleHudPanel(HellfeatherHudPanel.Stats) }
         StatsKeyHeld = statsKey
         bool passivesKey = input.IsDown(QuaxelKey.P)
-        if passivesKey && !PassivesKeyHeld { ToggleHudPanel(HellfeatherHudPanel.Passives) }
+        if passivesKey && !PassivesKeyHeld && !talking { ToggleHudPanel(HellfeatherHudPanel.Passives) }
         PassivesKeyHeld = passivesKey
         bool runesKey = input.IsDown(QuaxelKey.R)
-        if runesKey && !RunesKeyHeld { ToggleHudPanel(HellfeatherHudPanel.Runes) }
+        if runesKey && !RunesKeyHeld && !talking { ToggleHudPanel(HellfeatherHudPanel.Runes) }
         RunesKeyHeld = runesKey
         bool questKey = input.IsDown(QuaxelKey.L)
-        if questKey && !QuestKeyHeld { ToggleHudPanel(HellfeatherHudPanel.Quests) }
+        if questKey && !QuestKeyHeld && !talking { ToggleHudPanel(HellfeatherHudPanel.Quests) }
         QuestKeyHeld = questKey
         // Alt shows or hides the titles of items on the ground.
         bool labelKey = input.IsDown(QuaxelKey.Alt)
-        if labelKey && !LabelKeyHeld { Ground.ShowLabels = !Ground.ShowLabels }
+        if labelKey && !LabelKeyHeld && !talking { Ground.ShowLabels = !Ground.ShowLabels }
         LabelKeyHeld = labelKey
-        StepPortalKey(world, input)
-        StepMapKey(input)
+        if !talking {
+            StepPortalKey(world, input)
+            StepMapKey(input)
+        }
         SyncRuneSkills()
         // Taking off gear can lower her maximums below what she has.
         PlayerHealth = Math.Min(PlayerHealth, PlayerMaxHealth())
         PlayerMana = Math.Min(PlayerMana, PlayerMaxMana())
-        SampleSlotKeys(input)
+        if !talking { SampleSlotKeys(input) }
         Actions.Slots.Tick(deltaSeconds)
         WarCrySeconds = Math.Max(0.0, WarCrySeconds - deltaSeconds)
         if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
@@ -441,7 +413,7 @@ HellfeatherGame : QuaxelGameInstance
             return
         }
         RegenerateMana(deltaSeconds)
-        vec3 direction = HellfeatherMovement.Direction(world.GetCamera(activeCamera), input)
+        vec3 direction = talking ? vec3(0.0, 0.0, 0.0) | HellfeatherMovement.Direction(world.GetCamera(activeCamera), input)
         UseRequested(world, direction)
         for controller : Controllers {
             if world.Has(controller.Node, QuaxelComponents.Transform) {
@@ -841,7 +813,7 @@ HellfeatherGame : QuaxelGameInstance
     // ClickWorld decides whether it does.
     -bool ClickTaken(int mouseX, int mouseY)
     {
-        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || QuestLog.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || Keeper.Hovered || People.Hovered >= 0 || Talk.Captures(mouseX, mouseY)
+        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || QuestLog.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || People.Hovered >= 0 || Talk.Captures(mouseX, mouseY)
     }
 
     // Moves the item on the cursor to the ground beside the warrior.
@@ -914,7 +886,6 @@ HellfeatherGame : QuaxelGameInstance
         }
         if Talk.Captures(mouseX, mouseY) { return }
         if Ground.Hovered >= 0 { TakeFromGround(world, Ground.Hovered) }
-        else if Keeper.Hovered && Keeper.InReach(world, world.GetPosition(PlayerNode)) { OpenShop() }
         else if People.Hovered >= 0 && People.InReach(People.Hovered, world.GetPosition(PlayerNode)) { Use(world, People.Hovered) }
     }
 
@@ -975,20 +946,22 @@ HellfeatherGame : QuaxelGameInstance
         bool hasWindow = QuaxelPlatform.GetWindowSize(windowWidth, windowHeight) && windowWidth > 0 && windowHeight > 0
         if Benchmark.Enabled { Benchmark.Frame(StepsSimulated, world.GetPosition(PlayerNode), windowWidth, windowHeight) }
         ui.ClearOverlay()
+        // A close-up conversation hides the HUD and has the screen to itself.
+        if hasWindow && InCloseUp() {
+            UpdateCloseUpUi(ui, world, windowWidth, windowHeight, mouseX, mouseY, mouseDown, rightDown)
+            return
+        }
+        CloseUp.Hide(world)
         // Drawn first, so that the inventory panel covers the titles.
         if hasWindow {
             bool panelsFree = !Inventory.Captures(mouseX, mouseY) && !StatsScreen.Captures(mouseX, mouseY) && !Passives.Captures(mouseX, mouseY) && !Runes.Captures(mouseX, mouseY) && !QuestLog.Captures(mouseX, mouseY) && !Shop.Captures(mouseX, mouseY) && !Actions.Captures(mouseX, mouseY)
-            Keeper.DrawLabel(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, panelsFree)
-            DrawPeople(ui, world, windowWidth, windowHeight, mouseX, mouseY, panelsFree && !Keeper.Hovered && !Talk.Captures(mouseX, mouseY))
+            DrawPeople(ui, world, windowWidth, windowHeight, mouseX, mouseY, panelsFree && !Talk.Captures(mouseX, mouseY))
             Ground.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, panelsFree)
-            // An item's title wins over the shopkeeper behind it.
-            if Ground.Hovered >= 0 {
-                Keeper.Hovered = false
-                People.Hovered = -1
-            }
+            // An item's title wins over the person behind it.
+            if Ground.Hovered >= 0 { People.Hovered = -1 }
             DrawAimLines(ui, world, windowWidth, windowHeight)
             DrawAutoMap(ui, world, windowWidth, windowHeight)
-            DrawEnemyPlate(ui, world, windowWidth, windowHeight, mouseX, mouseY, panelsFree && Ground.Hovered < 0 && !Keeper.Hovered && People.Hovered < 0)
+            DrawEnemyPlate(ui, world, windowWidth, windowHeight, mouseX, mouseY, panelsFree && Ground.Hovered < 0 && People.Hovered < 0)
             Talk.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
             if Talk.Chosen != HellfeatherReply.None { Answer(world, Talk.Chosen) }
             Banner.Draw(ui, windowWidth, windowHeight)
@@ -1142,7 +1115,7 @@ T{
         game.Simulate(world, input, 2)
         T.IsTrue(game.StatsScreen.Open)
         // Opening the shop gives the left side to the inventory.
-        game.OpenShop()
+        game.OpenShop(HellfeatherMerchant.Edda)
         T.IsFalse(game.StatsScreen.Open)
         input.SetDown(QuaxelKey.C, true)
         game.Simulate(world, input, 2)

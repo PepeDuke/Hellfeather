@@ -28,7 +28,9 @@ HellfeatherReply : int
     Sever,
     LiseWindow,
     Interlude,
-    FreeBearer
+    FreeBearer,
+    // Asks about a topic; the dialogue's ChosenTopic says which.
+    Topic
 }
 
 HellfeatherQuests
@@ -320,9 +322,8 @@ HellfeatherGame : QuaxelGameInstance
         if kind == HellfeatherSpotKind.Door {
             if Quests.Millrace >= 1 { Travel(world, HellfeatherRealm.Undercroft, true) }
             else {
-                Talk.Begin("The millrace door", spot)
-                Talk.Say("A low door banded with iron, at the water.")
-                Talk.Say("Locked from the inside.")
+                Talk.Begin("The millrace door", spot, false)
+                Talk.Narrate("A low door banded with iron, at the water. Locked from the inside.")
                 Talk.Offer("Leave it", HellfeatherReply.Leave)
             }
             return
@@ -336,9 +337,8 @@ HellfeatherGame : QuaxelGameInstance
             return
         }
         if kind == HellfeatherSpotKind.Bearer {
-            Talk.Begin("Hollowed Bearer", spot)
-            Talk.Say("Chained to the frame, silver wire at both wrists.")
-            Talk.Say("The mark on your arm knows the wire.")
+            Talk.Begin("Hollowed Bearer", spot, false)
+            Talk.Narrate("Chained to the frame, silver wire at both wrists. The mark on your arm knows the wire.")
             if Quests.TitheMark { Talk.Offer("Sever the wire and free them", HellfeatherReply.FreeBearer) }
             Talk.Offer("Leave them", HellfeatherReply.Leave)
             return
@@ -357,257 +357,228 @@ HellfeatherGame : QuaxelGameInstance
         }
         TalkTo(world, spot)
         People.SetTalking(world, spot)
+        FacePlayerToward(world, People.Spots[spot].Feet)
+    }
+
+    // Turns Wren to look at a point, as when she starts talking to someone.
+    -FacePlayerToward(QuaxelWorld& world, vec3 point)
+    {
+        for controller : Controllers {
+            vec3 at = world.GetPosition(controller.Node)
+            vec3 facing = Math.Normalize(vec3(point.X - at.X, 0.0, point.Z - at.Z))
+            if (facing.X == 0.0 && facing.Z == 0.0) || !world.Has(controller.VisualNode, QuaxelComponents.Transform) { continue }
+            QuaxelTransform pose = world.GetTransform(controller.VisualNode)
+            pose.FacingX = facing.X
+            pose.FacingZ = facing.Z
+            world.SetTransform(controller.VisualNode, pose)
+        }
     }
 
     -TalkGarret(int spot)
     {
+        Talk.Begin("Jessa's garret", spot, false)
         if Quests.Rooms == 0 {
-            Talk.Begin("Jessa's garret", spot)
-            Talk.Say("A narrow door at the top of Pell's stair.")
-            Talk.Say("Locked. Whoever lives here is not home.")
+            Talk.Narrate("A narrow door at the top of Pell's stair. Locked. Whoever lives here is not home.")
             Talk.Offer("Leave", HellfeatherReply.Leave)
             return
         }
         if Quests.Rooms == 1 {
-            Talk.Begin("Jessa's garret", spot)
-            Talk.Say("Water has dried on the floor in a curve, as if")
-            Talk.Say("it went around a pair of boots on purpose.")
-            Talk.Say("A journal in a hand that slopes uphill.")
-            Talk.Say("A vial of black honey, stoppered with wax.")
-            Talk.Say("A token stamped with a lantern and a moth.")
+            Talk.Narrate("Water has dried on the floor in a curve, as if it went around a pair of boots on purpose.")
+            Talk.Narrate("A journal in a hand that slopes uphill. A vial of black honey, stoppered with wax. A token stamped with a lantern and a moth.")
             Talk.Offer("Take them", HellfeatherReply.SearchGarret)
             Talk.Offer("Leave them", HellfeatherReply.Leave)
             return
         }
-        Talk.Begin("Jessa's garret", spot)
-        Talk.Say("Nothing left but the curve in the floor.")
+        Talk.Narrate("Nothing left but the curve in the floor.")
         Talk.Offer("Leave", HellfeatherReply.Leave)
     }
 
     -TalkPedestal(int spot)
     {
-        Talk.Begin("The ring pedestal", spot)
+        Talk.Begin("The ring pedestal", spot, false)
         if Quests.Millrace != 3 {
-            Talk.Say("Cracked stone, and wire that goes nowhere now.")
+            Talk.Narrate("Cracked stone, and wire that goes nowhere now.")
             Talk.Offer("Leave", HellfeatherReply.Leave)
             return
         }
-        Talk.Say("Mardra's ring lies on the stone, cracked through.")
-        Talk.Say("Silver wire runs out of it into the floor and")
-        Talk.Say("away to every frame. Release. Return. Close.")
-        if Quests.SeveringKnown { Talk.Say("You face the bearers, not the heart.") }
-        else { Talk.Say("You face the heart, and it nearly goes wrong.") }
+        Talk.Narrate("Mardra's ring lies on the stone, cracked through. Silver wire runs out of it into the floor and away to every frame. Release. Return. Close.")
+        if Quests.SeveringKnown { Talk.Narrate("You face the bearers, not the heart.") }
+        else { Talk.Narrate("You face the heart, and it nearly goes wrong.") }
         Talk.Offer("Sever", HellfeatherReply.Sever)
+    }
+
+    // People with a model of their own are talked to in a close-up.
+    -BeginTalk(string speaker, int spot)
+    {
+        Talk.Begin(speaker, spot, Length(People.Spots[spot].Model) > 0)
+    }
+
+    // The topics a person will talk about, the trade if they keep a shop, and
+    // the farewell. A Forced conversation has one reply that must be made.
+    -EndTalk(HellfeatherPerson person, bool forced)
+    {
+        if forced { return }
+        AddTopics(person)
+        if Sells(person) { Talk.Offer("Trade", HellfeatherReply.Browse) }
+        Talk.Offer("Farewell", HellfeatherReply.Leave)
     }
 
     -TalkTo(QuaxelWorld& world, int spot)
     {
         HellfeatherPerson person = People.Spots[spot].Person
         HellfeatherQuests q = Quests
+        bool forced = false
         if person == HellfeatherPerson.Matthew {
-            Talk.Begin("Matthew the Journeyman", spot)
+            BeginTalk("Matthew the Journeyman", spot)
             if q.Moult == 0 {
-                Talk.Say("'A thief-taker. Good. Sit. I won't keep you.'")
-                Talk.Say("'A weaver, Jessa Brune, is dying at Saint")
-                Talk.Say("Orra's Hospice, up the pilgrim road. She has")
-                Talk.Say("something to give. Only someone like you.'")
-                Talk.Say("'Half now, half after. Ask for Sister Carmine.'")
+                Talk.Say("A thief-taker. Good. Sit. I won't keep you.")
+                Talk.Say("A weaver, Jessa Brune, is dying at Saint Orra's Hospice, up the pilgrim road. She has something to give, and only someone like you can take it.")
+                Talk.Reply("Someone like me?")
+                Talk.Say("Half now, half after. Ask for Sister Carmine at the gate.")
                 Talk.Offer("Take the commission", HellfeatherReply.TakeCommission)
-                Talk.Offer("Not today", HellfeatherReply.Leave)
             } else if q.Moult == 3 {
-                Talk.Say("'So it's done. You have her reason now,")
-                Talk.Say("whether you wanted it or not.'")
-                Talk.Say("'The other half, as promised. Mind the arm.'")
+                Talk.Say("So it's done. You have her reason now, whether you wanted it or not.")
+                Talk.Say("The other half, as promised. Mind the arm.")
                 Talk.Offer("Take the silver", HellfeatherReply.MatthewPays)
+                forced = true
             } else if q.Moult < 3 {
-                Talk.Say("'Past the Ford Road and the marsh, up Orra's")
-                Talk.Say("Hill. Sister Carmine is expecting you.'")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("Past the Ford Road and the marsh, up Orra's Hill. Sister Carmine is expecting you.")
             } else {
-                Talk.Say("He polishes a cup he never drinks from.")
-                Talk.Say("His breath does not mist.")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Narrate("He polishes a cup he never drinks from. His breath does not mist.")
             }
-            return
-        }
-        if person == HellfeatherPerson.Carmine {
-            Talk.Begin("Sister Carmine", spot)
+        } else if person == HellfeatherPerson.Carmine {
+            BeginTalk("Sister Carmine", spot)
             if q.Moult == 1 {
-                Talk.Say("'You'll be the one he sent. Ten minutes.'")
-                Talk.Say("'Outer ward, the bed by the window.'")
-                Talk.Say("Click, click goes the steel pen.")
+                Talk.Say("You'll be the one he sent. Ten minutes. Outer ward, the bed by the window.")
+                Talk.Narrate("Click, click goes the steel pen.")
                 Talk.Offer("Go to Jessa", HellfeatherReply.GoToJessa)
             } else {
-                Talk.Say("'Visiting hours are over. Stay, and you")
-                Talk.Say("become my problem.' Click. Click.")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("Visiting hours are over. Stay, and you become my problem.")
+                Talk.Narrate("Click. Click.")
             }
-            return
-        }
-        if person == HellfeatherPerson.Jessa {
-            Talk.Begin("Jessa Brune", spot)
+        } else if person == HellfeatherPerson.Jessa {
+            BeginTalk("Jessa Brune", spot)
             if q.Moult == 2 {
-                Talk.Say("Her hand closes on your arm. The pain goes in")
-                Talk.Say("without breaking the skin. You see silver")
-                Talk.Say("threads run out of every bed, toward the")
-                Talk.Say("mountains.")
-                Talk.Say("'Find the Grey Sister. Sever the bearers")
-                Talk.Say("first. Then the heart. Don't break the box.'")
+                Talk.Narrate("Her hand closes on your arm. The pain goes in without breaking the skin. You see silver threads run out of every bed, toward the mountains.")
+                Talk.Say("Find the Grey Sister. Sever the bearers first. Then the heart. Don't break the box.")
                 Talk.Offer("...", HellfeatherReply.JessaDies)
+                forced = true
             } else if q.Moult > 2 {
-                Talk.Say("She looks smaller than she did.")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Narrate("She looks smaller than she did.")
             } else {
-                Talk.Say("Asleep, black-stained lips moving.")
-                Talk.Say("A sister in red is watching you.")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Narrate("Asleep, black-stained lips moving. A sister in red is watching you.")
             }
-            return
-        }
-        if person == HellfeatherPerson.Reeve {
-            Talk.Begin("Reeve Hollan", spot)
+        } else if person == HellfeatherPerson.Reeve {
+            BeginTalk("Reeve Hollan", spot)
             if q.Ford == 0 {
-                Talk.Say("'Ducks have the Ford Road. Carts won't go.'")
-                Talk.Say("'Clear a dozen off it and I'll pay. Edda at")
-                Talk.Say("the Rookery wants their black feathers, if")
-                Talk.Say("you can stomach picking them up.'")
+                Talk.Say("Ducks have the Ford Road. Carts won't go.")
+                Talk.Say("Clear a dozen off it and I'll pay. Edda at the Rookery wants their black feathers, if you can stomach picking them up.")
                 Talk.Offer("Take the bounty", HellfeatherReply.TakeBounty)
-                Talk.Offer("Leave", HellfeatherReply.Leave)
             } else if q.Ford == 1 && !q.ReevePaid && q.DucksCleared >= HellfeatherQuests.DucksWanted {
-                Talk.Say("'Road's quieter. The carters noticed. Here.'")
+                Talk.Say("Road's quieter. The carters noticed. Here.")
                 Talk.Offer("Take the bounty", HellfeatherReply.ClaimBounty)
+                forced = true
             } else if q.Ford == 1 && !q.ReevePaid {
-                Talk.Say("'A dozen. You've done " + QuaxelUi.FormatInt(q.DucksCleared) + ". The road's")
-                Talk.Say("still theirs.'")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("A dozen, I said. You've done " + QuaxelUi.FormatInt(q.DucksCleared) + ". The road's still theirs.")
             } else {
-                Talk.Say("'Copies of everything. Always copies.'")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("Copies of everything. Always copies.")
             }
-            return
-        }
-        if person == HellfeatherPerson.Edda {
-            Talk.Begin("Edda the Ravenkeeper", spot)
+        } else if person == HellfeatherPerson.Edda {
+            BeginTalk("Edda the Ravenkeeper", spot)
             if Carries(HellfeatherItems.TitheBracelet) {
-                Talk.Say("'That bracelet. Tin, off the tithe rolls.")
-                Talk.Say("They put them on the ones sent to the mill.'")
+                Talk.Say("That bracelet. Tin, off the tithe rolls. They put them on the ones sent to the mill.")
             }
             if !q.FeathersGiven && Inventory.Items.Feathers >= HellfeatherQuests.FeathersWanted {
-                Talk.Say("'Twenty. Good. The ravens eat what we can't.'")
-                Talk.Say("'Take this. It knows more about feathers than")
-                Talk.Say("about people. Like me.'")
+                Talk.Say("Twenty. Good. The ravens eat what we can't.")
+                Talk.Say("Take this. It knows more about feathers than about people. Like me.")
                 Talk.Offer("Hand over twenty feathers", HellfeatherReply.GiveFeathers)
             } else if !q.FeathersGiven {
-                Talk.Say("'Black feathers. Twenty. They come off the")
-                Talk.Say("ducks, thicker when the sky rains them.'")
-                Talk.Say("You have " + QuaxelUi.FormatInt(Inventory.Items.Feathers) + ".")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("Black feathers. Twenty. They come off the ducks, thicker when the sky rains them.")
+                Talk.Reply("I have " + QuaxelUi.FormatInt(Inventory.Items.Feathers) + ".")
             } else {
-                Talk.Say("'The ravens know you now. That isn't")
-                Talk.Say("always a kindness.'")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("The ravens know you now. That isn't always a kindness.")
             }
-            return
-        }
-        if person == HellfeatherPerson.Marra {
-            Talk.Begin("Marra Senn", spot)
+        } else if person == HellfeatherPerson.Marra {
+            BeginTalk("Marra Senn", spot)
             if q.Moult >= 3 && q.Seamstress == 0 {
-                Talk.Say("At Jessa's name Marra drives a needle through")
-                Talk.Say("her own thumb, and doesn't look at it.")
-                Talk.Say("'The Cloister of Looms threw her out.")
-                Talk.Say("Instability of retention, they wrote.'")
-                Talk.Say("'If you sever anything, the closing stroke")
-                Talk.Say("faces the bearer. Not the heart. Never.'")
+                Talk.Narrate("At Jessa's name Marra drives a needle through her own thumb, and doesn't look at it.")
+                Talk.Say("The Cloister of Looms threw her out. Instability of retention, they wrote.")
+                Talk.Say("If you sever anything, the closing stroke faces the bearer. Not the heart. Never.")
                 Talk.Offer("Take the thimble she holds out", HellfeatherReply.TakeThimble)
             } else {
-                Talk.Say("'Mending's two silver a seam. Talking's more.'")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("Mending's two silver a seam. Talking's more.")
             }
-            return
-        }
-        if person == HellfeatherPerson.Moth {
-            Talk.Begin("Moth", spot)
+        } else if person == HellfeatherPerson.Moth {
+            BeginTalk("Moth", spot)
             if q.Dark == 0 && Carries(HellfeatherItems.LanternToken) {
-                Talk.Say("'Jessa's token. And a mark on your arm.' He")
-                Talk.Say("reads it through his loupe. 'Carrier lattice.'")
-                Talk.Say("A grey ring on the counter, an eye inside it.")
-                Talk.Say("'Mister Journeyman described you.'")
-                Talk.Say("Boots on the stair. Red at the cuffs.")
+                Talk.Say("Jessa's token. And a mark on your arm.")
+                Talk.Narrate("He reads it through his loupe.")
+                Talk.Say("Carrier lattice. Mister Journeyman described you.")
+                Talk.Narrate("A grey ring on the counter, an eye inside it. Boots on the stair. Red at the cuffs.")
                 Talk.Offer("Turn to meet them", HellfeatherReply.MothRaid)
+                forced = true
             } else if q.Dark == 1 {
-                Talk.Say("'Later. Later!'")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("Later. Later!")
             } else if q.Dark == 2 {
-                Talk.Say("'They'll be back, and so will I. Take the")
-                Talk.Say("ring. It opens what the Tithe keeps shut.'")
+                Talk.Say("They'll be back, and so will I. Take the ring. It opens what the Tithe keeps shut.")
                 Talk.Offer("Take the grey ring", HellfeatherReply.TakeKey)
+                forced = true
             } else if q.Dark == 3 {
-                Talk.Say("'Desperation is an excellent teacher and a")
-                Talk.Say("terrible curriculum.'")
-                Talk.Offer("Browse", HellfeatherReply.Browse)
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("Desperation is an excellent teacher and a terrible curriculum.")
             } else {
-                Talk.Say("'Closed to people without introductions.'")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("Closed to people without introductions.")
             }
-            return
-        }
-        if person == HellfeatherPerson.Vale {
-            Talk.Begin("Sister Vale", spot)
+        } else if person == HellfeatherPerson.Vale {
+            BeginTalk("Sister Vale", spot)
             if q.Rooms == 2 {
-                Talk.Say("A tall woman in a grey coat on the stair.")
-                Talk.Say("Her shadow leans the wrong way.")
-                Talk.Say("'Do not drink what you found.'")
+                Talk.Narrate("A tall woman in a grey coat on the stair. Her shadow leans the wrong way.")
+                Talk.Say("Do not drink what you found.")
                 Talk.Offer("...", HellfeatherReply.ValeWarns)
+                forced = true
             } else {
-                Talk.Say("A blade passes through her like smoke.")
-                Talk.Say("She does not seem to notice.")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Narrate("A blade passes through her like smoke. She does not seem to notice.")
             }
-            return
-        }
-        if person == HellfeatherPerson.OldHobb {
-            Talk.Begin("Old Hobb", spot)
+        } else if person == HellfeatherPerson.OldHobb {
+            BeginTalk("Old Hobb", spot)
             if q.Millrace == 0 && Carries(HellfeatherItems.GreyKey) {
-                Talk.Say("He twists his cap. 'They have my boy. They")
-                Talk.Say("said if I opened it for anyone...'")
-                Talk.Say("He sees the grey ring and goes still.")
-                Talk.Say("'Then you're the one. The low door, at the")
-                Talk.Say("water.'")
+                Talk.Narrate("He twists his cap.")
+                Talk.Say("They have my boy. They said if I opened it for anyone...")
+                Talk.Narrate("He sees the grey ring and goes still.")
+                Talk.Say("Then you're the one. The low door, at the water.")
                 Talk.Offer("Open the millrace door", HellfeatherReply.OpenMillrace)
             } else if q.Millrace == 0 {
-                Talk.Say("'Nothing down there but the wheel. Go home.'")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("Nothing down there but the wheel. Go home.")
             } else if q.Millrace < 4 {
-                Talk.Say("'Go on, then. Please.'")
-                if q.ThrallsSpared > 0 { Talk.Say("'Some of my millhands ran. Thank you.'") }
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("Go on, then. Please.")
+                if q.ThrallsSpared > 0 { Talk.Say("Some of my millhands ran. Thank you.") }
             } else {
-                Talk.Say("'It's quiet below. First time in twelve years.'")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Say("It's quiet below. First time in twelve years.")
             }
-            return
-        }
-        if person == HellfeatherPerson.Lise {
-            Talk.Begin("Lise Hobb", spot)
+        } else if person == HellfeatherPerson.Lise {
+            BeginTalk("Lise Hobb", spot)
             if q.Millrace == 4 {
-                Talk.Say("Mardra's daughter watches from the mill stair,")
-                Talk.Say("on a crutch, her hip set wrong.")
-                Talk.Say("Two years ago. An inn. A window. You threw")
-                Talk.Say("her through the glass, in Matthew's rescue.")
-                Talk.Say("'You,' she says. Nothing else.")
+                Talk.Narrate("Mardra's daughter watches from the mill stair, on a crutch, her hip set wrong.")
+                Talk.Narrate("Two years ago. An inn. A window. You threw her through the glass, in Matthew's rescue.")
+                Talk.Say("You.")
+                Talk.Narrate("Nothing else.")
                 Talk.Offer("...", HellfeatherReply.LiseWindow)
+                forced = true
             } else {
-                Talk.Say("She does not look away.")
-                Talk.Offer("Leave", HellfeatherReply.Leave)
+                Talk.Narrate("She does not look away.")
             }
         }
+        EndTalk(person, forced)
     }
 
     // Carries out a reply picked in the dialogue.
     Answer(QuaxelWorld& world, HellfeatherReply reply)
     {
         int spot = Talk.Spot
+        // A topic is answered in the same conversation.
+        if reply == HellfeatherReply.Topic {
+            if spot >= 0 && spot < People.Spots.Len { Discuss(People.Spots[spot].Person, Talk.ChosenTopic) }
+            return
+        }
         Talk.Close()
         People.SetTalking(world, -1)
         vec3 player = world.GetPosition(PlayerNode)
@@ -689,8 +660,7 @@ HellfeatherGame : QuaxelGameInstance
             int vale = People.FindPerson(HellfeatherPerson.Vale)
             if vale >= 0 { People.Spots[vale].Shown = false }
         } else if reply == HellfeatherReply.Browse {
-            OpenShop()
-            ShopIsMoth = true
+            if spot >= 0 && spot < People.Spots.Len { OpenShop(HellfeatherMerchants.Of(People.Spots[spot].Person)) }
         } else if reply == HellfeatherReply.OpenMillrace {
             Quests.Millrace = 1
             Banner.Show("The Millrace Door", 3.0)
@@ -704,11 +674,10 @@ HellfeatherGame : QuaxelGameInstance
             Banner.Show("The first Severing", 3.5)
         } else if reply == HellfeatherReply.LiseWindow {
             Quests.Millrace = 5
-            Talk.Begin("Interlude I", spot)
-            Talk.Say("A stone room, one candle. Inquisitor Rahel Dar.")
-            Talk.Say("'You say Jessa gave it to you.'")
-            Talk.Say("'She gave it. I took it. The difference was")
-            Talk.Say("the only thing I still owned.'")
+            Talk.Begin("Interlude I", spot, false)
+            Talk.Narrate("A stone room, one candle. Inquisitor Rahel Dar.")
+            Talk.Say("You say Jessa gave it to you.")
+            Talk.Reply("She gave it. I took it. The difference was the only thing I still owned.")
             Talk.Offer("End of Act I", HellfeatherReply.Interlude)
         } else if reply == HellfeatherReply.FreeBearer {
             FreeBearer(world, spot)
