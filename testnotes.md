@@ -1,11 +1,11 @@
 Issues found during testing:
 
-[] maybe start with small hand axe insted of the big axe. use pixel-art skill to make new item also make sure you make voxel represenation
-[] the begin setlement buildings do not match that newly adde buildings
-[] the begin setlement flags should be i gess crow use C:\Users\PC\Downloads\Act1-refs\Tři pohledy na zvětralý havraní prapor.png
-[] the bresire fire base is kanda wrong althou the fire looks good it starts on gay plane whitch does not look good maybe add the fire bit-in and make bit of a bowl in
-[] add mini-map tab should open it
-[] reeve hollan and its building and jessa's garret is way to the side  maybe move them and the building somewhere closer to the fire thay look un-importatnt or add road and section that leads you to them.
+[x] maybe start with small hand axe insted of the big axe. use pixel-art skill to make new item also make sure you make voxel represenation
+[x] the begin setlement buildings do not match that newly adde buildings
+[x] the begin setlement flags should be i gess crow use C:\Users\PC\Downloads\Act1-refs\Tři pohledy na zvětralý havraní prapor.png
+[x] the bresire fire base is kanda wrong althou the fire looks good it starts on gay plane whitch does not look good maybe add the fire bit-in and make bit of a bowl in
+[x] add mini-map tab should open it
+[x] reeve hollan and its building and jessa's garret is way to the side  maybe move them and the building somewhere closer to the fire thay look un-importatnt or add road and section that leads you to them.
 [] remove the shopkeeper and add to the main NPCs shop option (does not need to be to all, maybe like 2-3 and give them a theme of what thay sell)
 [] shop window should be on the left and the inventory on right.
 [] talking to NPSs looks odd they do not talk thay have kinda like a cut-off sentence bud way displayed always. lets have a topics/shop that you can talk about and also we want possibly a diffrent way of talking that would be more interesting i would like a mode where we hide UI and you have the player model on the left saying something and the NPS on the Right responding kida like dating sim/JRPG style only we have the normal vexel model closer to the screen.

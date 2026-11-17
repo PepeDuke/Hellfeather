@@ -74,7 +74,23 @@ Ravenford : QuaxelTerrainModule
     {
         if ax < 2.6 && z > -3.0 { return true }
         float frayed = QuaxelNoise.SignedFbm(site.Seed, x / 3.0, z / 3.0, 2) * 2.5
-        return Math.Hypot(x, z + 4.0) + frayed < 12.0
+        if Math.Hypot(x, z + 4.0) + frayed < 12.0 { return true }
+        // Lanes out of the square to Reeve's Hall and to the stair up to Jessa's
+        // garret at Pell's, each ending in a forecourt at the door.
+        vec3 reeve = HellfeatherCast.ReeveAt()
+        vec3 garret = HellfeatherCast.GarretAt()
+        float lane = Math.Min(ToSegment(x, z, 9.0, -1.0, reeve.X, reeve.Z), ToSegment(x, z, -2.0, 0.0, garret.X, garret.Z))
+        if lane + frayed * 0.4 < 1.7 { return true }
+        return Math.Hypot(x - reeve.X, z - reeve.Z) + frayed * 0.5 < 3.2 || Math.Hypot(x - garret.X + 1.0, z - garret.Z) + frayed * 0.5 < 2.6
+    }
+
+    // Distance from a point to the segment from (ax, az) to (bx, bz).
+    -float ToSegment(float x, float z, float ax, float az, float bx, float bz)
+    {
+        float dx = bx - ax
+        float dz = bz - az
+        float share = Math.Clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz), 0.0, 1.0)
+        return Math.Hypot(x - ax - dx * share, z - az - dz * share)
     }
 
     // Terraced rock, rising with distance from the wall so the wall still reads.
@@ -152,12 +168,12 @@ Ravenford : QuaxelTerrainModule
         Building(placer, group, Pick(Landmarks.CrookedRaven, Volumes.Tavern), 0.0, -16.5, 26, 60, 34)
         placer.AddLight(0, 34, 44)
         // Senn's Needlehouse, the blacksmith's: Marra Senn, repairs and mending.
-        if Landmarks.SennsNeedlehouse >= 0 { Building(placer, group, Landmarks.SennsNeedlehouse, 10.0, -17.0, 18, 48, 30) }
-        else { Building(placer, group, Volumes.Blacksmith, 10.0, -17.0, 26, 48, 30) }
+        if Landmarks.SennsNeedlehouse >= 0 { Building(placer, group, Landmarks.SennsNeedlehouse, SennsX, -17.0, 18, 48, 30) }
+        else { Building(placer, group, Volumes.Blacksmith, SennsX, -17.0, 26, 48, 30) }
         placer.AddLight(0, 22, 40)
         // Pell's Chandlery, the store, with Jessa's garret up its outside stair.
-        if Landmarks.PellsChandlery >= 0 { Building(placer, group, Landmarks.PellsChandlery, 20.0, -17.0, 18, 52, 32) }
-        else { Building(placer, group, Volumes.Store, 20.0, -17.0, 24, 44, 30) }
+        if Landmarks.PellsChandlery >= 0 { Building(placer, group, Landmarks.PellsChandlery, PellsX, PellsZ, 18, 52, 32) }
+        else { Building(placer, group, Volumes.Store, PellsX, PellsZ, 24, 44, 30) }
         placer.AddLight(0, 26, 30)
         // The Lantern & Moth, the alchemist's: the stair down to Moth's fence shop.
         if Landmarks.LanternAndMoth >= 0 { Building(placer, group, Landmarks.LanternAndMoth, 12.0, -6.5, 17, 44, 30) }
@@ -168,11 +184,12 @@ Ravenford : QuaxelTerrainModule
         else { Building(placer, group, Volumes.Warehouse, 18.0, 3.5, 26, 44, 30) }
         Building(placer, group, Volumes.Stable, 17.0, 14.0, 26, 40, 26)
         placer.AddLight(0, 26, 26)
-        Building(placer, group, Volumes.Houses[0], -9.0, 2.0, 18, 38, 26)
-        Building(placer, group, Volumes.Houses[1], -17.5, 2.0, 18, 38, 26)
-        Building(placer, group, Volumes.Houses[1], -9.0, 11.0, 18, 38, 26)
-        Building(placer, group, Volumes.Houses[0], -17.5, 11.0, 18, 38, 26)
-        Building(placer, group, Volumes.Houses[0], -9.0, 19.0, 18, 38, 26)
+        // A house fills the corner by the east wall where Pell's used to stand.
+        Building(placer, group, Volumes.Houses[0], 17.5, -17.0, 18, 38, 30)
+        Building(placer, group, Volumes.Houses[1], -17.5, 2.0, 18, 38, 30)
+        Building(placer, group, Volumes.Houses[1], -9.0, 11.0, 18, 38, 30)
+        Building(placer, group, Volumes.Houses[0], -17.5, 11.0, 18, 38, 30)
+        Building(placer, group, Volumes.Houses[0], -9.0, 19.0, 18, 38, 30)
         Building(placer, group, Volumes.Stalls[0], 8.0, 1.5, 12, 22, 14)
         placer.AddLight(0, 14, 24)
         Building(placer, group, Volumes.Stalls[1], 8.0, 8.0, 12, 22, 14)
@@ -199,6 +216,10 @@ Ravenford : QuaxelTerrainModule
             Clutter(placer, group, Props.Brazier, x, 27.5, 4, 20)
             Fixture(placer, group, Volumes.Rail, x * 0.6, RiverZ, 8)
         }
+        // Braziers light the lane to Reeve's Hall and the door of Jessa's garret.
+        Clutter(placer, group, Props.Brazier, 14.2, 7.9, 4, 20)
+        Clutter(placer, group, Props.Brazier, 19.9, 7.9, 4, 20)
+        Clutter(placer, group, Props.Brazier, PellsX + 4.5, PellsZ + 1.0, 4, 20)
         Clutter(placer, group, Volumes.Crate, 22.0, 18.0, 4, 8)
         Clutter(placer, group, Volumes.Barrel, 22.0, 21.0, 4, 8)
         Clutter(placer, group, Volumes.Crate, 12.0, 22.0, 4, 8)
@@ -241,5 +262,12 @@ Ravenford : QuaxelTerrainModule
     // Blocked ground inside the +X and +Z walls.
     #float SightStrip = 2.5
     #float RiverZ = 31.5
+    // Pell's Chandlery stands on the west side of the square, so the outside
+    // stair up to Jessa's garret, on its +X side, faces the fire. A building's
+    // box and the strip behind it must clear its neighbors', so Senn's sits just
+    // clear of the Crooked Raven and the house beside the east wall.
+    #float SennsX = 9.25
+    #float PellsX = -9.0
+    #float PellsZ = 2.0
     #float RiverHalf = 1.6
 }

@@ -9,10 +9,11 @@ HellfeatherCast
     vec3 MatthewAt() { return vec3(1.5, 0.0, -12.2) }
     vec3 EddaAt() { return vec3(-11.0, 0.0, -8.6) }
     vec3 ReeveAt() { return vec3(17.0, 0.0, 7.4) }
-    vec3 MarraAt() { return vec3(10.0, 0.0, -13.9) }
+    vec3 MarraAt() { return vec3(Ravenford.SennsX, 0.0, -13.9) }
     vec3 MothAt() { return vec3(12.5, 0.0, -3.6) }
-    vec3 GarretAt() { return vec3(22.6, 0.0, -14.2) }
-    vec3 ValeOnTheStair() { return vec3(23.6, 0.0, -12.9) }
+    // At the foot of the outside stair on Pell's Chandlery.
+    vec3 GarretAt() { return vec3(Ravenford.PellsX + 2.6, 0.0, Ravenford.PellsZ + 2.8) }
+    vec3 ValeOnTheStair() { return vec3(Ravenford.PellsX + 3.6, 0.0, Ravenford.PellsZ + 4.1) }
     vec3 ValeAtTheMoth() { return vec3(14.0, 0.0, -3.0) }
 }
 

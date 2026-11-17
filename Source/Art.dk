@@ -106,19 +106,125 @@ HellfeatherArt
         }
     }
 
-    // The stand alone, for braziers that burn with a live fire effect.
+    // The crow banner of Ravenford, after its concept sheet: weathered pale
+    // cloth with a red border, a swallowtail hem studded with rivets, and a
+    // black raven perched on it. Painted one voxel deep at Z, its top
+    // row at Top and hanging Height voxels down, Width across from X0.
+    CrowBanner(QuaxelWorld& world, int volume, int x0, int top, int z, int width, int height)
+    {
+        // A raven perched upright, cut from a photograph of a live one and turned
+        // to face right: '#' is its body and '+' the gloss on its wing.
+        string [25] raven = {
+            ".............####...",
+            "............#######.",
+            "...........######...",
+            "..........######....",
+            "..........++####....",
+            "..........++#+##....",
+            ".........##+#++#....",
+            "........+#++++##....",
+            ".......+++++++##....",
+            "......#++####+##....",
+            "......+########.....",
+            ".....++########.....",
+            ".....+########......",
+            ".....#########......",
+            "....#########.......",
+            "....#########.......",
+            "...#########........",
+            "...#####+###........",
+            "...#####+##++.......",
+            "..#####.............",
+            "..#####.............",
+            ".###+#..............",
+            ".##..#..............",
+            ".+#.................",
+            "#+.................."
+        }
+        int border = Math.Max(1, width / 10)
+        float middle = (float)(width - 1) * 0.5
+        int notch = width / 4
+        // The raven stands in the middle of the cloth above the hem's notch, one
+        // cell to a voxel on the gatehouse's banners.
+        int ravenWidth = width * 20 / 28
+        int ravenHeight = ravenWidth * 25 / 20
+        int ravenX = (width - ravenWidth) / 2
+        int ravenY = (height - notch - ravenHeight) / 2
+        for column : 0; column < width; column++ {
+            float fromMiddle = Math.Abs((float)column - middle) / middle
+            // The hem rises to a notch in the middle, frayed along its edge.
+            int hem = height - 1 - (int)((float)notch * (1.0 - fromMiddle)) - Hash(column, 5, z) % 2
+            for row : 0; row <= hem; row++ {
+                int n = Hash(column, row, z)
+                bool edge = column < border || column >= width - border || row > hem - border - 1
+                int color = 0
+                if edge {
+                    color = Shade(0x7a1e18, 80 + n % 30)
+                    // Rivets along the hem.
+                    if row > hem - border - 1 && row <= hem - 1 && column % 6 == 3 && !(column < border || column >= width - border) { color = 0x8b6a3a }
+                }
+                else {
+                    // Pale cloth in vertical streaks, stained toward the hem.
+                    int streak = Hash(column, 0, z) % 14
+                    int stain = row * 30 / height
+                    color = Shade(0xcfc2a8, 92 + streak - stain - n % 8)
+                    int mx = (column - ravenX) * 20 / ravenWidth
+                    int my = (row - ravenY) * 25 / ravenHeight
+                    int code = column >= ravenX && row >= ravenY && mx < 20 && my < 25 ? (int)CodeUnitAt(raven[my], (long)mx) | 46
+                    if code == 35 { color = n % 9 == 0 ? 0x22212a | 0x121116 }
+                    if code == 43 { color = 0x3a3d52 }
+                }
+                world.SetVoxel(volume, x0 + column, top - row, z, Rgb(color))
+            }
+        }
+    }
+
+    // The stand alone, for braziers that burn with a live fire effect: a stone
+    // post and an iron collar under a flared iron bowl. A bed of embers lies
+    // sunk below the rim, so the fire burns down inside the bowl.
     BrazierStand(QuaxelWorld& world, int volume, int cx, int cz)
     {
-        StoneBox(world, volume, cx - 3, 0, cz - 3, cx + 4, 12, cz + 4)
-        Box(world, volume, cx - 6, 12, cz - 6, cx + 7, 15, cz + 7, Rgb(0x1a1716))
-        Box(world, volume, cx - 7, 15, cz - 7, cx + 8, 17, cz + 8, Rgb(0x262220))
+        StoneBox(world, volume, cx - 3, 0, cz - 3, cx + 4, 2, cz + 4)
+        StoneBox(world, volume, cx - 2, 2, cz - 2, cx + 3, 10, cz + 3)
+        Box(world, volume, cx - 3, 10, cz - 3, cx + 4, 12, cz + 4, Rgb(0x1a1716))
+        for y : 12; y <= BowlRim; y++ {
+            float outer = 3.2 + (float)(y - 12) / (float)(BowlRim - 12) * 4.3
+            float inner = outer - 1.4
+            for x : cx - 8; x < cx + 8; x++ {
+                for z : cz - 8; z < cz + 8; z++ {
+                    float distance = Math.Hypot((float)(x - cx) + 0.5, (float)(z - cz) + 0.5)
+                    if distance > outer { continue }
+                    int n = Hash(x, y, z)
+                    int color = -1
+                    if y <= 13 || distance >= inner {
+                        // The bowl: dark iron, a band around its belly, a worn rim.
+                        color = Shade(0x262220, 85 + n % 25)
+                        if y == 16 { color = 0x15120f }
+                        if y == BowlRim { color = Shade(0x4a423c, 90 + n % 20) }
+                    }
+                    else if y <= EmberTop + (distance < 2.5 ? 1 | 0) {
+                        // Embers heaped nearly to the rim, mounded in the middle,
+                        // most of them glowing.
+                        int glow = n % 5
+                        color = glow < 2 ? 0xff8a2a | (glow < 4 ? 0xd2481a | 0x3a2018)
+                    }
+                    if color >= 0 { world.SetVoxel(volume, x, y, z, Rgb(color)) }
+                }
+            }
+        }
     }
+
+    // The top voxel of a brazier's bowl, of the embers heaped inside it, and
+    // where its flames start, just above the rim so they stand tall.
+    #int BowlRim = 20
+    #int EmberTop = 18
+    #int FlameBase = 21
 
     // With a painted flame, for braziers built into a larger model.
     Brazier(QuaxelWorld& world, int volume, int cx, int cz)
     {
         BrazierStand(world, volume, cx, cz)
-        Flame(world, volume, cx, 17, cz, 6, 20)
+        Flame(world, volume, cx, FlameBase, cz, 6, 20)
     }
 }
 
@@ -484,17 +590,7 @@ HellfeatherProps
         int pole = HellfeatherArt.Rgb(0x1f1712)
         HellfeatherArt.Box(world, volume, 3, 0, 3, 6, 72, 6, pole)
         HellfeatherArt.Box(world, volume, 3, 64, 3, 24, 66, 6, pole)
-        for x : 7; x < 23; x++ {
-            int tatter = 18 + HellfeatherArt.Hash(x / 2, 3, 3) % 12
-            for y : tatter; y < 64; y++ {
-                int color = 0x6b1414
-                int dx = x - 15
-                int dy = y - 44
-                int ring = dx * dx + dy * dy
-                if (ring >= 36 && ring <= 56) || (Math.Abs(dx) < 1 && Math.Abs(dy) < 10) || (Math.Abs(dy) < 1 && Math.Abs(dx) < 10) { color = 0xc9beb0 }
-                else if HellfeatherArt.Hash(x, y, 8) % 9 == 0 { color = 0x4a0e0e }
-                HellfeatherArt.Box(world, volume, x, y, 4, x + 1, y + 1, 5, HellfeatherArt.Rgb(color))
-            }
-        }
+        // The town's crow banner hangs from the crossbar.
+        HellfeatherArt.CrowBanner(world, volume, 7, 63, 4, 16, 44)
     }
 }

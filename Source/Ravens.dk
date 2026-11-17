@@ -432,13 +432,13 @@ HellfeatherRavens
     #int TownPerches = 6
     float PerchX(int n)
     {
-        float [6] xs = {-5.0, 5.0, -4.5, 3.5, -22.0, 23.0}
+        float [6] xs = {-5.0, 5.0, 4.2, 3.5, -22.0, 23.0}
         return xs[n]
     }
 
     float PerchZ(int n)
     {
-        float [6] zs = {-9.5, -10.5, 6.5, 15.5, -6.0, -6.0}
+        float [6] zs = {-9.5, -10.5, 6.0, 15.5, -6.0, -6.0}
         return zs[n]
     }
 
