@@ -189,6 +189,7 @@ HellfeatherItemMods
     uint NameColor(HellfeatherItems item, HellfeatherRarity rarity)
     {
         if HellfeatherItems.IsQuest(item) { return QuestColor }
+        if HellfeatherItems.IsValuable(item) { return ValuableColor }
         return ColorOf(rarity)
     }
 
@@ -196,6 +197,7 @@ HellfeatherItemMods
     uint CellTint(HellfeatherItems item, HellfeatherRarity rarity)
     {
         if HellfeatherItems.IsQuest(item) { return QuestTint }
+        if HellfeatherItems.IsValuable(item) { return ValuableTint }
         return TintOf(rarity)
     }
 
@@ -203,6 +205,9 @@ HellfeatherItemMods
     // uniques' orange.
     #uint QuestColor = 0xFF4FD6A8
     #uint QuestTint = 0x3830B888
+    // Valuables, worth only their sale price, in violet.
+    #uint ValuableColor = 0xFFC79BF2
+    #uint ValuableTint = 0x389860D0
 
     // The wash over a magic or rare item's cells in the bag and on the shelves.
     uint TintOf(HellfeatherRarity rarity)

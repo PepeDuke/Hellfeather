@@ -53,9 +53,9 @@
       "prompt": "a round glass potion bottle filled with blue liquid with a cork",
       "colors": "BbuASsdWwl"
     },
-    "RustyKey": {
-      "prompt": "an old rusty iron key, diagonal",
-      "colors": "LlcwnWdDso",
+    "GoldenKey": {
+      "prompt": "an ornate golden key with a looped bow and a small red gem, diagonal",
+      "colors": "gGHcrR",
       "rotate": -45
     },
     "Scroll": {
@@ -178,6 +178,17 @@
       "prompt": "a single glossy black raven flight feather with a blue sheen, lying diagonally",
       "colors": "DdubBs",
       "shadow": false
+    },
+    "HolyOrb": {
+      "prompt": "a golden hand grenade shaped like a jeweled royal orb, a gold sphere with a band of red gems and a little golden cross on top, lying alone, no stand",
+      "colors": "gGHcrRbBv",
+      "seed": 7
+    },
+    "EggsileEgg": {
+      "prompt": "a plain smooth oval white egg with small grey speckles, no face, no eyes, no beak, upright, side view",
+      "colors": "SseEsda",
+      "shadow": false,
+      "seed": 11
     }
   },
   "parts": {

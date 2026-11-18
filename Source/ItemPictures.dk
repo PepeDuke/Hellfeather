@@ -16,7 +16,7 @@ HellfeatherItemArt
         else if item == HellfeatherItems.Amulet { PictureAmulet(p) }
         else if item == HellfeatherItems.HealthPotion { PictureHealthPotion(p) }
         else if item == HellfeatherItems.ManaPotion { PictureManaPotion(p) }
-        else if item == HellfeatherItems.RustyKey { PictureRustyKey(p) }
+        else if item == HellfeatherItems.GoldenKey { PictureGoldenKey(p) }
         else if item == HellfeatherItems.Scroll { PictureScroll(p) }
         else if item == HellfeatherItems.Gold { PictureGold(p) }
         else if item == HellfeatherItems.MinersHelmet { PictureMinersHelmet(p) }
@@ -44,6 +44,8 @@ HellfeatherItemArt
         else if item == HellfeatherItems.GarnetRing { PictureGarnetRing(p) }
         else if item == HellfeatherItems.RavenAmulet { PictureRavenAmulet(p) }
         else if item == HellfeatherItems.BlackFeather { PictureBlackFeather(p) }
+        else if item == HellfeatherItems.HolyOrb { PictureHolyOrb(p) }
+        else if item == HellfeatherItems.EggsileEgg { PictureEggsileEgg(p) }
         else if item == HellfeatherItems.RuneCleave { PictureRuneCleave(p) }
         else if item == HellfeatherItems.RuneWarCry { PictureRuneWarCry(p) }
         else if item == HellfeatherItems.RuneDash { PictureRuneDash(p) }
@@ -406,21 +408,21 @@ HellfeatherItemArt
         p.Row(14, "....ssdddds.....")
     }
 
-    -PictureRustyKey(HellfeatherItemPicture& p)
+    -PictureGoldenKey(HellfeatherItemPicture& p)
     {
-        p.Row(1, "..........ll....")
-        p.Row(2, ".........wwwll..")
-        p.Row(3, ".........w.w.wl.")
-        p.Row(4, ".........dsdwnl.")
-        p.Row(5, ".........Lss..l.")
-        p.Row(6, "........wdssllw.")
-        p.Row(7, "........lw......")
-        p.Row(8, "......wll.......")
-        p.Row(9, "..w..www........")
-        p.Row(10, ".wwwnlw.........")
-        p.Row(11, "..wwln..........")
-        p.Row(12, "..nww...........")
-        p.Row(13, "..lw............")
+        p.Row(1, "..........GGg...")
+        p.Row(2, ".........G.GGg..")
+        p.Row(3, ".........GGG..G.")
+        p.Row(4, ".........GGrGGG.")
+        p.Row(5, ".........GGrG.G.")
+        p.Row(6, "........GG.GGG..")
+        p.Row(7, ".......GGG.G....")
+        p.Row(8, ".......GG.......")
+        p.Row(9, "......G.........")
+        p.Row(10, ".....G..........")
+        p.Row(11, "..GGG...........")
+        p.Row(12, ".GGG............")
+        p.Row(13, ".GG.............")
     }
 
     -PictureScroll(HellfeatherItemPicture& p)
@@ -1211,6 +1213,42 @@ HellfeatherItemArt
         p.Row(9, "......udDubD....")
         p.Row(10, ".....udduu......")
         p.Row(11, ".....ddu........")
+    }
+
+    -PictureHolyOrb(HellfeatherItemPicture& p)
+    {
+        p.Row(1, "......gggg......")
+        p.Row(2, ".....Gggggg.....")
+        p.Row(3, "......GGGG......")
+        p.Row(4, "......GGgG......")
+        p.Row(5, "....GGGGggGG....")
+        p.Row(6, "....Gggggggg....")
+        p.Row(7, "...GGGgggggGG...")
+        p.Row(8, "...GggGGGGggg...")
+        p.Row(9, "...GGgGGGggGG...")
+        p.Row(10, "...GGGGGGGgGG...")
+        p.Row(11, "...GGGGGGGGGG...")
+        p.Row(12, "....GGGGGGGGG...")
+        p.Row(13, "....cGGGGGGc....")
+        p.Row(14, "......GGGG......")
+    }
+
+    -PictureEggsileEgg(HellfeatherItemPicture& p)
+    {
+        p.Row(1, ".......SSe......")
+        p.Row(2, "......SSSSe.....")
+        p.Row(3, ".....eSSSSSs....")
+        p.Row(4, "....sSSSSSSe....")
+        p.Row(5, "....sSSSSSSS....")
+        p.Row(6, "....eSSSSSSSs...")
+        p.Row(7, "...sSSSSSSSSs...")
+        p.Row(8, "....SSSSSSSSs...")
+        p.Row(9, "...seSSSSSSSs...")
+        p.Row(10, "....eeSSSSSSs...")
+        p.Row(11, "....seSSSSeeE...")
+        p.Row(12, "...ddseSSSes....")
+        p.Row(13, "...dddssessd....")
+        p.Row(14, "....ddddddd.....")
     }
 
     -PictureRuneCleave(HellfeatherItemPicture& p)

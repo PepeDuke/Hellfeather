@@ -53,7 +53,8 @@ HellfeatherItemKind
     int Width = 1
     int Height = 1
     HellfeatherGear Gear
-    // What the shopkeeper asks for it, in gold. He pays a quarter of this.
+    // What the shopkeeper asks for it, in gold. He pays a quarter of this, or
+    // all of it for a valuable.
     int Price
 }
 
@@ -72,7 +73,8 @@ HellfeatherItems : int
     Amulet,
     HealthPotion,
     ManaPotion,
-    RustyKey,
+    // Valuables: they do nothing but sell well.
+    GoldenKey,
     Scroll,
     // Only ever a pile on the ground. Taking it adds to the purse, not the bag.
     Gold,
@@ -116,7 +118,11 @@ HellfeatherItems : int
     HeavyBelt,
     PlatedBelt,
     GarnetRing,
-    RavenAmulet
+    RavenAmulet,
+    // Rare valuables. The orb is a holy relic best not counted to five; the egg
+    // is from the white cormorants the fen folk fish with.
+    HolyOrb,
+    EggsileEgg
 }
 
 HellfeatherItems
@@ -147,8 +153,8 @@ HellfeatherItems
         if item == HellfeatherItems.Amulet { return Make("Ember Amulet", "Fire ward 3", 1, 1, HellfeatherGear.Neck, 260) }
         if item == HellfeatherItems.HealthPotion { return Make("Health Potion", "Restores 40 HP", 1, 1, HellfeatherGear.None, 30) }
         if item == HellfeatherItems.ManaPotion { return Make("Mana Potion", "Restores 30 MP", 1, 1, HellfeatherGear.None, 30) }
-        if item == HellfeatherItems.RustyKey { return Make("Rusty Key", "Opens a chest", 1, 1, HellfeatherGear.None, 15) }
-        if item == HellfeatherItems.Scroll { return Make("Old Scroll", "Faded writing", 1, 1, HellfeatherGear.None, 60) }
+        if item == HellfeatherItems.GoldenKey { return Make("Golden Key", "Fits no lock. Collectors pay well", 1, 1, HellfeatherGear.None, 240) }
+        if item == HellfeatherItems.Scroll { return Make("Old Scroll", "Faded writing. Scholars pay well", 1, 1, HellfeatherGear.None, 160) }
         if item == HellfeatherItems.Gold { return Make("Gold", "Coins", 1, 1, HellfeatherGear.None, 0) }
         if item == HellfeatherItems.RuneCleave { return Make("Cleave Rune", "War rune: Cleave", 2, 1, HellfeatherGear.None, 180) }
         if item == HellfeatherItems.RuneWarCry { return Make("War Cry Rune", "War rune: War Cry", 2, 2, HellfeatherGear.None, 260) }
@@ -182,6 +188,8 @@ HellfeatherItems
         if item == HellfeatherItems.PlatedBelt { return Make("Plated Belt", "Defense 7", 2, 1, HellfeatherGear.Waist, 220) }
         if item == HellfeatherItems.GarnetRing { return Make("Garnet Ring", "Strength 2", 1, 1, HellfeatherGear.Ring, 300) }
         if item == HellfeatherItems.RavenAmulet { return Make("Raven Amulet", "Mana 15", 1, 1, HellfeatherGear.Neck, 360) }
+        if item == HellfeatherItems.HolyOrb { return Make("Holy Orb of Antioch", "Count to three. Five is right out", 1, 1, HellfeatherGear.None, 450) }
+        if item == HellfeatherItems.EggsileEgg { return Make("White Cormorant Egg", "Found on the Path of Eggsile", 1, 1, HellfeatherGear.None, 300) }
         return Make("", "", 1, 1, HellfeatherGear.None, 0)
     }
 
@@ -190,6 +198,13 @@ HellfeatherItems
     bool IsQuest(HellfeatherItems item)
     {
         return item == HellfeatherItems.LanternToken || item == HellfeatherItems.GreyKey || item == HellfeatherItems.TitheBracelet || item == HellfeatherItems.BlackHoney
+    }
+
+    // Valuables do nothing themselves: they are found to be sold, and merchants
+    // pay their full price for them rather than a quarter.
+    bool IsValuable(HellfeatherItems item)
+    {
+        return item == HellfeatherItems.GoldenKey || item == HellfeatherItems.Scroll || item == HellfeatherItems.HolyOrb || item == HellfeatherItems.EggsileEgg
     }
 
     // How many of an item one bag cell holds. Only black feathers stack.

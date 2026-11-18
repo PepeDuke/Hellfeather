@@ -342,6 +342,33 @@ T{
         T.AreNotEqual(HellfeatherItemMods.QuestColor, HellfeatherItemMods.ColorOf(HellfeatherRarity.Rare))
     }
 
+    // Valuables do nothing but sell: at their full price, well above what a
+    // plain item of the same listed price fetches.
+    ValuablesSellForTheirFullPrice()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherItems [4] valuables = {HellfeatherItems.GoldenKey, HellfeatherItems.Scroll, HellfeatherItems.HolyOrb, HellfeatherItems.EggsileEgg}
+        game.OpenShop(HellfeatherMerchant.Edda)
+        for item : valuables {
+            T.IsTrue(HellfeatherItems.IsValuable(item))
+            T.IsFalse(HellfeatherItems.IsQuest(item))
+            HellfeatherItemKind kind = HellfeatherItems.Get(item)
+            T.AreEqual(kind.Gear, HellfeatherGear.None)
+            game.Inventory.Items.ClearHeld()
+            game.Inventory.Items.Held = item
+            int gold = game.Inventory.Items.Gold
+            game.Shop.SellRequest = true
+            game.ApplyShopRequests()
+            T.IsTrue(game.Inventory.Items.Held == HellfeatherItems.None)
+            T.AreEqual(game.Inventory.Items.Gold, gold + kind.Price)
+            T.AreEqual(HellfeatherItemMods.NameColor(item, HellfeatherRarity.Common), HellfeatherItemMods.ValuableColor)
+        }
+        T.IsFalse(HellfeatherItems.IsValuable(HellfeatherItems.Ring))
+        T.IsFalse(game.Shop.Shop.HasEndless(HellfeatherItems.Scroll))
+    }
+
     // Over many buys some finds come out magic and a few rare.
     HoardFindsAreSometimesMagicAndRarelyRare()
     {

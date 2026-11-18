@@ -32,7 +32,7 @@ Issues found during testing:
 [x] too many black fethers drop, and gold should drop more
 [] portal has no opening, closing animation, it should
 [] old hobb's mill has whater wheel but it does not touch a water, it should have river ajasent to the building on the side of the wheel posibly crossing the area and haveing breges where there are paths, it also has massive hit box preventing me to get near
-[] in the millrace undercroft tthere spawn rivers that should not be the case we can for example replace then in the undercroft with cracked ground
+[] in the millrace undercroft there spawns rivers that should not be the case we can for example replace then in the undercroft with cracked ground
 [] the millstone maul need it's own item image, use pixel-art skill
 [] there are great many unique items like jassa's waterwalkers boots we shouldg generate fot them unique item image, use pixel-art skill
 [] maybe after the severing of the ring it should open portal (NPC portal should have diffrent color to show it is not yours) to the mara hob
@@ -42,7 +42,7 @@ Issues found during testing:
 [x] we need interior location, for example hobs mill and sister Carmine building should be inside the building it self. maybe have abilty to click on the building or the door to enter in.
 [] we need more item bases that spawn in later zones
 [] enemies in later zones should have some elemental atacks (maybe part phys and part elemental) for example maybe leeches cold,  pond drake cold
-[] we have items that are pure useless, it is confusing and does not make snese, make these useless item int diffrent raraty item (special category) thay do not do anything them self but thay sell for much more.
+[x] we have items that are pure useless, it is confusing and does not make snese, make these useless item int diffrent raraty item (special category) thay do not do anything them self but thay sell for much more.
 
 
 

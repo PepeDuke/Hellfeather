@@ -208,6 +208,11 @@ HellfeatherSaves
     // Names back to enum members. False for a name the game does not know.
     bool ItemNamed(name text, HellfeatherItems& found)
     {
+        // The rusty key became the golden key; older saves still name it.
+        if text == "RustyKey" {
+            found = HellfeatherItems.GoldenKey
+            return true
+        }
         for each : HellfeatherItems {
             if each.Name == text {
                 found = each

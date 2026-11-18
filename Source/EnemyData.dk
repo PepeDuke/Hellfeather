@@ -71,7 +71,9 @@ HellfeatherEnemyData
                 <LootItem Item=HellfeatherItems.HealthPotion Weight=30/>
                 <LootItem Item=HellfeatherItems.ManaPotion Weight=20/>
                 <LootItem Item=HellfeatherItems.Scroll Weight=8/>
-                <LootItem Item=HellfeatherItems.RustyKey Weight=6/>
+                <LootItem Item=HellfeatherItems.GoldenKey Weight=6/>
+                <LootItem Item=HellfeatherItems.EggsileEgg Weight=2/>
+                <LootItem Item=HellfeatherItems.HolyOrb Weight=1/>
                 <LootItem Item=HellfeatherItems.Belt Weight=6/>
                 <LootItem Item=HellfeatherItems.Gloves Weight=6/>
                 <LootItem Item=HellfeatherItems.Boots Weight=6/>

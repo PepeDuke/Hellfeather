@@ -22,7 +22,7 @@ HellfeatherShop
     // feathers, nothing is bought from her, and what she buys is rolled then.
     bool ForFeathers
 
-    // Potions and scrolls never run out. Each piece of gear is a single one, and
+    // Potions and portals never run out. Each piece of gear is a single one, and
     // some of it is magic. He never stocks rare items himself, though one the
     // player sells him stays on the shelf to be bought back.
     Restock() { RestockSeeded((uint)1) }
@@ -33,7 +33,6 @@ HellfeatherShop
         RollSeed = seed
         Add(HellfeatherItems.HealthPotion, true)
         Add(HellfeatherItems.ManaPotion, true)
-        Add(HellfeatherItems.Scroll, true)
         Add(HellfeatherItems.RavenPortal, true)
         Add(HellfeatherItems.LeatherArmor, false)
         Add(HellfeatherItems.ShortSword, false)
@@ -58,8 +57,7 @@ HellfeatherShop
         if merchant == HellfeatherMerchant.Edda {
             Add(HellfeatherItems.HealthPotion, true)
             Add(HellfeatherItems.ManaPotion, true)
-            Add(HellfeatherItems.Scroll, true)
-            Add(HellfeatherItems.RavenPortal, true)
+                Add(HellfeatherItems.RavenPortal, true)
             Add(HellfeatherItems.Ring, false)
             Add(HellfeatherItems.Amulet, false)
             Add(HellfeatherItems.Ring, false)
@@ -260,10 +258,11 @@ HellfeatherShop
     #int BuyBackFactor = 4
 
     // What any merchant pays for an item: a quarter of its listed price, more
-    // for magic and rare. The bag shows it on items while a shop is open.
+    // for magic and rare, and all of it for a valuable. The bag shows it on items while a shop is open.
     int SellValue(HellfeatherItems item, HellfeatherItemMods mods)
     {
         HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        if HellfeatherItems.IsValuable(item) { return kind.Price }
         return Math.Max(1, kind.Price * HellfeatherItemMods.PriceFactor(mods.Rarity) / 4)
     }
     // The share of shelved gear that comes out magic.
@@ -302,10 +301,10 @@ T{
     {
         HellfeatherShop shop
         shop.Restock()
-        T.AreEqual(shop.Stock.Len, 16)
+        T.AreEqual(shop.Stock.Len, 15)
         T.IsTrue(shop.HasEndless(HellfeatherItems.HealthPotion))
         T.IsTrue(shop.HasEndless(HellfeatherItems.ManaPotion))
-        T.IsTrue(shop.HasEndless(HellfeatherItems.Scroll))
+        T.IsFalse(shop.HasEndless(HellfeatherItems.Scroll))
         T.IsTrue(shop.HasEndless(HellfeatherItems.RavenPortal))
         T.IsFalse(shop.HasEndless(HellfeatherItems.Ring))
     }
@@ -320,9 +319,9 @@ T{
         }
         T.AreEqual(shop.Quote(helm, 500), HellfeatherShopResult.Done)
         T.AreEqual(shop.Take(helm), HellfeatherItems.IronHelm)
-        T.AreEqual(shop.Stock.Len, 15)
+        T.AreEqual(shop.Stock.Len, 14)
         for i : 0; i < 5; i++ { T.AreEqual(shop.Take(0), HellfeatherItems.HealthPotion) }
-        T.AreEqual(shop.Stock.Len, 15)
+        T.AreEqual(shop.Stock.Len, 14)
     }
 
     QuotesTurnAwayThePoor()
@@ -339,10 +338,10 @@ T{
         HellfeatherShop shop
         shop.Restock()
         T.AreEqual(shop.Receive(HellfeatherItems.BattleAxe), 75)
-        T.AreEqual(shop.Stock.Len, 17)
+        T.AreEqual(shop.Stock.Len, 16)
         // He already has endless potions, so one more does not take shelf space.
         T.AreEqual(shop.Receive(HellfeatherItems.HealthPotion), 7)
-        T.AreEqual(shop.Stock.Len, 17)
+        T.AreEqual(shop.Stock.Len, 16)
         T.AreEqual(shop.Receive(HellfeatherItems.None), 0)
         T.AreEqual(shop.Receive(HellfeatherItems.Gold), 0)
     }
@@ -535,6 +534,7 @@ HellfeatherShopScreen
             HellfeatherItemKind carried = HellfeatherItems.Get(held)
             Line(ui, 0, carried.Name, HellfeatherItemMods.NameColor(held, HeldMods.Rarity))
             Line(ui, 2, "Sell for " + QuaxelUi.FormatInt(Shop.SellPriceWith(held, HeldMods)) + " gold", 0xFFDCAE3E)
+            if HellfeatherItems.IsValuable(held) { Line(ui, 3, "A valuable: full price.", HellfeatherItemMods.ValuableColor) }
             Line(ui, 4, "Click to sell", 0xFF8C8880)
             return
         }
