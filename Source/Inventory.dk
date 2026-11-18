@@ -185,6 +185,13 @@ HellfeatherItems
         return Make("", "", 1, 1, HellfeatherGear.None, 0)
     }
 
+    // Quest items carry the story: clues and keys. They show in their own
+    // color and no merchant will buy them, so none is sold by mistake.
+    bool IsQuest(HellfeatherItems item)
+    {
+        return item == HellfeatherItems.LanternToken || item == HellfeatherItems.GreyKey || item == HellfeatherItems.TitheBracelet || item == HellfeatherItems.BlackHoney
+    }
+
     // How many of an item one bag cell holds. Only black feathers stack.
     int StackMost(HellfeatherItems item) { return item == HellfeatherItems.BlackFeather ? FeatherStack | 1 }
     #int FeatherStack = 5

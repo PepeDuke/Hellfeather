@@ -20,16 +20,16 @@ Issues found during testing:
 [x] when shop is open the the items in inventory should have showen sell price
 [x] protal should not reset the level (respawn enemies)
 [x] add waypoint system this should be done using the fireplace make it clicable and change the fire to blue color, in key location (1 per region/zone) should be fireplaces, trey should start un-lit first and thay should be lit/activated when clicked on/ you walk near.
-[] reads look skuffed re-work them.
-[] fether fall event lasts too long and maybe it should start by few ravens flying over and then the fether should start to fall.
-[] wen we mouse over enemie in top of the sceen UI it should show the nameplate of the enemy and the boreder of the enemy should show health (like a helth progress bar), rare enemies should have deffrent color of the text based on rarity
+[x] reads look skuffed re-work them.
+[x] fether fall event lasts too long and maybe it should start by few ravens flying over and then the fether should start to fall.
+[x] wen we mouse over enemie in top of the sceen UI it should show the nameplate of the enemy and the boreder of the enemy should show health (like a helth progress bar), rare enemies should have deffrent color of the text based on rarity
 [] war cry should have it's own animation and yell wave effect
-[] sister Carmine building has massive hit box/blocking area the player can't even go near it, ti should be inline with the building edges
-[] black fethers should have it's own voxel model
-[] add 4 more slots abilty above QEF a bit smaller icons/slots it should be 1-4 numbers
+[x] sister Carmine building has massive hit box/blocking area the player can't even go near it, ti should be inline with the building edges
+[x] black fethers should have it's own voxel model
+[x] add 4 more slots abilty above QEF a bit smaller icons/slots it should be 1-4 numbers
 [] clicking on item on ground using right click blocks it it should only eat the left clicks, but also not pick up left click (we are not in reach) should also not block the abilty
-[] iron helm item on ground voxel medel looks scufed, re-work it, we already have version on player so maybe use static version of that.
-[] too many black fethers drop, and gold should drop more
+[x] iron helm item on ground voxel medel looks scufed, re-work it, we already have version on player so maybe use static version of that.
+[x] too many black fethers drop, and gold should drop more
 [] portal has no opening, closing animation, it should
 [] old hobb's mill has whater wheel but it does not touch a water, it should have river ajasent to the building on the side of the wheel posibly crossing the area and haveing breges where there are paths, it also has massive hit box preventing me to get near
 [] in the millrace undercroft tthere spawn rivers that should not be the case we can for example replace then in the undercroft with cracked ground
@@ -38,8 +38,8 @@ Issues found during testing:
 [] maybe after the severing of the ring it should open portal (NPC portal should have diffrent color to show it is not yours) to the mara hob
 [] add chest that will be in town and you can store item in it
 [] add saving system we need to create and save characters, it does not need to save enemies only/world only player related thing like inventory, level, runes ... and quest progression
-[] black fethers thay need re-design in terms of gameplay thay feel un-rewarding it is not clear how many you need to collect and if you collect all of the they still continue droping, it sort of makes sense thay would drop but possibly thay need to be physical item in iventory and for 1 slot you can stack like 5 of them for example, maybe if you bring them affter to edda you can use them to gamble on hiden item, you see base and you buy them with black fethers and it rolls rarty giving you possibity of getting blue or gold.
-[] we need interior location, for example hobs mill and sister Carmine building should be inside the building it self. maybe have abilty to click on the building or the door to enter in.
+[x] black fethers thay need re-design in terms of gameplay thay feel un-rewarding it is not clear how many you need to collect and if you collect all of the they still continue droping, it sort of makes sense thay would drop but possibly thay need to be physical item in iventory and for 1 slot you can stack like 5 of them for example, maybe if you bring them affter to edda you can use them to gamble on hiden item, you see base and you buy them with black fethers and it rolls rarty giving you possibity of getting blue or gold.
+[x] we need interior location, for example hobs mill and sister Carmine building should be inside the building it self. maybe have abilty to click on the building or the door to enter in.
 [] we need more item bases that spawn in later zones
 [] enemies in later zones should have some elemental atacks (maybe part phys and part elemental) for example maybe leeches cold,  pond drake cold
 [] we have items that are pure useless, it is confusing and does not make snese, make these useless item int diffrent raraty item (special category) thay do not do anything them self but thay sell for much more.

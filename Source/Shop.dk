@@ -274,9 +274,9 @@ HellfeatherShop
     #float HoardRare = 0.1
     #float HoardMagic = 0.35
 
-    // Whether merchants take an item at all. Gold is money, and black feathers
-    // only Edda's ravens want.
-    bool Buys(HellfeatherItems item) { return item != HellfeatherItems.None && item != HellfeatherItems.Gold && item != HellfeatherItems.BlackFeather }
+    // Whether merchants take an item at all. Gold is money, black feathers
+    // only Edda's ravens want, and quest items are not for sale.
+    bool Buys(HellfeatherItems item) { return item != HellfeatherItems.None && item != HellfeatherItems.Gold && item != HellfeatherItems.BlackFeather && !HellfeatherItems.IsQuest(item) }
 
     // What a wrapped find costs in black feathers, by what it is.
     int FeatherPrice(HellfeatherItems item)
@@ -525,14 +525,15 @@ HellfeatherShopScreen
     {
         if selling && (Shop.ForFeathers || !HellfeatherShop.Buys(held)) {
             HellfeatherItemKind refused = HellfeatherItems.Get(held)
-            Line(ui, 0, refused.Name, HellfeatherItemMods.ColorOf(HeldMods.Rarity))
+            Line(ui, 0, refused.Name, HellfeatherItemMods.NameColor(held, HeldMods.Rarity))
             Line(ui, 2, Shop.ForFeathers ? "The ravens don't buy." | "Not wanted here.", 0xFFD05A40)
+            if HellfeatherItems.IsQuest(held) { Line(ui, 3, "A quest item: keep it.", 0xFF8C8880) }
             if held == HellfeatherItems.BlackFeather { Line(ui, 3, "Edda's ravens take them.", 0xFF8C8880) }
             return
         }
         if selling {
             HellfeatherItemKind carried = HellfeatherItems.Get(held)
-            Line(ui, 0, carried.Name, HellfeatherItemMods.ColorOf(HeldMods.Rarity))
+            Line(ui, 0, carried.Name, HellfeatherItemMods.NameColor(held, HeldMods.Rarity))
             Line(ui, 2, "Sell for " + QuaxelUi.FormatInt(Shop.SellPriceWith(held, HeldMods)) + " gold", 0xFFDCAE3E)
             Line(ui, 4, "Click to sell", 0xFF8C8880)
             return

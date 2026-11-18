@@ -316,6 +316,32 @@ T{
         T.IsTrue(game.Inventory.Items.Held == HellfeatherItems.BlackFeather)
     }
 
+    // No merchant buys a quest item, and it shows in its own color.
+    QuestItemsAreNotForSale()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherItems [4] quest = {HellfeatherItems.LanternToken, HellfeatherItems.GreyKey, HellfeatherItems.TitheBracelet, HellfeatherItems.BlackHoney}
+        for merchant : HellfeatherMerchant {
+            if merchant == HellfeatherMerchant.None { continue }
+            game.OpenShop(merchant)
+            for item : quest {
+                T.IsTrue(HellfeatherItems.IsQuest(item))
+                game.Inventory.Items.ClearHeld()
+                game.Inventory.Items.Held = item
+                int gold = game.Inventory.Items.Gold
+                game.Shop.SellRequest = true
+                game.ApplyShopRequests()
+                T.IsTrue(game.Inventory.Items.Held == item)
+                T.AreEqual(game.Inventory.Items.Gold, gold)
+            }
+        }
+        T.IsFalse(HellfeatherItems.IsQuest(HellfeatherItems.Ring))
+        T.AreNotEqual(HellfeatherItemMods.NameColor(HellfeatherItems.LanternToken, HellfeatherRarity.Common), HellfeatherItemMods.NameColor(HellfeatherItems.Ring, HellfeatherRarity.Common))
+        T.AreNotEqual(HellfeatherItemMods.QuestColor, HellfeatherItemMods.ColorOf(HellfeatherRarity.Rare))
+    }
+
     // Over many buys some finds come out magic and a few rare.
     HoardFindsAreSometimesMagicAndRarelyRare()
     {

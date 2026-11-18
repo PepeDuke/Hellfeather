@@ -1,7 +1,7 @@
-// Where Act I's people stand, and how the warrior goes between the Fenmarch and
-// the Undercroft's two levels. Ravenford's people stand outside their doors;
-// the hospice's and the mill's are placed from where the terrain put those
-// buildings. People's models come from Tools/Models/act1.py; tall ones have
+// Where Act I's people stand, and how the warrior goes between the Fenmarch,
+// the Undercroft's two levels and the interiors. Ravenford's people stand
+// outside their doors; the hospice's and the mill's are inside, behind doors
+// placed from where the terrain put those buildings. People's models come from Tools/Models/act1.py; tall ones have
 // coarser voxels, so each has its own voxel size.
 HellfeatherCast
 #{
@@ -68,29 +68,26 @@ HellfeatherGame : QuaxelGameInstance
         People.AddPerson(HellfeatherPerson.Moth, "Moth", fen, HellfeatherCast.MothAt(), "Assets/Moth.qvox", 0.0264, 72)
         int vale = People.AddPerson(HellfeatherPerson.Vale, "Sister Vale", fen, HellfeatherCast.ValeOnTheStair(), "Assets/SisterVale.qvox", 0.0271, 72)
         People.Spots[vale].Shown = false
-        People.Add(HellfeatherSpotKind.Garret, "Jessa's garret", fen, HellfeatherCast.GarretAt())
+        // Jessa's door at the top of Pell's stair, locked until the story opens it.
+        int garret = People.Add(HellfeatherSpotKind.Entrance, "Jessa's garret", fen, HellfeatherCast.GarretAt())
+        People.Spots[garret].Leads = HellfeatherRealm.Garret
 
-        // The hospice gate faces +Z, and Jessa's bed stands in the outer ward.
+        // The hospice gate faces +Z. Sister Carmine and Jessa are inside.
         int hospice = PlacementOf(Terrain.Hill.Hospice)
         vec3 gate = hospice >= 0 ? Terrain.PlacementPosition(hospice) | ZoneMiddle(HellfeatherZone.OrrasHill)
-        // People stand by the walls themselves, now only the walls block.
         float front = ReachOf(world, hospice, Terrain.Hill.HospiceHalf, true)
-        People.AddPerson(HellfeatherPerson.Carmine, "Sister Carmine", fen, Flat(gate) + vec3(-2.2, 0.0, front + 1.4), "Assets/SisterCarmine.qvox", 0.025, 72)
-        int bed = People.AddModel(HellfeatherSpotKind.Person, "Jessa Brune", fen, Flat(gate) + vec3(2.6, 0.0, front + 1.9), Landmarks.JessaBed, 0.025, 40)
-        People.Spots[bed].Person = HellfeatherPerson.Jessa
-        People.Spots[bed].FacingX = 0.0
-        People.Spots[bed].FacingZ = 1.0
+        int ward = People.Add(HellfeatherSpotKind.Entrance, "Orra's Hospice", fen, Flat(gate) + vec3(0.0, 0.0, front + 0.4))
+        People.Spots[ward].Leads = HellfeatherRealm.Hospice
 
-        // Old Hobb outside his mill, the low door at the water, Lise on the stair.
+        // The mill's door at the front, Old Hobb inside, Lise on the stair.
         int mill = PlacementOf(Terrain.Mill.Mill)
         vec3 millAt = mill >= 0 ? Terrain.PlacementPosition(mill) | ZoneMiddle(HellfeatherZone.HobbsMill)
         float face = ReachOf(world, mill, Terrain.Mill.MillHalf, true)
         float side = ReachOf(world, mill, Terrain.Mill.MillHalf, false)
-        People.AddPerson(HellfeatherPerson.OldHobb, "Old Hobb", fen, Flat(millAt) + vec3(-2.8, 0.0, face + 1.0), "Assets/OldHobb.qvox", 0.025, 68)
         MillDoor = Flat(millAt) + vec3(1.4, 0.0, face + 0.4)
-        int door = People.AddModel(HellfeatherSpotKind.Door, "Millrace door", fen, MillDoor, Landmarks.Doorway, HellfeatherArt.FineVoxel, HellfeatherLandmarks.DoorHeight)
-        People.Spots[door].FacingX = 0.0
-        People.Spots[door].FacingZ = 1.0
+        // The mill's own door is in its model; the entrance is its name.
+        int door = People.Add(HellfeatherSpotKind.Entrance, "Hobb's Mill", fen, MillDoor)
+        People.Spots[door].Leads = HellfeatherRealm.Mill
         int lise = People.AddPerson(HellfeatherPerson.Lise, "Lise Hobb", fen, Flat(millAt) + vec3(side + 0.9, 0.0, 1.0), "Assets/LiseHobb.qvox", 0.025, 72)
         People.Spots[lise].Shown = false
     }
@@ -171,6 +168,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         vec3 arrival = HellfeatherRealm.Landing(realm) + vec3(0.0, 0.0, 1.5)
         if realm == HellfeatherRealm.Fenmarch { arrival = MillDoor + vec3(0.0, 0.0, 1.6) }
+        else if realm == HellfeatherRealm.Mill { arrival = MillHatch + vec3(-1.5, 0.0, 0.0) }
         else if realm == HellfeatherRealm.Undercroft && !down { arrival = StairsDown + vec3(0.0, 0.0, 2.0) }
         return TravelTo(world, realm, arrival, down)
     }
@@ -182,33 +180,35 @@ HellfeatherGame : QuaxelGameInstance
     -int [] KeptEnemyRealm
     -EnemyEncounter [] KeptEncounters
     -int [] KeptEncounterRealm
-    -bool [3] Kept
+    -bool [8] Kept
 
     // Travel to a chosen point of a level, as a raven portal takes her. The
     // terrain is built again even when she stays on it, but the enemies are
-    // the ones she left there; a level is only rolled the first time.
+    // the ones she left there; a level is only rolled the first time. Enemies
+    // that were up and about are kept just so, where they stood and as hurt as
+    // they were: their models wait in the level she left, far from any other,
+    // and they only stop moving while she is away.
     bool TravelTo(QuaxelWorld& world, HellfeatherRealm realm, vec3 arrival, bool down)
     {
         Talk.Close()
         Shop.Open = false
-        for i : 0; i < Spawner.Encounters.Len; i++ {
-            if Spawner.Encounters[i].Awake { SleepEncounter(world, i) }
-        }
         KeepLevel(Terrain.Realm)
         ClearShots(world)
         Ravens.Clear(world)
         Featherfall.Stop(world)
         Terrain.Realm = realm
-        QuaxelTerrainConfig config = realm == HellfeatherRealm.Fenmarch ? FenmarchConfig() | HellfeatherRealm.Undercroft(realm)
+        bool inside = HellfeatherRealm.IsInterior(realm)
+        QuaxelTerrainConfig config = realm == HellfeatherRealm.Fenmarch ? FenmarchConfig() | (inside ? HellfeatherRealm.Interior(realm) | HellfeatherRealm.Undercroft(realm))
         if !Terrain.Reconfigure(world, config, arrival) { return false }
         arrival = OpenNear(arrival)
         QuaxelTransform transform = world.GetTransform(PlayerNode)
         transform.Position = StandingAt(arrival.X, arrival.Z, PlayerRadius())
         world.SetTransform(PlayerNode, transform)
         if realm == HellfeatherRealm.Fenmarch { SetUpRavens(world) }
-        else { SetUpUndercroft(world, realm) }
+        else if !inside { SetUpUndercroft(world, realm) }
         bool fresh = !ReturnToLevel(realm)
-        if fresh {
+        // Nothing hostile comes indoors.
+        if fresh && !inside {
             PopulateEnemies()
             AddUniques()
         }
@@ -223,7 +223,7 @@ HellfeatherGame : QuaxelGameInstance
             vec3 deepest = Deepest()
             AddScripted(world, "Mardra", deepest.X, deepest.Z + 1.5)
         }
-        Banner.Show(realm == HellfeatherRealm.Fenmarch ? "Hobb's Mill" | (realm == HellfeatherRealm.Undercroft ? "The Millrace Undercroft" | "The Undercroft, deeper"), 2.5)
+        if realm != HellfeatherRealm.Fenmarch { Banner.Show(HellfeatherZoneNames.RealmName(realm), 2.5) }
         return UpdateSpawns(world, world.GetPosition(PlayerNode))
     }
 
@@ -327,6 +327,13 @@ HellfeatherGame : QuaxelGameInstance
     bool GoToStart(QuaxelWorld& world)
     {
         if Length(StartAt) == 0 { return true }
+        // Inside a building: in-hospice, in-mill or in-garret.
+        if StartAt == "in-hospice" { return TravelTo(world, HellfeatherRealm.Hospice, HellfeatherRealm.Doorstep(HellfeatherRealm.Hospice), false) }
+        if StartAt == "in-mill" { return TravelTo(world, HellfeatherRealm.Mill, HellfeatherRealm.Doorstep(HellfeatherRealm.Mill), false) }
+        if StartAt == "in-garret" {
+            Quests.Rooms = Math.Max(Quests.Rooms, 1)
+            return TravelTo(world, HellfeatherRealm.Garret, HellfeatherRealm.Doorstep(HellfeatherRealm.Garret), false)
+        }
         if StartAt == "undercroft" || StartAt == "deep" {
             Quests.Millrace = 1
             if !Travel(world, HellfeatherRealm.Undercroft, true) { return false }
@@ -338,9 +345,10 @@ HellfeatherGame : QuaxelGameInstance
         else if StartAt == "matthew" { there = HellfeatherCast.MatthewAt() + vec3(-1.5, 0.0, 1.5) }
         else if StartAt == "edda" { there = HellfeatherCast.EddaAt() + vec3(1.5, 0.0, 1.5) }
         else if StartAt == "hospice" {
-            int carmine = People.FindPerson(HellfeatherPerson.Carmine)
-            there = People.Spots[carmine].Feet + vec3(0.0, 0.0, 2.5)
+            int ward = FindEntrance(HellfeatherRealm.Hospice)
+            there = People.Spots[ward].Feet + vec3(0.0, 0.0, 2.5)
         }
+        else if StartAt == "garret" { there = HellfeatherCast.GarretAt() + vec3(0.0, 0.0, 1.5) }
         else if StartAt == "marsh" { there = ZoneMiddle(HellfeatherZone.FennickWater) }
         if !Terrain.Reconfigure(world, FenmarchConfig(), there) { return false }
         there = OpenNear(there)
@@ -348,6 +356,15 @@ HellfeatherGame : QuaxelGameInstance
         transform.Position = StandingAt(there.X, there.Z, PlayerRadius())
         world.SetTransform(PlayerNode, transform)
         return UpdateSpawns(world, transform.Position)
+    }
+
+    // The entrance into a building's interior, or -1.
+    int FindEntrance(HellfeatherRealm inside)
+    {
+        for i : 0; i < People.Spots.Len; i++ {
+            if People.Spots[i].Kind == HellfeatherSpotKind.Entrance && People.Spots[i].Leads == inside { return (int)i }
+        }
+        return -1
     }
 
     // Whether the warrior is out in the wild, where feathers fall.

@@ -201,7 +201,7 @@ HellfeatherGroundItems
             if !ShowLabels && entry != Hovered { continue }
             DrawBox(ui, Labels[i].X, Labels[i].Y, Labels[i].Width)
             // Titles take their rarity's color, dimmed out of reach and white under the mouse.
-            uint color = HellfeatherItemMods.ColorOf(Entries[entry].Mods.Rarity)
+            uint color = HellfeatherItemMods.NameColor(Entries[entry].Item, Entries[entry].Mods.Rarity)
             if !InReach(entry, player) { color = (color & (uint)0x00FEFEFE) / (uint)2 | (uint)0xFF000000 }
             else if entry == Hovered { color = 0xFFFFFFFF }
             ui.OverlayText(Labels[i].X + PaddingX, Labels[i].Y + PaddingY, Title(entry), color)

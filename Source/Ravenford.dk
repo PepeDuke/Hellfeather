@@ -9,6 +9,11 @@ HellfeatherSurface
     // The Undercroft's floor, and the silver wire run across it.
     #int Flagstone = 20
     #int Wire = 21
+    // Interiors: a board floor, and timber-framed plaster walls.
+    #int Planks = 22
+    #int Plaster = 23
+    // Beyond an interior's walls: nothing to see.
+    #int Void = 24
 }
 
 // Ravenford, Act I's walled river town, where the player starts. Its ravens

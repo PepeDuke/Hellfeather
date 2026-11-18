@@ -26,6 +26,8 @@ HellfeatherReply : int
     Browse,
     // Opens the ravens' hoard at Edda's, bought with black feathers.
     Hoard,
+    // Takes Jessa's boots from the dry outline in her garret.
+    TakeBoots,
     OpenMillrace,
     Sever,
     LiseWindow,
@@ -49,6 +51,8 @@ HellfeatherQuests
     int FeathersHeld
     // Whether Edda has told her what the ravens trade.
     bool HoardTold
+    // Whether she took Jessa's Waterwalkers from the garret floor.
+    bool BootsTaken
     bool ReevePaid
     // I-3: 1 the garret is open, 2 searched, 3 the Red Cuffs, 4 done.
     int Rooms
@@ -320,6 +324,7 @@ HellfeatherGame : QuaxelGameInstance
         if person == HellfeatherPerson.OldHobb { return q.Millrace == 0 && Carries(HellfeatherItems.GreyKey) }
         if person == HellfeatherPerson.Lise { return q.Millrace == 4 }
         if People.Spots[spot].Kind == HellfeatherSpotKind.Garret { return q.Rooms == 1 }
+        if People.Spots[spot].Kind == HellfeatherSpotKind.Boots { return !q.BootsTaken }
         if People.Spots[spot].Kind == HellfeatherSpotKind.Pedestal { return q.Millrace == 3 }
         return false
     }
@@ -328,11 +333,25 @@ HellfeatherGame : QuaxelGameInstance
     Use(QuaxelWorld& world, int spot)
     {
         HellfeatherSpotKind kind = People.Spots[spot].Kind
+        if kind == HellfeatherSpotKind.Entrance {
+            if People.Spots[spot].Leads == HellfeatherRealm.Garret && Quests.Rooms == 0 {
+                Talk.Begin("Jessa's garret", spot, false)
+                Talk.Narrate("A narrow door at the top of Pell's stair. Locked. Whoever lives here is not home.")
+                Talk.Offer("Leave", HellfeatherReply.Leave)
+                return
+            }
+            EnterInterior(world, spot)
+            return
+        }
+        if kind == HellfeatherSpotKind.Exit {
+            LeaveInterior(world)
+            return
+        }
         if kind == HellfeatherSpotKind.Door {
             if Quests.Millrace >= 1 { Travel(world, HellfeatherRealm.Undercroft, true) }
             else {
-                Talk.Begin("The millrace door", spot, false)
-                Talk.Narrate("A low door banded with iron, at the water. Locked from the inside.")
+                Talk.Begin("The millrace hatch", spot, false)
+                Talk.Narrate("A hatch banded with iron, over the sound of the race. Bolted from below.")
                 Talk.Offer("Leave it", HellfeatherReply.Leave)
             }
             return
@@ -342,7 +361,7 @@ HellfeatherGame : QuaxelGameInstance
             return
         }
         if kind == HellfeatherSpotKind.StairsUp {
-            Travel(world, Terrain.Realm == HellfeatherRealm.UndercroftDeep ? HellfeatherRealm.Undercroft | HellfeatherRealm.Fenmarch, false)
+            Travel(world, Terrain.Realm == HellfeatherRealm.UndercroftDeep ? HellfeatherRealm.Undercroft | HellfeatherRealm.Mill, false)
             return
         }
         if kind == HellfeatherSpotKind.Bearer {
@@ -354,6 +373,14 @@ HellfeatherGame : QuaxelGameInstance
         }
         if kind == HellfeatherSpotKind.Garret {
             TalkGarret(spot)
+            return
+        }
+        if kind == HellfeatherSpotKind.Boots {
+            Talk.Begin("Jessa's boots", spot, false)
+            Talk.Narrate("Water has dried on the floor in a curve, as if it went around a pair of boots on purpose.")
+            Talk.Narrate("The boots are still standing in the dry. Tall, close-stitched, cold to the touch.")
+            Talk.Offer("Take the boots", HellfeatherReply.TakeBoots)
+            Talk.Offer("Leave them", HellfeatherReply.Leave)
             return
         }
         if kind == HellfeatherSpotKind.Pedestal {
@@ -389,20 +416,19 @@ HellfeatherGame : QuaxelGameInstance
 
     -TalkGarret(int spot)
     {
-        Talk.Begin("Jessa's garret", spot, false)
+        Talk.Begin("Jessa's desk", spot, false)
         if Quests.Rooms == 0 {
-            Talk.Narrate("A narrow door at the top of Pell's stair. Locked. Whoever lives here is not home.")
+            Talk.Narrate("Her desk. Nothing here you have a reason to touch yet.")
             Talk.Offer("Leave", HellfeatherReply.Leave)
             return
         }
         if Quests.Rooms == 1 {
-            Talk.Narrate("Water has dried on the floor in a curve, as if it went around a pair of boots on purpose.")
             Talk.Narrate("A journal in a hand that slopes uphill. A vial of black honey, stoppered with wax. A token stamped with a lantern and a moth.")
             Talk.Offer("Take them", HellfeatherReply.SearchGarret)
             Talk.Offer("Leave them", HellfeatherReply.Leave)
             return
         }
-        Talk.Narrate("Nothing left but the curve in the floor.")
+        Talk.Narrate("Loose papers, a cold candle. Nothing left that she would want found.")
         Talk.Offer("Leave", HellfeatherReply.Leave)
     }
 
@@ -641,7 +667,6 @@ HellfeatherGame : QuaxelGameInstance
             if Quests.ReevePaid { Quests.Ford = 2 }
         } else if reply == HellfeatherReply.SearchGarret {
             Quests.Rooms = 2
-            Give(world, HellfeatherItems.JessasWaterwalkers)
             Give(world, HellfeatherItems.BlackHoney)
             Give(world, HellfeatherItems.LanternToken)
             int vale = People.FindPerson(HellfeatherPerson.Vale)
@@ -683,6 +708,12 @@ HellfeatherGame : QuaxelGameInstance
             GainExperience(120)
             int vale = People.FindPerson(HellfeatherPerson.Vale)
             if vale >= 0 { People.Spots[vale].Shown = false }
+        } else if reply == HellfeatherReply.TakeBoots {
+            // The boots leave the dry outline in the stain, which stays.
+            Quests.BootsTaken = true
+            int boots = People.FindKind(HellfeatherSpotKind.Boots, HellfeatherRealm.Garret)
+            if boots >= 0 { People.Spots[boots].Shown = false }
+            Give(world, HellfeatherItems.JessasWaterwalkers)
         } else if reply == HellfeatherReply.Hoard {
             OpenShop(HellfeatherMerchant.Ravens)
         } else if reply == HellfeatherReply.Browse {

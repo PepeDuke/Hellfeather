@@ -466,7 +466,7 @@ HellfeatherInventoryScreen
             HellfeatherItemKind kind = HellfeatherItems.Get(item)
             bool hovered = Items.Held == HellfeatherItems.None && InGrid(pointerX, pointerY) && Items.EntryAt((pointerX - gridX) / cell, (pointerY - gridY) / cell) == i
             // A soft tint marks which cells an item fills.
-            Highlight(ui, x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, hovered ? 0x40FFFFFF | HellfeatherItemMods.TintOf(Items.Bag[i].Mods.Rarity))
+            Highlight(ui, x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, hovered ? 0x40FFFFFF | HellfeatherItemMods.CellTint(item, Items.Bag[i].Mods.Rarity))
             Icon(ui, item, OnGridX(x), OnGridY(y))
             if HellfeatherItems.StackMost(item) > 1 { StackCount(ui, Items.Bag[i].Mods.Amount(), OnGridX(x), OnGridY(y)) }
         }
@@ -511,19 +511,24 @@ HellfeatherInventoryScreen
         for i : 0; i < mods.Count; i++ { characters = Math.Max(characters, (int)Length(mods.Line(i))) }
         string price = Trading ? "Sells for " + QuaxelUi.FormatInt(HellfeatherShop.SellValue(item, mods)) + " gold" | ""
         if Trading && !HellfeatherShop.Buys(item) { price = "Merchants don't buy these" }
+        if Trading && HellfeatherItems.IsQuest(item) { price = "Not for sale" }
+        // A quest item says so under its name.
+        bool quest = HellfeatherItems.IsQuest(item)
+        int below = quest ? 11 | 0
         characters = Math.Max(characters, (int)Length(price))
         int boxWidth = characters * 6 + 12
-        int boxHeight = 26 + mods.Count * 11 + (Trading ? 13 | 0)
+        int boxHeight = 26 + below + mods.Count * 11 + (Trading ? 13 | 0)
         // Toward the middle of the window, away from the edge the panel sits on.
         int x = Math.Max(2, mouseX - boxWidth - 6)
         int y = Math.Max(2, mouseY - boxHeight - 3)
         ui.OverlayRect(x - 1, y - 1, boxWidth + 2, boxHeight + 2, 0xFF625749)
         ui.OverlayRect(x, y, boxWidth, boxHeight, 0xF0120F0D)
-        ui.OverlayText(x + 6, y + 4, kind.Name, HellfeatherItemMods.ColorOf(mods.Rarity))
-        ui.OverlayText(x + 6, y + 15, kind.Detail, 0xFFC8CCD4)
-        for i : 0; i < mods.Count; i++ { ui.OverlayText(x + 6, y + 26 + i * 11, mods.Line(i), 0xFF8FB4FF) }
+        ui.OverlayText(x + 6, y + 4, kind.Name, HellfeatherItemMods.NameColor(item, mods.Rarity))
+        if quest { ui.OverlayText(x + 6, y + 15, "Quest item", HellfeatherItemMods.QuestColor) }
+        ui.OverlayText(x + 6, y + 15 + below, kind.Detail, 0xFFC8CCD4)
+        for i : 0; i < mods.Count; i++ { ui.OverlayText(x + 6, y + 26 + below + i * 11, mods.Line(i), 0xFF8FB4FF) }
         if Trading {
-            int priceY = y + 26 + mods.Count * 11
+            int priceY = y + 26 + below + mods.Count * 11
             ui.OverlayRect(x + 4, priceY, boxWidth - 8, 1, 0xFF3A3128)
             ui.OverlayText(x + 6, priceY + 3, price, 0xFFDCAE3E)
         }

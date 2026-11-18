@@ -67,7 +67,7 @@ T{
         game.Answer(world, HellfeatherReply.Leave)
         T.IsFalse(game.Talk.Open)
         // Doors and things keep the plain panel.
-        int garret = game.People.FindKind(HellfeatherSpotKind.Garret, HellfeatherRealm.Fenmarch)
+        int garret = game.People.FindKind(HellfeatherSpotKind.Garret, HellfeatherRealm.Garret)
         game.Use(world, garret)
         T.IsTrue(game.Talk.Open)
         T.IsFalse(game.Talk.CloseUp)
@@ -105,8 +105,8 @@ T{
         T.AreEqual(checkedCount, 2)
     }
 
-    // The hospice's people stand at its gate, and the mill's at its door.
-    HospiceAndMillPeopleStandByTheirBuildings()
+    // The hospice's door is at its gate, and the mill's at its front.
+    HospiceAndMillDoorsStandByTheirBuildings()
     {
         HellfeatherGame game()
         QuaxelWorld world()
@@ -119,12 +119,12 @@ T{
         }
         T.IsTrue(hospice >= 0 && mill >= 0)
         vec3 gate = game.Terrain.PlacementPosition(hospice)
-        vec3 carmine = game.People.Spots[game.People.FindPerson(HellfeatherPerson.Carmine)].Feet
-        T.IsTrue(Math.Hypot(carmine.X - gate.X, carmine.Z - gate.Z) < 9.0)
-        // Close in front of the gate, on open ground.
+        vec3 ward = game.People.Spots[game.FindEntrance(HellfeatherRealm.Hospice)].Feet
+        T.IsTrue(Math.Hypot(ward.X - gate.X, ward.Z - gate.Z) < 9.0)
+        // Close in front of the gate.
         ivec3 cells = world.VolumeCells(game.Terrain.Hill.Hospice)
         float wall = (float)cells.Z * game.Terrain.Placements[hospice].VoxelSize * 0.5
-        T.IsTrue(carmine.Z - gate.Z < wall + 2.0)
+        T.IsTrue(ward.Z - gate.Z < wall + 2.0)
         vec3 door = game.MillDoor
         vec3 millAt = game.Terrain.PlacementPosition(mill)
         T.IsTrue(Math.Hypot(door.X - millAt.X, door.Z - millAt.Z) < 5.0)
@@ -138,9 +138,11 @@ T{
         T.IsTrue(game.Prepare(world))
         game.Quests.Moult = 4
         game.Quests.Rooms = 1
-        int garret = game.People.FindKind(HellfeatherSpotKind.Garret, HellfeatherRealm.Fenmarch)
+        int garret = game.People.FindKind(HellfeatherSpotKind.Garret, HellfeatherRealm.Garret)
         game.Use(world, garret)
         game.Answer(world, HellfeatherReply.SearchGarret)
+        game.Use(world, game.People.FindKind(HellfeatherSpotKind.Boots, HellfeatherRealm.Garret))
+        game.Answer(world, HellfeatherReply.TakeBoots)
         T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.JessasWaterwalkers), 1)
         T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.LanternToken), 1)
         int vale = game.People.FindPerson(HellfeatherPerson.Vale)
@@ -200,7 +202,12 @@ T{
         T.IsTrue(game.Travel(world, HellfeatherRealm.Undercroft, false))
         at = world.GetPosition(game.PlayerNode)
         T.IsTrue(Math.Hypot(at.X - game.StairsDown.X, at.Z - game.StairsDown.Z) < 4.0)
-        T.IsTrue(game.Travel(world, HellfeatherRealm.Fenmarch, false))
+        // Up the stair into the mill, by its hatch, and out of its door.
+        T.IsTrue(game.Travel(world, HellfeatherRealm.Mill, false))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Mill)
+        at = world.GetPosition(game.PlayerNode)
+        T.IsTrue(Math.Hypot(at.X - game.MillHatch.X, at.Z - game.MillHatch.Z) < 3.0)
+        T.IsTrue(game.LeaveInterior(world))
         at = world.GetPosition(game.PlayerNode)
         T.IsTrue(Math.Hypot(at.X - game.MillDoor.X, at.Z - game.MillDoor.Z) < 4.0)
         T.IsTrue(game.Ravens.Spots.Len > 0)
@@ -358,11 +365,7 @@ T{
         game.StartAt = "hospice"
         T.IsTrue(game.Prepare(world))
         vec3 at = world.GetPosition(game.PlayerNode)
-        vec3 carmine = game.People.Spots[game.People.FindPerson(HellfeatherPerson.Carmine)].Feet
-        Print(at.X)
-        Print(at.Z)
-        Print(carmine.X)
-        Print(carmine.Z)
-        T.IsTrue(Math.Hypot(at.X - carmine.X, at.Z - carmine.Z) < 4.0)
+        vec3 ward = game.People.Spots[game.FindEntrance(HellfeatherRealm.Hospice)].Feet
+        T.IsTrue(Math.Hypot(at.X - ward.X, at.Z - ward.Z) < 4.0)
     }
 }

@@ -1,0 +1,497 @@
+// Act I's interiors: Orra's Hospice, Hobb's Mill and Jessa's garret. Each is a
+// level of its own, a single room far from the Fenmarch like the Undercroft's
+// levels, entered by clicking the building's door and left by the door inside.
+// The room is cut away like a dollhouse: the walls at the back, toward -X and
+// -Z, stand full height, and the ones on the camera's side are a low sill.
+// The furniture is built from concept sheets by Tools/Models/interiors.py at
+// act1's 0.025-unit voxels, facing +Z, toward the camera, and turned to face
+// +X for the left wall (the pieces named East), since placed models do not turn.
+
+// A piece of furniture, by its model's name in Assets.
+HellfeatherPiece : int
+#@{
+    InsideDoor,
+    Sconce,
+    WallLantern,
+    Table,
+    Bench,
+    Stool,
+    Chest,
+    JarShelf,
+    Cot,
+    Screen,
+    Washstand,
+    HerbRack,
+    Hearth,
+    Millstones,
+    MillGear,
+    Barrels,
+    FlourSacks,
+    Workbench,
+    Trapdoor,
+    JessaDesk,
+    // Turned copies that face +X, for the left wall: their backs against it.
+    ChestEast,
+    SconceEast,
+    WallLanternEast,
+    WashstandEast,
+    CotEast,
+    JarShelfEast,
+    BenchEast,
+    Wardrobe,
+    // Turned to face -X, for the right wall.
+    WardrobeWest,
+    // Black feathers lying on the floor, flat enough to walk over.
+    FeatherScatter,
+    FeatherScatterSmall,
+    // Water dried round the dry outline of a pair of boots, and the boots.
+    WaterStain,
+    Waterwalkers
+}
+
+// The furniture's shared volumes, with the footprint half and height of each
+// in terrain columns, worked out from its voxels. Room for 40 pieces; the
+// test below fails before HellfeatherPiece outgrows it.
+HellfeatherFurniture
+{
+    int [40] Volume
+    int [40] Half
+    int [40] Tall
+
+    bool Complete()
+    {
+        for piece : HellfeatherPiece {
+            if Volume[piece] < 0 { return false }
+        }
+        return true
+    }
+}
+#{
+    // World units per furniture voxel.
+    #float Voxel = 0.025
+
+    HellfeatherFurniture Load(QuaxelWorld& world)
+    {
+        HellfeatherFurniture made
+        for piece : HellfeatherPiece {
+            int volume = QuaxelAssets.LoadVoxelModel(world, "Assets/" + (string)piece.Name + ".qvox")
+            made.Volume[piece] = volume
+            if volume < 0 { continue }
+            ivec3 cells = world.VolumeCells(volume)
+            float widest = (float)Math.Max(cells.X, cells.Z) * Voxel
+            made.Half[piece] = Math.Max(1, (int)Math.Ceil(widest * 0.5 / QuaxelTerrain.Cell))
+            made.Tall[piece] = Math.Max(1, (int)Math.Ceil((float)cells.Y * Voxel / QuaxelTerrain.Cell))
+        }
+        return made
+    }
+}
+
+HellfeatherRealm
+#{
+    // Whether a level is the inside of a building.
+    bool IsInterior(HellfeatherRealm realm) { return realm == HellfeatherRealm.Hospice || realm == HellfeatherRealm.Mill || realm == HellfeatherRealm.Garret }
+
+    // Half the room's width along X and depth along Z, in world units.
+    float RoomHalfX(HellfeatherRealm realm)
+    {
+        if realm == HellfeatherRealm.Hospice { return 6.5 }
+        if realm == HellfeatherRealm.Mill { return 6.0 }
+        return 3.5
+    }
+
+    float RoomHalfZ(HellfeatherRealm realm)
+    {
+        if realm == HellfeatherRealm.Hospice { return 4.5 }
+        if realm == HellfeatherRealm.Mill { return 4.5 }
+        return 3.0
+    }
+
+    // One round clearing just big enough for the room, with no warp, so its
+    // offsets are world offsets and the room's walls run straight.
+    QuaxelTerrainConfig Interior(HellfeatherRealm realm)
+    {
+        QuaxelTerrainConfig config
+        int level = realm + 0
+        float radius = Math.Hypot(RoomHalfX(realm), RoomHalfZ(realm)) + 1.2
+        config.Seed = (uint)(60 + level)
+        config.SiteGrid = 1
+        config.SiteSpacing = 24.0
+        config.ActiveChance = 1.0
+        config.MinClearingRadius = radius
+        config.MaxClearingRadius = radius
+        config.MinPassRadius = 2.6
+        config.MaxPassRadius = 3.0
+        config.LoopFraction = 0.0
+        config.DetailWarp = 0.0
+        config.ShapeWarp = 0.0
+        config.PlainsAmplitude = 0
+        // Low, so the rock beyond the sill on the camera's side hides little.
+        config.Lip = 3
+        config.Peak = 28
+        config.Ridge = 6
+        config.RampWidth = 1.0
+        config.ReservedPath = 0.0
+        config.TerraceStep = 0
+        config.EntryRadius = 0.0
+        config.OffsetColumns = Apart * level
+        return config
+    }
+
+    // A point in a room, from its offset from the middle in world units.
+    vec3 InRoom(HellfeatherRealm realm, float x, float z) { return Landing(realm) + vec3(x, 0.0, z) }
+
+    // The door, in the left wall near its front corner, where it stands in
+    // view rather than between the camera and the room.
+    vec3 DoorAt(HellfeatherRealm realm) { return InRoom(realm, -RoomHalfX(realm) + 0.12, RoomHalfZ(realm) - 1.3) }
+
+    // Just inside the door.
+    vec3 Doorstep(HellfeatherRealm realm) { return InRoom(realm, -RoomHalfX(realm) + 1.2, RoomHalfZ(realm) - 2.4) }
+}
+
+// A room's floor, its walls and its furniture.
+HellfeatherRoom : QuaxelTerrainModule
+{
+    HellfeatherFurniture Furniture
+    -float ShiftX
+    -float ShiftZ
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinPorts = 0
+        rules.Share = 1.0
+        return rules
+    }
+
+    // The floor inside the room's rectangle; outside it a tall wall at the back
+    // and a sill on the camera's side. X and Z are offsets from the landing.
+    ColumnIn(HellfeatherRealm realm, float x, float z, QuaxelTerrainColumn& column)
+    {
+        float halfX = HellfeatherRealm.RoomHalfX(realm)
+        float halfZ = HellfeatherRealm.RoomHalfZ(realm)
+        if Math.Abs(x) < halfX && Math.Abs(z) < halfZ {
+            column.Surface = realm == HellfeatherRealm.Hospice ? HellfeatherSurface.Flagstone | HellfeatherSurface.Planks
+            return
+        }
+        bool back = (z < -halfZ && x < halfX + 0.3) || (x < -halfX && z < halfZ + 0.3)
+        // The wall itself is a quarter unit thick; past it is dark.
+        bool wall = Math.Abs(x) < halfX + 0.3 && Math.Abs(z) < halfZ + 0.3
+        column.MakeBlocked(back ? HellfeatherRoom.WallRise | HellfeatherRoom.SillRise, wall ? HellfeatherSurface.Plaster | HellfeatherSurface.Void)
+    }
+
+    // Shift is how far the clearing's middle lies from the landing; pieces are
+    // given from the landing.
+    PlaceIn(HellfeatherRealm realm, float shiftX, float shiftZ, QuaxelTerrainPlacer& placer)
+    {
+        int group = 0
+        ShiftX = shiftX
+        ShiftZ = shiftZ
+        if realm == HellfeatherRealm.Hospice {
+            // A hearth in the back corner, cots along the back wall with a screen
+            // before Jessa's, the sisters' shelf and chest on the right.
+            Put(placer, group, HellfeatherPiece.Hearth, -5.0, -3.9, 44)
+            Put(placer, group, HellfeatherPiece.Cot, -2.7, -4.0, 0)
+            Put(placer, group, HellfeatherPiece.Cot, -0.4, -4.0, 0)
+            Put(placer, group, HellfeatherPiece.Screen, 1.75, -4.2, 0)
+            Put(placer, group, HellfeatherPiece.JarShelf, 5.6, -4.1, 0)
+            Put(placer, group, HellfeatherPiece.Chest, 5.6, -1.4, 0)
+            Put(placer, group, HellfeatherPiece.SconceEast, -6.36, -2.2, 32)
+            Put(placer, group, HellfeatherPiece.SconceEast, -6.36, 1.4, 32)
+            Put(placer, group, HellfeatherPiece.WashstandEast, -6.2, 0.3, 0)
+            Put(placer, group, HellfeatherPiece.Table, -2.6, 0.3, 0)
+            Put(placer, group, HellfeatherPiece.Stool, -1.4, 0.3, 0)
+            Put(placer, group, HellfeatherPiece.Bench, -2.6, 2.05, 0)
+            Put(placer, group, HellfeatherPiece.HerbRack, 3.4, 1.6, 0)
+        } else if realm == HellfeatherRealm.Mill {
+            // The workbench on the back wall with its stool before it, sacks
+            // and barrels beside it, the millstones and the gear that turns
+            // them out in the front of the room, the hatch by the right wall.
+            Put(placer, group, HellfeatherPiece.Workbench, -3.5, -3.94, 0)
+            Put(placer, group, HellfeatherPiece.Stool, -3.5, -2.1, 0)
+            Put(placer, group, HellfeatherPiece.FlourSacks, 0.6, -3.8, 0)
+            Put(placer, group, HellfeatherPiece.Barrels, 2.5, -3.85, 0)
+            Put(placer, group, HellfeatherPiece.WallLantern, 4.6, -4.3, 36)
+            Put(placer, group, HellfeatherPiece.WallLanternEast, -5.8, 0.6, 36)
+            Put(placer, group, HellfeatherPiece.Chest, 5.1, -2.0, 0)
+            Put(placer, group, HellfeatherPiece.Millstones, 2.9, 3.0, 0)
+            Put(placer, group, HellfeatherPiece.MillGear, 0.0, 3.4, 0)
+        } else if realm == HellfeatherRealm.Garret {
+            // Her bed under the eaves, the desk her things lie on, a chest, and
+            // her wardrobe on the right wall, its doors toward the door in.
+            Put(placer, group, HellfeatherPiece.Cot, -1.8, -2.5, 0)
+            Put(placer, group, HellfeatherPiece.JessaDesk, 1.9, -2.6, 0)
+            Put(placer, group, HellfeatherPiece.Stool, 1.9, -1.4, 0)
+            Put(placer, group, HellfeatherPiece.Sconce, 0.3, -2.85, 30)
+            Put(placer, group, HellfeatherPiece.ChestEast, -3.15, -0.6, 0)
+            Put(placer, group, HellfeatherPiece.WardrobeWest, 3.15, 0.3, 0)
+            // Black feathers on the boards, come in on the wind, by the door
+            // and beside the bed.
+            Put(placer, group, HellfeatherPiece.FeatherScatter, -0.6, 1.0, 0)
+            Put(placer, group, HellfeatherPiece.FeatherScatterSmall, 0.0, -1.0, 0)
+            // Water dried on the floor in a curve, round where her boots stand.
+            Put(placer, group, HellfeatherPiece.WaterStain, HellfeatherRoom.BootsX, HellfeatherRoom.BootsZ, 0)
+        }
+    }
+
+    // Offers one piece, with firelight around it when Light is above 0.
+    -Put(QuaxelTerrainPlacer& placer, int& group, HellfeatherPiece piece, float x, float z, int light)
+    {
+        if Furniture.Volume[piece] < 0 { return }
+        placer.OfferProp(group, Furniture.Volume[piece], x - ShiftX, z - ShiftZ, Furniture.Half[piece], Furniture.Tall[piece], HellfeatherFurniture.Voxel)
+        if light > 0 { placer.AddLight(0, 0, light) }
+        group++
+    }
+}
+#{
+    // Cells a back wall rises above the floor, and the sill on the camera's side.
+    #int WallRise = 24
+    #int SillRise = 2
+    // Where Jessa's Waterwalkers stand in the garret, in the stain's dry middle.
+    #float BootsX = 1.3
+    #float BootsZ = 1.4
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // The millrace hatch in the mill's floor, where she comes up from below.
+    vec3 MillHatch
+
+    // The people and things inside: the way out of each room, the hospice's
+    // sister and Jessa's bed, Old Hobb and the hatch down to the Undercroft, and
+    // Jessa's desk and her boots.
+    -SetUpInteriors()
+    {
+        int door = Terrain.Room.Furniture.Volume[HellfeatherPiece.InsideDoor]
+        for realm : HellfeatherRealm {
+            if !HellfeatherRealm.IsInterior(realm) { continue }
+            int exit = People.AddModel(HellfeatherSpotKind.Exit, "Way out", realm, HellfeatherRealm.DoorAt(realm), door, HellfeatherFurniture.Voxel, 96)
+            People.Spots[exit].FacingX = 1.0
+            People.Spots[exit].FacingZ = 0.0
+            People.Spots[exit].Leads = HellfeatherRealm.Fenmarch
+        }
+        HellfeatherRealm hospice = HellfeatherRealm.Hospice
+        People.AddPerson(HellfeatherPerson.Carmine, "Sister Carmine", hospice, HellfeatherRealm.InRoom(hospice, 1.0, -1.4), "Assets/SisterCarmine.qvox", 0.025, 72)
+        int bed = People.AddModel(HellfeatherSpotKind.Person, "Jessa Brune", hospice, HellfeatherRealm.InRoom(hospice, 3.7, -3.6), Landmarks.JessaBed, 0.025, 40)
+        People.Spots[bed].Person = HellfeatherPerson.Jessa
+        People.Spots[bed].FacingX = 0.0
+        People.Spots[bed].FacingZ = 1.0
+
+        HellfeatherRealm mill = HellfeatherRealm.Mill
+        People.AddPerson(HellfeatherPerson.OldHobb, "Old Hobb", mill, HellfeatherRealm.InRoom(mill, -1.2, -1.0), "Assets/OldHobb.qvox", 0.025, 68)
+        MillHatch = HellfeatherRealm.InRoom(mill, 4.9, -0.6)
+        int hatch = People.AddModel(HellfeatherSpotKind.Door, "Millrace hatch", mill, MillHatch, Terrain.Room.Furniture.Volume[HellfeatherPiece.Trapdoor], HellfeatherFurniture.Voxel, 8)
+        People.Spots[hatch].FacingX = 0.0
+        People.Spots[hatch].FacingZ = 1.0
+
+        People.Add(HellfeatherSpotKind.Garret, "Jessa's desk", HellfeatherRealm.Garret, HellfeatherRealm.InRoom(HellfeatherRealm.Garret, 1.9, -2.2))
+        // Her boots stand in the dry outline until she takes them.
+        int boots = People.AddModel(HellfeatherSpotKind.Boots, "Jessa's boots", HellfeatherRealm.Garret, HellfeatherRealm.InRoom(HellfeatherRealm.Garret, HellfeatherRoom.BootsX, HellfeatherRoom.BootsZ), Terrain.Room.Furniture.Volume[HellfeatherPiece.Waterwalkers], HellfeatherFurniture.Voxel, 18)
+        People.Spots[boots].FacingX = 0.0
+        People.Spots[boots].FacingZ = 1.0
+        People.Spots[boots].Shown = !Quests.BootsTaken
+    }
+
+    // Goes inside the building an entrance belongs to.
+    bool EnterInterior(QuaxelWorld& world, int spot)
+    {
+        HellfeatherRealm inside = People.Spots[spot].Leads
+        return TravelTo(world, inside, HellfeatherRealm.Doorstep(inside), false)
+    }
+
+    // Back out through the door she came in by, onto the step in front of it.
+    bool LeaveInterior(QuaxelWorld& world)
+    {
+        vec3 outside = vec3(0.0, 0.0, 0.0)
+        for spot : People.Spots {
+            if spot.Kind == HellfeatherSpotKind.Entrance && spot.Leads == Terrain.Realm { outside = spot.Feet + vec3(0.0, 0.0, 1.3) }
+        }
+        return TravelTo(world, HellfeatherRealm.Fenmarch, Flat(outside), false)
+    }
+}
+T{
+    // Each building's door leads into a room of its own and back out to the
+    // step before the door, with its people inside.
+    TheHospiceMillAndGarretHaveInteriors()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(game.Terrain.Room.Furniture.Complete())
+        game.Quests.Rooms = 1
+        HellfeatherRealm [3] rooms = {HellfeatherRealm.Hospice, HellfeatherRealm.Mill, HellfeatherRealm.Garret}
+        for room : rooms {
+            int entrance = -1
+            for i : 0; i < game.People.Spots.Len; i++ {
+                if game.People.Spots[i].Kind == HellfeatherSpotKind.Entrance && game.People.Spots[i].Leads == room { entrance = (int)i }
+            }
+            T.IsTrue(entrance >= 0)
+            vec3 door = game.People.Spots[entrance].Feet
+            game.Use(world, entrance)
+            T.AreEqual(game.Terrain.Realm, room)
+            vec3 at = world.GetPosition(game.PlayerNode)
+            T.IsFalse(game.Terrain.CircleBlocked(at.X, at.Z, game.PlayerRadius()))
+            // No enemies indoors.
+            T.AreEqual(game.Enemies.Len, 0)
+            // Every piece of furniture offered found its place.
+            int placed = 0
+            for placement : game.Terrain.Placements {
+                if placement.Volume >= 0 { placed++ }
+            }
+            T.IsTrue(placed >= 5)
+            // The back wall stands, and the room is walled.
+            vec3 middle = HellfeatherRealm.Landing(room)
+            T.IsTrue(game.Terrain.IsBlocked(middle.X, middle.Z - HellfeatherRealm.RoomHalfZ(room) - 0.3))
+            T.IsTrue(game.Terrain.IsBlocked(middle.X - HellfeatherRealm.RoomHalfX(room) - 0.3, middle.Z))
+            int exit = game.People.FindKind(HellfeatherSpotKind.Exit, room)
+            T.IsTrue(exit >= 0)
+            game.Use(world, exit)
+            T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Fenmarch)
+            at = world.GetPosition(game.PlayerNode)
+            T.IsTrue(Math.Hypot(at.X - door.X, at.Z - door.Z) < 3.0)
+        }
+        T.AreEqual(game.People.Spots[game.People.FindPerson(HellfeatherPerson.Carmine)].Realm, HellfeatherRealm.Hospice)
+        T.AreEqual(game.People.Spots[game.People.FindPerson(HellfeatherPerson.OldHobb)].Realm, HellfeatherRealm.Mill)
+    }
+
+    // Each room's furniture all fits: none of what a room offers is turned away.
+    EveryRoomPlacesAllItsFurniture()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherRealm [3] rooms = {HellfeatherRealm.Hospice, HellfeatherRealm.Mill, HellfeatherRealm.Garret}
+        for room : rooms {
+            QuaxelTerrainPlacer placer()
+            game.Terrain.Room.PlaceIn(room, 0.0, 0.0, placer)
+            T.IsTrue(game.TravelTo(world, room, HellfeatherRealm.Doorstep(room), false))
+            T.AreEqual(game.Terrain.Placements.Len, placer.Offers.Len)
+        }
+    }
+
+    // Each room's way out stands in the open just before its left wall, and
+    // the walls stand where the room's layout says, wherever the clearing fell.
+    TheWayOutStandsAgainstTheWall()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherRealm [3] rooms = {HellfeatherRealm.Hospice, HellfeatherRealm.Mill, HellfeatherRealm.Garret}
+        for room : rooms {
+            T.IsTrue(game.TravelTo(world, room, HellfeatherRealm.Doorstep(room), false))
+            vec3 door = HellfeatherRealm.DoorAt(room)
+            T.IsFalse(game.Terrain.IsBlocked(door.X + 0.1, door.Z))
+            T.IsTrue(game.Terrain.IsBlocked(door.X - 0.3, door.Z))
+            vec3 middle = HellfeatherRealm.Landing(room)
+            T.IsFalse(game.Terrain.IsBlocked(middle.X, middle.Z + HellfeatherRealm.RoomHalfZ(room) - 0.2))
+            T.IsTrue(game.Terrain.IsBlocked(middle.X, middle.Z - HellfeatherRealm.RoomHalfZ(room) - 0.15))
+        }
+    }
+
+    // The feathers on the garret's floor lie there, and she walks over them.
+    TheGarretsFeathersCanBeWalkedOver()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherRealm garret = HellfeatherRealm.Garret
+        T.IsTrue(game.TravelTo(world, garret, HellfeatherRealm.Doorstep(garret), false))
+        int scatters = 0
+        for placement : game.Terrain.Placements {
+            if placement.Volume == game.Terrain.Room.Furniture.Volume[HellfeatherPiece.FeatherScatter] || placement.Volume == game.Terrain.Room.Furniture.Volume[HellfeatherPiece.FeatherScatterSmall] { scatters++ }
+        }
+        T.AreEqual(scatters, 2)
+        for k : 0; k < 9; k++ {
+            vec3 at = HellfeatherRealm.InRoom(garret, -1.2 + (float)(k % 3) * 0.6, 0.4 + (float)(k / 3) * 0.6)
+            T.IsFalse(game.Terrain.IsBlocked(at.X, at.Z))
+        }
+    }
+
+    // The desk and the boots are searched apart: the desk gives her papers and
+    // moves the story on, the boots leave the dry outline when taken.
+    TheDeskAndTheBootsAreTakenApart()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Quests.Moult = 4
+        game.Quests.Rooms = 1
+        int desk = game.People.FindKind(HellfeatherSpotKind.Garret, HellfeatherRealm.Garret)
+        int boots = game.People.FindKind(HellfeatherSpotKind.Boots, HellfeatherRealm.Garret)
+        T.IsTrue(desk >= 0 && boots >= 0)
+        T.AreEqual(game.People.Spots[desk].Title, "Jessa's desk")
+        T.AreEqual(game.People.Spots[boots].Title, "Jessa's boots")
+        T.IsTrue(game.HasNews(desk))
+        T.IsTrue(game.HasNews(boots))
+        game.Use(world, desk)
+        game.Answer(world, HellfeatherReply.SearchGarret)
+        T.AreEqual(game.Quests.Rooms, 2)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.LanternToken), 1)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.JessasWaterwalkers), 0)
+        T.IsTrue(game.People.Spots[boots].Shown)
+        game.Use(world, boots)
+        T.IsTrue(game.Talk.Open)
+        game.Answer(world, HellfeatherReply.TakeBoots)
+        T.IsFalse(game.People.Spots[boots].Shown)
+        T.IsFalse(game.HasNews(boots))
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.JessasWaterwalkers), 1)
+    }
+
+    // The enemies around a building wait while she is inside, and are there
+    // when she comes back out: the same ones, where they stood, as hurt as
+    // they were. None follow her in.
+    EnemiesOutsideWaitForHerJustAsTheyWere()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "mill"
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        game.Simulate(world, input, 30)
+        int hurt = -1
+        for i : 0; i < game.Enemies.Len; i++ {
+            if hurt < 0 && game.Enemies[i].Node != 0 && game.Enemies[i].Health > 1 { hurt = (int)i }
+        }
+        T.IsTrue(hurt >= 0)
+        int node = game.Enemies[hurt].Node
+        game.Enemies[hurt].Health = 1
+        vec3 stood = world.GetPosition(node)
+        long awake = 0
+        for enemy : game.Enemies { if enemy.Node != 0 { awake++ } }
+        game.Use(world, game.FindEntrance(HellfeatherRealm.Mill))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Mill)
+        T.AreEqual(game.Enemies.Len, 0)
+        T.IsTrue(game.LeaveInterior(world))
+        long back = 0
+        int found = -1
+        for i : 0; i < game.Enemies.Len; i++ {
+            if game.Enemies[i].Node != 0 { back++ }
+            if game.Enemies[i].Node == node { found = (int)i }
+        }
+        T.AreEqual(back, awake)
+        T.IsTrue(found >= 0)
+        T.AreEqual(game.Enemies[found].Health, 1)
+        vec3 now = world.GetPosition(node)
+        T.IsTrue(Math.Hypot(now.X - stood.X, now.Z - stood.Z) < 0.01)
+    }
+
+    // Every piece has a slot in the furniture's arrays.
+    EveryPieceFitsTheFurnitureArrays()
+    {
+        T.IsTrue(HellfeatherPiece.Count <= 40)
+    }
+
+    // The garret stays locked until the story opens it.
+    TheGarretIsLockedAtFirst()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int entrance = game.People.FindKind(HellfeatherSpotKind.Entrance, HellfeatherRealm.Fenmarch)
+        for i : 0; i < game.People.Spots.Len; i++ {
+            if game.People.Spots[i].Kind == HellfeatherSpotKind.Entrance && game.People.Spots[i].Leads == HellfeatherRealm.Garret { entrance = (int)i }
+        }
+        game.Use(world, entrance)
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Fenmarch)
+        T.IsTrue(game.Talk.Open)
+    }
+}

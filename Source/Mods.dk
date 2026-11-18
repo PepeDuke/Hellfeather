@@ -185,6 +185,25 @@ HellfeatherItemMods
         return 0xFFEDE6D8
     }
 
+    // The color of an item's name: its rarity's, or the quest color.
+    uint NameColor(HellfeatherItems item, HellfeatherRarity rarity)
+    {
+        if HellfeatherItems.IsQuest(item) { return QuestColor }
+        return ColorOf(rarity)
+    }
+
+    // The wash over an item's cells: its rarity's, or the quest wash.
+    uint CellTint(HellfeatherItems item, HellfeatherRarity rarity)
+    {
+        if HellfeatherItems.IsQuest(item) { return QuestTint }
+        return TintOf(rarity)
+    }
+
+    // Quest items in teal, apart from magic's blue, rare's gold and the
+    // uniques' orange.
+    #uint QuestColor = 0xFF4FD6A8
+    #uint QuestTint = 0x3830B888
+
     // The wash over a magic or rare item's cells in the bag and on the shelves.
     uint TintOf(HellfeatherRarity rarity)
     {

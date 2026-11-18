@@ -230,6 +230,7 @@ HellfeatherGame : QuaxelGameInstance
         Terrain.House.Volume = HellfeatherHouse.Build(world)
         Terrain.Town.Church = HellfeatherChurch.Build(world)
         Landmarks = HellfeatherLandmarks.Load(world)
+        Terrain.Room.Furniture = HellfeatherFurniture.Load(world)
         Terrain.Town.Landmarks = Landmarks
         Terrain.Hall.Landmarks = Landmarks
         // The code-built church and cottage stand in for missing models.
@@ -262,6 +263,7 @@ HellfeatherGame : QuaxelGameInstance
         Terrain.Landing.Props = props
         if !Terrain.Configure(FenmarchConfig()) || !Terrain.Start(world, vec3(0.0, 0.0, 0.0)) { return false }
         SetUpCast(world)
+        SetUpInteriors()
         SetUpWaypoints()
         SetUpRavens(world)
         return true

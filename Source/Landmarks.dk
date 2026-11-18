@@ -18,7 +18,6 @@ HellfeatherLandmarks
     int JessaBed = -1
     // Code-built: the millrace door, the stairs of the Undercroft, and what
     // enemies spit and shoot.
-    int Doorway = -1
     int Stairs = -1
     int Spit = -1
     int Bolt = -1
@@ -43,7 +42,6 @@ HellfeatherLandmarks
         made.IronFrame = QuaxelAssets.LoadVoxelModel(world, "Assets/IronFrame.qvox")
         made.RingPedestal = QuaxelAssets.LoadVoxelModel(world, "Assets/RingPedestal.qvox")
         made.JessaBed = QuaxelAssets.LoadVoxelModel(world, "Assets/JessaBed.qvox")
-        made.Doorway = BuildDoorway(world)
         made.Stairs = BuildStairs(world)
         made.Spit = BuildSpit(world)
         made.Bolt = BuildBolt(world)
@@ -99,8 +97,6 @@ HellfeatherLandmarks
     }
 
     // Sizes in voxels of the code-built models.
-    #int DoorWidth = 28
-    #int DoorHeight = 40
     #int PortalWidth = 26
     #int PortalHeight = 44
     #int PortalDepth = 6
@@ -169,33 +165,6 @@ HellfeatherLandmarks
     }
     #int StairsWidth = 32
     #int StairsHeight = 12
-
-    // A low door with iron bands in a stone frame, the way down under the mill.
-    -int BuildDoorway(QuaxelWorld& world)
-    {
-        int volume = world.CreateVolume(DoorWidth, DoorHeight, 8)
-        if volume < 0 { return -1 }
-        for x : 0; x < DoorWidth; x++ {
-            for y : 0; y < DoorHeight; y++ {
-                // An arch: the opening narrows toward the top.
-                float middle = (float)(DoorWidth - 1) * 0.5
-                float across = Math.Abs((float)x - middle)
-                bool opening = across < 9.0 && (float)y < 30.0 - across * across / 14.0
-                bool frame = !opening && across < 13.5 && (float)y < 36.0 - across * across / 14.0
-                for z : 0; z < 8; z++ {
-                    if frame {
-                        int stone = (x / 4 + y / 3) % 2 == 0 ? 0x4a4642 | 0x3c3936
-                        world.SetVoxel(volume, x, y, z, HellfeatherArt.Rgb(HellfeatherArt.Shade(stone, 80 + HellfeatherArt.Hash(x, y, z) % 30)))
-                    } else if opening && z == 2 {
-                        // Planks with two iron bands.
-                        int wood = (y == 8 || y == 20) ? 0x2a2a2c | (x % 3 == 0 ? 0x2e2014 | 0x3b2a1a)
-                        world.SetVoxel(volume, x, y, z, HellfeatherArt.Rgb(wood))
-                    }
-                }
-            }
-        }
-        return volume
-    }
 
     // Worn steps with a dark well beside them, for going up or down a level.
     -int BuildStairs(QuaxelWorld& world)

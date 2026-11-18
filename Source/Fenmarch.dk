@@ -19,7 +19,9 @@ HellfeatherZone : int
     // The two levels of the Millrace Undercroft, and the landing of each.
     Undercroft,
     UndercroftDeep,
-    UndercroftLanding
+    UndercroftLanding,
+    // The room of a building's interior.
+    Interior
 }
 
 // Reed marsh and duck ponds. Ponds and the mud around them follow one noise

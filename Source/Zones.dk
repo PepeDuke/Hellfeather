@@ -33,6 +33,9 @@ HellfeatherZoneNames
     {
         if realm == HellfeatherRealm.Undercroft { return "The Millrace Undercroft" }
         if realm == HellfeatherRealm.UndercroftDeep { return "The Undercroft, deeper" }
+        if realm == HellfeatherRealm.Hospice { return "Orra's Hospice" }
+        if realm == HellfeatherRealm.Mill { return "Hobb's Mill" }
+        if realm == HellfeatherRealm.Garret { return "Jessa's garret" }
         return ""
     }
 

@@ -17,7 +17,12 @@ HellfeatherSpotKind : int
     // An open raven portal: one where she cast it, one in Ravenford.
     Portal,
     // A waypoint's fireplace (Source/Waypoints.dk).
-    Waypoint
+    Waypoint,
+    // A building's door, into the level Leads names, and the way out of one.
+    Entrance,
+    Exit,
+    // Jessa's Waterwalkers, standing in the dry outline in her garret.
+    Boots
 }
 
 HellfeatherPerson : int
@@ -56,6 +61,8 @@ HellfeatherSpot
     int Visual
     // The enemy a Bearer spot stands for.
     int Enemy = -1
+    // Where an Entrance or Exit goes.
+    HellfeatherRealm Leads
 }
 
 HellfeatherSpots

@@ -134,19 +134,30 @@ HellfeatherTerrain : QuaxelTerrain
     Ravenford Town
     UndercroftHall Hall
     UndercroftLanding Landing
+    HellfeatherRoom Room
     // The level being built. Below the Fenmarch, only the Undercroft's modules
     // claim clearings: its halls take every one but the landing.
     HellfeatherRealm Realm
 
     int ModuleCount() { return HellfeatherZone.Count - 1 }
 
-    int SpawnModule() { return Realm == HellfeatherRealm.Fenmarch ? HellfeatherZone.Ravenford + 0 | HellfeatherZone.UndercroftLanding + 0 }
+    int SpawnModule()
+    {
+        if Realm == HellfeatherRealm.Fenmarch { return HellfeatherZone.Ravenford + 0 }
+        if HellfeatherRealm.IsInterior(Realm) { return HellfeatherZone.Interior + 0 }
+        return HellfeatherZone.UndercroftLanding + 0
+    }
 
     // The zone the Undercroft's halls count as on the current level.
     int HallZone() { return Realm == HellfeatherRealm.UndercroftDeep ? HellfeatherZone.UndercroftDeep + 0 | HellfeatherZone.Undercroft + 0 }
 
     QuaxelTerrainModuleRules ModuleRules(int id)
     {
+        if HellfeatherRealm.IsInterior(Realm) {
+            if id == HellfeatherZone.Interior + 0 { return Room.Rules() }
+            QuaxelTerrainModuleRules none
+            return none
+        }
         if Realm != HellfeatherRealm.Fenmarch {
             if id == HallZone() { return Hall.Rules() }
             if id == HellfeatherZone.UndercroftLanding + 0 { return Landing.Rules() }
@@ -168,7 +179,11 @@ HellfeatherTerrain : QuaxelTerrain
 
     ModuleColumn(int id, QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
     {
-        if id == HellfeatherZone.Undercroft + 0 || id == HellfeatherZone.UndercroftDeep + 0 { Hall.Column(site, x, z, column) }
+        if id == HellfeatherZone.Interior + 0 {
+            vec3 shift = RoomShift(site)
+            Room.ColumnIn(Realm, x + shift.X, z + shift.Z, column)
+        }
+        else if id == HellfeatherZone.Undercroft + 0 || id == HellfeatherZone.UndercroftDeep + 0 { Hall.Column(site, x, z, column) }
         else if id == HellfeatherZone.UndercroftLanding + 0 { Landing.Column(site, x, z, column) }
         else if id == HellfeatherZone.HobbsMill + 0 { Mill.Column(site, x, z, column) }
         else if id == HellfeatherZone.OrrasHill + 0 { Hill.Column(site, x, z, column) }
@@ -181,7 +196,11 @@ HellfeatherTerrain : QuaxelTerrain
 
     ModulePlace(int id, QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
     {
-        if id == HellfeatherZone.Undercroft + 0 || id == HellfeatherZone.UndercroftDeep + 0 { Hall.Place(site, placer) }
+        if id == HellfeatherZone.Interior + 0 {
+            vec3 shift = RoomShift(site)
+            Room.PlaceIn(Realm, shift.X, shift.Z, placer)
+        }
+        else if id == HellfeatherZone.Undercroft + 0 || id == HellfeatherZone.UndercroftDeep + 0 { Hall.Place(site, placer) }
         else if id == HellfeatherZone.UndercroftLanding + 0 { Landing.Place(site, placer) }
         else if id == HellfeatherZone.HobbsMill + 0 { Mill.Place(site, placer) }
         else if id == HellfeatherZone.OrrasHill + 0 { Hill.Place(site, placer) }
@@ -192,10 +211,16 @@ HellfeatherTerrain : QuaxelTerrain
         else { Valley.Place(site, placer) }
     }
 
+    // How far a room's clearing landed from its level's landing point, which
+    // the layout's jitter and the origin's snapping move it by. Rooms are laid
+    // out from the landing, where their doors and people are placed.
+    -vec3 RoomShift(QuaxelTerrainSite site) { return WorldPoint(site.X, site.Z) - HellfeatherRealm.Landing(Realm) }
+
     // Colors are chosen as they should look, then converted to linear at the end.
     int SurfaceColor(QuaxelTerrainCell cell)
     {
         int color = 0x3b3128
+        if HellfeatherRealm.IsInterior(Realm) { return HellfeatherArt.Rgb(RoomColor(cell)) }
         if Realm != HellfeatherRealm.Fenmarch && cell.Surface == QuaxelTerrainSurface.Rock { color = CryptColor(cell) }
         else if Realm != HellfeatherRealm.Fenmarch && cell.Surface != HellfeatherSurface.Wire && cell.Surface != HellfeatherSurface.Millpond { color = FlagstoneColor(cell) }
         else if cell.Surface == HellfeatherSurface.Wire { color = WireColor(cell) }
@@ -303,6 +328,32 @@ HellfeatherTerrain : QuaxelTerrain
     {
         if !cell.Top { return 0x1d1a17 }
         return cell.Hash % 5 == 0 ? 0xdfe8ee | 0x8e9aa2
+    }
+
+    // Inside a building: board floors, flags in the hospice, timber-framed
+    // plaster walls with dark posts and rails, and darkness beyond them.
+    -int RoomColor(QuaxelTerrainCell cell)
+    {
+        if cell.Surface == HellfeatherSurface.Planks {
+            if !cell.Top { return 0x24180f }
+            // Boards three columns wide running along X, their ends staggered.
+            int board = cell.Row / 3
+            if cell.Row % 3 == 0 || (cell.Column + board * 7) % 22 == 0 { return 0x1e140c }
+            int grain = HellfeatherArt.Hash(cell.Column / 22, board, 31)
+            return HellfeatherArt.Shade(0x5e4129, 76 + grain % 22 + cell.Hash % 8)
+        }
+        if cell.Surface == HellfeatherSurface.Flagstone { return FlagstoneColor(cell) }
+        if cell.Surface == HellfeatherSurface.Plaster {
+            if cell.Top { return 0x1a120c }
+            // Posts every two units, a rail at waist height and under the eaves.
+            int along = cell.Column + cell.Row
+            if along % 16 < 2 { return HellfeatherArt.Shade(0x3b271a, 84 + cell.Hash % 14) }
+            int up = cell.Y % 24
+            if up == 7 || up == 8 || up >= 22 { return HellfeatherArt.Shade(0x3b271a, 80 + cell.Hash % 14) }
+            if up < 7 { return HellfeatherArt.Shade(0x4a3322, 78 + cell.Hash % 16) }
+            return HellfeatherArt.Shade(0xa89a80, 74 + cell.Hash % 14)
+        }
+        return 0x000000
     }
 
     // The Undercroft's walls: dressed stone low down, bare rock above.

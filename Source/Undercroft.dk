@@ -6,7 +6,11 @@ HellfeatherRealm : int
 #@{
     Fenmarch,
     Undercroft,
-    UndercroftDeep
+    UndercroftDeep,
+    // The insides of buildings (Source/Interiors.dk).
+    Hospice,
+    Mill,
+    Garret
 }
 
 // A hall of the Undercroft: flagstones, silver wire run across the floor toward

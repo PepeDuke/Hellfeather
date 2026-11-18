@@ -870,7 +870,6 @@ HellfeatherGame : QuaxelGameInstance
                 }
             } else if distance > Spawner.Table.Rules.SleepRadius && AllBeyond(world, i, player) {
                 SleepEncounter(world, i)
-                Spawner.Encounters[i].Awake = false
             }
         }
         return true
@@ -951,9 +950,12 @@ HellfeatherGame : QuaxelGameInstance
         return true
     }
 
-    // Removes the nodes. Survivors are healed and back at their spots on the next visit.
+    // Removes the nodes. Survivors are healed and back at their spots on the next
+    // visit. The encounter is asleep after, so it wakes again when she comes near;
+    // one left marked awake with no nodes would never show again.
     -SleepEncounter(QuaxelWorld& world, int encounter)
     {
+        Spawner.Encounters[encounter].Awake = false
         int first = Spawner.Encounters[encounter].First
         for i : first; i < first + Spawner.Encounters[encounter].Count; i++ {
             if !Enemies[i].Awake { continue }
