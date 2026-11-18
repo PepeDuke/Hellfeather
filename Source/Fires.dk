@@ -50,6 +50,20 @@ HellfeatherFires
         }
     }
 
+    // Puts out every fire it lit, as when its scene is left.
+    Douse(QuaxelWorld& world)
+    {
+        for i : 0; i < Sources.Len; i++ {
+            if EmitPointLights { world.RemovePointLight(Sources[i]) }
+            world.StopEffect(Flames[i])
+            world.StopEffect(Smokes[i])
+        }
+        Sources.Clear()
+        Flames.Clear()
+        Smokes.Clear()
+        Countdown = 0.0
+    }
+
     -bool Tracking(int id)
     {
         for source : Sources {

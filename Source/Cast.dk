@@ -401,6 +401,8 @@ HellfeatherGame : QuaxelGameInstance
         bool charm = Inventory.Items.Equipped[HellfeatherSlot.Neck] == HellfeatherItems.EddasQuillCharm
         bool wasHeralding = Featherfall.Heralding
         int heal = Featherfall.Step(world, player, InTheWild(player), charm, deltaSeconds)
+        LetFeathersFall(world)
+        FallingFeathers.Step(world, deltaSeconds)
         if Featherfall.Heralding && !wasHeralding { Banner.Show("Ravens pass overhead", 2.5) }
         if heal > 0 && PlayerHealth > 0 { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + heal) }
         if Featherfall.Active && Featherfall.Timer > HellfeatherFeatherfall.Seconds - deltaSeconds * 1.5 { Banner.Show("Featherfall", 3.0) }

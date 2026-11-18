@@ -1,0 +1,380 @@
+// Black feathers falling as voxel models: the Featherfall, the heralds'
+// shedding, Mardra's Moult and the main menu. Each feather drifts down in a
+// swaying pendulum, tilting into each swing and dropping faster at the ends
+// of it, turns slowly as it goes, lands flat, lies a few seconds and shrinks
+// away. The engine's effects can only draw particles as voxel blobs, so these
+// are nodes instead, kept in a pool and reused, since the world never reuses
+// a node id.
+
+// One feather in the air or on the ground.
+HellfeatherDriftingFeather
+{
+    int Node
+    bool InUse
+    // 0 falling, 1 lying, 2 shrinking.
+    int Stage
+    // The middle of its sway, which sinks and drifts with the wind.
+    vec3 Base
+    // The height of the ground under it.
+    float Floor
+    // Through its swing, in radians, and how fast it swings in radians per second.
+    float Phase
+    float Swing
+    // How far it swings to either side, and how fast it sinks, in world units.
+    float Reach
+    float Sink
+    // Its turn about the vertical in radians, and how fast that turns.
+    float Heading
+    float Spin
+    // Seconds: falling, how long it will lie, and time left in its stage.
+    float Age
+    float Lie
+    float Timer
+    // The world size of one of its voxels.
+    float Size
+}
+
+HellfeatherFeatherDrift
+{
+    // Every third feather is burnt red at the tip, as on the logo, when set.
+    bool RedTips
+    // At most this many in the air and on the ground at once.
+    int Most = 160
+    vec3 Wind = vec3(0.12, 0.0, 0.05)
+    -HellfeatherDriftingFeather [] Feathers
+    -int [3] Volumes
+    -bool Built
+    -QuaxelRandom Random
+    -bool Seeded
+    -float Carry
+
+    // Feathers in the air or on the ground.
+    int Live()
+    {
+        int count = 0
+        for feather : Feathers {
+            if feather.InUse { count++ }
+        }
+        return count
+    }
+
+    // Lying on the ground.
+    int Lying()
+    {
+        int count = 0
+        for feather : Feathers {
+            if feather.InUse && feather.Stage > 0 { count++ }
+        }
+        return count
+    }
+
+    // The nodes made so far, used or not.
+    int Pooled() { return (int)Feathers.Len }
+
+    // How many feathers are due this step at Rate per second.
+    int Due(float rate, float deltaSeconds)
+    {
+        Carry += rate * deltaSeconds
+        int due = (int)Carry
+        Carry -= (float)due
+        return due
+    }
+
+    float Roll(float low, float high)
+    {
+        Seed()
+        return Random.Range(low, high)
+    }
+
+    // A random point within Radius of Center along the ground, at its height.
+    vec3 Around(vec3 center, float radius)
+    {
+        Seed()
+        float angle = Random.Range(0.0, 6.2831853)
+        float distance = radius * Math.Sqrt(Random.Unit())
+        return center + vec3(Math.Cos(angle) * distance, 0.0, Math.Sin(angle) * distance)
+    }
+
+    // Lets a feather fall from At to the ground at height Floor. False when
+    // the pool is full or a model would not build.
+    bool Spawn(QuaxelWorld& world, vec3 at, float floor)
+    {
+        Seed()
+        if !Build(world) { return false }
+        int slot = -1
+        for i : 0; i < Feathers.Len; i++ {
+            if !Feathers[i].InUse {
+                slot = i
+                break
+            }
+        }
+        if slot < 0 {
+            if (int)Feathers.Len >= Most { return false }
+            HellfeatherDriftingFeather made
+            made.Node = world.CreateNode()
+            int variants = RedTips ? 3 | 2
+            int volume = Volumes[(int)Feathers.Len % variants]
+            if !world.AttachTransform(made.Node, QuaxelTransform.Make(Parked(), vec3(0.02, 0.02, 0.02))) || !world.AttachVoxels(made.Node, volume) { return false }
+            world.SetCatchesEffects(made.Node, false)
+            slot = (int)Feathers.Len
+            Feathers += made
+        }
+        HellfeatherDriftingFeather f = Feathers[slot]
+        f.InUse = true
+        f.Stage = 0
+        f.Base = at
+        f.Floor = floor
+        f.Phase = Random.Range(0.0, 6.2831853)
+        f.Swing = Random.Range(1.5, 2.4)
+        f.Reach = Random.Range(0.25, 0.55)
+        f.Sink = Random.Range(0.65, 1.0)
+        f.Heading = Random.Range(0.0, 6.2831853)
+        f.Spin = Random.Range(-0.6, 0.6)
+        f.Age = 0.0
+        f.Lie = Random.Range(3.0, 5.0)
+        f.Size = Random.Range(0.017, 0.024)
+        Feathers[slot] = f
+        Pose(world, slot)
+        return true
+    }
+
+    Step(QuaxelWorld& world, float deltaSeconds)
+    {
+        for i : 0; i < Feathers.Len; i++ {
+            if !Feathers[i].InUse { continue }
+            HellfeatherDriftingFeather f = Feathers[i]
+            if f.Stage == 0 {
+                f.Age += deltaSeconds
+                f.Phase += f.Swing * deltaSeconds
+                float swing = Math.Sin(f.Phase)
+                // A falling feather drops fastest at the ends of its swing.
+                float sink = f.Sink * (0.45 + 0.75 * swing * swing)
+                f.Base = f.Base + Wind * deltaSeconds - vec3(0.0, sink * deltaSeconds, 0.0)
+                f.Heading += f.Spin * deltaSeconds
+                if f.Base.Y <= f.Floor + 0.03 {
+                    f.Stage = 1
+                    f.Timer = f.Lie
+                    f.Base = Swayed(f)
+                    f.Base.Y = f.Floor + f.Size
+                }
+                // One that never finds the ground, as over a drop, goes after a while.
+                else if f.Age > 40.0 {
+                    f.Stage = 2
+                    f.Timer = 0.0
+                }
+            }
+            else if f.Stage == 1 {
+                f.Timer -= deltaSeconds
+                if f.Timer <= 0.0 {
+                    f.Stage = 2
+                    f.Timer = HellfeatherFeatherDrift.ShrinkSeconds
+                }
+            }
+            else {
+                f.Timer -= deltaSeconds
+                if f.Timer <= 0.0 { f.InUse = false }
+            }
+            Feathers[i] = f
+            if f.InUse { Pose(world, i) }
+            else { Park(world, i) }
+        }
+    }
+
+    // Takes every feather away at once, as when a scene is left.
+    Clear(QuaxelWorld& world)
+    {
+        for i : 0; i < Feathers.Len; i++ {
+            if Feathers[i].InUse { Park(world, i) }
+            Feathers[i].InUse = false
+        }
+        Carry = 0.0
+    }
+
+    -Seed()
+    {
+        if Seeded { return }
+        long now = 0
+        QuaxelPlatform.ReadClock(now)
+        Random.Begin((uint)(now & (long)0x7FFFFFFF) ^ (uint)0x5EA7F00D)
+        Seeded = true
+    }
+
+    -vec3 Parked() { return vec3(0.0, -2000.0, 0.0) }
+
+    // Where it is along its swing.
+    -vec3 Swayed(HellfeatherDriftingFeather f)
+    {
+        vec3 across = vec3(Math.Cos(f.Heading), 0.0, -Math.Sin(f.Heading))
+        return f.Base + across * (f.Reach * Math.Sin(f.Phase))
+    }
+
+    -Pose(QuaxelWorld& world, int i)
+    {
+        HellfeatherDriftingFeather f = Feathers[i]
+        float size = f.Size
+        vec3 at = f.Base
+        QuaxelTransform pose = QuaxelTransform.Make(at, vec3(size, size, size))
+        pose.FacingX = Math.Sin(f.Heading)
+        pose.FacingZ = Math.Cos(f.Heading)
+        if f.Stage == 0 {
+            // Tilted into the swing, nose a little down.
+            float swing = Math.Sin(f.Phase)
+            pose.Position = Swayed(f)
+            pose.Rotation = QuaxelRotation.FromDegrees(0.0, 10.0 + 8.0 * Math.Cos(f.Phase), -32.0 * swing)
+        }
+        else if f.Stage == 2 {
+            float share = Math.Clamp(f.Timer / HellfeatherFeatherDrift.ShrinkSeconds, 0.0, 1.0)
+            pose.Scale = vec3(size, size, size) * share
+        }
+        world.SetTransform(f.Node, pose)
+    }
+
+    -Park(QuaxelWorld& world, int i)
+    {
+        QuaxelTransform pose = world.GetTransform(Feathers[i].Node)
+        pose.Position = Parked()
+        world.SetTransform(Feathers[i].Node, pose)
+    }
+
+    -bool Build(QuaxelWorld& world)
+    {
+        if Built { return true }
+        for variant : 0; variant < 3; variant++ {
+            Volumes[variant] = HellfeatherFeatherDrift.BuildFeather(world, variant)
+            if Volumes[variant] < 0 { return false }
+        }
+        Built = true
+        return true
+    }
+}
+#{
+    #float ShrinkSeconds = 0.8
+    // The feather model in voxels: long along +Z, wide along X, thin along Y.
+    #int Long = 30
+    #int Wide = 13
+    #int Tall = 3
+
+    #int Quill = 0x8a9096
+    #int Shaft = 0x2a2e3a
+    #int Sheen = 0x1f2b52
+    #int Vane = 0x14151b
+    #int Edge = 0x0c0c10
+    #int Burnt = 0x6e1a14
+    #int Ember = 0x962418
+    #int Flame = 0xc4341e
+
+    // One flight feather. Variant 0 is wider on its left, 1 on its right with a
+    // stronger bend, and 2 is burnt red toward its tip.
+    int BuildFeather(QuaxelWorld& world, int variant)
+    {
+        int volume = world.CreateVolume(Wide, Tall, Long)
+        if volume < 0 { return -1 }
+        float flip = variant == 1 ? -1.0 | 1.0
+        for z : 0; z < Long; z++ {
+            float t = (float)z / (float)(Long - 1)
+            float bend = (variant == 1 ? 1.6 | 0.9) * Math.Sin(t * 3.1415927) * flip
+            float shaft = (float)(Wide / 2) + bend
+            int sx = Math.Clamp((int)Math.Round(shaft), 0, Wide - 1)
+            int stem = t < 0.25 ? Quill | Shaft
+            if variant == 2 && t > 0.8 { stem = Burnt }
+            world.SetVoxel(volume, sx, 1, z, stem)
+            if t < 0.5 { world.SetVoxel(volume, sx, 0, z, Shaft) }
+            if t < 0.16 { continue }
+            float u = (t - 0.16) / 0.84
+            float swell = Math.Sin(Math.Min(1.0, u * 1.5) * 1.5707963) * (1.0 - u * u * u)
+            for side : 0; side < 2; side++ {
+                float sign = side == 0 ? flip | -flip
+                float wide = (side == 0 ? 5.0 | 3.4) * swell
+                // Parted barbs: a gap now and then.
+                if (z + side * 3 + variant) % 6 == 0 { wide = Math.Min(wide, 1.2) }
+                float reach = 1.0
+                while reach <= wide + 0.25 {
+                    int x = Math.Clamp((int)Math.Round(shaft + sign * reach), 0, Wide - 1)
+                    // The barbs sweep toward the tip.
+                    int along = Math.Min(Long - 1, z + (int)(reach * 0.45))
+                    int color = reach < 1.6 ? Sheen | Vane
+                    if reach > wide - 0.8 { color = Edge }
+                    if variant == 2 {
+                        float heat = Math.Clamp((t - 0.62) / 0.34, 0.0, 1.0)
+                        int grain = HellfeatherArt.Hash(x, z, 77) % 100
+                        if (float)grain < heat * 100.0 { color = heat > 0.7 ? Flame | heat > 0.35 ? Ember | Burnt }
+                    }
+                    // The outer edge curls up a little.
+                    int y = reach > wide - 1.2 && wide > 2.5 ? 2 | 1
+                    world.SetVoxel(volume, x, y, along, color)
+                    reach += 1.0
+                }
+            }
+        }
+        return volume
+    }
+}
+T{
+    FeathersFallSwayLandAndAreReused()
+    {
+        QuaxelWorld world()
+        HellfeatherFeatherDrift drift
+        T.IsTrue(drift.Spawn(world, vec3(0.0, 3.0, 0.0), 0.0))
+        T.AreEqual(drift.Live(), 1)
+        // Partway down it has swung away from straight below its start.
+        for step : 0; step < 30; step++ { drift.Step(world, 0.05) }
+        T.AreEqual(drift.Lying(), 0)
+        // Down within ten seconds, then lying a while, then gone.
+        int steps = 0
+        while drift.Lying() == 0 && steps < 200 {
+            drift.Step(world, 0.05)
+            steps++
+        }
+        T.AreEqual(drift.Lying(), 1)
+        for step : 0; step < 40; step++ { drift.Step(world, 0.05) }
+        T.AreEqual(drift.Live(), 1)
+        for step : 0; step < 200; step++ { drift.Step(world, 0.05) }
+        T.AreEqual(drift.Live(), 0)
+        // Its node waits for the next feather.
+        T.IsTrue(drift.Spawn(world, vec3(0.0, 3.0, 0.0), 0.0))
+        T.AreEqual(drift.Pooled(), 1)
+    }
+
+    ThePoolStopsAtItsLimit()
+    {
+        QuaxelWorld world()
+        HellfeatherFeatherDrift drift
+        drift.Most = 3
+        for n : 0; n < 3; n++ { T.IsTrue(drift.Spawn(world, vec3(0.0, 3.0, 0.0), 0.0)) }
+        T.IsFalse(drift.Spawn(world, vec3(0.0, 3.0, 0.0), 0.0))
+        drift.Clear(world)
+        T.AreEqual(drift.Live(), 0)
+        T.IsTrue(drift.Spawn(world, vec3(0.0, 3.0, 0.0), 0.0))
+    }
+
+    DueSpreadsARateOverSteps()
+    {
+        HellfeatherFeatherDrift drift
+        int total = 0
+        for step : 0; step < 60; step++ { total += drift.Due(10.0, 1.0 / 60.0) }
+        T.AreEqual(total, 10)
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherFeatherDrift FallingFeathers
+
+    // Feathers from points the Featherfall chose, each falling to the ground below it.
+    -LetFeathersFall(QuaxelWorld& world)
+    {
+        for at : Featherfall.Drops { FallingFeathers.Spawn(world, at, Terrain.GroundY(at.X, at.Z)) }
+        Featherfall.Drops.Clear()
+    }
+
+    // Count feathers over a disc of Radius around Center, from Height above it.
+    -ShedFeathers(QuaxelWorld& world, vec3 center, float radius, float height, int count)
+    {
+        for n : 0; n < count; n++ {
+            vec3 at = FallingFeathers.Around(center, radius)
+            float floor = Terrain.GroundY(at.X, at.Z)
+            at.Y = center.Y + height + FallingFeathers.Roll(0.0, 1.5)
+            FallingFeathers.Spawn(world, at, floor)
+        }
+    }
+}

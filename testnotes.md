@@ -37,7 +37,7 @@ Issues found during testing:
 [] there are great many unique items like jassa's waterwalkers boots we shouldg generate fot them unique item image, use pixel-art skill
 [] maybe after the severing of the ring it should open portal (NPC portal should have diffrent color to show it is not yours) to the mara hob
 [] add chest that will be in town and you can store item in it
-[] add saving system we need to create and save characters, it does not need to save enemies only/world only player related thing like inventory, level, runes ... and quest progression
+[x] add saving system we need to create and save characters, it does not need to save enemies only/world only player related thing like inventory, level, runes ... and quest progression
 [x] black fethers thay need re-design in terms of gameplay thay feel un-rewarding it is not clear how many you need to collect and if you collect all of the they still continue droping, it sort of makes sense thay would drop but possibly thay need to be physical item in iventory and for 1 slot you can stack like 5 of them for example, maybe if you bring them affter to edda you can use them to gamble on hiden item, you see base and you buy them with black fethers and it rolls rarty giving you possibity of getting blue or gold.
 [x] we need interior location, for example hobs mill and sister Carmine building should be inside the building it self. maybe have abilty to click on the building or the door to enter in.
 [] we need more item bases that spawn in later zones

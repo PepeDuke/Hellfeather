@@ -1,0 +1,843 @@
+// Saved characters, packed with Quaxel's gzip and JSON (Docs/Data.md in the
+// engine). Each playthrough is a slot with two snapshots,
+// Saves/SlotN.a.sav and Saves/SlotN.b.sav, each a gzip-compressed JSON
+// document. In a text editor a save is binary; unpacked (with any gzip tool,
+// or Tools/Saves/savetool.py) it reads as plain JSON.
+//
+// Every snapshot carries a generation. Saving overwrites whichever of the two
+// is older or unreadable, one generation past the newer, so the last good
+// save survives a crash or a bad write. Loading takes the readable snapshot
+// with the higher generation and falls back to the other.
+//
+// What she carries, wears and has done is saved by name: items, slots,
+// actions, mod kinds, waypoints. A field the file lacks keeps its default and
+// a field the game no longer knows is ignored, so adding or removing saved
+// data needs no new version. Version only goes up when a field's meaning
+// changes, and the loader then converts the older meaning. The world itself
+// is not saved: she wakes in Ravenford with it built fresh around her.
+
+// What the main menu shows of a save.
+HellfeatherSaveSummary
+{
+    int Slot
+    bool Readable
+    // Higher is saved more recently, across all slots.
+    int Stamp
+    int Generation
+    int Level = 1
+    int Realm
+    // The clearing's module she was last in, or -1.
+    int Zone = -1
+    int PlayedSeconds
+    // Body, main hand, off hand and head, to dress the menu's preview.
+    HellfeatherItems [4] Gear
+
+    // Where she was when it saved.
+    string Place()
+    {
+        if IsValid((HellfeatherRealm)Realm) {
+            string below = HellfeatherZoneNames.RealmName((HellfeatherRealm)Realm)
+            if Length(below) > 0 { return below }
+        }
+        if Zone < 0 { return "The Fenmarch" }
+        return HellfeatherZoneNames.Name(Zone)
+    }
+
+    // Time played, as 2h 14m, or 14m under an hour.
+    string Played()
+    {
+        int minutes = PlayedSeconds / 60
+        if minutes < 60 { return QuaxelUi.FormatInt(minutes) + "m" }
+        return QuaxelUi.FormatInt(minutes / 60) + "h " + QuaxelUi.FormatInt(minutes % 60) + "m"
+    }
+}
+
+// Saving or loading the same fields from one list, so the two cannot drift
+// apart. Reading takes each value from the object at Node, keeping the value
+// already there when the file lacks it.
+HellfeatherSaveFields
+{
+    bool Reading
+    QuaxelJsonWriter Out
+    QuaxelJson In
+    int Node = -1
+
+    Int(string key, int& value)
+    {
+        if Reading { value = In.Int(Node, key, value) }
+        else { Out.Int(key, value) }
+    }
+
+    Bool(string key, bool& value)
+    {
+        if Reading { value = In.Bool(Node, key, value) }
+        else { Out.Bool(key, value) }
+    }
+}
+
+HellfeatherSaves
+#{
+    #int Slots = 8
+    // Goes up only when a saved field changes meaning.
+    #int Version = 1
+    // Seconds of play between autosaves.
+    #float AutosaveSeconds = 120.0
+    // Relative to the working directory. Tests point it elsewhere.
+    string Folder = "Saves"
+
+    string Format() { return "Hellfeather save" }
+
+    // A slot's snapshot: 0 is a, 1 is b.
+    string Snapshot(int slot, int which) { return Folder + "/Slot" + QuaxelUi.FormatInt(slot) + (which == 0 ? ".a.sav" | ".b.sav") }
+
+    bool Exists(int slot)
+    {
+        return QuaxelFiles.Exists(Snapshot(slot, 0)) || QuaxelFiles.Exists(Snapshot(slot, 1))
+    }
+
+    // Removes both snapshots. True when neither is left.
+    bool Delete(int slot)
+    {
+        for which : 0; which < 2; which++ { QuaxelFiles.Remove(Snapshot(slot, which)) }
+        return !Exists(slot)
+    }
+
+    // Makes the folder if it is missing. True when it can be written.
+    bool EnsureFolder() { return QuaxelFiles.MakeFolder(Folder) }
+
+    // Reads, unpacks and parses one snapshot, and checks that it is a save
+    // this game understands: one from a newer game is not loaded.
+    bool ReadSnapshot(string path, QuaxelJson& json)
+    {
+        uint8 [] packed
+        if !QuaxelFiles.ReadBytes(path, packed) { return false }
+        uint8 [] text
+        if !QuaxelGzip.Decompress(packed, text) || !json.Parse(text) { return false }
+        if json.Text(0, "format") != (name)Format() { return false }
+        int version = json.Int(0, "version", 0)
+        return version >= 1 && version <= Version
+    }
+
+    // Which snapshot is newer and readable: 0 for a, 1 for b, -1 for neither.
+    // Generation gets its generation, or 0.
+    int Newest(int slot, int& generation)
+    {
+        generation = 0
+        int best = -1
+        for which : 0; which < 2; which++ {
+            QuaxelJson json
+            if !ReadSnapshot(Snapshot(slot, which), json) { continue }
+            int made = json.Int(0, "generation", 0)
+            if best < 0 || made > generation {
+                best = which
+                generation = made
+            }
+        }
+        return best
+    }
+
+    // Parses the newer readable snapshot into Json.
+    bool ReadNewest(int slot, QuaxelJson& json)
+    {
+        int generation = 0
+        int which = Newest(slot, generation)
+        return which >= 0 && ReadSnapshot(Snapshot(slot, which), json)
+    }
+
+    HellfeatherSaveSummary ReadSummary(int slot)
+    {
+        HellfeatherSaveSummary summary
+        summary.Slot = slot
+        QuaxelJson json
+        if !ReadNewest(slot, json) { return summary }
+        summary.Readable = true
+        summary.Stamp = json.Int(0, "stamp", 0)
+        summary.Generation = json.Int(0, "generation", 0)
+        int brief = json.Find(0, "summary")
+        int progress = json.Find(0, "progress")
+        summary.Level = json.Int(progress, "level", json.Int(brief, "level", 1))
+        HellfeatherRealm realm = HellfeatherRealm.Fenmarch
+        if RealmNamed(json.Text(brief, "realm"), realm) { summary.Realm = realm.Value }
+        HellfeatherZone zone = HellfeatherZone.Ravenford
+        if ZoneNamed(json.Text(brief, "zone"), zone) { summary.Zone = zone.Value }
+        summary.PlayedSeconds = json.Int(brief, "playedSeconds", 0)
+        int equipped = json.Find(json.Find(0, "inventory"), "equipped")
+        HellfeatherSlot [4] shown = {HellfeatherSlot.Body, HellfeatherSlot.MainHand, HellfeatherSlot.OffHand, HellfeatherSlot.Head}
+        for i : 0; i < 4; i++ {
+            HellfeatherItems item = HellfeatherItems.None
+            if ItemNamed(json.Text(json.Find(equipped, (string)shown[i].Name), "item"), item) { summary.Gear[i] = item }
+        }
+        return summary
+    }
+
+    // The first slot with neither snapshot, or 0 when all are taken.
+    int FreeSlot()
+    {
+        for slot : 1; slot <= Slots; slot++ {
+            if !Exists(slot) { return slot }
+        }
+        return 0
+    }
+
+    // The slot saved most recently, or 0 when there is none.
+    int MostRecent()
+    {
+        int best = 0
+        int stamp = -1
+        for slot : 1; slot <= Slots; slot++ {
+            HellfeatherSaveSummary summary = ReadSummary(slot)
+            if summary.Readable && summary.Stamp > stamp {
+                best = slot
+                stamp = summary.Stamp
+            }
+        }
+        return best
+    }
+
+    // One past the newest stamp of any slot.
+    int NextStamp()
+    {
+        int stamp = 0
+        for slot : 1; slot <= Slots; slot++ {
+            HellfeatherSaveSummary summary = ReadSummary(slot)
+            if summary.Readable { stamp = Math.Max(stamp, summary.Stamp) }
+        }
+        return stamp + 1
+    }
+
+    // Names back to enum members. False for a name the game does not know.
+    bool ItemNamed(name text, HellfeatherItems& found)
+    {
+        for each : HellfeatherItems {
+            if each.Name == text {
+                found = each
+                return true
+            }
+        }
+        return false
+    }
+
+    bool SlotNamed(name text, HellfeatherSlot& found)
+    {
+        for each : HellfeatherSlot {
+            if each.Name == text {
+                found = each
+                return true
+            }
+        }
+        return false
+    }
+
+    bool RarityNamed(name text, HellfeatherRarity& found)
+    {
+        for each : HellfeatherRarity {
+            if each.Name == text {
+                found = each
+                return true
+            }
+        }
+        return false
+    }
+
+    bool ModKindNamed(name text, HellfeatherModKind& found)
+    {
+        for each : HellfeatherModKind {
+            if each.Name == text {
+                found = each
+                return true
+            }
+        }
+        return false
+    }
+
+    bool ActionNamed(name text, HellfeatherAction& found)
+    {
+        for each : HellfeatherAction {
+            if each.Name == text {
+                found = each
+                return true
+            }
+        }
+        return false
+    }
+
+    bool ActionSlotNamed(name text, HellfeatherActionSlot& found)
+    {
+        for each : HellfeatherActionSlot {
+            if each.Name == text {
+                found = each
+                return true
+            }
+        }
+        return false
+    }
+
+    bool RealmNamed(name text, HellfeatherRealm& found)
+    {
+        for each : HellfeatherRealm {
+            if each.Name == text {
+                found = each
+                return true
+            }
+        }
+        return false
+    }
+
+    bool ZoneNamed(name text, HellfeatherZone& found)
+    {
+        for each : HellfeatherZone {
+            if each.Name == text {
+                found = each
+                return true
+            }
+        }
+        return false
+    }
+
+    WriteItem(QuaxelJsonWriter& out, string key, HellfeatherItems item, HellfeatherItemMods mods, bool placed, int x, int y)
+    {
+        out.BeginObject(key)
+        out.Text("item", item.Name)
+        if placed {
+            out.Int("x", x)
+            out.Int("y", y)
+        }
+        if mods.Rarity != HellfeatherRarity.Common { out.Text("rarity", mods.Rarity.Name) }
+        if mods.Stack > 0 { out.Int("stack", mods.Stack) }
+        if mods.Count > 0 {
+            out.BeginArray("mods")
+            for i : 0; i < Math.Min(mods.Count, (int)mods.Kinds.Len); i++ {
+                out.BeginObject("")
+                out.Text("kind", mods.Kinds[i].Name)
+                out.Int("value", mods.Values[i])
+                out.EndObject()
+            }
+            out.EndArray()
+        }
+        out.EndObject()
+    }
+
+    // False when the node is no item or names one the game does not know.
+    bool ReadItem(QuaxelJson& json, int node, HellfeatherItems& item, HellfeatherItemMods& mods)
+    {
+        if !json.IsObject(node) { return false }
+        name itemName = json.Text(node, "item")
+        if !ItemNamed(itemName, item) || item == HellfeatherItems.None {
+            Print("A saved item the game no longer has was left out:")
+            Print(itemName)
+            return false
+        }
+        mods.Clear()
+        HellfeatherRarity rarity = HellfeatherRarity.Common
+        if RarityNamed(json.Text(node, "rarity"), rarity) { mods.Rarity = rarity }
+        mods.Stack = Math.Max(0, json.Int(node, "stack", 0))
+        int list = json.Find(node, "mods")
+        for entry : json.First(list); entry >= 0; entry = json.Next(entry) {
+            if mods.Count >= mods.Kinds.Len { break }
+            HellfeatherModKind kind = HellfeatherModKind.None
+            if !ModKindNamed(json.Text(entry, "kind"), kind) || kind == HellfeatherModKind.None { continue }
+            mods.Kinds[mods.Count] = kind
+            mods.Values[mods.Count] = json.Int(entry, "value", 0)
+            mods.Count++
+        }
+        return true
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // The slot her progress saves to, or 0 for a run that does not save, as
+    // tests and the --start options do.
+    int ActiveSlot
+    // The slot Prepare loads before building the world, or 0 to start fresh.
+    int LoadSlot
+    float PlayedSeconds
+    -float AutosaveTimer = 120.0
+    // Waypoints lit in the save, by name, applied once Prepare has made them.
+    -string [] SavedLit
+
+    // Writes her to the older snapshot of the active slot. False without a
+    // slot or when the write does not read back.
+    bool SaveCharacter()
+    {
+        if ActiveSlot <= 0 || !HellfeatherSaves.EnsureFolder() { return false }
+        int generation = 0
+        int newest = HellfeatherSaves.Newest(ActiveSlot, generation)
+        int target = newest == 0 ? 1 | 0
+        HellfeatherSaveFields io
+        WriteCharacter(io, generation + 1, HellfeatherSaves.NextStamp())
+        uint8 [] packed
+        QuaxelGzip.Compress(io.Out.Bytes, packed)
+        string path = HellfeatherSaves.Snapshot(ActiveSlot, target)
+        QuaxelJson check
+        if !QuaxelFiles.WriteBytes(path, packed) || !HellfeatherSaves.ReadSnapshot(path, check) {
+            Print("Saving failed")
+            return false
+        }
+        return true
+    }
+
+    -WriteCharacter(HellfeatherSaveFields& io, int generation, int stamp)
+    {
+        io.Reading = false
+        io.Out.BeginObject("")
+        io.Out.Text("format", (name)HellfeatherSaves.Format())
+        io.Out.Int("version", HellfeatherSaves.Version)
+        io.Out.Int("generation", generation)
+        io.Out.Int("stamp", stamp)
+
+        // What the main menu lists.
+        io.Out.BeginObject("summary")
+        io.Out.Int("level", Passives.Level.Level)
+        io.Out.Text("realm", Terrain.Realm.Name)
+        int module = -1
+        if ZoneSite >= 0 && ZoneSite < Terrain.Layout.Sites.Len { module = Terrain.Layout.Sites[ZoneSite].Module }
+        if module >= 0 && IsValid((HellfeatherZone)module) { io.Out.Text("zone", ((HellfeatherZone)module).Name) }
+        else { io.Out.Null("zone") }
+        io.Out.Int("playedSeconds", (int)PlayedSeconds)
+        io.Out.EndObject()
+
+        io.Out.BeginObject("inventory")
+        io.Out.Int("gold", Inventory.Items.Gold)
+        io.Out.Int("portals", Inventory.Items.Portals)
+        io.Out.BeginObject("equipped")
+        for slot : HellfeatherSlot {
+            HellfeatherItems item = Inventory.Items.Equipped[slot]
+            if item != HellfeatherItems.None { HellfeatherSaves.WriteItem(io.Out, (string)slot.Name, item, Inventory.Items.EquippedMods[slot], false, 0, 0) }
+        }
+        io.Out.EndObject()
+        io.Out.BeginArray("bag")
+        for entry : Inventory.Items.Bag { HellfeatherSaves.WriteItem(io.Out, "", entry.Item, entry.Mods, true, entry.X, entry.Y) }
+        io.Out.EndArray()
+        if Inventory.Items.Held != HellfeatherItems.None { HellfeatherSaves.WriteItem(io.Out, "held", Inventory.Items.Held, Inventory.Items.HeldMods, false, 0, 0) }
+        io.Out.EndObject()
+
+        io.Out.BeginObject("progress")
+        io.Out.Int("level", Passives.Level.Level)
+        io.Out.Int("experience", Passives.Level.Experience)
+        io.Out.BeginArray("passives")
+        for i : 0; i < Passives.Tree.Allocated.Len; i++ {
+            if Passives.Tree.Allocated[i] { io.Out.Int("", i) }
+        }
+        io.Out.EndArray()
+        io.Out.EndObject()
+
+        io.Out.BeginObject("runes")
+        io.Out.BeginArray("opened")
+        for y : 0; y < HellfeatherRuneBoard.Rows; y++ {
+            for x : 0; x < HellfeatherRuneBoard.Columns; x++ {
+                if !Runes.Board.IsOpen(x, y) { continue }
+                io.Out.Pair("", x, y)
+            }
+        }
+        io.Out.EndArray()
+        io.Out.BeginArray("sockets")
+        for socket : Runes.Board.Sockets {
+            io.Out.BeginObject("")
+            io.Out.Text("item", socket.Item.Name)
+            io.Out.Int("x", socket.X)
+            io.Out.Int("y", socket.Y)
+            io.Out.EndObject()
+        }
+        io.Out.EndArray()
+        io.Out.Int("bought", Runes.Board.Bought)
+        io.Out.EndObject()
+
+        io.Out.BeginObject("actions")
+        io.Out.BeginObject("bar")
+        for slot : HellfeatherActionSlot { io.Out.Text((string)slot.Name, Actions.Slots.Assigned[slot].Name) }
+        io.Out.EndObject()
+        io.Out.BeginArray("known")
+        for action : HellfeatherAction {
+            // None is always known, so it is left out.
+            if action != HellfeatherAction.None && action.Value < Actions.Slots.Known.Len && Actions.Slots.Known[action.Value] { io.Out.Text("", action.Name) }
+        }
+        io.Out.EndArray()
+        io.Out.Int("kills", Actions.Slots.Kills)
+        io.Out.EndObject()
+
+        io.Out.BeginObject("quests")
+        HellfeatherQuests quests = Quests
+        QuestFields(io, quests)
+        io.Out.EndObject()
+
+        io.Out.BeginArray("litWaypoints")
+        for waypoint : Waypoints {
+            if waypoint.Lit { io.Out.Text("", (name)waypoint.Name) }
+        }
+        io.Out.EndArray()
+        io.Out.EndObject()
+    }
+
+    // Quest progress, saved and loaded by this one list. A new quest field
+    // gets a line here; an old save without it keeps its default.
+    -QuestFields(HellfeatherSaveFields& io, HellfeatherQuests& q)
+    {
+        io.Int("moult", q.Moult)
+        io.Int("ford", q.Ford)
+        io.Int("ducksCleared", q.DucksCleared)
+        io.Bool("feathersGiven", q.FeathersGiven)
+        io.Int("feathersHeld", q.FeathersHeld)
+        io.Bool("hoardTold", q.HoardTold)
+        io.Bool("bootsTaken", q.BootsTaken)
+        io.Bool("reevePaid", q.ReevePaid)
+        io.Int("rooms", q.Rooms)
+        io.Int("ambushFirst", q.AmbushFirst)
+        io.Int("seamstress", q.Seamstress)
+        io.Int("dark", q.Dark)
+        io.Int("raidFirst", q.RaidFirst)
+        io.Int("millrace", q.Millrace)
+        io.Bool("titheMark", q.TitheMark)
+        io.Bool("severingKnown", q.SeveringKnown)
+        io.Bool("pondWoke", q.PondWoke)
+        io.Bool("mardraMoulted", q.MardraMoulted)
+        io.Int("thrallsSpared", q.ThrallsSpared)
+        io.Int("bearersFreed", q.BearersFreed)
+        io.Bool("greyneckSlain", q.GreyneckSlain)
+    }
+
+    // Loads the slot over the starting kit. Runs in Prepare before the world
+    // is built, so everything that depends on her quests sees them. A section
+    // the save lacks keeps the starting value.
+    bool LoadCharacter(int slot)
+    {
+        HellfeatherSaveFields io
+        io.Reading = true
+        if !HellfeatherSaves.ReadNewest(slot, io.In) { return false }
+        PlayedSeconds = (float)io.In.Int(io.In.Find(0, "summary"), "playedSeconds", 0)
+        LoadInventory(io.In)
+        LoadProgress(io.In)
+        LoadRunes(io.In)
+        LoadActions(io.In)
+        io.Node = io.In.Find(0, "quests")
+        if io.Node >= 0 {
+            HellfeatherQuests quests = Quests
+            QuestFields(io, quests)
+            Quests = quests
+        }
+        SavedLit.Clear()
+        int lit = io.In.Find(0, "litWaypoints")
+        for entry : io.In.First(lit); entry >= 0; entry = io.In.Next(entry) { SavedLit += (string)io.In.AsText(entry) }
+        return true
+    }
+
+    -LoadInventory(QuaxelJson& json)
+    {
+        int inventory = json.Find(0, "inventory")
+        if inventory < 0 { return }
+        Inventory.Items.Gold = Math.Max(0, json.Int(inventory, "gold", Inventory.Items.Gold))
+        Inventory.Items.Portals = Math.Max(0, json.Int(inventory, "portals", Inventory.Items.Portals))
+        int equipped = json.Find(inventory, "equipped")
+        if json.IsObject(equipped) {
+            for slot : HellfeatherSlot {
+                Inventory.Items.Equipped[slot] = HellfeatherItems.None
+                Inventory.Items.EquippedMods[slot].Clear()
+            }
+            for member : json.First(equipped); member >= 0; member = json.Next(member) {
+                HellfeatherSlot slot = HellfeatherSlot.Head
+                if !HellfeatherSaves.SlotNamed(json.Nodes[member].Key, slot) { continue }
+                HellfeatherItems item = HellfeatherItems.None
+                HellfeatherItemMods mods
+                if HellfeatherSaves.ReadItem(json, member, item, mods) {
+                    Inventory.Items.Equipped[slot] = item
+                    Inventory.Items.EquippedMods[slot] = mods
+                }
+            }
+        }
+        int bag = json.Find(inventory, "bag")
+        if json.IsArray(bag) {
+            Inventory.Items.Bag.Clear()
+            for entry : json.First(bag); entry >= 0; entry = json.Next(entry) {
+                HellfeatherItems item = HellfeatherItems.None
+                HellfeatherItemMods mods
+                if !HellfeatherSaves.ReadItem(json, entry, item, mods) { continue }
+                int x = json.Int(entry, "x", -1)
+                int y = json.Int(entry, "y", -1)
+                // Where it was, or the first space that fits if the bag changed shape.
+                if Inventory.Items.IsFree(item, x, y) { Inventory.Items.PutWithAt(item, mods, x, y) }
+                else if !Inventory.Items.AddWith(item, mods) { Print("A saved item did not fit in the bag") }
+            }
+        }
+        HellfeatherItems held = HellfeatherItems.None
+        HellfeatherItemMods heldMods
+        if HellfeatherSaves.ReadItem(json, json.Find(inventory, "held"), held, heldMods) {
+            Inventory.Items.ReplaceHeld(held)
+            Inventory.Items.HeldMods = heldMods
+        }
+    }
+
+    -LoadProgress(QuaxelJson& json)
+    {
+        int progress = json.Find(0, "progress")
+        if progress < 0 { return }
+        Passives.Level.Level = Math.Clamp(json.Int(progress, "level", Passives.Level.Level), 1, HellfeatherLevel.MaxLevel)
+        Passives.Level.Experience = Math.Max(0, json.Int(progress, "experience", Passives.Level.Experience))
+        int passives = json.Find(progress, "passives")
+        if !json.IsArray(passives) { return }
+        for i : 0; i < Passives.Tree.Allocated.Len; i++ { Passives.Tree.Allocated[i] = false }
+        for entry : json.First(passives); entry >= 0; entry = json.Next(entry) {
+            int index = json.AsInt(entry, -1)
+            if index >= 0 && index < Passives.Tree.Allocated.Len { Passives.Tree.Allocated[index] = true }
+        }
+    }
+
+    -LoadRunes(QuaxelJson& json)
+    {
+        int runes = json.Find(0, "runes")
+        if runes < 0 { return }
+        int opened = json.Find(runes, "opened")
+        if json.IsArray(opened) {
+            for i : 0; i < Runes.Board.Opened.Len; i++ { Runes.Board.Opened[i] = false }
+            for entry : json.First(opened); entry >= 0; entry = json.Next(entry) {
+                int first = json.First(entry)
+                if first < 0 || json.Next(first) < 0 { continue }
+                int x = json.AsInt(first, -1)
+                int y = json.AsInt(json.Next(first), -1)
+                if Runes.Board.InBoard(x, y) { Runes.Board.Opened[y * HellfeatherRuneBoard.Columns + x] = true }
+            }
+        }
+        int sockets = json.Find(runes, "sockets")
+        if json.IsArray(sockets) {
+            Runes.Board.Sockets.Clear()
+            for entry : json.First(sockets); entry >= 0; entry = json.Next(entry) {
+                HellfeatherItems item = HellfeatherItems.None
+                if !HellfeatherSaves.ItemNamed(json.Text(entry, "item"), item) { continue }
+                int x = json.Int(entry, "x", -1)
+                int y = json.Int(entry, "y", -1)
+                if Runes.Board.CanPlace(item, x, y) { Runes.Board.Place(item, x, y) }
+            }
+        }
+        Runes.Board.Bought = Math.Max(0, json.Int(runes, "bought", Runes.Board.Bought))
+        // Tells SyncRuneSkills the board changed.
+        Runes.Board.Version++
+    }
+
+    -LoadActions(QuaxelJson& json)
+    {
+        int actions = json.Find(0, "actions")
+        if actions < 0 { return }
+        int bar = json.Find(actions, "bar")
+        for member : json.First(bar); member >= 0; member = json.Next(member) {
+            HellfeatherActionSlot slot = HellfeatherActionSlot.Left
+            HellfeatherAction action = HellfeatherAction.None
+            if HellfeatherSaves.ActionSlotNamed(json.Nodes[member].Key, slot) && HellfeatherSaves.ActionNamed(json.AsText(member), action) { Actions.Slots.Assigned[slot] = action }
+        }
+        int known = json.Find(actions, "known")
+        if json.IsArray(known) {
+            for i : 1; i < Actions.Slots.Known.Len; i++ { Actions.Slots.Known[i] = false }
+            for entry : json.First(known); entry >= 0; entry = json.Next(entry) {
+                HellfeatherAction action = HellfeatherAction.None
+                if HellfeatherSaves.ActionNamed(json.AsText(entry), action) && action.Value < Actions.Slots.Known.Len { Actions.Slots.Known[action.Value] = true }
+            }
+        }
+        Actions.Slots.Kills = Math.Max(0, json.Int(actions, "kills", Actions.Slots.Kills))
+    }
+
+    // Lights the waypoints the save had lit, once SetUpWaypoints has made them.
+    -ApplySavedWaypoints()
+    {
+        for title : SavedLit {
+            for i : 0; i < Waypoints.Len; i++ {
+                if Waypoints[i].Name == title { Waypoints[i].Lit = true }
+            }
+        }
+        SavedLit.Clear()
+    }
+
+    // Counts play time and saves now and then while she plays.
+    -StepSaving(float deltaSeconds)
+    {
+        PlayedSeconds += deltaSeconds
+        AutosaveTimer -= deltaSeconds
+        if AutosaveTimer > 0.0 { return }
+        AutosaveTimer = HellfeatherSaves.AutosaveSeconds
+        SaveCharacter()
+    }
+
+    // Closing the window saves her too.
+    Stopped()
+    {
+        if Started && !Restart { SaveCharacter() }
+    }
+}
+T{
+    ACharacterSavesAndLoadsWhatSheCarriesAndHasDone()
+    {
+        HellfeatherSaves.Folder = ".duck/test-saves"
+        HellfeatherSaves.Delete(3)
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.ActiveSlot = 3
+        game.Inventory.Items.Gold = 1234
+        game.Inventory.Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.ShortSword
+        HellfeatherItemMods magic
+        magic.Clear()
+        magic.Rarity = HellfeatherRarity.Magic
+        magic.Kinds[0] = HellfeatherModKind.Strength
+        magic.Values[0] = 3
+        magic.Count = 1
+        T.IsTrue(game.Inventory.Items.AddWith(HellfeatherItems.Ring, magic))
+        game.Passives.Level.Gain(500)
+        game.Passives.Tree.Allocated[1] = true
+        game.Quests.Moult = 2
+        game.Quests.GreyneckSlain = true
+        game.Actions.Slots.Kills = 17
+        game.Waypoints[1].Lit = true
+        game.PlayedSeconds = 3725.0
+        int bagged = (int)game.Inventory.Items.Bag.Len
+        T.IsTrue(game.SaveCharacter())
+
+        HellfeatherSaveSummary summary = HellfeatherSaves.ReadSummary(3)
+        T.IsTrue(summary.Readable)
+        T.AreEqual(summary.Level, game.Passives.Level.Level)
+        T.AreEqual(summary.Gear[1], HellfeatherItems.ShortSword)
+        T.IsTrue(summary.Played() == "1h 2m")
+
+        HellfeatherGame loaded()
+        loaded.ActiveSlot = 3
+        loaded.LoadSlot = 3
+        QuaxelWorld again()
+        T.IsTrue(loaded.Prepare(again))
+        T.AreEqual(loaded.Inventory.Items.Gold, 1234)
+        T.AreEqual(loaded.Inventory.Items.Equipped[HellfeatherSlot.MainHand], HellfeatherItems.ShortSword)
+        T.AreEqual((int)loaded.Inventory.Items.Bag.Len, bagged)
+        bool ring = false
+        for entry : loaded.Inventory.Items.Bag {
+            if entry.Item == HellfeatherItems.Ring && entry.Mods.Count == 1 && entry.Mods.Kinds[0] == HellfeatherModKind.Strength && entry.Mods.Values[0] == 3 { ring = true }
+        }
+        T.IsTrue(ring)
+        T.AreEqual(loaded.Passives.Level.Level, game.Passives.Level.Level)
+        T.AreEqual(loaded.Passives.Level.Experience, game.Passives.Level.Experience)
+        T.IsTrue(loaded.Passives.Tree.Allocated[1])
+        T.AreEqual(loaded.Quests.Moult, 2)
+        T.IsTrue(loaded.Quests.GreyneckSlain)
+        T.AreEqual(loaded.Actions.Slots.Kills, 17)
+        T.IsTrue(loaded.Waypoints[1].Lit)
+        T.AreEqual(loaded.PlayedSeconds, 3725.0)
+        T.IsTrue(HellfeatherSaves.Delete(3))
+        T.IsFalse(HellfeatherSaves.Exists(3))
+        HellfeatherSaves.Folder = "Saves"
+    }
+
+    SnapshotsAlternateAndABrokenNewestFallsBack()
+    {
+        HellfeatherSaves.Folder = ".duck/test-saves"
+        HellfeatherSaves.Delete(5)
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.ActiveSlot = 5
+        game.Inventory.Items.Gold = 10
+        T.IsTrue(game.SaveCharacter())
+        game.Inventory.Items.Gold = 20
+        T.IsTrue(game.SaveCharacter())
+        game.Inventory.Items.Gold = 30
+        T.IsTrue(game.SaveCharacter())
+        // Three saves: a holds generations 1 and 3, b holds 2.
+        int generation = 0
+        T.AreEqual(HellfeatherSaves.Newest(5, generation), 0)
+        T.AreEqual(generation, 3)
+        QuaxelJson json
+        T.IsTrue(HellfeatherSaves.ReadNewest(5, json))
+        T.AreEqual(json.Int(json.Find(0, "inventory"), "gold", 0), 30)
+        // The newest breaks: the older one loads.
+        {
+            file broken
+            T.IsTrue(broken.Create(HellfeatherSaves.Snapshot(5, 0)))
+            broken.Write("not a save")
+        }
+        T.AreEqual(HellfeatherSaves.Newest(5, generation), 1)
+        T.AreEqual(generation, 2)
+        HellfeatherGame loaded()
+        T.IsTrue(loaded.LoadCharacter(5))
+        T.AreEqual(loaded.Inventory.Items.Gold, 20)
+        // The next save takes the broken one's place, as generation 3 again.
+        T.IsTrue(game.SaveCharacter())
+        T.AreEqual(HellfeatherSaves.Newest(5, generation), 0)
+        T.AreEqual(generation, 3)
+        HellfeatherSaves.Delete(5)
+        HellfeatherSaves.Folder = "Saves"
+    }
+
+    MissingAndUnknownFieldsAreFine()
+    {
+        HellfeatherSaves.Folder = ".duck/test-saves"
+        HellfeatherSaves.EnsureFolder()
+        // Hand-written: only gold and one quest, an item the game does not
+        // know, and a section from some later game.
+        string text = "{\"format\": \"Hellfeather save\", \"version\": 1, \"generation\": 1, \"inventory\": {\"gold\": 77, \"bag\": [{\"item\": \"NoSuchThing\", \"x\": 0, \"y\": 0}]}, \"quests\": {\"ford\": 2}, \"pets\": [1, 2]}"
+        uint8 [] plain
+        QuaxelBytes.AppendText(plain, text)
+        uint8 [] packed
+        QuaxelGzip.Compress(plain, packed)
+        T.IsTrue(QuaxelFiles.WriteBytes(HellfeatherSaves.Snapshot(6, 1), packed))
+        HellfeatherGame game()
+        game.LoadSlot = 6
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.AreEqual(game.Inventory.Items.Gold, 77)
+        T.AreEqual(game.Inventory.Items.Bag.Len, (long)0)
+        T.AreEqual(game.Quests.Ford, 2)
+        // What it lacked kept the starting kit.
+        T.AreEqual(game.Inventory.Items.Equipped[HellfeatherSlot.MainHand], HellfeatherItems.HandAxe)
+        T.AreEqual(game.Quests.AmbushFirst, -1)
+        // A save from a newer game is not loaded.
+        string newer = "{\"format\": \"Hellfeather save\", \"version\": 99}"
+        uint8 [] newerPlain
+        QuaxelBytes.AppendText(newerPlain, newer)
+        uint8 [] newerPacked
+        QuaxelGzip.Compress(newerPlain, newerPacked)
+        T.IsTrue(QuaxelFiles.WriteBytes(HellfeatherSaves.Snapshot(6, 1), newerPacked))
+        HellfeatherSaveSummary summary = HellfeatherSaves.ReadSummary(6)
+        T.IsFalse(summary.Readable)
+        HellfeatherSaves.Delete(6)
+        HellfeatherSaves.Folder = "Saves"
+    }
+
+    // Tools/Saves/Fixture.sav was edited and packed again by Python's gzip,
+    // which names the file in its header and uses dynamic Huffman codes.
+    ASaveRepackedByAGzipToolStillLoads()
+    {
+        QuaxelJson json
+        T.IsTrue(HellfeatherSaves.ReadSnapshot("Tools/Saves/Fixture.sav", json))
+        int inventory = json.Find(0, "inventory")
+        T.AreEqual(json.Int(inventory, "gold", 0), 4321)
+        T.AreEqual(json.Count(json.Find(inventory, "bag")), 9)
+        T.AreEqual(json.Int(json.Find(0, "quests"), "ford", 0), 2)
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.LoadInventory(json)
+        T.AreEqual(game.Inventory.Items.Gold, 4321)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), 8)
+        bool rare = false
+        for entry : game.Inventory.Items.Bag {
+            if entry.Item == HellfeatherItems.Ring && entry.Mods.Rarity == HellfeatherRarity.Rare && entry.Mods.Count == 3 { rare = true }
+        }
+        T.IsTrue(rare)
+    }
+
+    StampsOrderTheSavesAndFreeSlotsFillFromTheFirst()
+    {
+        HellfeatherSaves.Folder = ".duck/test-saves"
+        for slot : 1; slot <= HellfeatherSaves.Slots; slot++ { HellfeatherSaves.Delete(slot) }
+        T.AreEqual(HellfeatherSaves.FreeSlot(), 1)
+        T.AreEqual(HellfeatherSaves.MostRecent(), 0)
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.ActiveSlot = 2
+        T.IsTrue(game.SaveCharacter())
+        game.ActiveSlot = 1
+        T.IsTrue(game.SaveCharacter())
+        T.AreEqual(HellfeatherSaves.MostRecent(), 1)
+        game.ActiveSlot = 2
+        T.IsTrue(game.SaveCharacter())
+        T.AreEqual(HellfeatherSaves.MostRecent(), 2)
+        T.AreEqual(HellfeatherSaves.FreeSlot(), 3)
+        HellfeatherSaves.Delete(1)
+        HellfeatherSaves.Delete(2)
+        HellfeatherSaves.Folder = "Saves"
+    }
+}

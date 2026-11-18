@@ -1,0 +1,1131 @@
+// The main menu and the pause menu. The main menu is a small voxel scene of
+// its own, far from the Fenmarch: the warrior beside a campfire on a ledge
+// above a river, a snowy ridge across the valley behind, the game's name in
+// voxel letters over the camp and black feathers drifting past. The choices are drawn over it. Escape in the game closes the
+// open panels, or pauses when none are open.
+
+// What has the screen.
+HellfeatherScreen : int
+#@{
+    Playing, MainMenu, Paused
+}
+
+HellfeatherMenuChoice : int
+#@{
+    None, Resume, SaveGame, MainMenu, ExitGame
+}
+
+// A column of choices with one highlighted. The mouse and the keys both move
+// the highlight; a click, Enter or Space takes it.
+HellfeatherMenu
+{
+    HellfeatherMenuChoice [] Choices
+    int Highlight
+    // The line over a paused menu, which a save turns into its result.
+    string Heading = "Paused"
+    // Each starts held, so the press that opened the menu cannot also choose.
+    -bool UpHeld = true
+    -bool DownHeld = true
+    -bool PickHeld = true
+    -bool MouseHeld = true
+    // The pointer only takes the highlight when it moves, so it does not fight the keys.
+    -int LastMouseX = -1
+    -int LastMouseY = -1
+
+    Show()
+    {
+        Choices.Clear()
+        Highlight = 0
+        Heading = "Paused"
+        UpHeld = true
+        DownHeld = true
+        PickHeld = true
+        MouseHeld = true
+    }
+
+    Add(HellfeatherMenuChoice choice) { Choices += choice }
+
+    // W, S and the arrows move the highlight, Enter or Space takes it.
+    HellfeatherMenuChoice StepKeys(QuaxelInputState& input)
+    {
+        bool up = input.Down[HellfeatherKeys.Up] || input.IsDown(QuaxelKey.W)
+        bool down = input.Down[HellfeatherKeys.Down] || input.IsDown(QuaxelKey.S)
+        bool pick = input.Down[HellfeatherKeys.Enter] || input.Down[HellfeatherKeys.Space]
+        bool picked = pick && !PickHeld
+        int count = (int)Choices.Len
+        if count > 0 {
+            if up && !UpHeld { Highlight = (Highlight + count - 1) % count }
+            if down && !DownHeld { Highlight = (Highlight + 1) % count }
+        }
+        UpHeld = up
+        DownHeld = down
+        PickHeld = pick
+        if !picked || count == 0 { return HellfeatherMenuChoice.None }
+        return Choices[Math.Clamp(Highlight, 0, count - 1)]
+    }
+
+    // Draws the choices centered across the screen with their middle at
+    // CenterY, on the UI grid. Paused dims the world behind and frames them.
+    // Returns the choice clicked this frame, or None.
+    HellfeatherMenuChoice Draw(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool mouseDown, int centerY, bool paused)
+    {
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        int pointerX = mouseX / scale
+        int pointerY = mouseY / scale
+        int count = (int)Choices.Len
+        int left = (gridWidth - HellfeatherMenu.ButtonWidth) / 2
+        int total = count * HellfeatherMenu.ButtonHeight + (count - 1) * HellfeatherMenu.ButtonGap
+        int top = centerY - total / 2
+        if paused {
+            ui.OverlayRect(0, 0, gridWidth, gridHeight, 0x99000000)
+            int frameTop = top - 22
+            int frameHeight = total + 30
+            ui.OverlayRect(left - 9, frameTop - 1, HellfeatherMenu.ButtonWidth + 18, frameHeight + 2, 0xFF5A4636)
+            ui.OverlayRect(left - 8, frameTop, HellfeatherMenu.ButtonWidth + 16, frameHeight, 0xF00C0A0A)
+            ui.OverlayText((gridWidth - (int)Length(Heading) * 6 + 1) / 2, frameTop + 6, Heading, 0xFFE0B860)
+        }
+        bool moved = pointerX != LastMouseX || pointerY != LastMouseY
+        LastMouseX = pointerX
+        LastMouseY = pointerY
+        bool pressed = mouseDown && !MouseHeld
+        MouseHeld = mouseDown
+        HellfeatherMenuChoice clicked = HellfeatherMenuChoice.None
+        for i : 0; i < count; i++ {
+            int y = top + i * (HellfeatherMenu.ButtonHeight + HellfeatherMenu.ButtonGap)
+            bool over = pointerX >= left && pointerX < left + HellfeatherMenu.ButtonWidth && pointerY >= y && pointerY < y + HellfeatherMenu.ButtonHeight
+            if over && moved { Highlight = i }
+            if over && pressed {
+                Highlight = i
+                clicked = Choices[i]
+            }
+            DrawButton(ui, left, y, HellfeatherMenu.Label(Choices[i]), i == Highlight)
+        }
+        return clicked
+    }
+
+    -DrawButton(QuaxelUi& ui, int x, int y, string label, bool lit)
+    {
+        int w = HellfeatherMenu.ButtonWidth
+        int h = HellfeatherMenu.ButtonHeight
+        ui.OverlayRect(x, y, w, h, lit ? (uint)0xFFC8963C | (uint)0xFF4A3C30)
+        ui.OverlayRect(x + 1, y + 1, w - 2, h - 2, lit ? (uint)0xF0301A10 | (uint)0xE0100C0B)
+        // A thin ember line along the top of the lit one.
+        if lit { ui.OverlayRect(x + 2, y + 2, w - 4, 1, 0x80F0A040) }
+        int textWidth = (int)Length(label) * 6 - 1
+        ui.OverlayText(x + (w - textWidth) / 2, y + (h - 7) / 2 + 1, label, lit ? (uint)0xFFF4D894 | (uint)0xFFA89880)
+        if lit {
+            // Small diamonds either side of the chosen line.
+            ui.OverlayRect(x - 6, y + h / 2 - 1, 3, 3, 0xFFC8963C)
+            ui.OverlayRect(x + w + 3, y + h / 2 - 1, 3, 3, 0xFFC8963C)
+        }
+    }
+}
+#{
+    // In UI grid pixels.
+    #int ButtonWidth = 110
+    #int ButtonHeight = 15
+    #int ButtonGap = 4
+
+    string Label(HellfeatherMenuChoice choice)
+    {
+        if choice == HellfeatherMenuChoice.Resume { return "Resume" }
+        if choice == HellfeatherMenuChoice.SaveGame { return "Save Game" }
+        if choice == HellfeatherMenuChoice.MainMenu { return "Main Menu" }
+        if choice == HellfeatherMenuChoice.ExitGame { return "Exit Game" }
+        return ""
+    }
+}
+
+// The voxel art of the menu scene: the land around the camp and the title.
+//
+// The camera is orthographic, so a point's place on screen does not shrink
+// with distance. The land is therefore shaped in the camera's own terms:
+// Across runs right along the screen and Into runs away from the viewer along
+// the ground. The camp sits on a ledge at height 0 with a river in front of
+// it; behind it the ground drops into a valley, and a ridge rises across the
+// valley, high enough to stand against the sky at the top of the screen with
+// a low saddle in the middle for the title.
+HellfeatherMenuArt
+#{
+    // The camera's turn about the vertical and its tilt below the horizon, in
+    // radians, with their sines and cosines.
+    #float Yaw = 0.43
+    #float SinYaw = 0.416871
+    #float CosYaw = 0.908966
+    #float Pitch = 0.24
+    #float SinPitch = 0.237703
+    #float CosPitch = 0.971338
+
+    // Land is built in tiles of terrain cells, the size of the game's chunks.
+    #float Cell = 0.125
+    #int TileColumns = 128
+    #int TileCells = 128
+    #float TileBottom = -8.0
+    #float WaterLevel = -0.75
+    #float ValleyFloor = -6.0
+    #float FarFloor = -7.5
+    // The height of ground that is not there: off screen or behind the ridge.
+    #float Missing = -100.0
+
+    // The game's own terrain colors, so the scene matches the land she walks.
+    #int Grass = 0x193326
+    #int DryGrass = 0x2a3320
+    #int Forest = 0x152a1e
+    #int Pine = 0x10241a
+    #int Dirt = 0x2a2018
+    #int Mud = 0x2a2418
+    #int Rock = 0x3a322c
+    #int Snow = 0xc8ccd6
+    #int Water = 0x123a66
+    #int WaterDeep = 0x0c2a4c
+    #int WaterGlint = 0x2c5c8c
+
+    // The title: letters 5 cells wide and 7 tall with one empty cell between,
+    // each cell TitleCell voxels square, raised TitleDepth voxels toward +Z.
+    #int TitleCell = 3
+    #int TitleDepth = 6
+    #int TitleMargin = 1
+    #int GlyphWide = 5
+    #int GlyphTall = 7
+
+    #int Bronze = 0x8a6a3c
+    #int BronzeLight = 0xd8b070
+    #int BronzeDark = 0x3a2a1c
+
+    // The rows of a letter, top first, the left cell in bit 4.
+    // Letters: 0 H, 1 E, 2 L, 3 F, 4 A, 5 T, 6 R.
+    int GlyphRow(int letter, int row)
+    {
+        int [49] rows = {
+            17, 17, 17, 31, 17, 17, 17,
+            31, 16, 16, 30, 16, 16, 31,
+            16, 16, 16, 16, 16, 16, 31,
+            31, 16, 16, 30, 16, 16, 16,
+            14, 17, 17, 31, 17, 17, 17,
+            31, 4, 4, 4, 4, 4, 4,
+            30, 17, 17, 30, 20, 18, 17
+        }
+        return rows[letter * 7 + row]
+    }
+
+    // HELLFEATHER, as letters of GlyphRow.
+    int Letter(int index)
+    {
+        int [11] word = {0, 1, 2, 2, 3, 1, 4, 5, 0, 1, 6}
+        return word[index]
+    }
+
+    int TitleLetters() { return 11 }
+
+    int TitleColumns() { return TitleLetters() * (GlyphWide + 1) - 1 }
+
+    int TitleWide() { return TitleColumns() * TitleCell + TitleMargin * 2 }
+
+    int TitleTall() { return GlyphTall * TitleCell + TitleMargin * 2 }
+
+    // Whether a cell of the whole title is filled. Column 0 is the left, row 0 the top.
+    bool TitleCellLit(int column, int row)
+    {
+        if column < 0 || row < 0 || column >= TitleColumns() || row >= GlyphTall { return false }
+        int letter = column / (GlyphWide + 1)
+        int within = column % (GlyphWide + 1)
+        if within == GlyphWide { return false }
+        return (GlyphRow(Letter(letter), row) >> (GlyphWide - 1 - within) & 1) == 1
+    }
+
+    // Whether the voxel column at x, y (y up) lies in a filled cell.
+    -bool TitleVoxelLit(int x, int y)
+    {
+        int cx = x - TitleMargin
+        int cy = TitleTall() - 1 - TitleMargin - y
+        if cx < 0 || cy < 0 { return false }
+        return TitleCellLit(cx / TitleCell, cy / TitleCell)
+    }
+
+    // Chiseled bronze letters: flat faces, sunken rims and a bright upper edge.
+    int Title(QuaxelWorld& world)
+    {
+        int volume = world.CreateVolume(TitleWide(), TitleTall(), TitleDepth + 2)
+        if volume < 0 { return -1 }
+        for x : 0; x < TitleWide(); x++ {
+            for y : 0; y < TitleTall(); y++ {
+                if !TitleVoxelLit(x, y) { continue }
+                bool above = TitleVoxelLit(x, y + 1)
+                bool rim = !above || !TitleVoxelLit(x, y - 1) || !TitleVoxelLit(x - 1, y) || !TitleVoxelLit(x + 1, y)
+                int n = HellfeatherArt.Hash(x, y, 31)
+                int front = rim ? TitleDepth - 1 | TitleDepth
+                int color = HellfeatherArt.Shade(Bronze, 82 + n % 24)
+                if rim { color = HellfeatherArt.Shade(BronzeDark, 90 + n % 30) }
+                if !above { color = HellfeatherArt.Shade(BronzeLight, 88 + n % 14) }
+                // Hairline cracks across the faces.
+                else if !rim && (x * 5 + y * 3 + n % 4) % 23 == 0 { color = HellfeatherArt.Shade(BronzeDark, 120) }
+                for z : 1; z <= front; z++ {
+                    int shade = z == front ? color | HellfeatherArt.Shade(BronzeDark, 80)
+                    world.SetVoxel(volume, x, y, z, shade)
+                }
+            }
+        }
+        return volume
+    }
+
+    // Across and Into for a point on the ground, relative to the camp.
+    float Across(float x, float z) { return CosYaw * x - SinYaw * z }
+
+    float Into(float x, float z) { return -SinYaw * x - CosYaw * z }
+
+    // The ground point, relative to the camp, at Across and Into.
+    vec3 At(float across, float into) { return vec3(CosYaw * across - SinYaw * into, 0.0, -SinYaw * across - CosYaw * into) }
+
+    float Smooth(float edge0, float edge1, float value)
+    {
+        float t = Math.Clamp((value - edge0) / (edge1 - edge0), 0.0, 1.0)
+        return t * t * (3.0 - 2.0 * t)
+    }
+
+    // The middle of the river, which winds across in front of the camp.
+    float River(float across) { return -5.0 + 0.1 * across + 0.8 * Math.Sin(0.35 * across) }
+
+    // How far back the ridge's crest runs.
+    float CrestInto(float across) { return 16.0 + 3.0 * QuaxelNoise.Value((uint)5, across * 0.2, 0.0) }
+
+    // Where the crest should show on screen, in view units above the camp:
+    // low in the middle under the title, high peaks to either side.
+    float CrestView(float across)
+    {
+        float side = Smooth(1.5, 6.5, Math.Abs(across))
+        float peaks = QuaxelNoise.Value((uint)7, across * 0.45, 3.0) - 0.5
+        float teeth = QuaxelNoise.Value((uint)8, across * 1.7, 9.0) - 0.5
+        return 3.7 + 2.9 * side + peaks * (0.4 + side) + 0.35 * teeth
+    }
+
+    // The crest's height above the camp that puts it at CrestView on screen.
+    float CrestHeight(float across) { return (CrestView(across) - SinPitch * CrestInto(across)) / CosPitch }
+
+    // A taller range far behind the ridge fills the sky over it, up past the
+    // top of the screen with only a few notches of sky between its peaks.
+    float FarInto(float across) { return 25.0 + 3.0 * QuaxelNoise.Value((uint)15, across * 0.15, 2.0) }
+
+    float FarView(float across)
+    {
+        float peaks = QuaxelNoise.Value((uint)16, across * 0.3, 5.0) - 0.5
+        float teeth = QuaxelNoise.Value((uint)17, across * 1.3, 1.0) - 0.5
+        return 6.5 + 1.2 * peaks + 0.4 * teeth
+    }
+
+    float FarHeight(float across) { return (FarView(across) - SinPitch * FarInto(across)) / CosPitch }
+
+    // True for ground of the far range, which is drawn through a blue haze.
+    bool IsFar(float across, float into) { return into > CrestInto(across) + 0.6 }
+
+    // Blends a color a share of the way toward the evening haze.
+    int Haze(int color, int percent)
+    {
+        int haze = 0x2c3450
+        int red = (((color >> 16) & 255) * (100 - percent) + ((haze >> 16) & 255) * percent) / 100
+        int green = (((color >> 8) & 255) * (100 - percent) + ((haze >> 8) & 255) * percent) / 100
+        int blue = ((color & 255) * (100 - percent) + (haze & 255) * percent) / 100
+        return (red << 16) | (green << 8) | blue
+    }
+
+    // The height of the ground, or Missing where there is none.
+    float Height(float across, float into)
+    {
+        if Math.Abs(across) > 16.0 || into < -22.0 { return Missing }
+        float crestInto = CrestInto(across)
+        if into > crestInto + 0.6 {
+            // The far range rises from a hidden valley behind the ridge.
+            float farInto = FarInto(across)
+            if into > farInto + 0.6 { return Missing }
+            float start = crestInto + 0.6
+            float t = Math.Clamp((into - start) / (farInto - start), 0.0, 1.0)
+            float ribs = (QuaxelNoise.Fbm((uint)18, across * 0.6, into * 0.6, 3) - 0.5) * 2.6 * Math.Sin(t * 3.14159)
+            return FarFloor + (FarHeight(across) - FarFloor) * Math.Pow(t, 1.6) + ribs
+        }
+        float roll = QuaxelNoise.Fbm((uint)21, across * 0.35, into * 0.35, 3) - 0.5
+        // The camp's ledge: flat by the fire, gently rolling farther out.
+        float camp = Smooth(4.0, 6.5, Math.Sqrt(across * across + into * into))
+        float y = roll * 0.35 * camp
+        // Down from the ledge to the river meadow, rising a little toward the viewer.
+        float meadow = -0.45 + roll * 0.4 + Smooth(-9.0, -20.0, into) * 0.6
+        y = Math.Lerp(meadow, y, Smooth(-4.2, -2.4, into))
+        // The river's channel.
+        float channel = 1.0 - Smooth(0.5, 1.5, Math.Abs(into - River(across)))
+        y = Math.Lerp(y, -1.15, channel)
+        // Behind the camp the ground falls away into the valley.
+        float edge = 5.5 + roll * 1.6
+        y = Math.Lerp(y, ValleyFloor, Smooth(edge, edge + 2.5, into))
+        // The ridge across the valley, cut by gullies.
+        if into > 9.0 {
+            float u = Math.Clamp((into - 9.0) / (crestInto - 9.0), 0.0, 1.0)
+            float gullies = (QuaxelNoise.Fbm((uint)4, across * 0.8, into * 0.8, 3) - 0.5) * 2.2 * Math.Sin(u * 3.14159)
+            y = Math.Max(y, ValleyFloor + (CrestHeight(across) - ValleyFloor) * Math.Pow(u, 1.25) + gullies)
+        }
+        return y
+    }
+
+    // True on the trodden path from the camp down to the river.
+    bool OnPath(float across, float into)
+    {
+        if into > -1.2 || into < River(across) + 1.0 { return false }
+        float middle = 0.6 + 0.25 * (into + 1.5)
+        return Math.Abs(across - middle) < 0.3 + 0.1 * QuaxelNoise.Value((uint)12, into * 2.0, 0.0)
+    }
+
+    // The color of the top cell. Slope is the largest height step to a neighbor.
+    -int TopColor(float across, float into, float height, float slope, int hash)
+    {
+        int vary = 84 + hash % 26
+        if height < WaterLevel { return HellfeatherArt.Shade(Mud, vary) }
+        if IsFar(across, into) {
+            float farSnow = FarHeight(across) - 1.6 + (QuaxelNoise.Value((uint)19, across * 0.7, into * 0.7) - 0.5) * 1.4
+            if height > farSnow && slope < 0.4 { return Haze(HellfeatherArt.Shade(Snow, 88 + hash % 14), 30) }
+            return Haze(HellfeatherArt.Shade(Rock, vary), 40)
+        }
+        if into > 8.0 {
+            float snowLine = 1.4 + (QuaxelNoise.Value((uint)9, across * 0.9, into * 0.9) - 0.5) * 1.6
+            if height > snowLine && slope < 0.35 { return HellfeatherArt.Shade(Snow, 88 + hash % 14) }
+            if slope > 0.14 || height > 0.4 { return HellfeatherArt.Shade(Rock, vary) }
+            return HellfeatherArt.Shade(Forest, vary)
+        }
+        if slope > 0.2 { return HellfeatherArt.Shade(Rock, vary) }
+        if OnPath(across, into) { return HellfeatherArt.Shade(Dirt, vary) }
+        if Math.Abs(into - River(across)) < 1.6 { return HellfeatherArt.Shade(Mud, vary) }
+        if QuaxelNoise.Value((uint)11, across * 0.5, into * 0.5) > 0.68 { return HellfeatherArt.Shade(DryGrass, vary) }
+        return HellfeatherArt.Shade(Grass, vary)
+    }
+
+    // The land, as up to sixteen tiles around the camp at Origin. False if one failed.
+    bool Landscape(QuaxelWorld& world, vec3 origin)
+    {
+        for tileX : -2; tileX <= 1; tileX++ {
+            for tileZ : -2; tileZ <= 1; tileZ++ {
+                if !LandscapeTile(world, origin, tileX, tileZ) { return false }
+            }
+        }
+        return true
+    }
+
+    -bool LandscapeTile(QuaxelWorld& world, vec3 origin, int tileX, int tileZ)
+    {
+        int n = TileColumns
+        float left = ((float)tileX - 0.5) * (float)n * Cell
+        float back = ((float)tileZ - 0.5) * (float)n * Cell
+        // Heights with a border of one, so every column can see its neighbors.
+        int wide = n + 2
+        float [] heights
+        bool any = false
+        for i : 0; i < wide; i++ {
+            for j : 0; j < wide; j++ {
+                float x = left + ((float)(i - 1) + 0.5) * Cell
+                float z = back + ((float)(j - 1) + 0.5) * Cell
+                float h = Height(Across(x, z), Into(x, z))
+                heights += h
+                if h > Missing + 1.0 { any = true }
+            }
+        }
+        if !any { return true }
+        int volume = world.CreateVolume(n, TileCells, n)
+        if volume < 0 { return false }
+        int water = (int)((WaterLevel - TileBottom) / Cell) - 1
+        for i : 1; i <= n; i++ {
+            for j : 1; j <= n; j++ {
+                float h = heights[i * wide + j]
+                if h <= Missing + 1.0 { continue }
+                float x = left + ((float)(i - 1) + 0.5) * Cell
+                float z = back + ((float)(j - 1) + 0.5) * Cell
+                float across = Across(x, z)
+                float into = Into(x, z)
+                // Fill down past the lowest neighbor, so slopes and cliffs have no holes.
+                float lowest = h
+                float slope = 0.0
+                int [4] neighbors = {(i - 1) * wide + j, (i + 1) * wide + j, i * wide + j - 1, i * wide + j + 1}
+                for k : 0; k < 4; k++ {
+                    float other = heights[neighbors[k]]
+                    if other <= Missing + 1.0 { lowest = Math.Min(lowest, h - 1.0) }
+                    else {
+                        lowest = Math.Min(lowest, other)
+                        slope = Math.Max(slope, Math.Abs(other - h))
+                    }
+                }
+                int top = Math.Clamp((int)((h - TileBottom) / Cell) - 1, 0, TileCells - 1)
+                int bottom = Math.Clamp((int)((lowest - TileBottom) / Cell) - 2, 0, top)
+                int hash = HellfeatherArt.Hash(i + tileX * n, j + tileZ * n, 17)
+                int surface = TopColor(across, into, h, slope, hash)
+                bool mountain = into > 8.0
+                bool far = IsFar(across, into)
+                for y : bottom; y <= top; y++ {
+                    int color = surface
+                    if y < top {
+                        int grain = HellfeatherArt.Hash(i, y, j) % 18
+                        color = top - y <= 2 && !mountain ? HellfeatherArt.Shade(Dirt, 80 + grain) | HellfeatherArt.Shade(Rock, 72 + grain)
+                        if far { color = Haze(color, 40) }
+                    }
+                    world.SetVoxel(volume, i - 1, y, j - 1, color)
+                }
+                // Water over the river's bed, darker below the surface.
+                for y : top + 1; y <= water; y++ {
+                    int color = WaterDeep
+                    if y == water { color = hash % 29 == 0 ? WaterGlint | HellfeatherArt.Shade(Water, 90 + hash % 16) }
+                    world.SetVoxel(volume, i - 1, y, j - 1, color)
+                }
+                // Small dark pines dotting the ridge's lower slopes.
+                if mountain && !far && h > -5.0 && h < 0.6 && slope < 0.2 && hash % 11 == 0 && top + 3 < TileCells {
+                    int tall = 2 + hash % 3
+                    for y : 1; y <= tall; y++ { world.SetVoxel(volume, i - 1, top + y, j - 1, HellfeatherArt.Shade(Pine, 80 + hash % 30)) }
+                }
+            }
+        }
+        int node = world.CreateNode()
+        vec3 center = origin + vec3(left + (float)n * Cell * 0.5, TileBottom + (float)TileCells * Cell * 0.5, back + (float)n * Cell * 0.5)
+        return world.AttachTransform(node, QuaxelTransform.Make(center, vec3(Cell, Cell, Cell))) && world.AttachVoxels(node, volume)
+    }
+}
+
+// The scene behind the main menu, built once and kept for returning to it.
+HellfeatherMenuScene
+{
+    bool Built
+    int Camera
+    int Warrior
+    -int Brazier
+    -int Campfire
+    // Black feathers drifting down over the land, a third of them burnt red like the logo's.
+    HellfeatherFeatherDrift Feathers
+    -float Time
+    -vec3 SavedSunDirection
+    -vec3 SavedSunColor
+    -vec3 SavedSkyColor
+    -vec3 SavedGroundColor
+    -bool Lit
+    HellfeatherFires Fires
+    HellfeatherWardrobe Wardrobe
+
+    // Far from the Fenmarch and the Undercroft, so nothing of the game is in view.
+    vec3 Origin() { return vec3(-4000.0, 0.0, -4000.0) }
+
+    // The point the camera looks at, a little above the camp.
+    vec3 Aim() { return Origin() + vec3(0.0, 1.6, 0.0) }
+
+    // The logo, built by Tools/Models/logo.py, hangs above her head against
+    // the far range, in front of everything at the camp so nothing there
+    // crosses it. Its voxels are the characters' size, which makes it about
+    // 5.9 wide and 4.8 tall. Without the file, the plain voxel capitals of
+    // HellfeatherMenuArt.Title stand in.
+    -bool PlaceTitle(QuaxelWorld& world)
+    {
+        vec3 toCamera = vec3(HellfeatherMenuArt.SinYaw, 0.0, HellfeatherMenuArt.CosYaw)
+        int logo = QuaxelAssets.LoadVoxelModel(world, "Assets/HellfeatherLogo.qvox")
+        if logo < 0 {
+            int title = HellfeatherMenuArt.Title(world)
+            float fine = HellfeatherArt.FineVoxel
+            return title >= 0 && Place(world, title, Origin() + vec3(-0.2, 4.3, -2.2), fine, toCamera.X, toCamera.Z)
+        }
+        // Two units nearer the viewer than the fire, and high enough that its
+        // middle shows three units above the camera's aim.
+        vec3 at = Origin() + HellfeatherMenuArt.At(0.0, -2.0) + vec3(0.0, 5.17, 0.0)
+        if !Place(world, logo, at, HellfeatherWarrior.VoxelSize, toCamera.X, toCamera.Z) { return false }
+        // A warm lamp before its face, which the low sun from the left barely reaches.
+        int lamp = world.CreateNode()
+        world.AttachTransform(lamp, QuaxelTransform.Make(at + toCamera * 2.5 + vec3(-0.8, 0.8, 0.0), vec3(1.0, 1.0, 1.0)))
+        QuaxelPointLight light
+        light.Color = vec3(1.0, 0.62, 0.36)
+        light.Radius = 7.0
+        light.Intensity = 7.0
+        return world.SetPointLight(lamp, light)
+    }
+
+    // Builds the land, its props, the logo and the warrior. Brazier and
+    // campfire are the game's props, which the scene's fires light.
+    bool Build(QuaxelWorld& world, HellfeatherProps props, int campfire)
+    {
+        Brazier = props.Brazier
+        Campfire = campfire
+        float fine = HellfeatherArt.FineVoxel
+        vec3 origin = Origin()
+        if Brazier < 0 || Campfire < 0 || !HellfeatherMenuArt.Landscape(world, origin) || !PlaceTitle(world) { return false }
+        if !Place(world, Campfire, origin + vec3(-1.0, 1.25, 0.9), fine, 0.0, 1.0) { return false }
+        if !Place(world, Brazier, origin + vec3(3.3, 1.25, -1.0), fine, 0.0, 1.0) { return false }
+        if !Place(world, Brazier, origin + vec3(-2.2, 1.25, -2.0), fine, 0.0, 1.0) { return false }
+        if !Place(world, props.Trees[1], origin + vec3(-3.6, 2.5, -1.0), fine, 0.6, 0.8) { return false }
+        if !Place(world, props.Rocks[0], origin + vec3(3.5, 0.55, 1.7), fine, 0.0, 1.0) { return false }
+        if !Place(world, props.Rocks[2], origin + vec3(-3.9, 0.55, 1.6), fine, 0.8, 0.6) { return false }
+        // Out across the land: trees on the ledge and the far bank, reeds at
+        // the water's edge and boulders where the ledge breaks off.
+        float treeHalf = (float)HellfeatherProps.TreeHeight * fine * 0.5
+        float rockHalf = (float)HellfeatherProps.RockHeight * fine * 0.5
+        float reedHalf = (float)FenmarchArt.ReedsHeight * fine * 0.5
+        bool placed = PlaceOn(world, props.Trees[0], -6.6, 1.6, treeHalf, 0.8, 0.6)
+        placed = placed && PlaceOn(world, props.Trees[2], 6.9, 2.6, treeHalf, -0.6, 0.8)
+        placed = placed && PlaceOn(world, props.Trees[1], 9.0, 0.3, treeHalf, 0.0, 1.0)
+        placed = placed && PlaceOn(world, props.Trees[2], -8.4, -9.5, treeHalf, 0.6, -0.8)
+        placed = placed && PlaceOn(world, props.Rocks[1], -4.2, 5.0, rockHalf, 0.0, 1.0)
+        placed = placed && PlaceOn(world, props.Rocks[0], 4.6, 4.8, rockHalf, 0.7, 0.7)
+        placed = placed && PlaceOn(world, props.Rocks[2], 7.2, -8.4, rockHalf, 0.0, 1.0)
+        placed = placed && PlaceOn(world, props.Reeds[0], -3.0, HellfeatherMenuArt.River(-3.0) + 1.25, reedHalf, 0.0, 1.0)
+        placed = placed && PlaceOn(world, props.Reeds[1], 4.5, HellfeatherMenuArt.River(4.5) + 1.3, reedHalf, 0.6, 0.8)
+        placed = placed && PlaceOn(world, props.Reeds[0], -6.0, HellfeatherMenuArt.River(-6.0) - 1.3, reedHalf, 0.8, 0.6)
+        placed = placed && PlaceOn(world, props.Reeds[1], 2.0, HellfeatherMenuArt.River(2.0) - 1.3, reedHalf, 0.0, 1.0)
+        if !placed { return false }
+        // A dull red glow over the camp, from behind.
+        int glow = world.CreateNode()
+        world.AttachTransform(glow, QuaxelTransform.Make(origin + vec3(0.0, 2.6, -1.4), vec3(1.0, 1.0, 1.0)))
+        QuaxelPointLight light
+        light.Color = vec3(1.0, 0.22, 0.08)
+        light.Radius = 6.0
+        light.Intensity = 9.0
+        if !world.SetPointLight(glow, light) { return false }
+
+        // She stands by the fire, half turned toward it.
+        Warrior = world.CreateNode()
+        float cell = HellfeatherWarrior.VoxelSize
+        QuaxelTransform pose = QuaxelTransform.Make(origin + vec3(0.7, HellfeatherWarrior.Height * cell * 0.5, 0.6), vec3(cell, cell, cell))
+        vec3 facing = Math.Normalize(vec3(-0.25, 0.0, 1.0))
+        pose.FacingX = facing.X
+        pose.FacingZ = facing.Z
+        world.AttachTransform(Warrior, pose)
+        world.SetCatchesEffects(Warrior, false)
+
+        Camera = world.CreateNode()
+        world.AttachTransform(Camera, QuaxelTransform.Make(Aim(), vec3(1.0, 1.0, 1.0)))
+        QuaxelCamera camera
+        camera.Up = vec3(0.0, 1.0, 0.0)
+        camera.FrameHalfWidth = 8.0
+        camera.FrameHalfHeight = 5.4
+        camera.Near = -30.0
+        camera.Far = 80.0
+        world.AttachCamera(Camera, camera)
+        Sway(world, 0.0)
+        Built = true
+        return true
+    }
+
+    // Stands a fine-voxel prop on the land at Across and Into.
+    -bool PlaceOn(QuaxelWorld& world, int volume, float across, float into, float halfHeight, float facingX, float facingZ)
+    {
+        float ground = HellfeatherMenuArt.Height(across, into)
+        vec3 center = Origin() + HellfeatherMenuArt.At(across, into) + vec3(0.0, ground + halfHeight, 0.0)
+        return Place(world, volume, center, HellfeatherArt.FineVoxel, facingX, facingZ)
+    }
+
+    -bool Place(QuaxelWorld& world, int volume, vec3 center, float cell, float facingX, float facingZ)
+    {
+        int node = world.CreateNode()
+        QuaxelTransform pose = QuaxelTransform.Make(center, vec3(cell, cell, cell))
+        pose.FacingX = facingX
+        pose.FacingZ = facingZ
+        return world.AttachTransform(node, pose) && world.AttachVoxels(node, volume)
+    }
+
+    // A slow sway of the camera, a few degrees either way, so the scene breathes.
+    -Sway(QuaxelWorld& world, float seconds)
+    {
+        float yaw = HellfeatherMenuArt.Yaw + 0.06 * Math.Sin(seconds * 0.16)
+        float pitch = HellfeatherMenuArt.Pitch
+        vec3 direction = vec3(-Math.Sin(yaw) * Math.Cos(pitch), -Math.Sin(pitch), -Math.Cos(yaw) * Math.Cos(pitch))
+        QuaxelCamera camera = world.GetCamera(Camera)
+        camera.Direction = direction
+        world.SetCamera(Camera, camera)
+        // An orthographic eye can sit anywhere on the line; Near reaches behind it.
+        QuaxelTransform transform = world.GetTransform(Camera)
+        transform.Position = Aim() - direction * 20.0
+        world.SetTransform(Camera, transform)
+    }
+
+    // Puts what she wears in the game on her here too.
+    bool Dress(QuaxelWorld& world, HellfeatherItems body, HellfeatherItems mainHand, HellfeatherItems offHand, HellfeatherItems head)
+    {
+        if !Wardrobe.Dress(world, Warrior, body, mainHand, offHand, head) { return false }
+        world.PlayClip(Warrior, "idle")
+        return true
+    }
+
+    // Shows the scene: its camera, its dusk and its fires.
+    bool Enter(QuaxelWorld& world)
+    {
+        if !Lit {
+            SavedSunDirection = world.SunDirection
+            SavedSunColor = world.SunColor
+            SavedSkyColor = world.SkyColor
+            SavedGroundColor = world.GroundColor
+            Lit = true
+        }
+        // A low red sun from the left, raking across the ridge, and a dim violet sky.
+        world.SunDirection = vec3(-0.85, 0.4, 0.35)
+        world.SunColor = vec3(0.78, 0.42, 0.30)
+        world.SkyColor = vec3(0.22, 0.20, 0.30)
+        world.GroundColor = vec3(0.11, 0.08, 0.08)
+        // Already falling when the menu shows, at every height.
+        Feathers.RedTips = true
+        Feathers.Most = 90
+        if Feathers.Live() == 0 {
+            for n : 0; n < 36; n++ { DropFeather(world, false) }
+        }
+        return world.SetActiveCamera(Camera)
+    }
+
+    // Hands the screen back to the game's light. The caller picks the camera.
+    Leave(QuaxelWorld& world)
+    {
+        Fires.Douse(world)
+        Feathers.Clear(world)
+        if !Lit { return }
+        world.SunDirection = SavedSunDirection
+        world.SunColor = SavedSunColor
+        world.SkyColor = SavedSkyColor
+        world.GroundColor = SavedGroundColor
+        Lit = false
+    }
+
+    Step(QuaxelWorld& world, float deltaSeconds)
+    {
+        Time += deltaSeconds
+        Sway(world, Time)
+        Fires.Step(world, Brazier, Campfire, Origin(), deltaSeconds)
+        int due = Feathers.Due(3.0, deltaSeconds)
+        for n : 0; n < due; n++ { DropFeather(world, true) }
+        Feathers.Step(world, deltaSeconds)
+    }
+
+    // A feather somewhere over the land in view, falling to the ground or water
+    // below it. From the top, it starts just above the top of the screen;
+    // otherwise anywhere between there and the ground.
+    -DropFeather(QuaxelWorld& world, bool fromTop)
+    {
+        float across = Feathers.Roll(-10.5, 10.5)
+        float into = Feathers.Roll(-9.0, 6.0)
+        float ground = HellfeatherMenuArt.Height(across, into)
+        if ground <= HellfeatherMenuArt.Missing + 1.0 { ground = HellfeatherMenuArt.ValleyFloor }
+        ground = Math.Max(ground, HellfeatherMenuArt.WaterLevel)
+        // The screen's top edge is FrameHalfHeight above the aim, in view units.
+        vec3 aim = Aim()
+        vec3 origin = Origin()
+        float aimView = (aim.Y - origin.Y) * HellfeatherMenuArt.CosPitch
+        float top = (aimView + 5.4 - HellfeatherMenuArt.SinPitch * into) / HellfeatherMenuArt.CosPitch + 0.4
+        float y = fromTop ? top | Feathers.Roll(ground + 0.3, top)
+        Feathers.Spawn(world, origin + HellfeatherMenuArt.At(across, into) + vec3(0.0, y, 0.0), origin.Y + ground)
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // Main sets MainMenu before the run when there is a window to show it in.
+    HellfeatherScreen Screen
+    // The pause menu.
+    HellfeatherMenu Menu
+    // The main menu's list of saved characters.
+    HellfeatherCharacterMenu Characters
+    HellfeatherMenuScene MenuScene
+    // Set once she is played in this world, so another character needs a fresh one.
+    -bool Started
+    -bool EscapeKeyHeld
+    // Set from the main menu to rebuild the game around another character:
+    // Main runs a new game for NextSlot in the same window. A new character
+    // starts fresh and saves to NextSlot.
+    bool Restart
+    int NextSlot
+    bool NextIsNew
+    // The loading frame has been shown, so the run may end.
+    -bool LoadingShown
+
+    bool WorldPaused() { return Screen == HellfeatherScreen.Paused }
+
+    bool Restarting() { return Restart && LoadingShown }
+
+    // True while no character has been played or loaded in this world, so one
+    // can start in it as it is.
+    bool Pristine() { return LoadSlot == 0 && !Started }
+
+    // Builds the menu scene the first time and shows it, with the active
+    // character chosen in the list.
+    bool EnterMainMenu(QuaxelWorld& world)
+    {
+        if !MenuScene.Built && !MenuScene.Build(world, Terrain.Valley.Props, Terrain.Town.Volumes.Campfire) { return false }
+        Characters.Refresh(ActiveSlot)
+        if !DressPreview(world) || !MenuScene.Enter(world) { return false }
+        Screen = HellfeatherScreen.MainMenu
+        return true
+    }
+
+    // Dresses the warrior in the scene as the chosen character, or in the
+    // starting kit when none is chosen.
+    -bool DressPreview(QuaxelWorld& world)
+    {
+        HellfeatherItems body = HellfeatherItems.LeatherArmor
+        HellfeatherItems mainHand = HellfeatherItems.HandAxe
+        HellfeatherItems offHand = HellfeatherItems.None
+        HellfeatherItems head = HellfeatherItems.MinersHelmet
+        if Characters.SelectedReadable() {
+            HellfeatherSaveSummary row = Characters.Rows[Characters.Selected]
+            body = row.Gear[0]
+            mainHand = row.Gear[1]
+            offHand = row.Gear[2]
+            head = row.Gear[3]
+        }
+        return MenuScene.Dress(world, body, mainHand, offHand, head)
+    }
+
+    Pause()
+    {
+        Screen = HellfeatherScreen.Paused
+        Menu.Show()
+        Menu.Add(HellfeatherMenuChoice.Resume)
+        Menu.Add(HellfeatherMenuChoice.SaveGame)
+        Menu.Add(HellfeatherMenuChoice.MainMenu)
+        Menu.Add(HellfeatherMenuChoice.ExitGame)
+    }
+
+    // Closes every panel that is open. Returns false if none was.
+    bool CloseAllPanels()
+    {
+        bool any = Inventory.Open || StatsScreen.Open || Passives.Open || Runes.Open || QuestLog.Open || Shop.Open || AutoMap.Open || Actions.Picking >= 0
+        // The bag puts a held item on the ground as it closes, like the I key.
+        if Inventory.Open { Inventory.Toggle() }
+        StatsScreen.Open = false
+        Passives.Open = false
+        Runes.Open = false
+        QuestLog.Open = false
+        Shop.Open = false
+        AutoMap.Open = false
+        Actions.Picking = -1
+        return any
+    }
+
+    // Leaves the main menu for the game as it stands.
+    Play(QuaxelWorld& world)
+    {
+        MenuScene.Leave(world)
+        world.SetActiveCamera(CameraNode)
+        Started = true
+        Screen = HellfeatherScreen.Playing
+    }
+
+    // Carries out a pause menu choice.
+    Choose(QuaxelWorld& world, HellfeatherMenuChoice choice)
+    {
+        if choice == HellfeatherMenuChoice.None { return }
+        if choice == HellfeatherMenuChoice.Resume { Screen = HellfeatherScreen.Playing }
+        else if choice == HellfeatherMenuChoice.SaveGame {
+            if ActiveSlot <= 0 { Menu.Heading = "Saving is off" }
+            else { Menu.Heading = SaveCharacter() ? "Game saved" | "Saving failed" }
+        }
+        else if choice == HellfeatherMenuChoice.MainMenu {
+            SaveCharacter()
+            if !EnterMainMenu(world) { Print("The main menu failed to build") }
+        }
+        else if choice == HellfeatherMenuChoice.ExitGame {
+            SaveCharacter()
+            QuaxelPlatform.RequestWindowClose()
+        }
+    }
+
+    // Carries out what the character list asked for.
+    ChooseCharacter(QuaxelWorld& world, HellfeatherCharacterAction action)
+    {
+        if action == HellfeatherCharacterAction.None || Restart { return }
+        if action == HellfeatherCharacterAction.Select { DressPreview(world) }
+        else if action == HellfeatherCharacterAction.Continue { ContinueCharacter(world, Characters.SelectedSlot()) }
+        else if action == HellfeatherCharacterAction.NewCharacter { NewCharacter(world) }
+        else if action == HellfeatherCharacterAction.ConfirmDelete {
+            int slot = Characters.SelectedSlot()
+            if slot <= 0 { return }
+            HellfeatherSaves.Delete(slot)
+            // Nothing saves to it again, though she stays loaded in this world.
+            if slot == ActiveSlot { ActiveSlot = 0 }
+            Characters.Refresh(ActiveSlot)
+            DressPreview(world)
+        }
+        else if action == HellfeatherCharacterAction.ExitGame { QuaxelPlatform.RequestWindowClose() }
+    }
+
+    // The character loaded in this world plays on at once; any other needs
+    // the world rebuilt around her.
+    -ContinueCharacter(QuaxelWorld& world, int slot)
+    {
+        if slot <= 0 { return }
+        if slot == ActiveSlot {
+            Play(world)
+            return
+        }
+        RestartWith(slot, false)
+    }
+
+    -NewCharacter(QuaxelWorld& world)
+    {
+        int slot = HellfeatherSaves.FreeSlot()
+        if slot <= 0 {
+            Characters.Notice = "Every slot is taken: delete a character first"
+            return
+        }
+        if Pristine() {
+            ActiveSlot = slot
+            if !SaveCharacter() {
+                ActiveSlot = 0
+                Characters.Notice = "The save folder cannot be written"
+                return
+            }
+            Play(world)
+            return
+        }
+        RestartWith(slot, true)
+    }
+
+    -RestartWith(int slot, bool fresh)
+    {
+        // What the outgoing character did since the menu opened is kept.
+        if Started { SaveCharacter() }
+        Restart = true
+        NextSlot = slot
+        NextIsNew = fresh
+        LoadingShown = false
+    }
+
+    // Runs the menus' part of a step. Returns true while a menu holds the game still.
+    -bool StepScreens(QuaxelWorld& world, QuaxelInputState& input, float deltaSeconds)
+    {
+        bool escape = input.Down[HellfeatherKeys.Escape]
+        bool pressed = escape && !EscapeKeyHeld
+        EscapeKeyHeld = escape
+        if Screen == HellfeatherScreen.MainMenu {
+            MenuScene.Step(world, deltaSeconds)
+            // The land around her keeps streaming in behind the menu.
+            if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
+            ChooseCharacter(world, Characters.StepKeys(input))
+            return true
+        }
+        if Screen == HellfeatherScreen.Paused {
+            if pressed { Choose(world, HellfeatherMenuChoice.Resume) }
+            else { Choose(world, Menu.StepKeys(input)) }
+            return true
+        }
+        StepSaving(deltaSeconds)
+        // A conversation takes Escape to leave. Otherwise Escape shuts the open
+        // panels, and pauses when there are none.
+        if pressed && !Talk.Open && !CloseAllPanels() {
+            Pause()
+            return true
+        }
+        return false
+    }
+
+    // The menu over the scene or over the paused game. Mouse buttons count as
+    // held, so the click that leaves a menu does not also swing.
+    -UpdateMenuUi(QuaxelUi& ui, QuaxelWorld& world, int width, int height, bool hasWindow, int mouseX, int mouseY, bool mouseDown, bool rightDown)
+    {
+        MouseHeld = mouseDown
+        RightMouseHeld = rightDown
+        ui.SetVisible("fps", false)
+        if !hasWindow { return }
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        if Restart {
+            // One frame saying so before the world is rebuilt.
+            ui.OverlayRect(0, 0, gridWidth, gridHeight, 0xE0000000)
+            string loading = "Loading"
+            ui.OverlayText((gridWidth - (int)Length(loading) * 6 + 1) / 2, gridHeight / 2 - 4, loading, 0xFFE0B860)
+            LoadingShown = true
+            return
+        }
+        if Screen == HellfeatherScreen.MainMenu {
+            ChooseCharacter(world, Characters.Draw(ui, width, height, mouseX, mouseY, mouseDown))
+            return
+        }
+        Choose(world, Menu.Draw(ui, width, height, mouseX, mouseY, mouseDown, gridHeight / 2 + 8, true))
+    }
+}
+T{
+    TheLandIsFlatAtTheCampWithWaterInFrontAndARidgeBehind()
+    {
+        // Flat under the fire, the warrior and the braziers.
+        T.AreEqual(HellfeatherMenuArt.Height(0.0, 0.0), 0.0)
+        T.AreEqual(HellfeatherMenuArt.Height(3.4, -0.5), 0.0)
+        // The river's bed lies under water.
+        T.IsTrue(HellfeatherMenuArt.Height(0.0, HellfeatherMenuArt.River(0.0)) < HellfeatherMenuArt.WaterLevel)
+        // The valley sinks out of sight behind the ledge.
+        T.IsTrue(HellfeatherMenuArt.Height(0.0, 8.5) < -4.0)
+        // The ridge stands higher on screen at its sides than at the saddle.
+        float saddle = HellfeatherMenuArt.CrestView(0.0)
+        T.IsTrue(HellfeatherMenuArt.CrestView(8.0) > saddle + 1.5)
+        T.IsTrue(HellfeatherMenuArt.CrestView(-8.0) > saddle + 1.5)
+        // Nothing beyond the screen's sides.
+        float behind = HellfeatherMenuArt.CrestInto(0.0) + 1.0
+        // Just behind the ridge the far range starts low, hidden by it.
+        T.IsTrue(HellfeatherMenuArt.Height(0.0, behind) < HellfeatherMenuArt.CrestHeight(0.0) - 3.0)
+        T.AreEqual(HellfeatherMenuArt.Height(17.0, 0.0), HellfeatherMenuArt.Missing)
+        // The far range fills the sky over the saddle, behind the ridge, and ends behind its crest.
+        T.IsTrue(HellfeatherMenuArt.FarView(0.0) > saddle + 1.5)
+        T.IsTrue(HellfeatherMenuArt.IsFar(0.0, behind))
+        T.AreEqual(HellfeatherMenuArt.Height(0.0, HellfeatherMenuArt.FarInto(0.0) + 1.0), HellfeatherMenuArt.Missing)
+        // Across and Into undo At.
+        vec3 point = HellfeatherMenuArt.At(2.0, -3.0)
+        T.AreEqual(HellfeatherMenuArt.Across(point.X, point.Z), 2.0)
+        T.AreEqual(HellfeatherMenuArt.Into(point.X, point.Z), -3.0)
+    }
+
+    TheTitleSpellsHellfeather()
+    {
+        // H's crossbar, and the gap between letters.
+        T.IsTrue(HellfeatherMenuArt.TitleCellLit(0, 0))
+        T.IsFalse(HellfeatherMenuArt.TitleCellLit(1, 0))
+        T.IsTrue(HellfeatherMenuArt.TitleCellLit(2, 3))
+        T.IsFalse(HellfeatherMenuArt.TitleCellLit(5, 3))
+        // The T of FEATHER: a full top row, then only its middle.
+        int t = 7 * 6
+        T.IsTrue(HellfeatherMenuArt.TitleCellLit(t, 0))
+        T.IsTrue(HellfeatherMenuArt.TitleCellLit(t + 4, 0))
+        T.IsFalse(HellfeatherMenuArt.TitleCellLit(t, 1))
+        T.IsTrue(HellfeatherMenuArt.TitleCellLit(t + 2, 6))
+        T.AreEqual(HellfeatherMenuArt.TitleColumns(), 65)
+    }
+
+    MenuKeysMoveTheHighlightAndPickOncePerPress()
+    {
+        HellfeatherMenu menu
+        menu.Show()
+        menu.Add(HellfeatherMenuChoice.Resume)
+        menu.Add(HellfeatherMenuChoice.ExitGame)
+        QuaxelInputState input
+        // Keys held as the menu opened do nothing until let go.
+        input.Down[HellfeatherKeys.Enter] = true
+        T.AreEqual(menu.StepKeys(input), HellfeatherMenuChoice.None)
+        input.Clear()
+        menu.StepKeys(input)
+        input.SetDown(QuaxelKey.S, true)
+        menu.StepKeys(input)
+        menu.StepKeys(input)
+        T.AreEqual(menu.Highlight, 1)
+        input.Clear()
+        input.Down[HellfeatherKeys.Up] = true
+        menu.StepKeys(input)
+        T.AreEqual(menu.Highlight, 0)
+        input.Clear()
+        menu.StepKeys(input)
+        input.Down[HellfeatherKeys.Up] = true
+        menu.StepKeys(input)
+        // Up from the top wraps to the bottom.
+        T.AreEqual(menu.Highlight, 1)
+        input.Clear()
+        input.Down[HellfeatherKeys.Enter] = true
+        T.AreEqual(menu.StepKeys(input), HellfeatherMenuChoice.ExitGame)
+        T.AreEqual(menu.StepKeys(input), HellfeatherMenuChoice.None)
+    }
+
+    EscapePausesAndHoldsTheWorldStill()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        game.Simulate(world, input, 2)
+        input.Down[HellfeatherKeys.Escape] = true
+        game.Simulate(world, input, 1)
+        T.AreEqual(game.Screen, HellfeatherScreen.Paused)
+        T.IsTrue(game.WorldPaused())
+        // Walking does nothing while paused.
+        vec3 before = world.GetPosition(game.PlayerNode)
+        input.Clear()
+        input.SetDown(QuaxelKey.W, true)
+        vec3 after = game.Simulate(world, input, 30)
+        T.AreEqual(after.X, before.X)
+        T.AreEqual(after.Z, before.Z)
+        // A second press of Escape resumes.
+        input.Clear()
+        input.Down[HellfeatherKeys.Escape] = true
+        game.Simulate(world, input, 1)
+        T.AreEqual(game.Screen, HellfeatherScreen.Playing)
+    }
+
+    EscapeClosesOpenPanelsBeforePausing()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        game.ToggleHudPanel(HellfeatherHudPanel.Inventory)
+        game.ToggleHudPanel(HellfeatherHudPanel.Stats)
+        input.Down[HellfeatherKeys.Escape] = true
+        game.Simulate(world, input, 3)
+        T.IsFalse(game.Inventory.Open)
+        T.IsFalse(game.StatsScreen.Open)
+        T.AreEqual(game.Screen, HellfeatherScreen.Playing)
+        input.Clear()
+        game.Simulate(world, input, 1)
+        input.Down[HellfeatherKeys.Escape] = true
+        game.Simulate(world, input, 1)
+        T.AreEqual(game.Screen, HellfeatherScreen.Paused)
+    }
+
+    TheMainMenuShowsItsSceneAndANewCharacterStartsInIt()
+    {
+        HellfeatherSaves.Folder = ".duck/test-saves"
+        for slot : 1; slot <= HellfeatherSaves.Slots; slot++ { HellfeatherSaves.Delete(slot) }
+        HellfeatherGame game()
+        game.Screen = HellfeatherScreen.MainMenu
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(game.MenuScene.Built)
+        T.AreEqual(world.ActiveCamera, game.MenuScene.Camera)
+        T.AreEqual(game.Characters.Selected, -1)
+        // The scene animates and its fires light while the game waits.
+        QuaxelInputState input
+        vec3 before = world.GetPosition(game.PlayerNode)
+        input.SetDown(QuaxelKey.D, true)
+        vec3 after = game.Simulate(world, input, 30)
+        T.AreEqual(after.X, before.X)
+        T.IsTrue(game.MenuScene.Fires.Burning() > 0)
+        T.IsTrue(game.MenuScene.Feathers.Live() > 0)
+        // Nothing has been played here, so a new character starts in this world.
+        game.ChooseCharacter(world, HellfeatherCharacterAction.NewCharacter)
+        T.AreEqual(game.Screen, HellfeatherScreen.Playing)
+        T.AreEqual(world.ActiveCamera, game.CameraNode)
+        T.AreEqual(game.MenuScene.Fires.Burning(), 0)
+        T.AreEqual(game.ActiveSlot, 1)
+        T.IsTrue(HellfeatherSaves.Exists(1))
+        // Back to the menu from the pause menu, she is listed and continues at once.
+        game.Pause()
+        game.Choose(world, HellfeatherMenuChoice.MainMenu)
+        T.AreEqual(game.Screen, HellfeatherScreen.MainMenu)
+        T.AreEqual((int)game.Characters.Rows.Len, 1)
+        T.AreEqual(game.Characters.SelectedSlot(), 1)
+        game.ChooseCharacter(world, HellfeatherCharacterAction.Continue)
+        T.AreEqual(game.Screen, HellfeatherScreen.Playing)
+        T.IsFalse(game.Restart)
+        // Another new character needs the world rebuilt.
+        game.Pause()
+        game.Choose(world, HellfeatherMenuChoice.MainMenu)
+        game.ChooseCharacter(world, HellfeatherCharacterAction.NewCharacter)
+        T.IsTrue(game.Restart)
+        T.AreEqual(game.NextSlot, 2)
+        T.IsTrue(game.NextIsNew)
+        // The run ends only after the loading frame.
+        T.IsFalse(game.Restarting())
+        HellfeatherSaves.Delete(1)
+        HellfeatherSaves.Folder = "Saves"
+    }
+
+    DeletingTheLoadedCharacterStopsHerSaving()
+    {
+        HellfeatherSaves.Folder = ".duck/test-saves"
+        for slot : 1; slot <= HellfeatherSaves.Slots; slot++ { HellfeatherSaves.Delete(slot) }
+        HellfeatherGame first()
+        QuaxelWorld world()
+        T.IsTrue(first.Prepare(world))
+        first.ActiveSlot = 4
+        T.IsTrue(first.SaveCharacter())
+        HellfeatherGame game()
+        game.Screen = HellfeatherScreen.MainMenu
+        game.ActiveSlot = 4
+        game.LoadSlot = 4
+        QuaxelWorld again()
+        T.IsTrue(game.Prepare(again))
+        T.AreEqual(game.Characters.SelectedSlot(), 4)
+        game.ChooseCharacter(again, HellfeatherCharacterAction.ConfirmDelete)
+        T.IsFalse(HellfeatherSaves.Exists(4))
+        T.AreEqual(game.ActiveSlot, 0)
+        T.AreEqual(game.Characters.Selected, -1)
+        T.IsFalse(game.SaveCharacter())
+        HellfeatherSaves.Folder = "Saves"
+    }
+}

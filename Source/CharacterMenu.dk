@@ -1,0 +1,319 @@
+// The main menu's characters: a list of saved playthroughs down the left,
+// newest first. Picking one dresses the warrior in the scene in what that
+// character wears; Continue under her plays it. New Character starts another,
+// and Delete Character removes one after asking. With no one saved yet there
+// is no list, only New Character and Exit Game under the warrior. Everything
+// is in UI grid pixels.
+
+HellfeatherCharacterAction : int
+#@{
+    None, Select, Continue, NewCharacter, ConfirmDelete, ExitGame
+}
+
+HellfeatherCharacterMenu
+{
+    HellfeatherSaveSummary [] Rows
+    // The chosen row, or -1 when there are no characters.
+    int Selected = -1
+    // True while asking whether to delete the chosen character.
+    bool Confirming
+    // A line under the buttons, such as why a new character cannot start.
+    string Notice
+    // Each starts held, so the press that opened the menu cannot also choose.
+    -bool MouseHeld = true
+    -bool UpHeld = true
+    -bool DownHeld = true
+    -bool PickHeld = true
+    -bool DeleteHeld = true
+    -bool EscapeHeld = true
+
+    // Reads every slot and chooses Slot's row, or the newest.
+    Refresh(int slot)
+    {
+        Rows.Clear()
+        for each : 1; each <= HellfeatherSaves.Slots; each++ {
+            if !HellfeatherSaves.Exists(each) { continue }
+            Rows += HellfeatherSaves.ReadSummary(each)
+        }
+        // Newest first; unreadable saves sort last.
+        for i : 1; i < Rows.Len; i++ {
+            int j = i
+            while j > 0 && Rows[j].Stamp > Rows[j - 1].Stamp {
+                HellfeatherSaveSummary swap = Rows[j]
+                Rows[j] = Rows[j - 1]
+                Rows[j - 1] = swap
+                j--
+            }
+        }
+        Selected = Rows.Len > 0 ? 0 | -1
+        for i : 0; i < Rows.Len; i++ {
+            if Rows[i].Slot == slot { Selected = i }
+        }
+        Confirming = false
+        Notice = ""
+        MouseHeld = true
+        UpHeld = true
+        DownHeld = true
+        PickHeld = true
+        DeleteHeld = true
+        EscapeHeld = true
+    }
+
+    // The chosen character's slot, or 0.
+    int SelectedSlot() { return Selected >= 0 && Selected < Rows.Len ? Rows[Selected].Slot | 0 }
+
+    bool SelectedReadable() { return Selected >= 0 && Selected < Rows.Len && Rows[Selected].Readable }
+
+    bool Full() { return Rows.Len >= HellfeatherSaves.Slots }
+
+    // W, S and the arrows choose a character, Enter or Space continues it (or
+    // starts a new one when there is none), Delete asks to delete it and
+    // Escape takes the question back.
+    HellfeatherCharacterAction StepKeys(QuaxelInputState& input)
+    {
+        bool up = input.Down[HellfeatherKeys.Up] || input.IsDown(QuaxelKey.W)
+        bool down = input.Down[HellfeatherKeys.Down] || input.IsDown(QuaxelKey.S)
+        bool pick = input.Down[HellfeatherKeys.Enter] || input.Down[HellfeatherKeys.Space]
+        bool erase = input.Down[HellfeatherCharacterMenu.DeleteKey]
+        bool escape = input.Down[HellfeatherKeys.Escape]
+        bool upPressed = up && !UpHeld
+        bool downPressed = down && !DownHeld
+        bool picked = pick && !PickHeld
+        bool erased = erase && !DeleteHeld
+        bool escaped = escape && !EscapeHeld
+        UpHeld = up
+        DownHeld = down
+        PickHeld = pick
+        DeleteHeld = erase
+        EscapeHeld = escape
+        if Confirming {
+            if escaped { Confirming = false }
+            return HellfeatherCharacterAction.None
+        }
+        int count = (int)Rows.Len
+        if count > 0 && (upPressed || downPressed) {
+            Selected = Math.Clamp(Selected + (downPressed ? 1 | -1), 0, count - 1)
+            Notice = ""
+            return HellfeatherCharacterAction.Select
+        }
+        if erased && Selected >= 0 {
+            Confirming = true
+            return HellfeatherCharacterAction.None
+        }
+        if picked { return SelectedReadable() ? HellfeatherCharacterAction.Continue | count == 0 ? HellfeatherCharacterAction.NewCharacter | HellfeatherCharacterAction.None }
+        return HellfeatherCharacterAction.None
+    }
+
+    // Draws the menu and returns what a click asked for this frame.
+    HellfeatherCharacterAction Draw(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool mouseDown)
+    {
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        int px = mouseX / scale
+        int py = mouseY / scale
+        bool pressed = mouseDown && !MouseHeld
+        MouseHeld = mouseDown
+        HellfeatherCharacterAction asked = HellfeatherCharacterAction.None
+        int buttonWide = HellfeatherMenu.ButtonWidth
+        int middle = (gridWidth - buttonWide) / 2
+        int under = gridHeight * 72 / 100
+        int step = HellfeatherMenu.ButtonHeight + 5
+
+        // With no one saved yet, just the two choices under the warrior.
+        if Rows.Len == 0 {
+            if Button(ui, middle, under, buttonWide, "New Character", true, px, py, pressed) { asked = HellfeatherCharacterAction.NewCharacter }
+            if Button(ui, middle, under + step, buttonWide, "Exit Game", false, px, py, pressed) { asked = HellfeatherCharacterAction.ExitGame }
+            if Length(Notice) > 0 { Centered(ui, gridWidth, under + 2 * step + 4, Notice, 0xFFC8A070) }
+            return asked
+        }
+
+        // The list down the left.
+        int left = HellfeatherCharacterMenu.Margin
+        int top = HellfeatherCharacterMenu.Margin
+        int wide = HellfeatherCharacterMenu.ListWidth
+        int rowTall = HellfeatherCharacterMenu.RowHeight
+        int rowsBottom = top + 18 + (int)Rows.Len * rowTall
+        int panelBottom = gridHeight - HellfeatherCharacterMenu.Margin
+        ui.OverlayRect(left - 1, top - 1, wide + 2, panelBottom - top + 2, 0xFF4A3C30)
+        ui.OverlayRect(left, top, wide, panelBottom - top, 0xD80C0A09)
+        ui.OverlayText(left + 6, top + 5, "Characters", 0xFFE0B860)
+        for i : 0; i < Rows.Len; i++ {
+            int y = top + 18 + i * rowTall
+            bool over = !Confirming && Inside(px, py, left + 3, y, wide - 6, rowTall - 2)
+            if over && pressed && Selected != i {
+                Selected = i
+                Notice = ""
+                asked = HellfeatherCharacterAction.Select
+            }
+            DrawRow(ui, left + 3, y, wide - 6, rowTall - 2, Rows[i], i == Selected, over)
+        }
+        if !Full() {
+            int y = rowsBottom + 4
+            if Button(ui, left + 3, y, wide - 6, "New Character", false, px, py, pressed) { asked = HellfeatherCharacterAction.NewCharacter }
+        }
+        int exitY = panelBottom - 4 - HellfeatherMenu.ButtonHeight
+        if Button(ui, left + 3, exitY, wide - 6, "Exit Game", false, px, py, pressed) { asked = HellfeatherCharacterAction.ExitGame }
+
+        // Under the warrior in the middle: Continue and Delete for the chosen one.
+        if Selected >= 0 {
+            if SelectedReadable() {
+                if Button(ui, middle, under, buttonWide, "Continue", true, px, py, pressed) { asked = HellfeatherCharacterAction.Continue }
+            }
+            else { Centered(ui, gridWidth, under + 4, "This save cannot be read", 0xFFC86450) }
+            if Button(ui, middle, under + step, buttonWide, "Delete Character", false, px, py, pressed) && !Confirming { Confirming = true }
+        }
+        if Length(Notice) > 0 { Centered(ui, gridWidth, under + 2 * step + 4, Notice, 0xFFC8A070) }
+
+        if !Confirming { return asked }
+        // Clicks behind the question do nothing.
+        return Confirm(ui, gridWidth, gridHeight, px, py, pressed)
+    }
+
+    // Are you sure? Delete or Cancel, over a dimmed screen.
+    -HellfeatherCharacterAction Confirm(QuaxelUi& ui, int gridWidth, int gridHeight, int px, int py, bool pressed)
+    {
+        ui.OverlayRect(0, 0, gridWidth, gridHeight, 0xA0000000)
+        int boxWide = 200
+        int boxTall = 70
+        int x = (gridWidth - boxWide) / 2
+        int y = (gridHeight - boxTall) / 2
+        ui.OverlayRect(x - 1, y - 1, boxWide + 2, boxTall + 2, 0xFF8A4030)
+        ui.OverlayRect(x, y, boxWide, boxTall, 0xF8100C0B)
+        Centered(ui, gridWidth, y + 8, "Delete this character?", 0xFFE0B860)
+        if Selected >= 0 && Selected < Rows.Len {
+            HellfeatherSaveSummary row = Rows[Selected]
+            Centered(ui, gridWidth, y + 20, "Wren, level " + QuaxelUi.FormatInt(row.Level) + ", " + row.Played(), 0xFFB8A888)
+        }
+        Centered(ui, gridWidth, y + 31, "This cannot be undone.", 0xFF8A7A6A)
+        int buttonWide = 80
+        int buttonsY = y + boxTall - HellfeatherMenu.ButtonHeight - 7
+        if Button(ui, x + 12, buttonsY, buttonWide, "Delete", false, px, py, pressed) {
+            Confirming = false
+            return HellfeatherCharacterAction.ConfirmDelete
+        }
+        if Button(ui, x + boxWide - 12 - buttonWide, buttonsY, buttonWide, "Cancel", true, px, py, pressed) { Confirming = false }
+        return HellfeatherCharacterAction.None
+    }
+
+    -DrawRow(QuaxelUi& ui, int x, int y, int w, int h, HellfeatherSaveSummary row, bool chosen, bool over)
+    {
+        uint border = chosen ? (uint)0xFFC8963C | over ? (uint)0xFF6A5644 | (uint)0xFF2A221C
+        uint fill = chosen ? (uint)0xF0301A10 | (uint)0xE0100C0B
+        ui.OverlayRect(x, y, w, h, border)
+        ui.OverlayRect(x + 1, y + 1, w - 2, h - 2, fill)
+        if !row.Readable {
+            ui.OverlayText(x + 5, y + 4, "Unreadable save", 0xFFC86450)
+            ui.OverlayText(x + 5, y + 12, "Slot " + QuaxelUi.FormatInt(row.Slot), 0xFF7A6E60)
+            return
+        }
+        ui.OverlayText(x + 5, y + 4, "Wren", chosen ? (uint)0xFFF4D894 | (uint)0xFFD0C0A0)
+        string level = "Level " + QuaxelUi.FormatInt(row.Level)
+        ui.OverlayText(x + w - 5 - (int)Length(level) * 6 + 1, y + 4, level, chosen ? (uint)0xFFE0B860 | (uint)0xFFA89880)
+        ui.OverlayText(x + 5, y + 12, row.Place(), 0xFF8A7E70)
+        string played = row.Played()
+        ui.OverlayText(x + w - 5 - (int)Length(played) * 6 + 1, y + 12, played, 0xFF6E6458)
+    }
+
+    // A button; true when clicked this frame. One too narrow for its label
+    // widens about its middle, so the label always fits inside.
+    -bool Button(QuaxelUi& ui, int left, int y, int given, string label, bool primary, int px, int py, bool pressed)
+    {
+        int h = HellfeatherMenu.ButtonHeight
+        int w = Math.Max(given, (int)Length(label) * 6 - 1 + 2 * HellfeatherCharacterMenu.LabelPadding)
+        int x = left - (w - given) / 2
+        bool over = Inside(px, py, x, y, w, h)
+        bool lit = over || primary
+        ui.OverlayRect(x, y, w, h, over ? (uint)0xFFE0B060 | lit ? (uint)0xFFC8963C | (uint)0xFF4A3C30)
+        ui.OverlayRect(x + 1, y + 1, w - 2, h - 2, lit ? (uint)0xF0301A10 | (uint)0xE0100C0B)
+        if lit { ui.OverlayRect(x + 2, y + 2, w - 4, 1, 0x80F0A040) }
+        int textWidth = (int)Length(label) * 6 - 1
+        ui.OverlayText(x + (w - textWidth) / 2, y + (h - 7) / 2 + 1, label, lit ? (uint)0xFFF4D894 | (uint)0xFFA89880)
+        return over && pressed
+    }
+
+    -Centered(QuaxelUi& ui, int gridWidth, int y, string text, uint color)
+    {
+        ui.OverlayText((gridWidth - (int)Length(text) * 6 + 1) / 2, y, text, color)
+    }
+
+    -bool Inside(int px, int py, int x, int y, int w, int h) { return px >= x && px < x + w && py >= y && py < y + h }
+}
+#{
+    #int Margin = 10
+    #int ListWidth = 150
+    #int RowHeight = 23
+    // The least room between a button's label and its edges.
+    #int LabelPadding = 6
+    // The Delete key's Windows virtual-key code.
+    #int DeleteKey = 46
+}
+T{
+    WithNoOneSavedOnlyNewCharacterAndExitShow()
+    {
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        HellfeatherCharacterMenu menu
+        // At 960 by 540 the grid is 480 by 270, two window pixels to one.
+        int under = 270 * 72 / 100
+        // Where the list's Exit Game would be, at the bottom left: nothing there.
+        int listX = (HellfeatherCharacterMenu.Margin + 20) * 2
+        int listY = (270 - HellfeatherCharacterMenu.Margin - 8) * 2
+        menu.Draw(ui, 960, 540, listX, listY, false)
+        T.AreEqual(menu.Draw(ui, 960, 540, listX, listY, true), HellfeatherCharacterAction.None)
+        // New Character, then Exit Game below it, in the middle.
+        menu.Draw(ui, 960, 540, 480, (under + 7) * 2, false)
+        T.AreEqual(menu.Draw(ui, 960, 540, 480, (under + 7) * 2, true), HellfeatherCharacterAction.NewCharacter)
+        int exitY = under + HellfeatherMenu.ButtonHeight + 5 + 7
+        menu.Draw(ui, 960, 540, 480, exitY * 2, false)
+        T.AreEqual(menu.Draw(ui, 960, 540, 480, exitY * 2, true), HellfeatherCharacterAction.ExitGame)
+    }
+
+    TheDeleteLabelFitsItsButton()
+    {
+        int label = (int)Length("Delete Character") * 6 - 1
+        T.IsTrue(label + 2 * HellfeatherCharacterMenu.LabelPadding <= HellfeatherMenu.ButtonWidth)
+    }
+
+    KeysChooseContinueAndAskBeforeDeleting()
+    {
+        HellfeatherCharacterMenu menu
+        HellfeatherSaveSummary first
+        first.Slot = 2
+        first.Readable = true
+        first.Stamp = 5
+        HellfeatherSaveSummary second
+        second.Slot = 5
+        second.Readable = true
+        second.Stamp = 9
+        menu.Rows += first
+        menu.Rows += second
+        menu.Selected = 0
+        QuaxelInputState input
+        // Held as the menu opened: nothing until let go.
+        input.Down[HellfeatherKeys.Enter] = true
+        T.AreEqual(menu.StepKeys(input), HellfeatherCharacterAction.None)
+        input.Clear()
+        menu.StepKeys(input)
+        input.SetDown(QuaxelKey.S, true)
+        T.AreEqual(menu.StepKeys(input), HellfeatherCharacterAction.Select)
+        T.AreEqual(menu.SelectedSlot(), 5)
+        input.Clear()
+        menu.StepKeys(input)
+        input.Down[HellfeatherCharacterMenu.DeleteKey] = true
+        menu.StepKeys(input)
+        T.IsTrue(menu.Confirming)
+        // While asking, Enter does not continue, and Escape takes it back.
+        input.Clear()
+        input.Down[HellfeatherKeys.Enter] = true
+        T.AreEqual(menu.StepKeys(input), HellfeatherCharacterAction.None)
+        input.Clear()
+        input.Down[HellfeatherKeys.Escape] = true
+        menu.StepKeys(input)
+        T.IsFalse(menu.Confirming)
+        input.Clear()
+        menu.StepKeys(input)
+        input.Down[HellfeatherKeys.Enter] = true
+        T.AreEqual(menu.StepKeys(input), HellfeatherCharacterAction.Continue)
+    }
+}

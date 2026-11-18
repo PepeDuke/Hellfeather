@@ -51,6 +51,9 @@ HellfeatherGame : QuaxelGameInstance
 
     string WindowTitle() { return "Hellfeather" }
 
+    // The logo, written by Tools/Models/logo.py --icon.
+    string WindowIcon() { return "Assets/Hellfeather.ico" }
+
     // World units shown each way from the player along the ground.
     float ViewHalfExtent() { return 10.0 }
 
@@ -140,16 +143,27 @@ HellfeatherGame : QuaxelGameInstance
     -int PeckStrikeFrame() { return 3 }
 
     // Experimental DDGI can briefly brighten shadows around moving characters.
+    -bool ProbeWeightsKeyHeld
+    -bool ProbeKeyHeld
+    bool DebugProbePositions
     bool UseDdgi = false
     bool UniformProbeUpdates
 
     bool Prepare(QuaxelWorld& world)
     {
+        world.DebugProbePositions = DebugProbePositions
         world.Ddgi = UseDdgi
         world.UniformProbeUpdates = UniformProbeUpdates
         Inventory.Stock()
         Actions.Stock()
         Runes.Stock()
+        // A saved character replaces the starting kit before the world is
+        // built around her, so what depends on her quests sees them.
+        if LoadSlot > 0 && !LoadCharacter(LoadSlot) {
+            Print("The save could not be read")
+            // Leaves that save alone rather than overwrite it with a fresh start.
+            ActiveSlot = 0
+        }
         // The socketed starting rune teaches Cleave quietly, without the notice.
         SyncRuneSkills()
         Actions.Slots.LearnedSeconds = 0.0
@@ -157,6 +171,14 @@ HellfeatherGame : QuaxelGameInstance
         QuaxelPlatform.ReadClock(clock)
         StockMerchants((uint)(clock & (long)0x7FFFFFFF))
         bool ready = SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world) && GoToStart(world)
+        if ready { ApplySavedWaypoints() }
+        // A game started straight into play, as after picking a character, has begun.
+        if ready && Screen == HellfeatherScreen.Playing {
+            Started = true
+            // A new character is listed from the start.
+            if ActiveSlot > 0 && LoadSlot == 0 { SaveCharacter() }
+        }
+        if ready && Screen == HellfeatherScreen.MainMenu { ready = EnterMainMenu(world) }
         if ready && Benchmark.Enabled && Benchmark.LightCount >= 0 {
             Fires.EmitPointLights = false
             Benchmark.PlaceLights(world, world.WorldPosition(PlayerNode))
@@ -367,8 +389,16 @@ HellfeatherGame : QuaxelGameInstance
     {
         StepsSimulated++
         if Benchmark.Enabled { Benchmark.Step(input) }
+        // The main menu and the pause menu hold the game still.
+        if StepScreens(world, input, deltaSeconds) { return }
         int activeCamera = world.ActiveCamera
         if activeCamera == 0 { return }
+        bool probeKey = input.Down[HellfeatherKeys.F8]
+        if world.Ddgi && probeKey && !ProbeKeyHeld { world.DebugProbePositions = !world.DebugProbePositions }
+        ProbeKeyHeld = probeKey
+        bool weightsKey = input.Down[HellfeatherKeys.F9]
+        if world.Ddgi && weightsKey && !ProbeWeightsKeyHeld { world.DebugProbeWeights = !world.DebugProbeWeights }
+        ProbeWeightsKeyHeld = weightsKey
         // Puts on whatever she equipped since the last step.
         for controller : Controllers { DressPlayer(world, controller.VisualNode) }
         // A close-up conversation takes the keys and holds her still.
@@ -967,6 +997,11 @@ HellfeatherGame : QuaxelGameInstance
         bool hasWindow = QuaxelPlatform.GetWindowSize(windowWidth, windowHeight) && windowWidth > 0 && windowHeight > 0
         if Benchmark.Enabled { Benchmark.Frame(StepsSimulated, world.GetPosition(PlayerNode), windowWidth, windowHeight) }
         ui.ClearOverlay()
+        // A menu has the screen and every click to itself.
+        if Screen != HellfeatherScreen.Playing {
+            UpdateMenuUi(ui, world, windowWidth, windowHeight, hasWindow, mouseX, mouseY, mouseDown, rightDown)
+            return
+        }
         // A close-up conversation hides the HUD and has the screen to itself.
         if hasWindow && InCloseUp() {
             UpdateCloseUpUi(ui, world, windowWidth, windowHeight, mouseX, mouseY, mouseDown, rightDown)
@@ -1062,9 +1097,10 @@ HellfeatherGame : QuaxelGameInstance
     {
         for i : 0; i < steps; i++ {
             world.BeginStep()
-            world.AdvanceAnimations((float)Quaxel.FixedDeltaSeconds())
+            bool paused = WorldPaused()
+            if !paused { world.AdvanceAnimations((float)Quaxel.FixedDeltaSeconds()) }
             FixedStep(world, input, (float)Quaxel.FixedDeltaSeconds())
-            world.AdvanceEffects((float)Quaxel.FixedDeltaSeconds())
+            if !paused { world.AdvanceEffects((float)Quaxel.FixedDeltaSeconds()) }
             world.UpdateSockets()
             world.EndStep()
         }
