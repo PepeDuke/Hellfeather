@@ -16,6 +16,9 @@ HellfeatherSpotKind : int
     Bearer,
     // An open raven portal: one where she cast it, one in Ravenford.
     Portal,
+    // The portal the severed ring opens at the bottom of the Undercroft, out to
+    // Hobb's Mill. Not hers: its light is silver, not magenta.
+    MillPortal,
     // A waypoint's fireplace (Source/Waypoints.dk).
     Waypoint,
     // A building's door, into the level Leads names, and the way out of one.

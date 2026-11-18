@@ -391,6 +391,10 @@ HellfeatherGame : QuaxelGameInstance
             UsePortal(world, spot)
             return
         }
+        if kind == HellfeatherSpotKind.MillPortal {
+            UseMillPortal(world)
+            return
+        }
         if kind == HellfeatherSpotKind.Waypoint {
             UseWaypoint(spot)
             return
@@ -728,6 +732,8 @@ HellfeatherGame : QuaxelGameInstance
             GainExperience(300)
             int lise = People.FindPerson(HellfeatherPerson.Lise)
             if lise >= 0 { People.Spots[lise].Shown = true }
+            // The wire's light opens a way out, up to the mill.
+            ShowMillPortal()
             Banner.Show("The first Severing", 3.5)
         } else if reply == HellfeatherReply.LiseWindow {
             Quests.Millrace = 5

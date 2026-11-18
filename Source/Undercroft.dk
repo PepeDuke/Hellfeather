@@ -14,7 +14,7 @@ HellfeatherRealm : int
 }
 
 // A hall of the Undercroft: flagstones, silver wire run across the floor toward
-// the frames, and in some halls a millrace channel the brood climbs out of.
+// the frames, and in some halls a strip of cracked floor the brood climbs out of.
 // Empty iron frames stand along the walls, braziers keep it from total dark.
 UndercroftHall : QuaxelTerrainModule
 {
@@ -34,10 +34,10 @@ UndercroftHall : QuaxelTerrainModule
         column.Surface = HellfeatherSurface.Flagstone
         float across = x * site.AxisX + z * site.AxisZ
         float along = z * site.AxisX - x * site.AxisZ
-        // Every other hall has a channel of the millrace along its axis.
+        // Every other hall has a strip of cracked, broken flagstones along its
+        // axis, where the old millrace ran beneath. It is walked over.
         if (site.Seed & (uint)1) == (uint)0 && Math.Abs(across - 3.0) < 0.9 && Math.Abs(along) < site.Radius - 1.5 {
-            column.MakeWater(3)
-            column.Surface = HellfeatherSurface.Millpond
+            column.Surface = HellfeatherSurface.Cracked
             return
         }
         // Wires run from the middle toward each frame.
@@ -70,6 +70,41 @@ UndercroftHall : QuaxelTerrainModule
 #{
     // Iron frames around each hall, and the wires running to them.
     #int Frames = 5
+}
+T{
+    // No hall of either Undercroft level holds water: where the millrace ran,
+    // the floor is cracked, and she can walk the length of every hall's strip.
+    TheUndercroftHasNoWater()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherRealm [2] realms = {HellfeatherRealm.Undercroft, HellfeatherRealm.UndercroftDeep}
+        int strips = 0
+        for realm : realms {
+            T.IsTrue(game.Travel(world, realm, true))
+            for site : game.Terrain.Layout.Sites {
+                vec3 center = game.Terrain.WorldPoint(site.X, site.Z)
+                int calls = 0
+                while !game.Terrain.IsReady(center) && calls < 4000 {
+                    T.IsTrue(game.Terrain.Stream(world, center, 100000))
+                    calls++
+                }
+                for a : -40; a <= 40; a++ {
+                    for b : -40; b <= 40; b++ {
+                        vec3 point = game.Terrain.WorldPoint(site.X + (float)a * 0.25, site.Z + (float)b * 0.25)
+                        T.AreNotEqual(game.Terrain.ColumnKind(game.Terrain.ColumnAt(point.X), game.Terrain.ColumnAt(point.Z)), QuaxelTerrainKind.Water)
+                    }
+                }
+                if site.Module != game.Terrain.HallZone() || (site.Seed & (uint)1) != (uint)0 { continue }
+                // The strip, three across the axis, is open floor.
+                strips++
+                vec3 strip = game.Terrain.WorldPoint(site.X + site.AxisX * 3.0, site.Z + site.AxisZ * 3.0)
+                T.AreEqual(game.Terrain.ColumnKind(game.Terrain.ColumnAt(strip.X), game.Terrain.ColumnAt(strip.Z)), QuaxelTerrainKind.Open)
+            }
+        }
+        T.IsTrue(strips > 0)
+    }
 }
 
 // Where the stairs come down: a bare landing with a brazier either side.

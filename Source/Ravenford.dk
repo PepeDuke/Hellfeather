@@ -14,6 +14,8 @@ HellfeatherSurface
     #int Plaster = 23
     // Beyond an interior's walls: nothing to see.
     #int Void = 24
+    // The Undercroft's cracked strip, where the millrace once ran under it.
+    #int Cracked = 25
 }
 
 // Ravenford, Act I's walled river town, where the player starts. Its ravens

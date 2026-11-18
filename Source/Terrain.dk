@@ -141,6 +141,70 @@ HellfeatherTerrain : QuaxelTerrain
 
     int ModuleCount() { return HellfeatherZone.Count - 1 }
 
+    // Lays the level out, then runs the mill's river past wherever the mill
+    // was placed and drops the props that landed in its water.
+    bool Configure(QuaxelTerrainConfig config)
+    {
+        if !this.QuaxelTerrain.Configure(config) { return false }
+        LayMillRiver()
+        return true
+    }
+
+    -LayMillRiver()
+    {
+        Mill.RiverSite = -1
+        Mill.InvXX = 1.0
+        Mill.InvXZ = 0.0
+        Mill.InvZX = 0.0
+        Mill.InvZZ = 1.0
+        if Realm != HellfeatherRealm.Fenmarch { return }
+        int mill = -1
+        for i : 0; i < Placements.Len; i++ {
+            if Placements[i].Volume == Mill.Mill && !Placements[i].Prop { mill = (int)i }
+        }
+        if mill < 0 { return }
+        QuaxelTerrainSite site = Layout.Sites[Placements[mill].Site]
+        float worldX = (float)Placements[mill].Column * QuaxelTerrain.Cell
+        float worldZ = (float)Placements[mill].Row * QuaxelTerrain.Cell
+        vec2 at = LayoutAt(worldX, worldZ)
+        Mill.RiverSite = site.Index
+        Mill.RiverX = at.X - site.X
+        Mill.RiverZ = at.Y - site.Z
+        // How layout space stretches around the mill per world unit along X
+        // and along Z, inverted.
+        float step = 0.5
+        vec2 alongX = (LayoutAt(worldX + step, worldZ) - LayoutAt(worldX - step, worldZ)) / (step * 2.0)
+        vec2 alongZ = (LayoutAt(worldX, worldZ + step) - LayoutAt(worldX, worldZ - step)) / (step * 2.0)
+        float det = alongX.X * alongZ.Y - alongZ.X * alongX.Y
+        if Math.Abs(det) > 0.01 {
+            Mill.InvXX = alongZ.Y / det
+            Mill.InvXZ = -alongZ.X / det
+            Mill.InvZX = -alongX.Y / det
+            Mill.InvZZ = alongX.X / det
+        }
+        for i : (int)Placements.Len - 1; i >= 0; i-- {
+            if !Placements[i].Prop { continue }
+            vec2 prop = LayoutOf(i)
+            float x = prop.X - site.X
+            float z = prop.Y - site.Z
+            if Math.Hypot(x, z) >= site.Radius + 3.0 { continue }
+            float margin = (float)Placements[i].Half * QuaxelTerrain.Cell + 0.3
+            if Mill.IsWater(site, x, z, margin) { Placements -= [i] }
+        }
+    }
+
+    // A placement's anchor in layout space.
+    -vec2 LayoutOf(int placement) { return LayoutAt((float)Placements[placement].Column * QuaxelTerrain.Cell, (float)Placements[placement].Row * QuaxelTerrain.Cell) }
+
+    // A world point, in layout-column metres, in layout space: the warp added.
+    -vec2 LayoutAt(float x, float z)
+    {
+        float warpX = 0.0
+        float warpZ = 0.0
+        WarpAt(x, z, warpX, warpZ)
+        return vec2(x + warpX, z + warpZ)
+    }
+
     int SpawnModule()
     {
         if Realm == HellfeatherRealm.Fenmarch { return HellfeatherZone.Ravenford + 0 }
@@ -222,6 +286,7 @@ HellfeatherTerrain : QuaxelTerrain
         int color = 0x3b3128
         if HellfeatherRealm.IsInterior(Realm) { return HellfeatherArt.Rgb(RoomColor(cell)) }
         if Realm != HellfeatherRealm.Fenmarch && cell.Surface == QuaxelTerrainSurface.Rock { color = CryptColor(cell) }
+        else if Realm != HellfeatherRealm.Fenmarch && cell.Surface == HellfeatherSurface.Cracked { color = CrackedColor(cell) }
         else if Realm != HellfeatherRealm.Fenmarch && cell.Surface != HellfeatherSurface.Wire && cell.Surface != HellfeatherSurface.Millpond { color = FlagstoneColor(cell) }
         else if cell.Surface == HellfeatherSurface.Wire { color = WireColor(cell) }
         else if cell.Surface == QuaxelTerrainSurface.Rock { color = RockColor(cell) }
@@ -321,6 +386,17 @@ HellfeatherTerrain : QuaxelTerrain
         int stone = HellfeatherArt.Hash(cell.Column / 4, cell.Row / 4, 17)
         int tone = (stone & 3) == 0 ? 0x3a3530 | 0x302c28
         return HellfeatherArt.Shade(tone, 80 + stone % 24 + cell.Hash % 6)
+    }
+
+    // Flagstones broken over the old millrace: the same flags, darker and
+    // split by black fissures that wander across them.
+    -int CrackedColor(QuaxelTerrainCell cell)
+    {
+        if !cell.Top { return 0x141210 }
+        float vein = QuaxelNoise.SignedFbm((uint)523, (float)cell.Column / 5.0, (float)cell.Row / 5.0, 3)
+        if Math.Abs(vein) < 0.06 || cell.Hash % 23 == 0 { return 0x0a0908 }
+        int flag = FlagstoneColor(cell)
+        return HellfeatherArt.Shade(flag, 72 + cell.Hash % 10)
     }
 
     // Silver wire stapled to the floor. It glints.

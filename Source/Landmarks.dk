@@ -23,6 +23,8 @@ HellfeatherLandmarks
     int Bolt = -1
     // Code-built from the raven portal concept sheet.
     int Portal = -1
+    // The same, with the silver light of the severed ring: a portal not hers.
+    int MillPortal = -1
     // A waypoint's fire pit, ringed by four standing stones. Code-built.
     int Fireplace = -1
 }
@@ -45,7 +47,8 @@ HellfeatherLandmarks
         made.Stairs = BuildStairs(world)
         made.Spit = BuildSpit(world)
         made.Bolt = BuildBolt(world)
-        made.Portal = BuildPortal(world)
+        made.Portal = BuildPortal(world, 0xffd2ff, 0xf03cf0, 0x8c1a9c)
+        made.MillPortal = BuildPortal(world, 0xf2fbff, 0x8fd6e6, 0x2a6f86)
         made.Fireplace = BuildFireplace(world)
         return made
     }
@@ -103,10 +106,11 @@ HellfeatherLandmarks
     #int FireplaceSize = 28
     #int FireplaceHeight = 14
 
-    // A standing oval of magenta energy in a thick rim of blue-black raven
-    // feathers, with a raven on the crest, its wings spread. The energy is a
-    // thin sheet in the middle of the rim's depth.
-    -int BuildPortal(QuaxelWorld& world)
+    // A standing oval of energy in a thick rim of blue-black raven feathers,
+    // with a raven on the crest, its wings spread. The energy is a thin sheet
+    // in the middle of the rim's depth, Core in the middle out through Middle
+    // to Edge: magenta for her raven portals.
+    -int BuildPortal(QuaxelWorld& world, int core, int middle, int edge)
     {
         int volume = world.CreateVolume(PortalWidth, PortalHeight, PortalDepth)
         if volume < 0 { return -1 }
@@ -130,8 +134,8 @@ HellfeatherLandmarks
                         int base = vane == 0 ? 0x3a4d86 | (vane < 3 ? 0x1d2343 | 0x10121f)
                         color = HellfeatherArt.Shade(base, 75 + HellfeatherArt.Hash(x, y, z) % 40)
                     } else if opening && z == PortalDepth / 2 {
-                        // White-hot in the middle, magenta out to a deep rim of violet.
-                        int energy = out < 0.35 ? 0xffd2ff | (out < 0.8 ? 0xf03cf0 | 0x8c1a9c)
+                        // White-hot in the middle, out to a deep rim.
+                        int energy = out < 0.35 ? core | (out < 0.8 ? middle | edge)
                         color = HellfeatherArt.Shade(energy, 88 + HellfeatherArt.Hash(x, y, 7) % 24)
                     }
                     if color != 0 { world.SetVoxel(volume, x, y, z, HellfeatherArt.Rgb(color)) }

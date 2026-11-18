@@ -79,16 +79,19 @@ HellfeatherGame : QuaxelGameInstance
         int ward = People.Add(HellfeatherSpotKind.Entrance, "Orra's Hospice", fen, Flat(gate) + vec3(0.0, 0.0, front + 0.4))
         People.Spots[ward].Leads = HellfeatherRealm.Hospice
 
-        // The mill's door at the front, Old Hobb inside, Lise on the stair.
+        // The mill's door at the front, Old Hobb inside, Lise at the foot of
+        // the stair on its -X side, away from the river and the wheel.
         int mill = PlacementOf(Terrain.Mill.Mill)
         vec3 millAt = mill >= 0 ? Terrain.PlacementPosition(mill) | ZoneMiddle(HellfeatherZone.HobbsMill)
         float face = ReachOf(world, mill, Terrain.Mill.MillHalf, true)
         float side = ReachOf(world, mill, Terrain.Mill.MillHalf, false)
-        MillDoor = Flat(millAt) + vec3(1.4, 0.0, face + 0.4)
+        // The millrace door is 0.45 to the model's +X; the river runs past
+        // beyond 1.2, so the door stays on dry ground.
+        MillDoor = Flat(millAt) + vec3(0.45, 0.0, face + 0.4)
         // The mill's own door is in its model; the entrance is its name.
         int door = People.Add(HellfeatherSpotKind.Entrance, "Hobb's Mill", fen, MillDoor)
         People.Spots[door].Leads = HellfeatherRealm.Mill
-        int lise = People.AddPerson(HellfeatherPerson.Lise, "Lise Hobb", fen, Flat(millAt) + vec3(side + 0.9, 0.0, 1.0), "Assets/LiseHobb.qvox", 0.025, 72)
+        int lise = People.AddPerson(HellfeatherPerson.Lise, "Lise Hobb", fen, Flat(millAt) + vec3(-(side + 0.5), 0.0, 1.2), "Assets/LiseHobb.qvox", 0.025, 72)
         People.Spots[lise].Shown = false
     }
 
@@ -159,6 +162,7 @@ HellfeatherGame : QuaxelGameInstance
         }
         int pedestal = People.AddModel(HellfeatherSpotKind.Pedestal, "Ring pedestal", realm, deepest + vec3(0.0, 0.0, -2.0), Landmarks.RingPedestal, HellfeatherArt.FineVoxel, 28)
         People.Spots[pedestal].Shown = Quests.Millrace >= 3
+        ShowMillPortal()
     }
 
     // Moves her to another level: the old one's enemies, shots and ravens go,
@@ -213,7 +217,7 @@ HellfeatherGame : QuaxelGameInstance
             AddUniques()
         }
         if realm == HellfeatherRealm.Undercroft && !Quests.PondWoke {
-            // The pond wakes behind her: brood climbs out of the channel.
+            // The pond wakes behind her: brood climbs out of the cracked floor.
             Quests.PondWoke = true
             Quests.Millrace = Math.Max(Quests.Millrace, 2)
             for n : 0; n < 3; n++ { AddScripted(world, "BroodDrake", arrival.X - 2.0 + (float)n * 2.0, arrival.Z - 3.5) }
@@ -375,6 +379,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         vec3 player = world.GetPosition(PlayerNode)
         SyncPortals(world)
+        SyncMillPortal(world)
         // A spot's ground is only known once it has streamed in, which it has this near.
         for spot : People.Spots {
             if spot.Node == 0 && spot.Realm == Terrain.Realm && Math.Hypot(spot.Feet.X - player.X, spot.Feet.Z - player.Z) < HellfeatherSpots.WakeRadius {

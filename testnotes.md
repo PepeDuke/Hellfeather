@@ -31,11 +31,11 @@ Issues found during testing:
 [x] iron helm item on ground voxel medel looks scufed, re-work it, we already have version on player so maybe use static version of that.
 [x] too many black fethers drop, and gold should drop more
 [] portal has no opening, closing animation, it should
-[] old hobb's mill has whater wheel but it does not touch a water, it should have river ajasent to the building on the side of the wheel posibly crossing the area and haveing breges where there are paths, it also has massive hit box preventing me to get near
-[] in the millrace undercroft there spawns rivers that should not be the case we can for example replace then in the undercroft with cracked ground
+[x] old hobb's mill has whater wheel but it does not touch a water, it should have river ajasent to the building on the side of the wheel posibly crossing the area and haveing breges where there are paths, it also has massive hit box preventing me to get near
+[x] in the millrace undercroft there spawns rivers that should not be the case we can for example replace then in the undercroft with cracked ground
 [] the millstone maul need it's own item image, use pixel-art skill
-[] there are great many unique items like jassa's waterwalkers boots we shouldg generate fot them unique item image, use pixel-art skill
-[] maybe after the severing of the ring it should open portal (NPC portal should have diffrent color to show it is not yours) to the mara hob
+[x] there are great many unique items like jassa's waterwalkers boots we shouldg generate fot them unique item image, use pixel-art skill
+[x] maybe after the severing of the ring it should open portal (NPC portal should have diffrent color to show it is not yours) to the mara hob
 [] add chest that will be in town and you can store item in it
 [x] add saving system we need to create and save characters, it does not need to save enemies only/world only player related thing like inventory, level, runes ... and quest progression
 [x] black fethers thay need re-design in terms of gameplay thay feel un-rewarding it is not clear how many you need to collect and if you collect all of the they still continue droping, it sort of makes sense thay would drop but possibly thay need to be physical item in iventory and for 1 slot you can stack like 5 of them for example, maybe if you bring them affter to edda you can use them to gamble on hiden item, you see base and you buy them with black fethers and it rolls rarty giving you possibity of getting blue or gold.

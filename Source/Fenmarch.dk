@@ -143,17 +143,39 @@ OrrasHill : QuaxelTerrainModule
     #float ShrineOffset = 3.4
 }
 
-// The watermill on the Fen River, farthest from Ravenford. The river runs
-// across the clearing and widens into the millpond, and the mill stands on its
-// bank. Half and height are in columns; the mill's voxels are a sixteenth.
+// The watermill on the Fen River, farthest from Ravenford. Its undershot wheel
+// is on the model's +X side, so the river follows the mill: once the mill is
+// placed, the river runs along Z just past its +X wall, straight beside the
+// wheel and wandering away from it, across the whole clearing, and widens into
+// the millpond upstream of the mill, toward -Z. Water blocks walking, and the
+// generator turns the water on every road into a bridge. Half and height are
+// in columns; the mill's voxels are a sixteenth.
 HobbsMill : QuaxelTerrainModule
 {
     HellfeatherProps Props
     int Mill
-    int MillHalf = 20
+    // The model is 32 by 35 columns, so 18 holds it with a little to spare.
+    // The square is levelled for it, water and all.
+    int MillHalf = 18
     int MillHeight = 48
     float MillVoxel = 0.0625
-    int MillSight = 26
+    // Low enough that the generator blocks no strip of hidden ground behind the
+    // mill (that strip is Sight - Lip + 2 columns deep): it blocks only the
+    // ground its own voxels cover.
+    int MillSight = 4
+    // The clearing the river was laid out for and the mill's anchor there, as
+    // a layout-space offset from the clearing's center. The Inv fields undo
+    // the warp around the mill, taking layout offsets from the anchor to world
+    // ones, so the river runs straight along world Z past the wheel. RiverSite
+    // is -1 until the mill is placed; with no mill the river runs WheelSide
+    // past the clearing's center.
+    int RiverSite = -1
+    float RiverX
+    float RiverZ
+    float InvXX = 1.0
+    float InvXZ
+    float InvZX
+    float InvZZ = 1.0
 
     QuaxelTerrainModuleRules Rules()
     {
@@ -166,53 +188,164 @@ HobbsMill : QuaxelTerrainModule
         return rules
     }
 
-    // Distance from the pond's middle; under PondRadius is pond.
-    -float PondReach(QuaxelTerrainSite site, float across, float along)
+    // A layout-space offset from the clearing's center as world units from the
+    // river's anchor, WheelSide to the mill's +X: X across the river, Y along it.
+    -vec2 FromRiver(QuaxelTerrainSite site, float x, float z)
     {
-        float wobble = QuaxelNoise.SignedFbm(site.Seed + (uint)3, across / 4.0, along / 4.0, 2) * 1.2
-        return Math.Hypot(across, along - HobbsMill.PondAlong) + wobble
+        if RiverSite != site.Index { return vec2(x - HobbsMill.WheelSide, z) }
+        float dx = x - RiverX
+        float dz = z - RiverZ
+        return vec2(InvXX * dx + InvXZ * dz - HobbsMill.WheelSide, InvZX * dx + InvZZ * dz)
+    }
+
+    // The river's centerline at a distance along it, as an offset across:
+    // straight past the mill, bending away from its front, where its door is,
+    // and meandering more the farther it gets.
+    -float Meander(QuaxelTerrainSite site, float along)
+    {
+        float calm = Math.Clamp((Math.Abs(along) - HobbsMill.Straight) / 4.0, 0.0, 1.0)
+        float t = Math.Clamp((along - HobbsMill.BendFrom) / 2.3, 0.0, 1.0)
+        float bend = t * t * (3.0 - 2.0 * t) * HobbsMill.Bend
+        return bend + QuaxelNoise.SignedFbm(site.Seed, along / 9.0, 0.0, 2) * 2.4 * calm
+    }
+
+    // True where the river or the millpond lies, at a layout-space offset from
+    // the clearing's center. Margin widens both, to keep props clear.
+    bool IsWater(QuaxelTerrainSite site, float x, float z, float margin)
+    {
+        vec2 local = FromRiver(site, x, z)
+        if Math.Abs(local.X - Meander(site, local.Y)) < HobbsMill.RiverHalf + margin { return true }
+        return PondReach(site, local) < HobbsMill.PondRadius + margin
+    }
+
+    // Distance from the pond's middle, upstream of the mill and a little out
+    // from its wall; under PondRadius is pond.
+    -float PondReach(QuaxelTerrainSite site, vec2 local)
+    {
+        float wobble = QuaxelNoise.SignedFbm(site.Seed + (uint)3, local.X / 4.0, local.Y / 4.0, 2) * 0.8
+        return Math.Hypot(local.X - HobbsMill.PondAcross, local.Y - HobbsMill.PondAlong) + wobble
     }
 
     Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
     {
         if Math.Hypot(x, z) >= site.Radius + 3.0 { return }
-        float across = x * site.AxisX + z * site.AxisZ
-        float along = z * site.AxisX - x * site.AxisZ
-        if PondReach(site, across, along) < HobbsMill.PondRadius {
-            column.MakeWater(4)
+        if PondReach(site, FromRiver(site, x, z)) < HobbsMill.PondRadius {
+            column.MakeWater(HobbsMill.PondDepth)
             column.Surface = HellfeatherSurface.Millpond
             return
         }
-        float meander = QuaxelNoise.SignedFbm(site.Seed, along / 9.0, 0.0, 2) * 2.0
-        if Math.Abs(across + meander) < 1.8 { column.MakeWater(5) }
+        if IsWater(site, x, z, 0.0) { column.MakeWater(HobbsMill.RiverDepth) }
+    }
+
+    // How far a point in the clearing is from the nearest road, which runs
+    // from the clearing's center out through each port.
+    -float RoadClearance(QuaxelTerrainSite site, float x, float z)
+    {
+        float nearest = 1000.0
+        for port : 0; port < site.PortCount; port++ {
+            float t = Math.Max(0.0, x * site.PortX[port] + z * site.PortZ[port])
+            nearest = Math.Min(nearest, Math.Hypot(x - site.PortX[port] * t, z - site.PortZ[port] * t))
+        }
+        return nearest
+    }
+
+    // True if a mill here keeps its square off the roads and neither its
+    // wheel's stretch of river nor the pond is on one, so they never bridge.
+    -bool FitsBesideRiver(QuaxelTerrainSite site, float x, float z)
+    {
+        float body = (float)MillHalf * QuaxelTerrain.Cell * 1.42 + 3.2
+        if RoadClearance(site, x, z) < body { return false }
+        float river = x + HobbsMill.WheelSide
+        float wheel = HobbsMill.RiverHalf + 2.6
+        for step : -2; step <= 2; step++ {
+            if RoadClearance(site, river, z + (float)step * 1.2) < wheel { return false }
+        }
+        float pond = HobbsMill.PondRadius + 2.6
+        if RoadClearance(site, river + HobbsMill.PondAcross, z + HobbsMill.PondAlong) < pond { return false }
+        return true
+    }
+
+    // How many half-unit steps of the river a mill here would send across a
+    // road, where they become bridge. A road the river crosses costs a few; one
+    // it runs beside costs many.
+    -int BridgedSteps(QuaxelTerrainSite site, float x, float z)
+    {
+        float river = x + HobbsMill.WheelSide
+        float limit = HobbsMill.RiverHalf + HobbsMill.Reserved
+        int steps = 0
+        for step : -40; step <= 40; step++ {
+            float along = (float)step * 0.5
+            if Math.Abs(along) > site.Radius + 3.0 { continue }
+            float meander = Meander(site, along - z)
+            if Math.Hypot(river + meander, along) >= site.Radius + 3.0 { continue }
+            if RoadClearance(site, river + meander, along) < limit { steps++ }
+        }
+        return steps
     }
 
     Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
     {
-        // The mill on the bank of the pond, as near as the paths allow, and
-        // failing that anywhere between the roads.
+        // The mill where its square, its wheel's water and the millpond keep
+        // off the roads, and its river crosses them least, nearest the middle
+        // first; failing that anywhere the generator takes it.
         float reach = (float)MillHalf * QuaxelTerrain.Cell * 1.45
-        for ring : 0; ring < 4; ring++ {
-            for step : 0; step < 16; step++ {
-                float angle = ((float)step + (float)ring * 0.5) * 0.39269908
-                float distance = HobbsMill.PondRadius + reach + 0.6 + (float)ring * 1.0
-                float across = Math.Cos(angle) * distance
-                float along = HobbsMill.PondAlong + Math.Sin(angle) * distance
-                float x = across * site.AxisX - along * site.AxisZ
-                float z = across * site.AxisZ + along * site.AxisX
-                if Math.Hypot(x, z) + reach < site.Radius - 0.5 { placer.OfferBuilding(0, Mill, x, z, MillHalf, MillHeight, MillSight, MillVoxel) }
+        float far = site.Radius - reach - 0.5
+        float [] fitX
+        float [] fitZ
+        int [] fitCost
+        float [] restX
+        float [] restZ
+        for ring : 0; ring < 12; ring++ {
+            float distance = (float)ring * 1.5
+            if distance > far { continue }
+            int steps = ring == 0 ? 1 | 24
+            for step : 0; step < steps; step++ {
+                float angle = ((float)step + (float)(ring & 1) * 0.5) * 6.2831853 / (float)steps
+                float x = Math.Cos(angle) * distance
+                float z = Math.Sin(angle) * distance
+                // The pond, upstream, must stay inside the clearing.
+                if Math.Hypot(x + HobbsMill.WheelSide + HobbsMill.PondAcross, z + HobbsMill.PondAlong) + HobbsMill.PondRadius > site.Radius { continue }
+                if FitsBesideRiver(site, x, z) {
+                    fitX += x
+                    fitZ += z
+                    // A road crossed squarely, about 12 steps, is better than none,
+                    // which leaves the far bank without a bridge; a long run beside
+                    // a road is worse than either.
+                    int bridged = BridgedSteps(site, x, z)
+                    fitCost += bridged == 0 ? 16 | bridged
+                } else {
+                    restX += x
+                    restZ += z
+                }
             }
         }
+        // Cheapest first; among equals, the order found.
+        for i : 1; i < fitCost.Len; i++ {
+            for j : i; j > 0 && fitCost[j] < fitCost[j - 1]; j-- {
+                int cost = fitCost[j]
+                fitCost[j] = fitCost[j - 1]
+                fitCost[j - 1] = cost
+                float swapX = fitX[j]
+                fitX[j] = fitX[j - 1]
+                fitX[j - 1] = swapX
+                float swapZ = fitZ[j]
+                fitZ[j] = fitZ[j - 1]
+                fitZ[j - 1] = swapZ
+            }
+        }
+        for i : 0; i < fitX.Len; i++ { placer.OfferBuilding(0, Mill, fitX[i], fitZ[i], MillHalf, MillHeight, MillSight, MillVoxel) }
+        for i : 0; i < restX.Len; i++ { placer.OfferBuilding(0, Mill, restX[i], restZ[i], MillHalf, MillHeight, MillSight, MillVoxel) }
         HellfeatherRoads.OfferBetween(placer, 0, site, Mill, MillHalf, MillHeight, MillSight, MillVoxel)
+        // Reeds, trees and rocks. Those that land in the water are dropped once
+        // the mill is placed and the river known (HellfeatherTerrain.Configure).
         QuaxelRandom random
         random.Begin(site.Seed ^ (uint)0x3B11D0A5)
         int group = 100
         for n : 0; n < 14; n++ {
-            float side = (n & 1) == 0 ? 1.0 | -1.0
-            float across = side * random.Range(6.0, site.Radius - 1.5)
-            float along = random.Range(-site.Radius + 2.0, 0.0)
-            float x = across * site.AxisX - along * site.AxisZ
-            float z = across * site.AxisZ + along * site.AxisX
+            float angle = random.Range(0.0, 6.2831853)
+            float distance = random.Range(5.0, site.Radius - 1.5)
+            float x = Math.Cos(angle) * distance
+            float z = Math.Sin(angle) * distance
             if n < 6 { placer.OfferProp(group, Props.Reeds[n % 2], x, z, 3, FenmarchArt.ReedsHeight / 2, HellfeatherArt.FineVoxel) }
             else if n < 10 { placer.OfferProp(group, Props.Trees[n % 3], x, z, 5, 40, HellfeatherArt.FineVoxel) }
             else { placer.OfferProp(group, Props.Rocks[n % 3], x, z, 7, 10, HellfeatherArt.FineVoxel) }
@@ -221,9 +354,28 @@ HobbsMill : QuaxelTerrainModule
     }
 }
 #{
-    // World units along the river from the clearing's middle to the pond's.
-    #float PondAlong = 6.0
-    #float PondRadius = 4.5
+    // World units from the mill's center to the river's centerline, toward +X.
+    // The mill's +X wall is 1.06 out and its wheel turns between 1.31 and 1.81,
+    // so the river's near bank runs under the wheel.
+    #float WheelSide = 2.3
+    #float RiverHalf = 1.1
+    // The half width of the path the generator keeps open, and bridges, along
+    // every road: QuaxelTerrainConfig.ReservedPath.
+    #float Reserved = 2.0
+    // World units along the river either side of the mill that it runs straight.
+    #float Straight = 5.0
+    // Past the mill's front, 2.16 out, the river bends this far toward +X,
+    // clear of the door and of the player arriving there.
+    #float BendFrom = 2.2
+    #float Bend = 1.0
+    // The pond's middle from the river's anchor: a little out and upstream.
+    #float PondAcross = 0.8
+    #float PondAlong = -5.2
+    #float PondRadius = 2.4
+    // Cells below the floor. Shallow, so the water beside the wheel, which the
+    // mill's levelled square raises to the ground, steps down only a little.
+    #int RiverDepth = 2
+    #int PondDepth = 3
 }
 
 // Code-built props of the Fenmarch. They join the shared HellfeatherProps.
@@ -435,6 +587,159 @@ T{
         T.IsTrue(roadDepth <= 2)
         T.IsTrue(millDepth >= 5)
         T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, HellfeatherZone.Ravenford + 0)
+    }
+
+    // The mill blocks only the ground its own voxels cover, with no strip of
+    // hidden ground behind it, so the player can walk right up to every wall.
+    TheMillBlocksOnlyItsOwnFootprint()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int mill = -1
+        for i : 0; i < game.Terrain.Placements.Len; i++ {
+            if game.Terrain.Placements[i].Volume == game.Terrain.Mill.Mill { mill = (int)i }
+        }
+        T.IsTrue(mill >= 0)
+        vec3 at = game.Terrain.PlacementPosition(mill)
+        int calls = 0
+        while !game.Terrain.IsReady(at) && calls < 4000 {
+            T.IsTrue(game.Terrain.Stream(world, at, 100000))
+            calls++
+        }
+        T.IsTrue(game.Terrain.IsReady(at))
+        // No hidden strip, and a ground plan no bigger than the model.
+        T.AreEqual(game.Terrain.Placements[mill].Reach, 0)
+        ivec3 cells = world.VolumeCells(game.Terrain.Mill.Mill)
+        float voxel = game.Terrain.Placements[mill].VoxelSize
+        int wide = (int)Math.Ceil((float)cells.X * voxel / QuaxelTerrain.Cell) + 1
+        int deep = (int)Math.Ceil((float)cells.Z * voxel / QuaxelTerrain.Cell) + 1
+        T.IsTrue(game.Terrain.Placements[mill].FootWide <= wide)
+        T.IsTrue(game.Terrain.Placements[mill].FootDeep <= deep)
+        T.IsTrue(game.Terrain.Placements[mill].FootLeft >= -wide / 2 - 1)
+        T.IsTrue(game.Terrain.Placements[mill].FootTop >= -deep / 2 - 1)
+        // Solid in the middle; the player fits right against its back and its
+        // -X wall, where the hidden strip used to block.
+        float halfX = (float)cells.X * voxel * 0.5
+        float halfZ = (float)cells.Z * voxel * 0.5
+        float radius = game.PlayerRadius()
+        T.IsTrue(game.Terrain.IsBlocked(at.X, at.Z))
+        T.IsFalse(game.Terrain.CircleBlocked(at.X, at.Z - halfZ - radius - 0.15, radius))
+        T.IsFalse(game.Terrain.CircleBlocked(at.X - halfX - radius - 0.15, at.Z - 1.2, radius))
+        T.IsFalse(game.Terrain.CircleBlocked(at.X - 1.0, at.Z - halfZ - radius - 0.15, radius))
+    }
+
+    // The river runs past the mill's +X wall, under its wheel, and on past it
+    // both ways; the mill's door and its arrival spot stay on dry ground.
+    TheMillWheelTurnsInTheRiver()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int mill = -1
+        for i : 0; i < game.Terrain.Placements.Len; i++ {
+            if game.Terrain.Placements[i].Volume == game.Terrain.Mill.Mill { mill = (int)i }
+        }
+        T.IsTrue(mill >= 0)
+        T.AreEqual(game.Terrain.Mill.RiverSite, game.Terrain.Placements[mill].Site)
+        vec3 at = game.Terrain.PlacementPosition(mill)
+        int calls = 0
+        while !game.Terrain.IsReady(at) && calls < 4000 {
+            T.IsTrue(game.Terrain.Stream(world, at, 100000))
+            calls++
+        }
+        ivec3 cells = world.VolumeCells(game.Terrain.Mill.Mill)
+        float halfX = (float)cells.X * game.Terrain.Placements[mill].VoxelSize * 0.5
+        // Just past the wheel, beside it from back to front, is water.
+        for step : -3; step <= 1; step++ {
+            float z = at.Z + (float)step * 0.5
+            T.AreEqual(game.Terrain.ColumnKind(game.Terrain.ColumnAt(at.X + halfX + 0.4), game.Terrain.ColumnAt(z)), QuaxelTerrainKind.Water)
+        }
+        // And on past the mill both ways, upstream and downstream.
+        int upstream = 0
+        int downstream = 0
+        for step : 0; step < 40; step++ {
+            float x = at.X + HobbsMill.WheelSide - 2.0 + (float)(step % 8) * 0.5
+            float z = (float)(step / 8) * 0.5 + 3.0
+            if game.Terrain.ColumnKind(game.Terrain.ColumnAt(x), game.Terrain.ColumnAt(at.Z - z - 4.0)) == QuaxelTerrainKind.Water { upstream++ }
+            if game.Terrain.ColumnKind(game.Terrain.ColumnAt(x), game.Terrain.ColumnAt(at.Z + z)) == QuaxelTerrainKind.Water { downstream++ }
+        }
+        T.IsTrue(upstream > 5)
+        T.IsTrue(downstream > 5)
+        float radius = game.PlayerRadius()
+        T.IsFalse(game.Terrain.CircleBlocked(game.MillDoor.X, game.MillDoor.Z + 1.6, radius))
+        T.IsFalse(game.Terrain.IsBlocked(game.MillDoor.X, game.MillDoor.Z))
+    }
+
+    // Every road through the mill's clearing can be walked end to end, and
+    // where the river crosses one it does so on a bridge.
+    TheMillRiverIsBridgedWhereRoadsCrossIt()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int index = game.Terrain.Mill.RiverSite
+        T.IsTrue(index >= 0)
+        QuaxelTerrainSite site = game.Terrain.Layout.Sites[index]
+        vec3 center = game.Terrain.WorldPoint(site.X, site.Z)
+        int calls = 0
+        while !game.Terrain.IsReady(center) && calls < 4000 {
+            T.IsTrue(game.Terrain.Stream(world, center, 100000))
+            calls++
+        }
+        T.IsTrue(game.Terrain.IsReady(center))
+        float radius = game.PlayerRadius()
+        int bridged = 0
+        for port : 0; port < site.PortCount; port++ {
+            float px = site.PortX[port]
+            float pz = site.PortZ[port]
+            for step : 0; step <= (int)(site.Radius * 4.0); step++ {
+                float t = (float)step * 0.25
+                vec3 point = game.Terrain.WorldPoint(site.X + px * t, site.Z + pz * t)
+                T.IsFalse(game.Terrain.CircleBlocked(point.X, point.Z, radius))
+                // Where the river runs under the road, the road is a bridge:
+                // open to walk on, with the river's water just off it.
+                if !game.Terrain.Mill.IsWater(site, px * t, pz * t, 0.0) { continue }
+                T.AreEqual(game.Terrain.ColumnKind(game.Terrain.ColumnAt(point.X), game.Terrain.ColumnAt(point.Z)), QuaxelTerrainKind.Open)
+                bridged++
+                int water = 0
+                for a : -14; a <= 14; a++ {
+                    for b : -14; b <= 14; b++ {
+                        float x = point.X + (float)a * 0.25
+                        float z = point.Z + (float)b * 0.25
+                        if game.Terrain.ColumnKind(game.Terrain.ColumnAt(x), game.Terrain.ColumnAt(z)) == QuaxelTerrainKind.Water { water++ }
+                    }
+                }
+                T.IsTrue(water > 0)
+            }
+        }
+        // The river crosses at least one road, so there is a bridge to cross.
+        T.IsTrue(bridged > 0)
+    }
+
+    // No reed, tree or rock of the mill's clearing stands in its water.
+    NoPropStandsInTheMillRiver()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int index = game.Terrain.Mill.RiverSite
+        T.IsTrue(index >= 0)
+        QuaxelTerrainSite site = game.Terrain.Layout.Sites[index]
+        vec3 center = game.Terrain.WorldPoint(site.X, site.Z)
+        int calls = 0
+        while !game.Terrain.IsReady(center) && calls < 4000 {
+            T.IsTrue(game.Terrain.Stream(world, center, 100000))
+            calls++
+        }
+        int props = 0
+        for i : 0; i < game.Terrain.Placements.Len; i++ {
+            if !game.Terrain.Placements[i].Prop || game.Terrain.Placements[i].Site != index { continue }
+            props++
+            vec3 at = game.Terrain.PlacementPosition((int)i)
+            T.AreNotEqual(game.Terrain.ColumnKind(game.Terrain.ColumnAt(at.X), game.Terrain.ColumnAt(at.Z)), QuaxelTerrainKind.Water)
+        }
+        T.IsTrue(props > 0)
     }
 }
 

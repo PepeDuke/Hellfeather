@@ -6,6 +6,11 @@ HellfeatherPortals
 #{
     #string FieldTitle = "Portal to Ravenford"
     #string TownTitle = "Portal back"
+    #string MillTitle = "Portal to Hobb's Mill"
+    // Where the mill portal stands from the ring pedestal's level's deepest
+    // point, beside the pedestal, which is 2 up the screen from it.
+    #float MillPortalX = 2.6
+    #float MillPortalZ = -2.2
     // Where the town end opens, near the square, and how far in front of a
     // portal she steps out. Portals face the camera, down the screen.
     #float TownX = 2.5
@@ -43,6 +48,16 @@ HellfeatherPortals
         style.Contact = QuaxelEffectContact.Pass
         return style
     }
+
+    // The mill portal's motes: silver and pale teal, the severed wire's light.
+    QuaxelEffectStyle MillSwirl()
+    {
+        QuaxelEffectStyle style = Swirl()
+        style.ColorStart = 0xf2fbff
+        style.ColorMiddle = 0x8fd6e6
+        style.ColorEnd = 0x2a6f86
+        return style
+    }
 }
 
 HellfeatherGame : QuaxelGameInstance
@@ -55,6 +70,7 @@ HellfeatherGame : QuaxelGameInstance
     -int PortalEffect = -1
     -int TownPortalEffect = -1
     -bool PortalKeyHeld
+    -int MillPortalEffect = -1
 
     bool IsPortalOpen() { return PortalOpen }
 
@@ -172,6 +188,47 @@ HellfeatherGame : QuaxelGameInstance
         return world.StartEffect(HellfeatherPortals.Swirl(), middle, vec3(0.0, 1.0, 0.0))
     }
 
+    // Once the ring is severed, a portal stands beside its pedestal, out to
+    // Hobb's Mill, where Lise waits. It costs nothing and never closes. The
+    // level below is rebuilt on each visit, so its spot is added back.
+    ShowMillPortal()
+    {
+        if Quests.Millrace < 4 { return }
+        HellfeatherRealm deep = HellfeatherRealm.UndercroftDeep
+        int index = People.FindKind(HellfeatherSpotKind.MillPortal, deep)
+        if index < 0 {
+            if Terrain.Realm != deep { return }
+            vec3 feet = OpenNear(Deepest() + vec3(HellfeatherPortals.MillPortalX, 0.0, HellfeatherPortals.MillPortalZ))
+            index = People.AddModel(HellfeatherSpotKind.MillPortal, HellfeatherPortals.MillTitle, deep, feet, Landmarks.MillPortal, HellfeatherArt.FineVoxel, HellfeatherLandmarks.PortalHeight)
+        }
+        People.Spots[index].Shown = true
+    }
+
+    // Steps her out through the mill portal, to the mill's door.
+    bool UseMillPortal(QuaxelWorld& world)
+    {
+        if Quests.Millrace < 4 { return false }
+        if !TravelTo(world, HellfeatherRealm.Fenmarch, MillDoor + vec3(0.0, 0.0, 1.6), false) { return false }
+        StepZone(world.GetPosition(PlayerNode), 1.0)
+        Banner.Show("Hobb's Mill", 2.5)
+        return true
+    }
+
+    // Keeps the mill portal's motes running while she is on its level.
+    -SyncMillPortal(QuaxelWorld& world)
+    {
+        int index = People.FindKind(HellfeatherSpotKind.MillPortal, HellfeatherRealm.UndercroftDeep)
+        bool here = index >= 0 && People.Spots[index].Shown && People.Spots[index].Realm == Terrain.Realm && People.Spots[index].Node != 0
+        if !here {
+            if MillPortalEffect >= 0 { world.StopEffect(MillPortalEffect) }
+            MillPortalEffect = -1
+            return
+        }
+        if MillPortalEffect >= 0 && world.IsEffectPlaying(MillPortalEffect) { return }
+        vec3 middle = People.Spots[index].Feet + vec3(0.0, HellfeatherPortals.Middle, 0.0)
+        MillPortalEffect = world.StartEffect(HellfeatherPortals.MillSwirl(), middle, vec3(0.0, 1.0, 0.0))
+    }
+
     // H opens a portal, like the button beside the bar.
     StepPortalKey(QuaxelWorld& world, QuaxelInputState& input)
     {
@@ -181,6 +238,55 @@ HellfeatherGame : QuaxelGameInstance
     }
 }
 T{
+    // Severing the ring opens a silver portal beside its pedestal, not hers:
+    // it costs no raven portal, survives her own pair closing, takes her out
+    // to the mill where Lise waits, and stands there again when she returns.
+    SeveringTheRingOpensAPortalToTheMill()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherRealm deep = HellfeatherRealm.UndercroftDeep
+        game.Quests.Millrace = 3
+        T.IsTrue(game.Travel(world, deep, true))
+        T.IsTrue(game.People.FindKind(HellfeatherSpotKind.MillPortal, deep) < 0)
+        int pedestal = game.People.FindKind(HellfeatherSpotKind.Pedestal, deep)
+        game.Use(world, pedestal)
+        int portals = game.Inventory.Items.Portals
+        game.Answer(world, HellfeatherReply.Sever)
+        T.AreEqual(game.Quests.Millrace, 4)
+        int portal = game.People.FindKind(HellfeatherSpotKind.MillPortal, deep)
+        T.IsTrue(portal >= 0)
+        T.IsTrue(game.People.Spots[portal].Shown)
+        T.AreEqual(game.People.Spots[portal].Title, HellfeatherPortals.MillTitle)
+        T.AreEqual(game.Inventory.Items.Portals, portals)
+        // Beside the pedestal, on open floor.
+        vec3 feet = game.People.Spots[portal].Feet
+        vec3 ring = game.People.Spots[pedestal].Feet
+        T.IsTrue(Math.Hypot(feet.X - ring.X, feet.Z - ring.Z) < 5.0)
+        int calls = 0
+        while !game.Terrain.IsReady(feet) && calls < 4000 {
+            T.IsTrue(game.Terrain.Stream(world, feet, 100000))
+            calls++
+        }
+        T.IsFalse(game.Terrain.IsBlocked(feet.X, feet.Z))
+        // Closing her own raven portals leaves it standing.
+        game.ClosePortals(world)
+        T.IsTrue(game.People.Spots[portal].Shown)
+        // Through it, to the mill's door.
+        game.Use(world, portal)
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Fenmarch)
+        vec3 at = world.GetPosition(game.PlayerNode)
+        T.IsTrue(Math.Hypot(at.X - game.MillDoor.X, at.Z - game.MillDoor.Z) < 4.0)
+        int lise = game.People.FindPerson(HellfeatherPerson.Lise)
+        T.IsTrue(game.People.Spots[lise].Shown)
+        // Back down, it is there again.
+        game.Quests.Millrace = 4
+        T.IsTrue(game.Travel(world, deep, true))
+        portal = game.People.FindKind(HellfeatherSpotKind.MillPortal, deep)
+        T.IsTrue(portal >= 0 && game.People.Spots[portal].Shown)
+    }
+
     APortalNeedsOneInHandAndTheWild()
     {
         HellfeatherGame game()

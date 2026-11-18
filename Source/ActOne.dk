@@ -98,7 +98,9 @@ T{
                 float halfZ = (float)cells.Z * voxel * 0.5
                 T.IsTrue(game.Terrain.IsBlocked(at.X, at.Z))
                 T.IsFalse(game.Terrain.IsBlocked(at.X, at.Z + halfZ + 0.3))
-                T.IsFalse(game.Terrain.IsBlocked(at.X + halfX + 0.3, at.Z))
+                // The mill's +X side is its river; its -X side is open instead.
+                float beside = volume == game.Terrain.Mill.Mill ? -(halfX + 0.3) | halfX + 0.3
+                T.IsFalse(game.Terrain.IsBlocked(at.X + beside, at.Z))
                 checkedCount++
             }
         }
@@ -210,6 +212,8 @@ T{
         T.IsTrue(game.LeaveInterior(world))
         at = world.GetPosition(game.PlayerNode)
         T.IsTrue(Math.Hypot(at.X - game.MillDoor.X, at.Z - game.MillDoor.Z) < 4.0)
+        // The Fenmarch, built again, runs its river past the mill again.
+        T.IsTrue(game.Terrain.Mill.RiverSite >= 0)
         T.IsTrue(game.Ravens.Spots.Len > 0)
         int lise = game.People.FindPerson(HellfeatherPerson.Lise)
         T.IsTrue(game.People.Spots[lise].Shown)
