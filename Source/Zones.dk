@@ -10,6 +10,11 @@ HellfeatherZoneNames
         if zone == HellfeatherZone.FordRoad + 0 { return "The Ford Road" }
         if zone == HellfeatherZone.FennickWater + 0 { return "Fennick Water" }
         if zone == HellfeatherZone.Croft + 0 { return "The Crofts" }
+        if zone == HellfeatherZone.Encampment + 0 { return HellfeatherQuests.CampName }
+        if zone == HellfeatherZone.HospiceRoad + 0 { return "The Hospice Road" }
+        if zone == HellfeatherZone.Shallows + 0 { return "Thornmere Shallows" }
+        if zone == HellfeatherZone.Thornwick + 0 { return "Thornwick" }
+        if zone == HellfeatherZone.Heath + 0 { return "The Thornmere" }
         return "The Fenmarch"
     }
 
@@ -25,6 +30,15 @@ HellfeatherZoneNames
         if zone == HellfeatherZone.HobbsMill + 0 { return 9 }
         if zone == HellfeatherZone.Undercroft + 0 || zone == HellfeatherZone.UndercroftLanding + 0 { return 10 }
         if zone == HellfeatherZone.UndercroftDeep + 0 { return 12 }
+        if zone == HellfeatherZone.Encampment + 0 || zone == HellfeatherZone.Thornwick + 0 { return 13 }
+        if zone == HellfeatherZone.HospiceRoad + 0 { return 13 }
+        if zone == HellfeatherZone.Heath + 0 { return 14 }
+        if zone == HellfeatherZone.Shallows + 0 { return 15 }
+        if zone == HellfeatherZone.Cloister + 0 { return 16 }
+        if zone == HellfeatherZone.RecordsCellar + 0 { return 17 }
+        if zone == HellfeatherZone.SouthWing + 0 { return 18 }
+        if zone == HellfeatherZone.SouthWingDeep + 0 { return 19 }
+        if zone == HellfeatherZone.RelayChapel + 0 { return 20 }
         return 1
     }
 
@@ -37,6 +51,12 @@ HellfeatherZoneNames
         if realm == HellfeatherRealm.Mill { return "Hobb's Mill" }
         if realm == HellfeatherRealm.Garret { return "Jessa's garret" }
         if realm == HellfeatherRealm.RavenfordHouse { return HellfeatherHome.Title(HellfeatherResidence.RavenfordHouse) }
+        if realm == HellfeatherRealm.PilgrimTent { return HellfeatherHome.Title(HellfeatherResidence.PilgrimTent) }
+        if realm == HellfeatherRealm.Cloister { return "The Cloister of Looms" }
+        if realm == HellfeatherRealm.RecordsCellar { return "Saint Orra's: Records Cellar" }
+        if realm == HellfeatherRealm.SouthWing { return "Saint Orra's: South Wing" }
+        if realm == HellfeatherRealm.SouthWingDeep { return "The South Wing, lower wards" }
+        if realm == HellfeatherRealm.RelayChapel { return "The Relay Chapel" }
         return ""
     }
 
@@ -86,7 +106,7 @@ HellfeatherGame : QuaxelGameInstance
     // clearing's.
     int AreaLevel()
     {
-        if Terrain.Realm != HellfeatherRealm.Fenmarch { return HellfeatherZoneNames.Level(Terrain.HallZone()) }
+        if !HellfeatherRealm.IsOverland(Terrain.Realm) { return HellfeatherZoneNames.Level(Terrain.HallZone()) }
         if ZoneSite < 0 || ZoneSite >= Terrain.Layout.Sites.Len { return 1 }
         return HellfeatherZoneNames.Level(Terrain.Layout.Sites[ZoneSite].Module)
     }

@@ -27,7 +27,23 @@ HellfeatherSpotKind : int
     // Jessa's Waterwalkers, standing in the dry outline in her garret.
     Boots,
     // Her personal chest, in whichever residence is hers (Source/Residence.dk).
-    Stash
+    Stash,
+    // Act II.
+    // A way to another level: the road between the Fenmarch and the Thornmere,
+    // or the door down to one of Act II's dungeons. Leads names where.
+    Road,
+    // The Tithe-House's ledger chest (II-3).
+    Ledgers,
+    // Matthew's archive in the rooms above the Guildhall (II-4).
+    Archive,
+    // A cabinet below: Jessa's expulsion file (II-2) or DECEASED, TRANSFERRED (II-5).
+    Cabinet,
+    // The Inscription Loom in Thornwick (II-2), and Corvin's bench later.
+    Loom,
+    // The relay chapel's socket, severed with the grey key (II-6).
+    Socket,
+    // A patient bound to a frame in the relay chapel: cutting it frees them.
+    Frame
 }
 
 HellfeatherPerson : int
@@ -42,7 +58,18 @@ HellfeatherPerson : int
     Jessa,
     Vale,
     OldHobb,
-    Lise
+    Lise,
+    // Act II.
+    Hesk,
+    Tolly,
+    Corvin,
+    Agnet,
+    Clerk,
+    GateCuff,
+    Pilgrim,
+    Dyer,
+    // Edda's raven in its cage at the encampment.
+    EddaRaven
 }
 
 HellfeatherSpot

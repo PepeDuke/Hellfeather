@@ -268,8 +268,11 @@ def voxel_size(model):
 
 
 def load_views(model):
-    front_image = np.asarray(Image.open(CROPS / f"{model['name']}.front.png").convert('RGB'), dtype=np.int32)
-    side_image = np.asarray(Image.open(CROPS / f"{model['name']}.side.png").convert('RGB'), dtype=np.int32)
+    # Act II's models keep their crops in a folder of their own (act2.py), and a
+    # sheet with one view uses it for the side too.
+    crops = model.get('crops', CROPS)
+    front_image = np.asarray(Image.open(crops / f"{model['name']}.front.png").convert('RGB'), dtype=np.int32)
+    side_image = np.asarray(Image.open(crops / f"{model['name']}.{model.get('side_view', 'side')}.png").convert('RGB'), dtype=np.int32)
     if model.get('flip'):
         side_image = side_image[:, ::-1]
     front_mask = silhouette(front_image, model.get('trim', 0))

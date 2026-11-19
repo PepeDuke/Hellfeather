@@ -1,0 +1,347 @@
+// Tests of Act II as a whole: the road on, the encampment, its quests, its
+// dungeons and the effects its enemies leave.
+HellfeatherActTwo
+#{
+    // A game with Act I over, standing where the road on starts.
+    bool AtActTwo(HellfeatherGame& game, QuaxelWorld& world)
+    {
+        if !game.Prepare(world) { return false }
+        game.Quests.Moult = 4
+        game.Quests.Millrace = 5
+        game.Quests.TitheMark = true
+        game.StepActTwo(world, 0.1)
+        return game.Quests.ActTwo
+    }
+
+    // Kills every enemy from index first on and counts them.
+    KillFrom(HellfeatherGame& game, QuaxelWorld& world, int first)
+    {
+        for i : first; i < game.Enemies.Len; i++ {
+            game.Enemies[i].Health = 0
+            game.CountKill(world, i)
+        }
+        game.StepActTwo(world, 0.1)
+    }
+
+    int SpotOf(HellfeatherGame& game, HellfeatherSpotKind kind, HellfeatherRealm leads)
+    {
+        for i : 0; i < game.People.Spots.Len; i++ {
+            if game.People.Spots[i].Kind == kind && game.People.Spots[i].Leads == leads { return (int)i }
+        }
+        return -1
+    }
+
+    int EnemyNamed(HellfeatherGame& game, string kind)
+    {
+        for i : 0; i < game.Enemies.Len; i++ {
+            if game.Spawner.Table.Kinds[game.Enemies[i].Kind].Name == kind { return (int)i }
+        }
+        return -1
+    }
+}
+T{
+    // Once Act I is over the road past the hospice leads on, to the
+    // encampment, where a tent becomes hers and the camp's fire burns.
+    TheRoadOnLeadsToTheEncampment()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(HellfeatherActTwo.AtActTwo(game, world))
+        int road = HellfeatherActTwo.SpotOf(game, HellfeatherSpotKind.Road, HellfeatherRealm.Thornmere)
+        T.IsTrue(road >= 0)
+        T.IsTrue(game.People.Spots[road].Shown)
+        T.IsTrue(game.TakeRoad(world, road))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Thornmere)
+        T.AreEqual(game.Residence, HellfeatherResidence.PilgrimTent)
+        T.IsTrue(game.People.FindPerson(HellfeatherPerson.Hesk) >= 0)
+        vec3 at = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.InCamp(at))
+        bool lit = false
+        for waypoint : game.Waypoints {
+            if waypoint.Name == HellfeatherQuests.CampName { lit = waypoint.Lit }
+        }
+        T.IsTrue(lit)
+        // The road back goes to Orra's Hill.
+        int back = HellfeatherActTwo.SpotOf(game, HellfeatherSpotKind.Road, HellfeatherRealm.Fenmarch)
+        T.IsTrue(back >= 0)
+        T.IsTrue(game.TakeRoad(world, back))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Fenmarch)
+    }
+
+    // The encampment is the Thornmere's entry, laid out around the shrine,
+    // and nothing hostile is rolled inside it.
+    TheEncampmentIsTheThornmeresSafeHub()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "camp"
+        T.IsTrue(game.Prepare(world))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Thornmere)
+        QuaxelTerrainSite spawn = game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex]
+        T.AreEqual(spawn.Module, HellfeatherZone.Encampment + 0)
+        vec3 middle = game.Terrain.WorldPoint(spawn.X, spawn.Z)
+        vec3 camp = HellfeatherRealm.CampMiddle()
+        T.IsTrue(Math.Hypot(middle.X - camp.X, middle.Z - camp.Z) < 2.0)
+        T.IsTrue(game.PlacementOf(game.ActTwoPieces.Volume[HellfeatherActTwoPiece.PilgrimShrine]) >= 0)
+        for encounter : game.Spawner.Encounters {
+            if encounter.Group < 0 { continue }
+            T.IsTrue(Math.Hypot(encounter.Center.X - camp.X, encounter.Center.Z - camp.Z) > PilgrimsEncampment.TorchRing)
+        }
+        // Thornwick, the road and the shallows are all laid out.
+        T.IsTrue(game.NearestSiteOf(HellfeatherZone.Thornwick) >= 0)
+        T.IsTrue(game.NearestSiteOf(HellfeatherZone.HospiceRoad) >= 0)
+    }
+
+    // II-1: the hanged and the matriarch, then Hesk's buckler.
+    TheHospiceRoadIsClearedForHesk()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "camp"
+        T.IsTrue(game.Prepare(world))
+        int hesk = game.People.FindPerson(HellfeatherPerson.Hesk)
+        T.IsTrue(game.HasNews(hesk))
+        game.Use(world, hesk)
+        game.Answer(world, HellfeatherReply.HeskRoad)
+        T.AreEqual(game.Quests.Road, 1)
+        int first = (int)game.Enemies.Len
+        for n : 0; n < HellfeatherQuests.HangedWanted; n++ { game.AddScripted(world, "TitheHanged", 3.0, 3.0) }
+        game.AddScripted(world, "SwanMatriarch", 5.0, 5.0)
+        HellfeatherActTwo.KillFrom(game, world, first)
+        T.IsTrue(game.Quests.MatriarchSlain)
+        T.AreEqual(game.Quests.Road, 3)
+        T.IsTrue(game.HasNews(hesk))
+        game.Use(world, hesk)
+        game.Answer(world, HellfeatherReply.HeskPays)
+        T.AreEqual(game.Quests.Road, 4)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.SwanboneBuckler), 1)
+    }
+
+    // II-2: Agnet sends her below, the file, the tutorial at the Loom, then
+    // she can carve blank runes.
+    LawsOfWeavingEndsAtTheLoom()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "cloister"
+        T.IsTrue(game.Prepare(world))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Cloister)
+        T.IsTrue(HellfeatherActTwo.EnemyNamed(game, "FailedLoom") >= 0)
+        int cabinet = game.People.FindKind(HellfeatherSpotKind.Cabinet, HellfeatherRealm.Cloister)
+        T.IsTrue(cabinet >= 0)
+        T.IsTrue(game.HasNews(cabinet))
+        game.Use(world, cabinet)
+        game.Answer(world, HellfeatherReply.ReadFile)
+        T.AreEqual(game.Quests.Laws, 2)
+        // Up the stairs and out by the Cloister's doors.
+        int up = game.People.FindKind(HellfeatherSpotKind.StairsUp, HellfeatherRealm.Cloister)
+        game.Use(world, up)
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Thornmere)
+        int agnet = game.People.FindPerson(HellfeatherPerson.Agnet)
+        T.IsTrue(game.HasNews(agnet))
+        game.Use(world, agnet)
+        game.Answer(world, HellfeatherReply.AgnetTutorial)
+        int loom = game.People.FindKind(HellfeatherSpotKind.Loom, HellfeatherRealm.Thornmere)
+        T.IsTrue(game.HasNews(loom))
+        game.Use(world, loom)
+        game.Answer(world, HellfeatherReply.Inscribe)
+        T.AreEqual(game.Quests.Laws, 4)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.BlankRune), 3)
+        game.Use(world, loom)
+        game.Answer(world, HellfeatherReply.Carve)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.BlankRune), 2)
+    }
+
+    // II-3 and II-4: through the checkpoint, the ledgers and their guards,
+    // the burning archive, and Matthew handing back the quarrel.
+    TheLedgersLeadToTheJourneymansArchive()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "camp"
+        T.IsTrue(game.Prepare(world))
+        game.Inventory.Items.Gold = 200
+        int cuff = game.People.FindPerson(HellfeatherPerson.GateCuff)
+        T.IsTrue(cuff >= 0)
+        game.Use(world, cuff)
+        game.Answer(world, HellfeatherReply.PayTithe)
+        T.IsTrue(game.Quests.CheckpointPassed)
+        T.AreEqual(game.Inventory.Items.Gold, 150)
+        T.AreEqual(game.Quests.Ledgers, 1)
+        int ledgers = game.People.FindKind(HellfeatherSpotKind.Ledgers, HellfeatherRealm.Thornmere)
+        game.Use(world, ledgers)
+        int first = (int)game.Enemies.Len
+        game.Answer(world, HellfeatherReply.StealLedgers)
+        T.AreEqual(game.Quests.Ledgers, 2)
+        T.IsTrue(game.Enemies.Len > first)
+        HellfeatherActTwo.KillFrom(game, world, first)
+        T.AreEqual(game.Quests.Ledgers, 3)
+        int archive = game.People.FindKind(HellfeatherSpotKind.Archive, HellfeatherRealm.Thornmere)
+        T.IsTrue(game.HasNews(archive))
+        game.Use(world, archive)
+        first = (int)game.Enemies.Len
+        game.Answer(world, HellfeatherReply.OpenArchive)
+        T.AreEqual(game.Quests.Archive, 1)
+        HellfeatherActTwo.KillFrom(game, world, first)
+        game.StepActTwo(world, 0.1)
+        T.AreEqual(game.Quests.Archive, 3)
+        T.IsTrue(game.Quests.ArchiveBurnt)
+        int matthew = -1
+        for i : 0; i < game.People.Spots.Len; i++ {
+            if game.People.Spots[i].Person == HellfeatherPerson.Matthew && game.People.Spots[i].Realm == HellfeatherRealm.Thornmere { matthew = (int)i }
+        }
+        T.IsTrue(matthew >= 0 && game.People.Spots[matthew].Shown)
+        game.Use(world, matthew)
+        game.Answer(world, HellfeatherReply.MatthewQuarrel)
+        T.AreEqual(game.Quests.Archive, 4)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.BentQuarrel), 1)
+    }
+
+    // II-5 and II-6: the cellar, the key, the wing, Corvin, Carmine, the relay.
+    TheSouthWingEndsTheAct()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "cellar"
+        T.IsTrue(game.Prepare(world))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.RecordsCellar)
+        int cabinet = game.People.FindKind(HellfeatherSpotKind.Cabinet, HellfeatherRealm.RecordsCellar)
+        game.Use(world, cabinet)
+        game.Answer(world, HellfeatherReply.ReadTransferred)
+        T.AreEqual(game.Quests.Records, 2)
+        game.Quests.Records = 3
+        T.IsTrue(game.TravelTo(world, HellfeatherRealm.SouthWing, HellfeatherRealm.Landing(HellfeatherRealm.SouthWing) + vec3(0.0, 0.0, 1.5), true))
+        T.AreEqual(game.Quests.SouthWing, 1)
+        T.IsTrue(HellfeatherActTwo.EnemyNamed(game, "OrderlyBrann") >= 0)
+        int down = game.People.FindKind(HellfeatherSpotKind.StairsDown, HellfeatherRealm.SouthWing)
+        game.Use(world, down)
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.SouthWingDeep)
+        int corvin = -1
+        for i : 0; i < game.People.Spots.Len; i++ {
+            if game.People.Spots[i].Person == HellfeatherPerson.Corvin && game.People.Spots[i].Realm == HellfeatherRealm.SouthWingDeep { corvin = (int)i }
+        }
+        T.IsTrue(corvin >= 0)
+        game.Use(world, corvin)
+        game.Answer(world, HellfeatherReply.FreeCorvin)
+        T.AreEqual(game.Quests.SouthWing, 2)
+        int deeper = game.People.FindKind(HellfeatherSpotKind.StairsDown, HellfeatherRealm.SouthWingDeep)
+        T.IsTrue(game.People.Spots[deeper].Shown)
+        game.Use(world, deeper)
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.RelayChapel)
+        T.IsTrue(game.Quests.WardenWoke)
+        int warden = HellfeatherActTwo.EnemyNamed(game, "RedWarden")
+        T.IsTrue(warden >= 0)
+        T.IsTrue(game.FramesBound() == 4)
+        game.Enemies[warden].Health = 0
+        game.CountKill(world, warden)
+        T.AreEqual(game.Quests.SouthWing, 3)
+        int socket = game.People.FindKind(HellfeatherSpotKind.Socket, HellfeatherRealm.RelayChapel)
+        T.IsTrue(game.People.Spots[socket].Shown)
+        game.Use(world, socket)
+        game.Answer(world, HellfeatherReply.SeverRelay)
+        T.AreEqual(game.Quests.SouthWing, 4)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.CarminesQuill), 1)
+        // Corvin trades at the encampment from now on.
+        T.IsTrue(game.TravelTo(world, HellfeatherRealm.Thornmere, HellfeatherCastTwo.RoadOut(), false))
+        T.IsTrue(game.Sells(HellfeatherPerson.Corvin))
+        int vale = -1
+        for i : 0; i < game.People.Spots.Len; i++ {
+            if game.People.Spots[i].Person == HellfeatherPerson.Vale && game.People.Spots[i].Realm == HellfeatherRealm.Thornmere { vale = (int)i }
+        }
+        T.IsTrue(vale >= 0 && game.People.Spots[vale].Shown)
+        game.Use(world, vale)
+        game.Answer(world, HellfeatherReply.ValeBox)
+        T.AreEqual(game.Quests.SouthWing, 5)
+    }
+
+    // Slows, roots, bleeding and the mark run out on their own; a root never
+    // holds longer than two seconds.
+    HindrancesHoldThenRunOut()
+    {
+        HellfeatherHindrance hindrance
+        hindrance.Slow(2.0, 40)
+        hindrance.Root(5.0)
+        hindrance.Bleed(2.0, 3)
+        hindrance.MarkSeconds = 1.0
+        T.IsTrue(hindrance.Rooted())
+        T.AreEqual(hindrance.SlowNow(), 40)
+        T.AreEqual(hindrance.Worsen(100), 125)
+        int dealt = 0
+        for n : 0; n < 10; n++ { dealt += hindrance.Step(0.25) }
+        T.IsFalse(hindrance.Rooted())
+        T.AreEqual(dealt, 6)
+        T.AreEqual(hindrance.Worsen(100), 100)
+        T.AreEqual(hindrance.SlowNow(), 0)
+    }
+
+    // The quest log shows the act the story is in, with its own six quests.
+    TheQuestLogTurnsToActTwo()
+    {
+        HellfeatherQuests quests
+        T.AreEqual(quests.Act(), 1)
+        T.AreEqual(quests.Base(), 0)
+        quests.ActTwo = true
+        T.AreEqual(quests.Act(), 2)
+        T.AreEqual(quests.StateOf(6), HellfeatherQuestState.Unknown)
+        quests.Road = 1
+        T.AreEqual(quests.StateOf(6), HellfeatherQuestState.Active)
+        for quest : 6; quest < 12; quest++ {
+            T.IsTrue(Length(HellfeatherQuests.TitleOf(quest)) * 6 <= HellfeatherQuestLogArt.WellWidth - 8)
+            lines : quests.JournalOf(quest)
+            for line : lines { T.IsTrue(Length(line) <= HellfeatherQuestLogArt.LineChars) }
+        }
+    }
+
+    // Her tent's door is on the Thornmere, and stepping out lands her there.
+    HerTentOpensOntoTheEncampment()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "camp"
+        T.IsTrue(game.Prepare(world))
+        int door = game.FindEntrance(HellfeatherRealm.PilgrimTent)
+        T.IsTrue(door >= 0)
+        T.IsTrue(game.People.Spots[door].Shown)
+        game.Use(world, door)
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.PilgrimTent)
+        T.IsTrue(game.People.FindKind(HellfeatherSpotKind.Stash, HellfeatherRealm.PilgrimTent) >= 0)
+        T.IsTrue(game.LeaveInterior(world))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Thornmere)
+        vec3 at = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.InCamp(at))
+    }
+
+    // Each Act II zone of the Thornmere rolls only its own groups, and the
+    // encampment and Thornwick roll none.
+    TheThornmereRollsItsOwnZones()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "camp"
+        T.IsTrue(game.Prepare(world))
+        int rolled = 0
+        for encounter : game.Spawner.Encounters {
+            if encounter.Group < 0 { continue }
+            int zone = game.Spawner.Table.Groups[encounter.Group].Zone
+            T.IsTrue(zone == HellfeatherZone.HospiceRoad + 0 || zone == HellfeatherZone.Shallows + 0 || zone == HellfeatherZone.Heath + 0)
+            rolled++
+        }
+        T.IsTrue(rolled > 0)
+    }
+}
+T{
+    // Every one of Thornwick's buildings finds a place in its clearing.
+    ThornwickStandsWhole()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "thornwick"
+        T.IsTrue(game.Prepare(world))
+        HellfeatherActTwoPiece [7] town = {HellfeatherActTwoPiece.CloisterOfLooms, HellfeatherActTwoPiece.TitheHouse, HellfeatherActTwoPiece.ClothiersGuildhall, HellfeatherActTwoPiece.ClothiersRow, HellfeatherActTwoPiece.InscriptionLoom, HellfeatherActTwoPiece.ClothiersRowB, HellfeatherActTwoPiece.ThornwickGate}
+        int placed = 0
+        for piece : town {
+            if game.PlacementOf(game.ActTwoPieces.Volume[piece]) >= 0 { placed++ }
+        }
+        T.AreEqual(placed, 7)
+    }
+}

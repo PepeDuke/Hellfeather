@@ -1,0 +1,95 @@
+// Act II's items, and the encampment's merchants: Pilgrim Mother Hesk keeps
+// Edda's kind of shelves, Tolly the Tinker Marra's, and Corvin Hale, once he
+// joins, carves and sells runes as Moth did.
+
+HellfeatherItems
+#{
+    bool IsActTwo(HellfeatherItems item) { return item + 0 >= HellfeatherItems.SwanboneBuckler + 0 }
+
+    HellfeatherItemKind ActTwoKind(HellfeatherItems item)
+    {
+        HellfeatherItemKind kind
+        kind.Width = 1
+        kind.Height = 1
+        if item == HellfeatherItems.SwanboneBuckler {
+            kind.Name = "Swanbone Buckler"
+            kind.Detail = "Defense 11, Cold ward 10"
+            kind.Width = 2
+            kind.Height = 2
+            kind.Gear = HellfeatherGear.Shield
+            kind.Price = 520
+        } else if item == HellfeatherItems.CarminesQuill {
+            kind.Name = "Carmine's Quill"
+            kind.Detail = "Strength 6, Agility 6"
+            kind.Height = 3
+            kind.Gear = HellfeatherGear.Shield
+            kind.Price = 760
+        } else if item == HellfeatherItems.PilgrimsBadge {
+            kind.Name = "Pilgrim's Badge"
+            kind.Detail = "Health 10, Fire ward 5"
+            kind.Gear = HellfeatherGear.Neck
+            kind.Price = 140
+        } else if item == HellfeatherItems.LawsOfWeaving {
+            kind.Name = "Laws of Weaving"
+            kind.Detail = "No inscription without consent"
+            kind.Width = 2
+            kind.Height = 2
+        } else if item == HellfeatherItems.BlankRune {
+            kind.Name = "Blank Rune"
+            kind.Detail = "Carve it at the Loom"
+            kind.Price = 90
+        } else if item == HellfeatherItems.TitheLedger {
+            kind.Name = "The Tithe Ledger"
+            kind.Detail = "Codes like C-R17 are people"
+            kind.Height = 2
+        } else if item == HellfeatherItems.BentQuarrel {
+            kind.Name = "The Bent Quarrel"
+            kind.Detail = "Improved?"
+            kind.Height = 2
+        } else if item == HellfeatherItems.LisesFile {
+            kind.Name = "Lise's File"
+            kind.Detail = "L. Hobb. She agreed to it"
+        } else if item == HellfeatherItems.HospiceKey {
+            kind.Name = "Hospice Key"
+            kind.Detail = "Opens the south wing"
+        } else if item == HellfeatherItems.OrranChalk {
+            kind.Name = "Orran Chalk"
+            kind.Detail = "Draws a Severing circle"
+            kind.Price = 120
+        }
+        return kind
+    }
+
+    // Act II's clues and keys, which no merchant buys.
+    bool IsActTwoQuest(HellfeatherItems item)
+    {
+        return item == HellfeatherItems.TitheLedger || item == HellfeatherItems.LisesFile || item == HellfeatherItems.HospiceKey || item == HellfeatherItems.LawsOfWeaving || item == HellfeatherItems.BentQuarrel
+    }
+
+    // What one worn Act II item gives. These match the detail lines.
+    AddActTwo(HellfeatherStats& stats, HellfeatherItems item)
+    {
+        if item == HellfeatherItems.SwanboneBuckler {
+            stats.Defense += 11
+            stats.ColdResist += 10
+        } else if item == HellfeatherItems.CarminesQuill {
+            stats.Strength += 6
+            stats.Agility += 6
+        } else if item == HellfeatherItems.PilgrimsBadge {
+            stats.MaxHealth += 10
+            stats.FireResist += 5
+        }
+    }
+
+    // The plain item an Act II item borrows its picture from.
+    HellfeatherItems ActTwoLikeness(HellfeatherItems item)
+    {
+        if item == HellfeatherItems.SwanboneBuckler { return HellfeatherItems.RoundShield }
+        if item == HellfeatherItems.CarminesQuill || item == HellfeatherItems.BentQuarrel { return HellfeatherItems.ShortSword }
+        if item == HellfeatherItems.PilgrimsBadge { return HellfeatherItems.Amulet }
+        if item == HellfeatherItems.BlankRune { return HellfeatherItems.RuneCleave }
+        if item == HellfeatherItems.HospiceKey { return HellfeatherItems.GoldenKey }
+        return HellfeatherItems.Scroll
+    }
+}
+

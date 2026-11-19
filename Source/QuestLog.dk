@@ -160,6 +160,8 @@ HellfeatherQuestLog
     -bool [6] Known
     // Known, but not yet looked at in the log.
     -bool [6] Fresh
+    // The act whose quests the niches hold.
+    -int ShownAct = 1
     -bool MouseWasDown
     -int Scale = 1
     -int PanelX
@@ -173,8 +175,17 @@ HellfeatherQuestLog
     int Notice(HellfeatherQuests& quests)
     {
         int found = 0
+        // A new act starts the niches over.
+        if quests.Act() != ShownAct {
+            ShownAct = quests.Act()
+            for n : 0; n < HellfeatherQuests.PerAct; n++ {
+                Known[n] = false
+                Fresh[n] = false
+            }
+            Selected = -1
+        }
         for quest : 0; quest < HellfeatherQuests.PerAct; quest++ {
-            if Known[quest] || quests.State(quest) == HellfeatherQuestState.Unknown { continue }
+            if Known[quest] || quests.StateOf(quests.Base() + quest) == HellfeatherQuestState.Unknown { continue }
             Known[quest] = true
             Fresh[quest] = true
             Selected = quest
@@ -249,12 +260,12 @@ HellfeatherQuestLog
     -Draw(QuaxelUi& ui, HellfeatherQuests& quests)
     {
         ui.OverlaySprite(PanelX, PanelY, 0, HellfeatherQuestLogArt.Top, HellfeatherInventoryArt.PanelWidth, HellfeatherInventoryArt.PanelHeight)
-        Centered(ui, PanelY + 9, "ACT I - THE MOULT", 0xFFE8B070)
+        Centered(ui, PanelY + 9, ShownAct == 2 ? "ACT II - ROOMS REMEMBER" | "ACT I - THE MOULT", 0xFFE8B070)
         for quest : 0; quest < HellfeatherQuests.PerAct; quest++ {
             if !Known[quest] { continue }
             int x = PanelX + HellfeatherQuestLogArt.NicheX(quest)
             int y = PanelY + HellfeatherQuestLogArt.NicheY(quest)
-            bool done = quests.State(quest) == HellfeatherQuestState.Done
+            bool done = quests.StateOf(quests.Base() + quest) == HellfeatherQuestState.Done
             ui.OverlayOutlinedSprite(x + HellfeatherQuestLogArt.IconInsetX, y + HellfeatherQuestLogArt.IconInsetY, HellfeatherQuestLogArt.IconX(quest), HellfeatherQuestLogArt.Top + (done ? HellfeatherQuestLogArt.IconStride | 0), HellfeatherQuestLogArt.IconSize, HellfeatherQuestLogArt.IconSize, HellfeatherInventoryArt.IconOutline)
             if quest == Selected { Outline(ui, x - 1, y - 1, HellfeatherQuestLogArt.NicheSize + 2, 0xFFDCAE3E) }
             else if quest == Hovered { Outline(ui, x - 1, y - 1, HellfeatherQuestLogArt.NicheSize + 2, 0xFF8C8880) }
@@ -266,12 +277,12 @@ HellfeatherQuestLog
             Centered(ui, titleY, "No quests yet", 0xFF8C8880)
             return
         }
-        Centered(ui, titleY, HellfeatherQuests.Title(shown), 0xFFE8B070)
-        lines : quests.Journal(shown)
+        Centered(ui, titleY, HellfeatherQuests.TitleOf(quests.Base() + shown), 0xFFE8B070)
+        lines : quests.JournalOf(quests.Base() + shown)
         for n : 0; n < lines.Len && n < HellfeatherQuestLogArt.LineCount; n++ {
             ui.OverlayText(PanelX + HellfeatherQuestLogArt.WellX + 5, PanelY + HellfeatherQuestLogArt.LineY((int)n), lines[n], 0xFFC8CCD4)
         }
-        if quests.State(shown) == HellfeatherQuestState.Done {
+        if quests.StateOf(quests.Base() + shown) == HellfeatherQuestState.Done {
             Centered(ui, PanelY + HellfeatherQuestLogArt.LineY(HellfeatherQuestLogArt.LineCount), "Completed", 0xFFDCAE3E)
         }
     }

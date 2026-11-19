@@ -11,7 +11,11 @@ HellfeatherMerchant : int
     Marra,
     Moth,
     // Edda's ravens: base gear wrapped up, bought blind with black feathers.
-    Ravens
+    Ravens,
+    // Act II.
+    Hesk,
+    Tolly,
+    Corvin
 }
 
 HellfeatherMerchants
@@ -25,6 +29,9 @@ HellfeatherMerchants
         if merchant == HellfeatherMerchant.Marra { return "SENN'S NEEDLEHOUSE" }
         if merchant == HellfeatherMerchant.Moth { return "THE LANTERN & MOTH" }
         if merchant == HellfeatherMerchant.Ravens { return "THE RAVENS' HOARD" }
+        if merchant == HellfeatherMerchant.Hesk { return "HESK'S WAGON" }
+        if merchant == HellfeatherMerchant.Tolly { return "TOLLY'S CART" }
+        if merchant == HellfeatherMerchant.Corvin { return "CORVIN'S BENCH" }
         return "SHOP"
     }
 
@@ -35,6 +42,9 @@ HellfeatherMerchants
         if merchant == HellfeatherMerchant.Marra { return "Coats, boots, belts" }
         if merchant == HellfeatherMerchant.Moth { return "Runes and blades," }
         if merchant == HellfeatherMerchant.Ravens { return "Finds off the dead," }
+        if merchant == HellfeatherMerchant.Hesk { return "Potions, portals, and" }
+        if merchant == HellfeatherMerchant.Tolly { return "Boots and coats, and" }
+        if merchant == HellfeatherMerchant.Corvin { return "Runes carved to give," }
         return ""
     }
 
@@ -44,6 +54,9 @@ HellfeatherMerchants
         if merchant == HellfeatherMerchant.Marra { return "and mended armour." }
         if merchant == HellfeatherMerchant.Moth { return "no questions asked." }
         if merchant == HellfeatherMerchant.Ravens { return "wrapped. For feathers." }
+        if merchant == HellfeatherMerchant.Hesk { return "a pilgrim's blessing." }
+        if merchant == HellfeatherMerchant.Tolly { return "don't ask where from." }
+        if merchant == HellfeatherMerchant.Corvin { return "not to take." }
         return ""
     }
 
@@ -53,6 +66,9 @@ HellfeatherMerchants
         if merchant == HellfeatherMerchant.Marra { return HellfeatherPerson.Marra }
         if merchant == HellfeatherMerchant.Moth { return HellfeatherPerson.Moth }
         if merchant == HellfeatherMerchant.Ravens { return HellfeatherPerson.Edda }
+        if merchant == HellfeatherMerchant.Hesk { return HellfeatherPerson.Hesk }
+        if merchant == HellfeatherMerchant.Tolly { return HellfeatherPerson.Tolly }
+        if merchant == HellfeatherMerchant.Corvin { return HellfeatherPerson.Corvin }
         return HellfeatherPerson.None
     }
 
@@ -61,6 +77,9 @@ HellfeatherMerchants
         if person == HellfeatherPerson.Edda { return HellfeatherMerchant.Edda }
         if person == HellfeatherPerson.Marra { return HellfeatherMerchant.Marra }
         if person == HellfeatherPerson.Moth { return HellfeatherMerchant.Moth }
+        if person == HellfeatherPerson.Hesk { return HellfeatherMerchant.Hesk }
+        if person == HellfeatherPerson.Tolly { return HellfeatherMerchant.Tolly }
+        if person == HellfeatherPerson.Corvin { return HellfeatherMerchant.Corvin }
         return HellfeatherMerchant.None
     }
 }
@@ -91,6 +110,7 @@ HellfeatherGame : QuaxelGameInstance
         HellfeatherMerchant merchant = HellfeatherMerchants.Of(person)
         if merchant == HellfeatherMerchant.None { return false }
         if merchant == HellfeatherMerchant.Moth { return Quests.Dark >= 3 }
+        if merchant == HellfeatherMerchant.Corvin { return Quests.SouthWing >= 4 && Terrain.Realm == HellfeatherRealm.Thornmere }
         return true
     }
 
@@ -143,7 +163,12 @@ HellfeatherGame : QuaxelGameInstance
     }
 
     // True when she has walked away from whoever she is trading with.
-    -bool FarFromMerchant(QuaxelWorld& world) { return FarFromMerchantPerson(world, HellfeatherMerchants.PersonOf(Trading)) }
+    -bool FarFromMerchant(QuaxelWorld& world)
+    {
+        // At the encampment the ravens' hoard is Edda's raven in its cage.
+        if Trading == HellfeatherMerchant.Ravens && Terrain.Realm == HellfeatherRealm.Thornmere { return FarFromMerchantPerson(world, HellfeatherPerson.EddaRaven) }
+        return FarFromMerchantPerson(world, HellfeatherMerchants.PersonOf(Trading))
+    }
 
     -bool FarFromMerchantPerson(QuaxelWorld& world, HellfeatherPerson person)
     {

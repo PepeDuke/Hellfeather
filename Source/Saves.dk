@@ -507,6 +507,23 @@ HellfeatherGame : QuaxelGameInstance
         io.Int("thrallsSpared", q.ThrallsSpared)
         io.Int("bearersFreed", q.BearersFreed)
         io.Bool("greyneckSlain", q.GreyneckSlain)
+        io.Bool("actTwo", q.ActTwo)
+        io.Int("road", q.Road)
+        io.Int("hangedCut", q.HangedCut)
+        io.Bool("matriarchSlain", q.MatriarchSlain)
+        io.Int("laws", q.Laws)
+        io.Bool("failedLoomSlain", q.FailedLoomSlain)
+        io.Int("ledgers", q.Ledgers)
+        io.Bool("checkpointPassed", q.CheckpointPassed)
+        io.Int("archive", q.Archive)
+        io.Bool("archiveBurnt", q.ArchiveBurnt)
+        io.Int("records", q.Records)
+        io.Bool("cellarAlarm", q.CellarAlarm)
+        io.Int("southWing", q.SouthWing)
+        io.Bool("brannSlain", q.BrannSlain)
+        io.Bool("wardenWoke", q.WardenWoke)
+        io.Int("framesCut", q.FramesCut)
+        io.Bool("pilgrimsTold", q.PilgrimsTold)
     }
 
     // Loads the slot over the starting kit. Runs in Prepare before the world

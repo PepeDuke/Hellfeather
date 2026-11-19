@@ -6,7 +6,9 @@
 HellfeatherResidence : int
 #@{
     // A timber house in Ravenford, by the lane to the west wall. Hers from the start.
-    RavenfordHouse
+    RavenfordHouse,
+    // Her tent at the Pilgrims' Encampment, hers once she reaches it in Act II.
+    PilgrimTent
 }
 
 // What each residence is: its level, its name, its door and where the hearth
@@ -23,6 +25,7 @@ HellfeatherHome
     HellfeatherRealm Realm(HellfeatherResidence residence)
     {
         if residence == HellfeatherResidence.RavenfordHouse { return HellfeatherRealm.RavenfordHouse }
+        if residence == HellfeatherResidence.PilgrimTent { return HellfeatherRealm.PilgrimTent }
         return HellfeatherRealm.RavenfordHouse
     }
 
@@ -30,6 +33,7 @@ HellfeatherHome
     string Title(HellfeatherResidence residence)
     {
         if residence == HellfeatherResidence.RavenfordHouse { return "Your house" }
+        if residence == HellfeatherResidence.PilgrimTent { return "Your tent" }
         return ""
     }
 
@@ -39,8 +43,12 @@ HellfeatherHome
     vec3 Door(HellfeatherResidence residence)
     {
         if residence == HellfeatherResidence.RavenfordHouse { return vec3(-9.75, 0.0, 12.7) }
+        if residence == HellfeatherResidence.PilgrimTent { return HellfeatherCastTwo.Camp(PilgrimsEncampment.TentX, PilgrimsEncampment.TentZ + 2.6) }
         return vec3(0.0, 0.0, 0.0)
     }
+
+    // The level its door stands on.
+    HellfeatherRealm DoorRealm(HellfeatherResidence residence) { return residence == HellfeatherResidence.PilgrimTent ? HellfeatherRealm.Thornmere | HellfeatherRealm.Fenmarch }
 
     // The hearth that burns as the Home waypoint, against the back wall.
     vec3 Hearth(HellfeatherResidence residence) { return HellfeatherRealm.InRoom(Realm(residence), -1.0, -2.6) }
@@ -430,7 +438,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         for residence : HellfeatherResidence {
             HellfeatherRealm inside = HellfeatherHome.Realm(residence)
-            int door = People.Add(HellfeatherSpotKind.Entrance, HellfeatherHome.Title(residence), HellfeatherRealm.Fenmarch, HellfeatherHome.Door(residence))
+            int door = People.Add(HellfeatherSpotKind.Entrance, HellfeatherHome.Title(residence), HellfeatherHome.DoorRealm(residence), HellfeatherHome.Door(residence))
             People.Spots[door].Leads = inside
             People.Spots[door].Shown = residence == Residence
             int chest = People.Add(HellfeatherSpotKind.Stash, "Personal chest", inside, HellfeatherHome.ChestSpot(residence))
@@ -463,7 +471,7 @@ HellfeatherGame : QuaxelGameInstance
         HellfeatherRealm inside = HellfeatherHome.Realm(residence)
         for i : 0; i < People.Spots.Len; i++ {
             if People.Spots[i].Kind == HellfeatherSpotKind.Stash { People.Spots[i].Shown = People.Spots[i].Realm == inside }
-            if People.Spots[i].Kind == HellfeatherSpotKind.Entrance && People.Spots[i].Realm == HellfeatherRealm.Fenmarch {
+            if People.Spots[i].Kind == HellfeatherSpotKind.Entrance && HellfeatherRealm.IsOverland(People.Spots[i].Realm) {
                 for other : HellfeatherResidence {
                     if People.Spots[i].Leads == HellfeatherHome.Realm(other) { People.Spots[i].Shown = other == residence }
                 }

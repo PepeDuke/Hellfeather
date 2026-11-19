@@ -603,8 +603,10 @@ def perch_sockets(model, grid, x0, z0):
     return lines
 
 
-def build(name, preview):
-    model = RECIPES[name]()
+def build(name, preview, recipes=None):
+    """Builds one recipe into Assets. recipes defaults to this file's; camp.py
+    passes its own."""
+    model = (recipes or RECIPES)[name]()
     xs, _, zs = np.nonzero(model.grid >= 0)
     (grid,), palette = compact([model.trimmed()])
     act1.write(act1.ASSETS / f'{name}.qvox', palette, grid, [])

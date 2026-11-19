@@ -1,0 +1,543 @@
+// Act II's levels: the Thornmere, the overland level of the Hospice Road and the
+// weaving town of Thornwick, whose hub is the Pilgrims' Encampment; and below
+// ground the Cloister of Looms, Saint Orra's Records Cellar and the three
+// levels of its South Wing. The Thornmere is built like the Fenmarch, from
+// clearings laid out from the encampment, far from it (HellfeatherRealm.Apart).
+
+// Act II's own ground: lanes of churned straw and mud between the tents, the
+// grey circle round the Feather Fire, and the inside of a tent.
+HellfeatherSurface
+#{
+    #int Trodden = 26
+    #int Ash = 27
+    #int Canvas = 28
+}
+
+HellfeatherRealm
+#{
+    // Whether a level is one of Act II's.
+    bool IsActTwo(HellfeatherRealm realm) { return realm + 0 >= HellfeatherRealm.Thornmere + 0 }
+
+    // Whether a level is underground: the Undercroft's and Act II's dungeons.
+    bool IsBelow(HellfeatherRealm realm)
+    {
+        if realm == HellfeatherRealm.Undercroft || realm == HellfeatherRealm.UndercroftDeep { return true }
+        return realm == HellfeatherRealm.Cloister || realm == HellfeatherRealm.RecordsCellar || IsSouthWing(realm)
+    }
+
+    bool IsSouthWing(HellfeatherRealm realm) { return realm == HellfeatherRealm.SouthWing || realm == HellfeatherRealm.SouthWingDeep || realm == HellfeatherRealm.RelayChapel }
+
+    // Whether a level is overland, where the sky is open and the feathers fall.
+    bool IsOverland(HellfeatherRealm realm) { return realm == HellfeatherRealm.Fenmarch || realm == HellfeatherRealm.Thornmere }
+
+    // The zone a level's halls count as.
+    int HallZone(HellfeatherRealm realm)
+    {
+        if realm == HellfeatherRealm.UndercroftDeep { return HellfeatherZone.UndercroftDeep + 0 }
+        if realm == HellfeatherRealm.Cloister { return HellfeatherZone.Cloister + 0 }
+        if realm == HellfeatherRealm.RecordsCellar { return HellfeatherZone.RecordsCellar + 0 }
+        if realm == HellfeatherRealm.SouthWing { return HellfeatherZone.SouthWing + 0 }
+        if realm == HellfeatherRealm.SouthWingDeep { return HellfeatherZone.SouthWingDeep + 0 }
+        if realm == HellfeatherRealm.RelayChapel { return HellfeatherZone.RelayChapel + 0 }
+        return HellfeatherZone.Undercroft + 0
+    }
+
+    // The Thornmere's terrain: the Fenmarch's kind of lowland, in a level of its own.
+    QuaxelTerrainConfig ThornmereConfig(uint seed)
+    {
+        QuaxelTerrainConfig config
+        config.Seed = seed * (uint)31 + (uint)211
+        config.RoadWidth = 1.6
+        config.GroundRoughness = 1
+        config.TerraceStep = 5
+        config.EntryRadius = PilgrimsEncampment.Radius
+        config.OffsetColumns = Apart * (HellfeatherRealm.Thornmere + 0)
+        return config
+    }
+
+    // A dungeon below: the Undercroft's mazes of halls. The relay chapel is
+    // smaller, a landing and three rooms around the chapel itself.
+    QuaxelTerrainConfig Below(HellfeatherRealm realm)
+    {
+        QuaxelTerrainConfig config = Undercroft(realm)
+        if realm == HellfeatherRealm.RelayChapel {
+            config.SiteGrid = 2
+            config.MinClearingRadius = 8.0
+            config.MaxClearingRadius = 10.0
+        }
+        return config
+    }
+
+    // The middle of the encampment, where the Thornmere's layout puts its entry.
+    vec3 CampMiddle() { return Landing(HellfeatherRealm.Thornmere) }
+}
+
+// The Pilgrims' Encampment, Act II's hub: tents and wagons around the Pilgrim
+// Shrine of Orra on the Thornmere's shore. The pilgrims burn every feather that
+// drifts in on the Feather Fire before the shrine, which is why it is safe.
+// Offsets are world units from the camp's middle, +Z toward the camera; the
+// shore lies behind it at -Z. See Act2Models.md for the plan.
+PilgrimsEncampment : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    HellfeatherActTwoProps Pieces
+    // Set by the game before the level is built: Corvin's bench is set up once
+    // he joins, and half the tents are struck once the pilgrims leave.
+    bool CorvinHere
+    bool TentsStruck
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = PilgrimsEncampment.Radius
+        return rules
+    }
+
+    Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        if Math.Hypot(x, z) >= site.Radius + 3.0 { return }
+        // The Thornmere's shore behind the shrine.
+        float shore = PilgrimsEncampment.ShoreZ + QuaxelNoise.SignedFbm(site.Seed, x / 7.0, 0.0, 2) * 1.5
+        if z < shore {
+            column.MakeWater(4)
+            return
+        }
+        if z < shore + 1.5 {
+            column.Surface = HellfeatherSurface.Mud
+            return
+        }
+        if Math.Hypot(x - PilgrimsEncampment.FireX, z - PilgrimsEncampment.FireZ) < 2.8 {
+            column.Surface = HellfeatherSurface.Ash
+            return
+        }
+        // The lane from the camp's front up to the fire, and the paths between tents.
+        bool lane = Math.Abs(x) < 1.7 && z > PilgrimsEncampment.FireZ
+        float churn = QuaxelNoise.Fbm(site.Seed ^ (uint)0x5A11, x / 4.0, z / 4.0, 2)
+        if lane || (Math.Hypot(x, z) < 15.0 && churn > 0.58) {
+            column.Surface = HellfeatherSurface.Trodden
+            return
+        }
+        if Math.Hypot(x, z) < 17.0 { column.Surface = HellfeatherSurface.Earth }
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        int group = 0
+        Pieces.Building(placer, group, HellfeatherActTwoPiece.PilgrimShrine, 0.0, PilgrimsEncampment.ShrineZ)
+        group++
+        Pieces.Building(placer, group, HellfeatherActTwoPiece.WrensTent, PilgrimsEncampment.TentX, PilgrimsEncampment.TentZ)
+        group++
+        Pieces.Building(placer, group, HellfeatherActTwoPiece.HesksWagon, PilgrimsEncampment.HeskX + 1.6, PilgrimsEncampment.HeskZ - 1.2)
+        group++
+        Pieces.Building(placer, group, HellfeatherActTwoPiece.TinkersCart, PilgrimsEncampment.TollyX + 1.4, PilgrimsEncampment.TollyZ - 1.2)
+        group++
+        Pieces.Prop(placer, group, CorvinHere ? HellfeatherActTwoPiece.CorvinsBench | HellfeatherActTwoPiece.CorvinsBenchPacked, PilgrimsEncampment.CorvinX + 1.4, PilgrimsEncampment.CorvinZ - 0.6)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.RavenCage, PilgrimsEncampment.CageX, PilgrimsEncampment.CageZ)
+        group++
+        // The cookfire and the long table, the camp's middle.
+        placer.OfferProp(group, Props.Brazier, PilgrimsEncampment.CookX, PilgrimsEncampment.CookZ, 4, 20, HellfeatherArt.FineVoxel)
+        placer.AddLight(0, 0, 56)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.CookPot, PilgrimsEncampment.CookX + 1.4, PilgrimsEncampment.CookZ)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.LongTable, PilgrimsEncampment.CookX + 3.4, PilgrimsEncampment.CookZ + 1.2)
+        group++
+        // Offerings on the shrine's steps and sacks of gathered feathers by the fire.
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.OfferingPile, -1.8, PilgrimsEncampment.ShrineZ + 3.6)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.OfferingPile, 1.9, PilgrimsEncampment.ShrineZ + 3.7)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.FeatherSack, PilgrimsEncampment.FireX + 2.4, PilgrimsEncampment.FireZ + 0.3)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.FeatherSack, PilgrimsEncampment.CageX + 1.2, PilgrimsEncampment.CageZ + 0.6)
+        group++
+        // The pilgrims' tents, half of them struck once the pilgrims leave.
+        for n : 0; n < 6; n++ {
+            HellfeatherActTwoPiece tent = n % 2 == 0 ? HellfeatherActTwoPiece.PilgrimTent | HellfeatherActTwoPiece.PilgrimTentB
+            if TentsStruck && n % 2 == 1 { tent = HellfeatherActTwoPiece.PilgrimTentStruck }
+            Pieces.Building(placer, group, tent, PilgrimsEncampment.PilgrimTentX(n), PilgrimsEncampment.PilgrimTentZ(n))
+            group++
+        }
+        // Wagons and a palisade of stakes behind, on the shore side.
+        Pieces.Building(placer, group, HellfeatherActTwoPiece.CampWagon, -16.0, -12.0)
+        group++
+        Pieces.Building(placer, group, HellfeatherActTwoPiece.CampWagonB, 16.5, -11.5)
+        group++
+        for n : 0; n < 8; n++ {
+            float x = -12.6 + (float)n * 1.8
+            if Math.Abs(x) < 4.5 { continue }
+            Pieces.Prop(placer, group, HellfeatherActTwoPiece.StakePalisade, x, PilgrimsEncampment.ShrineZ - 4.6)
+            group++
+        }
+        // By the water: the jetty, the swan-scare, the drying racks.
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.Jetty, 6.0, PilgrimsEncampment.ShoreZ - 0.6)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.SwanScare, -6.5, PilgrimsEncampment.ShoreZ + 2.0)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.DryingRack, 11.5, PilgrimsEncampment.ShoreZ + 3.5)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.DryingRack, -11.0, PilgrimsEncampment.ShoreZ + 3.4)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.WaterBarrels, 4.6, -2.2)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.WaterBarrels, 16.0, 1.0)
+        group++
+        Pieces.Prop(placer, group, HellfeatherActTwoPiece.LatrineScreen, -16.5, 14.5)
+        group++
+        // The ring of torches on the camera's side, where the swans stop.
+        for n : 0; n < 9; n++ {
+            float angle = 0.35 + (float)n * 0.3
+            float x = Math.Cos(angle) * PilgrimsEncampment.TorchRing
+            float z = Math.Sin(angle) * PilgrimsEncampment.TorchRing
+            if Math.Abs(x) < 3.0 { continue }
+            Pieces.Prop(placer, group, n % 3 == 1 ? HellfeatherActTwoPiece.TorchPoleCold | HellfeatherActTwoPiece.TorchPole, x, z)
+            if n % 3 != 1 { placer.AddLight(0, 0, 40) }
+            group++
+        }
+    }
+}
+#{
+    // The clearing's radius in world units.
+    #float Radius = 21.0
+    // Where things stand, in world units from the camp's middle.
+    #float ShrineZ = -10.0
+    #float FireX = 0.0
+    #float FireZ = -5.0
+    #float TentX = -9.0
+    #float TentZ = 0.0
+    #float HeskX = 8.0
+    #float HeskZ = -1.0
+    #float TollyX = 7.0
+    #float TollyZ = 6.0
+    #float CorvinX = -6.5
+    #float CorvinZ = -9.5
+    #float CageX = -8.0
+    #float CageZ = -6.0
+    #float CookX = -1.5
+    #float CookZ = 2.0
+    #float ShoreZ = -18.5
+    #float TorchRing = 17.0
+
+    float PilgrimTentX(int n)
+    {
+        float [6] xs = {-13.5, -14.0, 13.0, 14.0, -11.5, 11.5}
+        return xs[n]
+    }
+
+    float PilgrimTentZ(int n)
+    {
+        float [6] zs = {-6.0, 6.5, -7.0, 7.5, 13.0, 13.5}
+        return zs[n]
+    }
+}
+
+// The Hospice Road: gibbets and wayside shrines along every road through the
+// clearing, a pilgrim camp left by the roadside, dead trees and stones.
+HospiceRoad : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    HellfeatherActTwoProps Pieces
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = 14.0
+        rules.Share = 0.3
+        rules.MinDepth = 1
+        rules.MaxDepth = 5
+        return rules
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        int group = 1
+        for port : 0; port < site.PortCount; port++ {
+            float alongX = site.PortX[port]
+            float alongZ = site.PortZ[port]
+            float length = Math.Max(0.01, Math.Hypot(alongX, alongZ))
+            alongX = alongX / length
+            alongZ = alongZ / length
+            for step : 1; step <= 2; step++ {
+                float distance = (float)step * 5.0 + 2.0
+                float side = step % 2 == 0 ? 1.0 | -1.0
+                float x = alongX * distance - alongZ * 2.8 * side
+                float z = alongZ * distance + alongX * 2.8 * side
+                HellfeatherActTwoPiece piece = (port + step) % 3 == 0 ? HellfeatherActTwoPiece.RoadsideShrine | ((port + step) % 3 == 1 ? HellfeatherActTwoPiece.RoadGibbet | HellfeatherActTwoPiece.RoadGibbetEmpty)
+                Pieces.Prop(placer, group, piece, x, z)
+                group++
+            }
+        }
+        QuaxelRandom random
+        random.Begin(site.Seed ^ (uint)0x0C0FFEE5)
+        for attempt : 0; attempt < 8; attempt++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float distance = random.Range(4.0, site.Radius - 4.0)
+            Pieces.Building(placer, group, HellfeatherActTwoPiece.PilgrimCampRoadside, Math.Cos(angle) * distance, Math.Sin(angle) * distance)
+        }
+        group++
+        HellfeatherScatter.Place(Props, site, placer)
+    }
+}
+
+// Thornmere Shallows: the lake's edge, ponds and reed beds where the swans nest.
+ThornmereShallows : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    HellfeatherActTwoProps Pieces
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = 14.0
+        rules.MinDepth = 2
+        rules.Share = 0.3
+        return rules
+    }
+
+    float Wetness(QuaxelTerrainSite site, float x, float z) { return QuaxelNoise.Fbm(site.Seed ^ (uint)0x7111, x / 7.0, z / 7.0, 2) }
+
+    Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        if Math.Hypot(x, z) >= site.Radius + 2.0 { return }
+        float wet = Wetness(site, x, z)
+        if wet > FennickWater.Pond { column.MakeWater(4) }
+        else if wet > FennickWater.Mud { column.Surface = HellfeatherSurface.Mud }
+    }
+
+    // Reeds and nests along the water's edge, a cart sunk in the shallows, and
+    // the swan-scares the pilgrims set up, which do not work.
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        QuaxelRandom random
+        random.Begin(site.Seed ^ (uint)0x5A4E5A4E)
+        int group = 100
+        int edges = 0
+        for attempt : 0; attempt < 200 && edges < 26; attempt++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float distance = random.Range(2.5, site.Radius - 1.0)
+            float x = Math.Cos(angle) * distance
+            float z = Math.Sin(angle) * distance
+            float wet = Wetness(site, x, z)
+            if wet <= FennickWater.Mud - 0.03 || wet > FennickWater.Pond { continue }
+            if edges % 6 == 3 { Pieces.Prop(placer, group, HellfeatherActTwoPiece.SwanNest, x, z) }
+            else if edges == 10 { Pieces.Prop(placer, group, HellfeatherActTwoPiece.DrownedCart, x, z) }
+            else if edges % 9 == 5 { Pieces.Prop(placer, group, HellfeatherActTwoPiece.SwanScare, x, z) }
+            else { placer.OfferProp(group, Props.Reeds[edges % 2], x, z, 3, FenmarchArt.ReedsHeight / 2, HellfeatherArt.FineVoxel) }
+            group++
+            edges++
+        }
+        for n : 0; n < 6; n++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float distance = random.Range(6.0, site.Radius - 1.5)
+            float x = Math.Cos(angle) * distance
+            float z = Math.Sin(angle) * distance
+            if Wetness(site, x, z) > FennickWater.Mud { continue }
+            placer.OfferProp(group, n < 3 ? Props.Trees[n % 3] | Props.Rocks[n % 3], x, z, n < 3 ? 5 | 7, n < 3 ? 40 | 10, HellfeatherArt.FineVoxel)
+            group++
+        }
+    }
+}
+
+// Thornwick, the weaving town: cobbled lanes between dyers' houses, the
+// Tithe-House, the Clothiers' Guildhall with Journeyman & Vale above it, the
+// Inscription Loom, and the Cloister of Looms at its back. Red Cuffs hold
+// the gate on the road in.
+ThornwickTown : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    HellfeatherActTwoProps Pieces
+    // Set by the game: the Guildhall stands burnt after the Burning Archive.
+    bool ArchiveBurnt
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.MinRadius = 23.0
+        rules.Isolated = true
+        rules.MaxCount = 1
+        rules.Share = 0.01
+        rules.MinDepth = 2
+        rules.MaxDepth = 6
+        return rules
+    }
+
+    Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        float reach = Math.Hypot(x, z)
+        if reach >= site.Radius + 2.0 { return }
+        if reach < site.Radius - 2.0 { column.Surface = HellfeatherSurface.Cobble }
+        else { column.Surface = HellfeatherSurface.Earth }
+    }
+
+    // Each building tries a ring of spots in the widest gaps between the roads.
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        float [] gaps = ThornwickTown.Gaps(site)
+        // The biggest first, the gate beside the road in, the small Loom last.
+        HellfeatherActTwoPiece [7] order = {HellfeatherActTwoPiece.CloisterOfLooms, HellfeatherActTwoPiece.ThornwickGate, HellfeatherActTwoPiece.TitheHouse, HellfeatherActTwoPiece.ClothiersGuildhall, HellfeatherActTwoPiece.ClothiersRow, HellfeatherActTwoPiece.ClothiersRowB, HellfeatherActTwoPiece.InscriptionLoom}
+        for n : 0; n < 7; n++ {
+            HellfeatherActTwoPiece piece = order[n]
+            if piece == HellfeatherActTwoPiece.ClothiersGuildhall && ArchiveBurnt { piece = HellfeatherActTwoPiece.ClothiersGuildhallBurnt }
+            if !Pieces.Has(piece) { continue }
+            float corner = Pieces.Reach(piece) * 1.42
+            float middle = gaps[n % (int)gaps.Len] + (float)(n / (int)gaps.Len) * 0.9
+            // The gate stands just beside the first road, facing the way in.
+            if piece == HellfeatherActTwoPiece.ThornwickGate && site.PortCount > 0 { middle = Math.Atan2(site.PortZ[0], site.PortX[0]) + 0.55 }
+            // Its own gap first, then farther and farther round the clearing,
+            // so it stands somewhere even when the roads crowd it.
+            for turn : 0; turn < 24; turn++ {
+                float side = turn % 2 == 0 ? 1.0 | -1.0
+                float angle = middle + side * (float)((turn + 1) / 2) * 0.26
+                for ring : 0; ring < 18; ring++ {
+                    float distance = site.Radius - corner - 0.8 - (float)ring * 0.9
+                    if distance < 2.0 { continue }
+                    Pieces.Building(placer, n, piece, Math.Cos(angle) * distance, Math.Sin(angle) * distance)
+                }
+            }
+        }
+        QuaxelRandom random
+        random.Begin(site.Seed ^ (uint)0xD7E5)
+        for n : 0; n < 6; n++ {
+            float angle = random.Range(0.0, 6.2831853)
+            float distance = random.Range(4.0, site.Radius - 3.0)
+            Pieces.Prop(placer, 20 + n, HellfeatherActTwoPiece.DyeVats, Math.Cos(angle) * distance, Math.Sin(angle) * distance)
+        }
+        for n : 0; n < 4; n++ {
+            float angle = (float)n * 1.5708 + 0.8
+            placer.OfferProp(30 + n, Props.Banner, Math.Cos(angle) * 6.0, Math.Sin(angle) * 6.0, 5, 36, HellfeatherArt.FineVoxel)
+        }
+    }
+}
+#{
+    // The middles of the gaps between the roads leaving a clearing, widest first.
+    float [] Gaps(QuaxelTerrainSite site)
+    {
+        float [] angles
+        for port : 0; port < site.PortCount; port++ { angles += Math.Atan2(site.PortZ[port], site.PortX[port]) }
+        for i : 1; i < angles.Len; i++ {
+            for j : i; j > 0 && angles[j] < angles[j - 1]; j-- {
+                float swap = angles[j]
+                angles[j] = angles[j - 1]
+                angles[j - 1] = swap
+            }
+        }
+        float [] middles
+        float [] widths
+        if angles.Len == 0 {
+            for n : 0; n < 4; n++ {
+                middles += (float)n * 1.5708
+                widths += 1.5708
+            }
+            return middles
+        }
+        for i : 0; i < angles.Len; i++ {
+            float next = i + 1 < angles.Len ? angles[i + 1] | angles[0] + 6.2831853
+            float width = next - angles[i]
+            // A wide gap holds two buildings.
+            if width > 2.4 {
+                middles += angles[i] + width * 0.3
+                widths += width * 0.5
+                middles += angles[i] + width * 0.7
+                widths += width * 0.5
+            } else {
+                middles += angles[i] + width * 0.5
+                widths += width
+            }
+        }
+        for i : 1; i < widths.Len; i++ {
+            for j : i; j > 0 && widths[j] > widths[j - 1]; j-- {
+                float w = widths[j]
+                widths[j] = widths[j - 1]
+                widths[j - 1] = w
+                float m = middles[j]
+                middles[j] = middles[j - 1]
+                middles[j - 1] = m
+            }
+        }
+        return middles
+    }
+}
+
+// The Thornmere's open heath, the clearings no other zone claims: dead trees,
+// stones and ruins, with the odd empty gibbet.
+ThornHeath : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    HellfeatherActTwoProps Pieces
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.Share = 1.0
+        return rules
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        if (site.Seed & (uint)3) == (uint)0 { Pieces.Prop(placer, 1, HellfeatherActTwoPiece.RoadGibbetEmpty, site.Radius * 0.4, -site.Radius * 0.3) }
+        HellfeatherScatter.Place(Props, site, placer)
+    }
+}
+
+// A hall of one of Act II's dungeons, furnished by its level: looms and
+// shelves in the Cloister, boxed lives in the Records Cellar, beds, frames and
+// curtains in the South Wing, and patients in frames round the Relay Chapel.
+ActTwoHall : QuaxelTerrainModule
+{
+    HellfeatherProps Props
+    HellfeatherActTwoProps Pieces
+    // The level being built, set by the terrain before it routes.
+    HellfeatherRealm Realm
+
+    QuaxelTerrainModuleRules Rules()
+    {
+        QuaxelTerrainModuleRules rules
+        rules.Share = 1.0
+        return rules
+    }
+
+    Column(QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
+    {
+        if Math.Hypot(x, z) >= site.Radius + 2.0 { return }
+        column.Surface = Realm == HellfeatherRealm.Cloister ? HellfeatherSurface.Planks | HellfeatherSurface.Flagstone
+    }
+
+    Place(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        int group = 1
+        int count = 7
+        for n : 0; n < count; n++ {
+            float angle = ((float)n + 0.5) * 6.2831853 / (float)count + (float)(site.Seed & (uint)7) * 0.11
+            float distance = site.Radius - 2.0
+            Pieces.Prop(placer, group, Piece(n), Math.Cos(angle) * distance, Math.Sin(angle) * distance)
+            group++
+        }
+        for n : 0; n < 2; n++ {
+            float angle = (float)n * 3.14159265 + 0.9
+            float distance = site.Radius - 3.2
+            placer.OfferProp(group, Props.Brazier, Math.Cos(angle) * distance, Math.Sin(angle) * distance, 4, 20, HellfeatherArt.FineVoxel)
+            placer.AddLight(0, 0, 56)
+            group++
+        }
+        if Realm == HellfeatherRealm.Cloister && (site.Seed & (uint)1) == (uint)0 { Pieces.Prop(placer, group, HellfeatherActTwoPiece.ChalkCircle, 0.0, 0.0) }
+    }
+
+    // The n-th piece round a hall's walls on this level.
+    -HellfeatherActTwoPiece Piece(int n)
+    {
+        if Realm == HellfeatherRealm.Cloister {
+            HellfeatherActTwoPiece [4] cloister = {HellfeatherActTwoPiece.PracticeLoom, HellfeatherActTwoPiece.Bookshelf, HellfeatherActTwoPiece.Lectern, HellfeatherActTwoPiece.ThreadSpools}
+            return cloister[n % 4]
+        }
+        if Realm == HellfeatherRealm.RecordsCellar {
+            HellfeatherActTwoPiece [4] cellar = {HellfeatherActTwoPiece.RecordShelf, HellfeatherActTwoPiece.RecordShelf, HellfeatherActTwoPiece.ClerksDesk, HellfeatherActTwoPiece.RecordShelf}
+            return cellar[n % 4]
+        }
+        if Realm == HellfeatherRealm.RelayChapel {
+            return n % 2 == 0 ? HellfeatherActTwoPiece.PatientFrame | HellfeatherActTwoPiece.PatientFrameEmpty
+        }
+        HellfeatherActTwoPiece [6] ward = {HellfeatherActTwoPiece.WardBed, HellfeatherActTwoPiece.StitchFrame, HellfeatherActTwoPiece.WardBedOccupied, HellfeatherActTwoPiece.WardCurtain, HellfeatherActTwoPiece.MedicineCart, HellfeatherActTwoPiece.RestraintChair}
+        return ward[n % 6]
+    }
+}

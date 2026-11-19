@@ -1,0 +1,1177 @@
+// Act II, Rooms Remember, as six quests, in the way Act I keeps its own
+// (Source/Quests.dk): each is a number that counts up as it goes.
+//
+// II-1 The Hospice Road         Road       Pilgrim Mother Hesk, the hanged, the Swan Matriarch
+// II-2 Laws of Weaving          Laws       Mistress Agnet, the Cloister, Jessa's file, the Loom
+// II-3 The Barred Eye Ledgers   Ledgers    the checkpoint, the Tithe-House
+// II-4 The Journeyman's Archive Archive    Journeyman & Vale, the Burning Archive, Matthew
+// II-5 Records of the Dead      Records    Sister Vale, the Records Cellar
+// II-6 The South Wing           SouthWing  Corvin Hale, Sister Carmine, the relay
+//
+// The act opens once Act I is over: a road leads on from Orra's Hill past the
+// hospice to the Thornmere, where the Pilgrims' Encampment is the hub. Act
+// II's people, spot kinds and replies are listed with Act I's (Spots.dk,
+// Quests.dk), after them.
+
+HellfeatherQuests
+{
+    // Act II is open once Act I's last scene is over.
+    bool ActTwo
+    // II-1: 1 taken, 2 the hanged are cut down, 3 the matriarch is dead, 4 done.
+    int Road
+    int HangedCut
+    bool MatriarchSlain
+    // II-2: 1 taken, 2 Jessa's file read, 3 the tutorial, 4 done: she inscribes.
+    int Laws
+    bool FailedLoomSlain
+    // II-3: 1 at the checkpoint, 2 the ledgers taken and their guards on her, 3 done.
+    int Ledgers
+    bool CheckpointPassed
+    int LedgerFirst = -1
+    // II-4: 1 the archive burns, 2 the fire is out, 3 Matthew waits, 4 done.
+    int Archive
+    int ArchiveFirst = -1
+    float ArchiveSeconds
+    bool ArchiveBurnt
+    // II-5: 1 taken from Vale, 2 the cabinet read, 3 done: the hospice key.
+    int Records
+    float CellarSeconds
+    bool CellarAlarm
+    // II-6: 1 in the wing, 2 Corvin freed, 3 Carmine is dead, 4 the relay severed, 5 done.
+    int SouthWing
+    bool BrannSlain
+    float WardenSeconds
+    bool WardenWoke
+    int FramesCut
+    // Whether she told Hesk what the hospice does, and half the pilgrims left.
+    bool PilgrimsTold
+
+    // The act the log shows: the second once it is open.
+    int Act() { return ActTwo ? 2 | 1 }
+
+    // Where an Act II quest stands, quest 6 to 11.
+    HellfeatherQuestState StateTwo(int quest)
+    {
+        if quest == 6 { return Road == 0 ? HellfeatherQuestState.Unknown | (Road >= 4 ? HellfeatherQuestState.Done | HellfeatherQuestState.Active) }
+        if quest == 7 { return Laws == 0 ? HellfeatherQuestState.Unknown | (Laws >= 4 ? HellfeatherQuestState.Done | HellfeatherQuestState.Active) }
+        if quest == 8 { return Ledgers == 0 ? HellfeatherQuestState.Unknown | (Ledgers >= 3 ? HellfeatherQuestState.Done | HellfeatherQuestState.Active) }
+        if quest == 9 {
+            if Archive >= 4 { return HellfeatherQuestState.Done }
+            return Archive >= 1 || Ledgers >= 3 ? HellfeatherQuestState.Active | HellfeatherQuestState.Unknown
+        }
+        if quest == 10 {
+            if Records >= 3 { return HellfeatherQuestState.Done }
+            return Records >= 1 || Archive >= 4 ? HellfeatherQuestState.Active | HellfeatherQuestState.Unknown
+        }
+        if quest == 11 {
+            if SouthWing >= 5 { return HellfeatherQuestState.Done }
+            return SouthWing >= 1 || Records >= 3 ? HellfeatherQuestState.Active | HellfeatherQuestState.Unknown
+        }
+        return HellfeatherQuestState.Unknown
+    }
+
+    // What the log says about an Act II quest.
+    string [] JournalTwo(int quest)
+    {
+        string [] lines
+        if quest == 6 {
+            if Road == 1 {
+                lines += "Pilgrim Mother Hesk asks"
+                lines += "you to clear the Hospice"
+                lines += "Road: cut down the hanged"
+                lines += "and kill the swan that"
+                lines += "leads the Thornmere's."
+                lines += ""
+                lines += "Hanged cut down: " + QuaxelUi.FormatInt(Math.Min(HangedCut, HellfeatherQuests.HangedWanted)) + "/" + QuaxelUi.FormatInt(HellfeatherQuests.HangedWanted)
+                if MatriarchSlain { lines += "The matriarch is dead." }
+            } else if Road == 2 {
+                lines += "The hanged are down. All"
+                lines += "of them wore the tithe."
+                lines += ""
+                lines += "The swan matriarch still"
+                lines += "nests in the Shallows."
+            } else if Road == 3 {
+                lines += "The road is clear and the"
+                lines += "matriarch is dead."
+                lines += ""
+                lines += "Tell Mother Hesk."
+            } else if Road >= 4 {
+                lines += "The Hospice Road is clear."
+                lines += "Hesk's pilgrims walk it,"
+                lines += "still sure of the hospice."
+            }
+        } else if quest == 7 {
+            if Laws == 1 {
+                lines += "Mistress Agnet keeps"
+                lines += "Jessa's file in the"
+                lines += "expulsion archive under"
+                lines += "the Cloister of Looms."
+                lines += ""
+                lines += "Find it."
+            } else if Laws == 2 {
+                lines += "Instability of retention."
+                lines += "Jessa was expelled for"
+                lines += "holding what she wove."
+                lines += ""
+                lines += "Agnet will teach you."
+            } else if Laws == 3 {
+                lines += "Inscribe at the Loom in"
+                lines += "Thornwick: water-repel,"
+                lines += "then hold. Both go wrong"
+                lines += "first."
+            } else if Laws >= 4 {
+                lines += "You can inscribe now. The"
+                lines += "Loom carves runes from"
+                lines += "blank stones."
+            }
+        } else if quest == 8 {
+            if Ledgers == 1 {
+                lines += "The Tithe-House keeps its"
+                lines += "ledgers in a chest by"
+                lines += "its door. Steal them."
+            } else if Ledgers == 2 {
+                lines += "The ledgers are yours."
+                lines += "Its guards are not done"
+                lines += "with you."
+            } else if Ledgers >= 3 {
+                lines += "Codes like C-R17 are"
+                lines += "people. Of Jessa's 26"
+                lines += "names, 7 were her dead."
+                lines += "19 were added."
+            }
+        } else if quest == 9 {
+            if Archive == 0 {
+                lines += "The ledgers name a firm:"
+                lines += "Journeyman & Vale,"
+                lines += "Factors, above the"
+                lines += "Clothiers' Guildhall."
+            } else if Archive == 1 {
+                lines += "Red Cuffs fired the rooms."
+                lines += "Get what you can out, and"
+                lines += "put them down."
+            } else if Archive == 2 {
+                lines += "Your file: persistent"
+                lines += "heroic self-conception."
+                lines += "And Lise's. The girl at"
+                lines += "the inn agreed to it all."
+                lines += ""
+                lines += "Someone waits outside."
+            } else if Archive == 3 {
+                lines += "Matthew waits by the"
+                lines += "Guildhall."
+            } else {
+                lines += "Your quarrel stopped"
+                lines += "against his coat. He gave"
+                lines += "it back. Improved?"
+            }
+        } else if quest == 10 {
+            if Records == 0 {
+                lines += "Sister Vale is at the"
+                lines += "encampment, at night."
+            } else if Records == 1 {
+                lines += "The Records Cellar under"
+                lines += "Saint Orra's, on Orra's"
+                lines += "Hill. Vale buys you time"
+                lines += "with the boiler."
+                lines += ""
+                lines += "Find the cabinet marked"
+                lines += "DECEASED - TRANSFERRED."
+            } else if Records == 2 {
+                lines += "Jessa's admission, signed"
+                lines += "by Matthew. COMPATIBLE"
+                lines += "SUCCESSOR: Wren Carrow."
+                lines += "Corvin Hale is alive."
+                lines += ""
+                lines += "Back to Vale."
+            } else {
+                lines += "Vale gave you the hospice"
+                lines += "key. The south wing is"
+                lines += "open to you."
+            }
+        } else if quest == 11 {
+            if SouthWing == 0 {
+                lines += "The south wing of Saint"
+                lines += "Orra's, on Orra's Hill."
+            } else if SouthWing == 1 {
+                lines += "Corvin Hale is kept in a"
+                lines += "cell on the wing's lower"
+                lines += "floor. Free him."
+            } else if SouthWing == 2 {
+                lines += "Corvin is free. Sister"
+                lines += "Carmine waits in the"
+                lines += "relay chapel below."
+                if WardenWoke {
+                    lines += ""
+                    lines += "Ten minutes. Then the"
+                    lines += "building fights too."
+                }
+            } else if SouthWing == 3 {
+                lines += "Carmine is dead. Sever"
+                lines += "the relay at its socket"
+                lines += "with the grey key."
+            } else if SouthWing == 4 {
+                lines += "The relay is cut. Vale"
+                lines += "waits at the encampment."
+            } else {
+                lines += "I opened the box."
+                lines += ""
+                lines += "Act II is over."
+            }
+        }
+        return lines
+    }
+}
+#{
+    #int HangedWanted = 6
+
+    string TitleTwo(int quest)
+    {
+        if quest == 6 { return "The Hospice Road" }
+        if quest == 7 { return "Laws of Weaving" }
+        if quest == 8 { return "The Barred Eye Ledgers" }
+        if quest == 9 { return "The Journeyman's Archive" }
+        if quest == 10 { return "Records of the Dead" }
+        if quest == 11 { return "The South Wing" }
+        return ""
+    }
+}
+
+// Where Act II's people stand. At the encampment, world units from its middle
+// (PilgrimsEncampment); elsewhere, from the building they keep.
+HellfeatherCastTwo
+#{
+    vec3 Camp(float x, float z) { return HellfeatherRealm.CampMiddle() + vec3(x, 0.0, z) }
+
+    vec3 HeskAt() { return Camp(PilgrimsEncampment.HeskX - 1.4, PilgrimsEncampment.HeskZ + 2.0) }
+    vec3 TollyAt() { return Camp(PilgrimsEncampment.TollyX - 1.0, PilgrimsEncampment.TollyZ + 1.4) }
+    vec3 CorvinAt() { return Camp(PilgrimsEncampment.CorvinX + 1.4, PilgrimsEncampment.CorvinZ + 1.6) }
+    vec3 RavenAt() { return Camp(PilgrimsEncampment.CageX + 0.2, PilgrimsEncampment.CageZ + 1.2) }
+    vec3 ValeAt() { return Camp(PilgrimsEncampment.CookX + 2.5, PilgrimsEncampment.CookZ + 3.2) }
+    vec3 FireAt() { return Camp(PilgrimsEncampment.FireX, PilgrimsEncampment.FireZ) }
+    // The road out of the camp toward the Fenmarch, at its front.
+    vec3 RoadOut() { return Camp(0.0, 16.0) }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // Act II's pieces, for the spots that show them.
+    HellfeatherActTwoProps ActTwoPieces
+    // Where the doors and things of the Thornmere stand once it has been laid
+    // out: the Cloister's doors, the Tithe-House's ledgers, the archive above
+    // the Guildhall, the Loom and the gate.
+    vec3 CloisterDoor
+    // On Orra's Hill: the road on to the Thornmere, and the hospice's doors down.
+    vec3 HospiceRoadStart
+    vec3 CellarDoor
+    vec3 WingDoor
+    // Where the stair down from the south wing's first two floors stands.
+    vec3 WingStairs
+    vec3 WingDeepStairs
+
+    // The Fenmarch's half of the way on: the road past the hospice and its
+    // two doors down. Made once, with Act I's people.
+    SetUpActTwoInFenmarch(QuaxelWorld& world)
+    {
+        HellfeatherRealm fen = HellfeatherRealm.Fenmarch
+        int hospice = PlacementOf(Terrain.Hill.Hospice)
+        vec3 gate = hospice >= 0 ? Terrain.PlacementPosition(hospice) | ZoneMiddle(HellfeatherZone.OrrasHill)
+        float front = ReachOf(world, hospice, Terrain.Hill.HospiceHalf, true)
+        float side = ReachOf(world, hospice, Terrain.Hill.HospiceHalf, false)
+        HospiceRoadStart = Flat(gate) + vec3(side + 1.6, 0.0, front + 2.2)
+        CellarDoor = Flat(gate) + vec3(-side - 0.6, 0.0, front - 1.0)
+        WingDoor = Flat(gate) + vec3(side + 0.6, 0.0, front - 1.0)
+        int road = People.Add(HellfeatherSpotKind.Road, "The Hospice Road", fen, HospiceRoadStart)
+        People.Spots[road].Leads = HellfeatherRealm.Thornmere
+        People.Spots[road].Shown = Quests.ActTwo
+        int cellar = People.Add(HellfeatherSpotKind.Road, "Records cellar", fen, CellarDoor)
+        People.Spots[cellar].Leads = HellfeatherRealm.RecordsCellar
+        People.Spots[cellar].Shown = Quests.Records >= 1
+        int wing = People.Add(HellfeatherSpotKind.Road, "The south wing", fen, WingDoor)
+        People.Spots[wing].Leads = HellfeatherRealm.SouthWing
+        People.Spots[wing].Shown = Quests.ActTwo
+    }
+
+    // The Thornmere's people and things, each time it is built. The camp's
+    // stand where the camp is; Thornwick's are found from where the terrain
+    // put its buildings.
+    SetUpThornmere(QuaxelWorld& world)
+    {
+        HellfeatherRealm mere = HellfeatherRealm.Thornmere
+        People.RemoveRealm(world, mere)
+        HellfeatherQuests q = Quests
+        People.AddPerson(HellfeatherPerson.Hesk, "Pilgrim Mother Hesk", mere, HellfeatherCastTwo.HeskAt(), "Assets/PilgrimMotherHesk.qvox", 0.025, 72)
+        People.AddPerson(HellfeatherPerson.Tolly, "Tolly the Tinker", mere, HellfeatherCastTwo.TollyAt(), "Assets/TollyTinker.qvox", 0.025, 72)
+        int corvin = People.AddPerson(HellfeatherPerson.Corvin, "Corvin Hale, the Ringwright", mere, HellfeatherCastTwo.CorvinAt(), "Assets/CorvinHale.qvox", 0.025, 66)
+        People.Spots[corvin].Shown = q.SouthWing >= 4
+        int raven = People.AddPerson(HellfeatherPerson.EddaRaven, "Edda's raven", mere, HellfeatherCastTwo.RavenAt(), "Assets/Raven.qvox", 0.025, 37)
+        People.Spots[raven].Top = 1.4
+        int vale = People.AddPerson(HellfeatherPerson.Vale, "Sister Vale", mere, HellfeatherCastTwo.ValeAt(), "Assets/SisterVale.qvox", 0.0271, 72)
+        People.Spots[vale].Shown = ValeAtCamp()
+        People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(-3.6, 5.2), "Assets/Pilgrim01.qvox", 0.025, 70)
+        People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(4.2, 9.0), "Assets/Pilgrim02.qvox", 0.025, 70)
+        if !q.PilgrimsTold { People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(-11.0, 9.2), "Assets/Pilgrim03.qvox", 0.025, 70) }
+        People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim at the table", mere, HellfeatherCastTwo.Camp(PilgrimsEncampment.CookX + 3.4, PilgrimsEncampment.CookZ + 2.6), "Assets/PilgrimSitting.qvox", 0.025, 60)
+        // Her tent's door, which the level's rebuild took with the rest.
+        int tent = People.Add(HellfeatherSpotKind.Entrance, HellfeatherHome.Title(HellfeatherResidence.PilgrimTent), mere, HellfeatherHome.Door(HellfeatherResidence.PilgrimTent))
+        People.Spots[tent].Leads = HellfeatherRealm.PilgrimTent
+        People.Spots[tent].Shown = Residence == HellfeatherResidence.PilgrimTent
+        int out = People.Add(HellfeatherSpotKind.Road, "The road to the Fenmarch", mere, HellfeatherCastTwo.RoadOut())
+        People.Spots[out].Leads = HellfeatherRealm.Fenmarch
+        // Thornwick, by its buildings.
+        CloisterDoor = BesideBuilding(world, HellfeatherActTwoPiece.CloisterOfLooms, 0.0, 0.6)
+        int cloister = People.Add(HellfeatherSpotKind.Road, "The Cloister of Looms", mere, CloisterDoor)
+        People.Spots[cloister].Leads = HellfeatherRealm.Cloister
+        People.AddPerson(HellfeatherPerson.Agnet, "Mistress Agnet", mere, CloisterDoor + vec3(2.2, 0.0, 0.8), "Assets/MistressAgnet.qvox", 0.0257, 72)
+        vec3 house = BesideBuilding(world, HellfeatherActTwoPiece.TitheHouse, 0.0, 0.6)
+        People.Add(HellfeatherSpotKind.Ledgers, "The Tithe-House", mere, house)
+        People.AddPerson(HellfeatherPerson.Clerk, "A tithe clerk", mere, house + vec3(-2.0, 0.0, 0.6), "Assets/TitheClerk.qvox", 0.025, 72)
+        HellfeatherActTwoPiece hall = q.ArchiveBurnt ? HellfeatherActTwoPiece.ClothiersGuildhallBurnt | HellfeatherActTwoPiece.ClothiersGuildhall
+        vec3 factors = BesideBuilding(world, hall, 0.0, 0.6)
+        People.Add(HellfeatherSpotKind.Archive, "Journeyman & Vale, Factors", mere, factors)
+        int matthew = People.AddPerson(HellfeatherPerson.Matthew, "Matthew", mere, factors + vec3(2.4, 0.0, 1.2), "Assets/Matthew.qvox", 0.0264, 72)
+        People.Spots[matthew].Shown = q.Archive == 3
+        People.AddModel(HellfeatherSpotKind.Loom, "The Inscription Loom", mere, BesideBuilding(world, HellfeatherActTwoPiece.InscriptionLoom, 0.0, 0.5), -1, HellfeatherArt.FineVoxel, 64)
+        vec3 gate = BesideBuilding(world, HellfeatherActTwoPiece.ThornwickGate, 0.0, 0.6)
+        int cuff = People.AddPerson(HellfeatherPerson.GateCuff, "A Red Cuff at the gate", mere, gate, "Assets/ThornwickGateCuff.qvox", 0.0264, 72)
+        People.Spots[cuff].Shown = !q.CheckpointPassed
+        People.AddPerson(HellfeatherPerson.Dyer, "A dyer", mere, house + vec3(4.0, 0.0, 2.5), "Assets/ThornwickDyerMadder.qvox", 0.025, 72)
+        People.AddPerson(HellfeatherPerson.Dyer, "A dyer", mere, factors + vec3(-3.5, 0.0, 2.0), "Assets/ThornwickDyerWoad.qvox", 0.025, 72)
+        AddActTwoWaypoints()
+        SetUpCampRavens(world)
+    }
+
+    // Just in front of a placed building, on the camera's side, or a spot of
+    // its own round Thornwick's square if the terrain did not place it.
+    -vec3 BesideBuilding(QuaxelWorld& world, HellfeatherActTwoPiece piece, float x, float gap)
+    {
+        int at = PlacementOf(ActTwoPieces.Volume[piece])
+        if at < 0 {
+            // Not placed: round the square, each building's spot its own.
+            float angle = (float)(piece + 0) * 1.3
+            return ZoneMiddle(HellfeatherZone.Thornwick) + vec3(x + Math.Cos(angle) * 6.0, 0.0, Math.Sin(angle) * 6.0)
+        }
+        float front = ReachOf(world, at, ActTwoPieces.Half[piece], true)
+        return Flat(Terrain.PlacementPosition(at)) + vec3(x, 0.0, front + gap)
+    }
+
+    // Ravens on the shrine and the tents, for the life of the place.
+    -SetUpCampRavens(QuaxelWorld& world)
+    {
+        Ravens.Clear(world)
+        if !Ravens.Load(world) { return }
+        for i : 0; i < Terrain.Placements.Len; i++ {
+            int volume = Terrain.Placements[i].Volume
+            if volume >= 0 { Ravens.AddObstacle(world, volume, Terrain.Placements[i].VoxelSize, Terrain.PlacementPosition(i)) }
+            if volume >= 0 && (volume == ActTwoPieces.Volume[HellfeatherActTwoPiece.PilgrimShrine] || volume == ActTwoPieces.Volume[HellfeatherActTwoPiece.RoadGibbet] || volume == ActTwoPieces.Volume[HellfeatherActTwoPiece.TitheHouse]) {
+                Ravens.AddRoof(world, volume, Terrain.Placements[i].VoxelSize, Terrain.PlacementPosition(i), 2)
+            }
+        }
+    }
+
+    // Vale comes to the camp at night for II-5 and II-6, and once more at the end.
+    -bool ValeAtCamp() { return (Quests.Archive >= 4 && Quests.Records < 3) || Quests.SouthWing == 4 }
+
+    // The stairs, doors and bosses of a level of Act II's dungeons, made each
+    // time it is built.
+    SetUpBelowActTwo(QuaxelWorld& world, HellfeatherRealm realm)
+    {
+        People.RemoveRealm(world, realm)
+        vec3 landing = HellfeatherRealm.Landing(realm)
+        People.AddModel(HellfeatherSpotKind.StairsUp, "Stairs up", realm, landing + vec3(0.0, 0.0, -2.0), Landmarks.Stairs, HellfeatherArt.FineVoxel, HellfeatherLandmarks.StairsHeight)
+        vec3 deepest = Deepest()
+        if realm == HellfeatherRealm.Cloister {
+            People.AddModel(HellfeatherSpotKind.Cabinet, "The expulsion archive", realm, deepest + vec3(0.0, 0.0, -1.6), ActTwoPieces.Volume[HellfeatherActTwoPiece.ExpulsionCabinet], HellfeatherArt.FineVoxel, ActTwoPieces.Tall[HellfeatherActTwoPiece.ExpulsionCabinet] * 2)
+        } else if realm == HellfeatherRealm.RecordsCellar {
+            People.AddModel(HellfeatherSpotKind.Cabinet, "DECEASED - TRANSFERRED", realm, deepest + vec3(0.0, 0.0, -1.6), ActTwoPieces.Volume[HellfeatherActTwoPiece.TransferredCabinet], HellfeatherArt.FineVoxel, ActTwoPieces.Tall[HellfeatherActTwoPiece.TransferredCabinet] * 2)
+        } else if realm == HellfeatherRealm.SouthWing {
+            WingStairs = deepest
+            People.AddModel(HellfeatherSpotKind.StairsDown, "Stairs down", realm, deepest, Landmarks.Stairs, HellfeatherArt.FineVoxel, HellfeatherLandmarks.StairsHeight)
+        } else if realm == HellfeatherRealm.SouthWingDeep {
+            WingDeepStairs = deepest + vec3(3.0, 0.0, 0.0)
+            int corvin = People.AddPerson(HellfeatherPerson.Corvin, "Corvin Hale", realm, deepest + vec3(-1.5, 0.0, -1.0), "Assets/CorvinHaleChained.qvox", 0.025, 60)
+            People.Spots[corvin].Shown = Quests.SouthWing < 2
+            int down = People.AddModel(HellfeatherSpotKind.StairsDown, "Stairs down", realm, WingDeepStairs, Landmarks.Stairs, HellfeatherArt.FineVoxel, HellfeatherLandmarks.StairsHeight)
+            People.Spots[down].Shown = Quests.SouthWing >= 2
+        } else if realm == HellfeatherRealm.RelayChapel {
+            int socket = People.AddModel(HellfeatherSpotKind.Socket, "The relay socket", realm, deepest + vec3(0.0, 0.0, -2.2), ActTwoPieces.Volume[HellfeatherActTwoPiece.RelaySocket], HellfeatherArt.FineVoxel, ActTwoPieces.Tall[HellfeatherActTwoPiece.RelaySocket] * 2)
+            People.Spots[socket].Shown = Quests.SouthWing == 3
+            // The patients bound round the chapel, each frame a spot.
+            for n : 0; n < 4; n++ {
+                float angle = (float)n * 1.5707963 + 0.785
+                int frame = People.AddModel(HellfeatherSpotKind.Frame, "A bound patient", realm, deepest + vec3(Math.Cos(angle) * 4.5, 0.0, Math.Sin(angle) * 4.5), ActTwoPieces.Volume[HellfeatherActTwoPiece.PatientFrame], HellfeatherArt.FineVoxel, ActTwoPieces.Tall[HellfeatherActTwoPiece.PatientFrame] * 2)
+                People.Spots[frame].Shown = Quests.SouthWing < 3
+            }
+        }
+    }
+
+    // Down a road or a door: overland to the other level, or down to a dungeon.
+    bool TakeRoad(QuaxelWorld& world, int spot)
+    {
+        HellfeatherRealm leads = People.Spots[spot].Leads
+        if leads == HellfeatherRealm.Thornmere {
+            Quests.ActTwo = true
+            if !TravelTo(world, HellfeatherRealm.Thornmere, HellfeatherCastTwo.RoadOut() + vec3(0.0, 0.0, -1.5), false) { return false }
+            if Residence != HellfeatherResidence.PilgrimTent {
+                MoveInto(HellfeatherResidence.PilgrimTent)
+                Banner.Show("The Pilgrims' Encampment. A tent is yours", 3.5)
+            }
+            // The camp's fire is lit by the time she reaches it.
+            LightCampWaypoint()
+            return true
+        }
+        if leads == HellfeatherRealm.Fenmarch { return TravelTo(world, HellfeatherRealm.Fenmarch, HospiceRoadStart + vec3(0.0, 0.0, 1.5), false) }
+        return TravelTo(world, leads, HellfeatherRealm.Landing(leads) + vec3(0.0, 0.0, 1.5), true)
+    }
+
+    // Up the stairs of one of Act II's dungeons: to the floor above, or out to
+    // the door she came down by.
+    bool ClimbActTwo(QuaxelWorld& world)
+    {
+        HellfeatherRealm realm = Terrain.Realm
+        if realm == HellfeatherRealm.Cloister {
+            // The doors are found once the Thornmere has been laid out.
+            if CloisterDoor.X == 0.0 && CloisterDoor.Z == 0.0 && !TravelTo(world, HellfeatherRealm.Thornmere, HellfeatherCastTwo.RoadOut(), false) { return false }
+            return TravelTo(world, HellfeatherRealm.Thornmere, CloisterDoor + vec3(0.0, 0.0, 1.4), false)
+        }
+        if realm == HellfeatherRealm.RecordsCellar { return TravelTo(world, HellfeatherRealm.Fenmarch, CellarDoor + vec3(0.0, 0.0, 1.4), false) }
+        if realm == HellfeatherRealm.SouthWing { return TravelTo(world, HellfeatherRealm.Fenmarch, WingDoor + vec3(0.0, 0.0, 1.4), false) }
+        if realm == HellfeatherRealm.SouthWingDeep { return TravelTo(world, HellfeatherRealm.SouthWing, WingStairs + vec3(0.0, 0.0, 2.0), false) }
+        return TravelTo(world, HellfeatherRealm.SouthWingDeep, WingDeepStairs + vec3(0.0, 0.0, 2.0), false)
+    }
+
+    // Down the stairs of the south wing.
+    bool DescendActTwo(QuaxelWorld& world)
+    {
+        HellfeatherRealm next = Terrain.Realm == HellfeatherRealm.SouthWing ? HellfeatherRealm.SouthWingDeep | HellfeatherRealm.RelayChapel
+        return TravelTo(world, next, HellfeatherRealm.Landing(next) + vec3(0.0, 0.0, 1.5), true)
+    }
+
+    // What happens on arriving at one of Act II's levels for the first time
+    // since she left it: the uniques that wait there.
+    ArriveActTwo(QuaxelWorld& world, HellfeatherRealm realm, bool fresh, vec3 arrival)
+    {
+        if realm == HellfeatherRealm.Thornmere {
+            if fresh && !Quests.MatriarchSlain {
+                int best = -1
+                for i : 0; i < Terrain.Layout.Sites.Len; i++ {
+                    if Terrain.Layout.Sites[i].Module != HellfeatherZone.Shallows + 0 { continue }
+                    if best < 0 || Terrain.Layout.Sites[i].Radius > Terrain.Layout.Sites[best].Radius { best = i }
+                }
+                if best >= 0 {
+                    vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[best].X, Terrain.Layout.Sites[best].Z)
+                    AddUnique(world, "SwanMatriarch", middle, "CygnetBrood", 3)
+                }
+            }
+            return
+        }
+        vec3 deepest = Deepest()
+        if fresh && realm == HellfeatherRealm.Cloister && !Quests.FailedLoomSlain { AddUnique(world, "FailedLoom", deepest + vec3(0.0, 0.0, 1.5), "AnimatedShuttle", 2) }
+        if fresh && realm == HellfeatherRealm.SouthWing && !Quests.BrannSlain { AddUnique(world, "OrderlyBrann", deepest + vec3(0.0, 0.0, 2.5), "StitchedPatient", 2) }
+        if realm == HellfeatherRealm.SouthWing { Quests.SouthWing = Math.Max(Quests.SouthWing, 1) }
+        if fresh && realm == HellfeatherRealm.RelayChapel && Quests.SouthWing < 3 {
+            AddScripted(world, "RedWarden", deepest.X, deepest.Z + 1.5)
+            if !Quests.WardenWoke {
+                Quests.WardenWoke = true
+                Quests.WardenSeconds = HellfeatherQuests.WardenMinutes * 60.0
+                Banner.Show("Ten minutes", 3.0)
+            }
+        }
+        if realm == HellfeatherRealm.RecordsCellar && Quests.Records == 1 && Quests.CellarSeconds <= 0.0 && !Quests.CellarAlarm {
+            Quests.CellarSeconds = 240.0
+            Banner.Show("Vale's boiler buys four minutes", 3.0)
+        }
+    }
+
+    // A unique and a few of its kind beside it, in an encounter of their own.
+    -AddUnique(QuaxelWorld& world, string unique, vec3 at, string escort, int count)
+    {
+        int kind = Spawner.Table.KindNamed(unique)
+        int other = Spawner.Table.KindNamed(escort)
+        if kind < 0 { return }
+        EnemyEncounter encounter
+        encounter.Center = at
+        encounter.First = (int)Enemies.Len
+        encounter.Count = 1
+        encounter.Group = -1
+        Enemies += MakeEnemy(kind, at.X, at.Z)
+        if other >= 0 {
+            for n : 0; n < count; n++ {
+                float angle = (float)n * 6.2831853 / (float)Math.Max(1, count)
+                Enemies += MakeEnemy(other, at.X + Math.Cos(angle) * 2.2, at.Z + Math.Sin(angle) * 2.2)
+                encounter.Count++
+            }
+        }
+        Spawner.Encounters += encounter
+    }
+
+    // Whether a person is one of Act II's, whom TalkActTwo speaks for.
+    bool IsActTwoPerson(HellfeatherPerson person) { return person + 0 >= HellfeatherPerson.Hesk + 0 || (Terrain.Realm == HellfeatherRealm.Thornmere && (person == HellfeatherPerson.Vale || person == HellfeatherPerson.Matthew)) }
+
+    // Whether a spot of Act II's has something new to say.
+    bool NewsTwo(int spot)
+    {
+        HellfeatherPerson person = People.Spots[spot].Person
+        HellfeatherSpotKind kind = People.Spots[spot].Kind
+        HellfeatherQuests q = Quests
+        if person == HellfeatherPerson.Hesk { return q.Road == 0 || q.Road == 3 || (q.Records >= 2 && !q.PilgrimsTold) }
+        if person == HellfeatherPerson.Agnet { return q.Laws == 0 || q.Laws == 2 }
+        if person == HellfeatherPerson.GateCuff { return !q.CheckpointPassed }
+        if person == HellfeatherPerson.Vale { return (q.Archive >= 4 && q.Records == 0) || q.Records == 2 || q.SouthWing == 4 }
+        if person == HellfeatherPerson.Matthew { return q.Archive == 3 }
+        if person == HellfeatherPerson.Corvin { return Terrain.Realm == HellfeatherRealm.SouthWingDeep && q.SouthWing == 1 }
+        if kind == HellfeatherSpotKind.Ledgers { return q.Ledgers == 1 }
+        if kind == HellfeatherSpotKind.Archive { return q.Archive == 0 && q.Ledgers >= 3 }
+        if kind == HellfeatherSpotKind.Cabinet { return (Terrain.Realm == HellfeatherRealm.Cloister && q.Laws == 1) || (Terrain.Realm == HellfeatherRealm.RecordsCellar && q.Records == 1) }
+        if kind == HellfeatherSpotKind.Loom { return q.Laws == 3 }
+        if kind == HellfeatherSpotKind.Socket { return q.SouthWing == 3 }
+        return false
+    }
+
+    // A click on one of Act II's things within reach. True when it was one.
+    bool UseActTwo(QuaxelWorld& world, int spot)
+    {
+        HellfeatherSpotKind kind = People.Spots[spot].Kind
+        HellfeatherQuests q = Quests
+        if kind == HellfeatherSpotKind.Road {
+            HellfeatherRealm leads = People.Spots[spot].Leads
+            if leads == HellfeatherRealm.Thornmere && !q.ActTwo {
+                Talk.Begin("The Hospice Road", spot, false)
+                Talk.Narrate("The pilgrim road runs on past the hospice, north, toward the Thornmere and the weaving town.")
+                Talk.Offer("Take the road", HellfeatherReply.TakeTheRoad)
+                Talk.Offer("Not yet", HellfeatherReply.Leave)
+                return true
+            }
+            if leads == HellfeatherRealm.SouthWing && q.Records < 3 {
+                Talk.Begin("The south wing", spot, false)
+                Talk.Narrate("Iron doors, chained. Somewhere behind them a patient is singing four notes, over and over.")
+                Talk.Offer("Leave", HellfeatherReply.Leave)
+                return true
+            }
+            TakeRoad(world, spot)
+            return true
+        }
+        if kind == HellfeatherSpotKind.StairsUp && HellfeatherRealm.IsActTwo(Terrain.Realm) {
+            ClimbActTwo(world)
+            return true
+        }
+        if kind == HellfeatherSpotKind.StairsDown && HellfeatherRealm.IsActTwo(Terrain.Realm) {
+            DescendActTwo(world)
+            return true
+        }
+        if kind == HellfeatherSpotKind.Ledgers {
+            Talk.Begin("The Tithe-House", spot, false)
+            if q.Ledgers == 1 && q.CheckpointPassed {
+                Talk.Narrate("A chest by the counting-room door, the Barred Eye burned into its lid. The clerk is looking the other way.")
+                Talk.Offer("Take the ledgers", HellfeatherReply.StealLedgers)
+            } else if q.Ledgers == 0 {
+                Talk.Narrate("A counting-house with barred windows. Red Cuffs drink in its barracks wing.")
+            } else {
+                Talk.Narrate("The chest is empty. Someone will be blamed.")
+            }
+            Talk.Offer("Leave", HellfeatherReply.Leave)
+            return true
+        }
+        if kind == HellfeatherSpotKind.Archive {
+            Talk.Begin("Journeyman & Vale, Factors", spot, false)
+            if q.Archive == 0 && q.Ledgers >= 3 {
+                Talk.Narrate("The sign is older than the guild. Up the stair, rooms of files. One has your name on it.")
+                Talk.Offer("Open the ledger", HellfeatherReply.OpenArchive)
+            } else if q.Archive >= 1 {
+                Talk.Narrate("Ash and wet paper. The sign still hangs.")
+            } else {
+                Talk.Narrate("An old painted sign above a side door: Journeyman & Vale, Factors.")
+            }
+            Talk.Offer("Leave", HellfeatherReply.Leave)
+            return true
+        }
+        if kind == HellfeatherSpotKind.Cabinet {
+            TalkCabinet(spot)
+            return true
+        }
+        if kind == HellfeatherSpotKind.Loom {
+            Talk.Begin("The Inscription Loom", spot, false)
+            if q.Laws == 3 {
+                Talk.Narrate("Silver warp on dark wood, rune-stones in the beam. Agnet's chalk circle on the floor.")
+                Talk.Narrate("Water-repel, then hold. The first goes wrong and soaks you. The second holds.")
+                Talk.Offer("Inscribe", HellfeatherReply.Inscribe)
+            } else if q.Laws >= 4 {
+                Talk.Narrate("A blank stone in the beam takes a mark the way leather takes a rivet.")
+                if Carries(HellfeatherItems.BlankRune) { Talk.Offer("Carve a blank rune", HellfeatherReply.Carve) }
+                else { Talk.Narrate("You have no blank runes to carve.") }
+            } else {
+                Talk.Narrate("A great loom with silver thread. The Cloister keeps it. You do not know how to use it yet.")
+            }
+            Talk.Offer("Leave", HellfeatherReply.Leave)
+            return true
+        }
+        if kind == HellfeatherSpotKind.Socket {
+            Talk.Begin("The relay socket", spot, false)
+            if q.SouthWing == 3 {
+                Talk.Narrate("A font of grey stone with the Barred Eye on it, silver wire running into every wall. The grey key fits the hollow at its top.")
+                Talk.Offer("Sever the relay", HellfeatherReply.SeverRelay)
+            } else {
+                Talk.Narrate("Cold stone. The wires go nowhere now.")
+            }
+            Talk.Offer("Leave", HellfeatherReply.Leave)
+            return true
+        }
+        if kind == HellfeatherSpotKind.Frame {
+            Talk.Begin("A bound patient", spot, false)
+            Talk.Narrate("Sewn to the frame at the shoulders and hips. Red thread runs from the stitches to the font.")
+            if q.TitheMark { Talk.Offer("Cut the thread", HellfeatherReply.CutFrame) }
+            Talk.Offer("Leave", HellfeatherReply.Leave)
+            return true
+        }
+        return false
+    }
+
+    -TalkCabinet(int spot)
+    {
+        if Terrain.Realm == HellfeatherRealm.Cloister {
+            Talk.Begin("The expulsion archive", spot, false)
+            if Quests.Laws == 1 {
+                Talk.Narrate("Narrow drawers, each labelled. BRUNE, J. Expelled, compassionately. Instability of retention: the student holds what she weaves.")
+                Talk.Offer("Take the file", HellfeatherReply.ReadFile)
+            } else {
+                Talk.Narrate("Drawers of the expelled. Most of the names are crossed out twice.")
+            }
+        } else {
+            Talk.Begin("DECEASED - TRANSFERRED", spot, false)
+            if Quests.Records == 1 {
+                Talk.Narrate("A grey iron cabinet, stencilled. Jessa Brune: admitted on Matthew's signature, six hours before her arrest.")
+                Talk.Narrate("Beside COMPATIBLE SUCCESSOR, in the same hand: Wren Carrow. And a line on Corvin Hale: retained, south wing.")
+                Talk.Offer("Take the papers", HellfeatherReply.ReadTransferred)
+            } else {
+                Talk.Narrate("Boxes of lives, filed as transferred. Transferred where, it doesn't say.")
+            }
+        }
+        Talk.Offer("Leave", HellfeatherReply.Leave)
+    }
+
+    // What Act II's people say. True when it was one of theirs.
+    bool TalkActTwo(QuaxelWorld& world, int spot)
+    {
+        HellfeatherPerson person = People.Spots[spot].Person
+        if !IsActTwoPerson(person) { return false }
+        HellfeatherQuests q = Quests
+        bool forced = false
+        if person == HellfeatherPerson.Hesk {
+            BeginTalk("Pilgrim Mother Hesk", spot)
+            if q.Road == 0 {
+                Talk.Say("You came up the hospice road. Then you saw them hanging.")
+                Talk.Say("Cut them down, child. Every one wears a tin bracelet. And the white swan that leads the Shallows has been taking pilgrims at the water.")
+                Talk.Offer("I'll clear the road", HellfeatherReply.HeskRoad)
+            } else if q.Road == 3 {
+                Talk.Say("The road is quiet. Orra keep you. Take this, it was my husband's, and it is better on an arm than on a wall.")
+                Talk.Offer("Take the buckler", HellfeatherReply.HeskPays)
+                forced = true
+            } else if q.Road < 3 {
+                Talk.Say("The hanged first. Then the swan. We burn the feathers, we cannot burn those.")
+            } else if q.Records >= 2 && !q.PilgrimsTold {
+                Talk.Say("You look at the hospice road like it owes you something.")
+                Talk.Offer("Tell her what the hospice does", HellfeatherReply.TellPilgrims)
+            } else if q.PilgrimsTold {
+                Talk.Say("Half of them went home. Half of them called me a liar. I keep the fire for both.")
+            } else {
+                Talk.Say("Every feather that drifts in goes on the fire. Orra takes them. The fowl stop at the torches.")
+            }
+        } else if person == HellfeatherPerson.Tolly {
+            BeginTalk("Tolly the Tinker", spot)
+            Talk.Say("Boots, coats, a patch on what you're wearing. Where I got them, don't ask, and I won't ask what you're running from.")
+        } else if person == HellfeatherPerson.Corvin {
+            BeginTalk("Corvin Hale", spot)
+            if Terrain.Realm == HellfeatherRealm.SouthWingDeep && q.SouthWing == 1 {
+                Talk.Narrate("An old man chained by the ankle to a bench, a grey ring half-finished in the vice.")
+                Talk.Say("They keep me to mend what I made. Rings that take. I made them to give.")
+                Talk.Offer("Break the chain", HellfeatherReply.FreeCorvin)
+                forced = true
+            } else if q.SouthWing >= 4 {
+                Talk.Say("The Box is at Mount Corvane. Ysolde opened it. I made her the rings. Ask me for runes, I can still carve.")
+            } else {
+                Talk.Say("Go. Carmine has the chapel. The building listens to her.")
+            }
+        } else if person == HellfeatherPerson.Agnet {
+            BeginTalk("Mistress Agnet", spot)
+            if q.Laws == 0 {
+                Talk.Say("Jessa Brune. Yes. We expelled her, compassionately. Her file is in the archive below; the Cloister is not gentle with visitors.")
+                Talk.Say("Bring it, and I will teach you the Laws she broke.")
+                Talk.Offer("Go below", HellfeatherReply.AgnetFile)
+            } else if q.Laws == 2 {
+                Talk.Say("So you read it. A weaver shall not harm another weaver or a living person. No inscription without consent.")
+                Talk.Say("Everyone here breaks both for a living. Come to the Loom. Water-repel first.")
+                Talk.Offer("Learn at the Loom", HellfeatherReply.AgnetTutorial)
+            } else if q.Laws == 1 {
+                Talk.Say("The archive is below, past the practice halls. Mind the looms. One of them never finished learning.")
+            } else {
+                Talk.Say("You inscribe now. Please do it somewhere I will not have to write about.")
+            }
+        } else if person == HellfeatherPerson.GateCuff {
+            BeginTalk("A Red Cuff at the gate", spot)
+            if !q.CheckpointPassed {
+                Talk.Say("Pilgrim tithe. Fifty silver, or a name we can write down.")
+                if Inventory.Items.Gold >= HellfeatherQuests.TitheGold { Talk.Offer("Pay fifty", HellfeatherReply.PayTithe) }
+                Talk.Offer("I'm with Mother Hesk's pilgrims", HellfeatherReply.BluffCuffs)
+                Talk.Offer("Draw on them", HellfeatherReply.FightCuffs)
+            } else {
+                Talk.Say("Move along.")
+            }
+        } else if person == HellfeatherPerson.Clerk {
+            BeginTalk("A tithe clerk", spot)
+            Talk.Say("C-R17, C-R18, C-R19. They're entries, not people. That's what makes the arithmetic so restful.")
+        } else if person == HellfeatherPerson.Dyer {
+            BeginTalk("A dyer", spot)
+            Talk.Say("Madder, woad and weld, and grey for the Cuffs. Grey pays.")
+        } else if person == HellfeatherPerson.Pilgrim {
+            BeginTalk(People.Spots[spot].Title, spot)
+            if q.PilgrimsTold { Talk.Say("Mother Hesk says the hospice takes more than it heals. I came too far to believe her.") }
+            else { Talk.Say("Saint Orra's will heal him. Three more days on the road, they say.") }
+        } else if person == HellfeatherPerson.EddaRaven {
+            BeginTalk("Edda's raven", spot)
+            Talk.Narrate("It came with a letter: Feathers here, same as home. It eats some. It takes the rest to me. - E.")
+            Talk.Offer("What have the ravens found?", HellfeatherReply.Hoard)
+        } else if person == HellfeatherPerson.Vale {
+            BeginTalk("Sister Vale", spot)
+            if q.Archive >= 4 && q.Records == 0 {
+                Talk.Narrate("By the cookfire at night, the grey coat dry in the rain.")
+                Talk.Say("You found your file. There is an older one, in the cellar under Saint Orra's. I will set the boiler going; you will have four minutes.")
+                Talk.Offer("Go to the cellar", HellfeatherReply.ValeRecords)
+            } else if q.Records == 2 {
+                Talk.Say("So now you know what he wrote beside your name. The key. The south wing opens to it.")
+                Talk.Offer("Take the hospice key", HellfeatherReply.ValeKey)
+                forced = true
+            } else if q.SouthWing == 4 {
+                Talk.Say("Corvin told you about the Box, and who opened it.")
+                Talk.Say("I opened the box.")
+                Talk.Offer("...", HellfeatherReply.ValeBox)
+                forced = true
+            } else {
+                Talk.Narrate("Two shadows by the fire, both of them hers.")
+            }
+        } else if person == HellfeatherPerson.Matthew {
+            BeginTalk("Matthew the Journeyman", spot)
+            if q.Archive == 3 {
+                Talk.Narrate("Your quarrel stops against his coat and falls. He picks it up, straightens it between two fingers, and holds it out.")
+                Talk.Say("Improved?")
+                Talk.Offer("Take it back", HellfeatherReply.MatthewQuarrel)
+                forced = true
+            } else {
+                Talk.Narrate("Dry in the rain.")
+            }
+        }
+        EndTalk(person, forced)
+        return true
+    }
+
+    // Carries out one of Act II's replies. True when it was one.
+    bool AnswerActTwo(QuaxelWorld& world, HellfeatherReply reply, int spot)
+    {
+        vec3 player = world.GetPosition(PlayerNode)
+        if reply == HellfeatherReply.TakeTheRoad {
+            if spot >= 0 { TakeRoad(world, spot) }
+        } else if reply == HellfeatherReply.HeskRoad {
+            Quests.Road = 1
+            Banner.Show("The Hospice Road", 3.0)
+        } else if reply == HellfeatherReply.HeskPays {
+            Quests.Road = 4
+            Give(world, HellfeatherItems.SwanboneBuckler)
+            GainExperience(250)
+            Banner.Show("The Hospice Road: done", 3.0)
+        } else if reply == HellfeatherReply.CutDown {
+            Quests.HangedCut++
+        } else if reply == HellfeatherReply.AgnetFile {
+            Quests.Laws = 1
+            Banner.Show("Laws of Weaving", 3.0)
+        } else if reply == HellfeatherReply.ReadFile {
+            Quests.Laws = 2
+            GainExperience(150)
+            Banner.Show("Jessa's file", 2.5)
+        } else if reply == HellfeatherReply.AgnetTutorial {
+            Quests.Laws = 3
+        } else if reply == HellfeatherReply.Inscribe {
+            Quests.Laws = 4
+            Give(world, HellfeatherItems.LawsOfWeaving)
+            for n : 0; n < 3; n++ { Give(world, HellfeatherItems.BlankRune) }
+            GainExperience(200)
+            Banner.Show("You can inscribe", 3.0)
+        } else if reply == HellfeatherReply.Carve {
+            CarveRune(world)
+        } else if reply == HellfeatherReply.PayTithe {
+            Inventory.Items.Gold -= HellfeatherQuests.TitheGold
+            PassCheckpoint()
+        } else if reply == HellfeatherReply.BluffCuffs {
+            // Hesk's name carries once the road is hers.
+            if Quests.Road >= 4 {
+                PassCheckpoint()
+                Banner.Show("They wave you through", 2.5)
+            } else {
+                ShakedownFight(world, player)
+            }
+        } else if reply == HellfeatherReply.FightCuffs {
+            ShakedownFight(world, player)
+        } else if reply == HellfeatherReply.StealLedgers {
+            Quests.Ledgers = 2
+            Give(world, HellfeatherItems.TitheLedger)
+            Quests.LedgerFirst = (int)Enemies.Len
+            AddScripted(world, "HighwayCuff", player.X + 4.0, player.Z + 2.5)
+            AddScripted(world, "Cuffman", player.X - 3.5, player.Z + 3.0)
+            AddScripted(world, "Cuffman", player.X + 2.0, player.Z - 3.5)
+            Banner.Show("The Barred Eye Ledgers", 3.0)
+        } else if reply == HellfeatherReply.OpenArchive {
+            Quests.Archive = 1
+            Quests.ArchiveSeconds = 60.0
+            Quests.ArchiveFirst = (int)Enemies.Len
+            AddScripted(world, "Cuffman", player.X + 3.5, player.Z + 3.0)
+            AddScripted(world, "BladelockArbalist", player.X - 4.0, player.Z + 4.5)
+            AddScripted(world, "Cuffman", player.X - 2.5, player.Z - 3.0)
+            Banner.Show("The Burning Archive", 3.0)
+        } else if reply == HellfeatherReply.MatthewQuarrel {
+            Quests.Archive = 4
+            Give(world, HellfeatherItems.BentQuarrel)
+            Give(world, HellfeatherItems.LisesFile)
+            GainExperience(300)
+            ShowAllOf(HellfeatherPerson.Matthew, false)
+            Banner.Show("The Journeyman's Archive: done", 3.0)
+        } else if reply == HellfeatherReply.ValeRecords {
+            Quests.Records = 1
+            ShowRoadTo(HellfeatherRealm.RecordsCellar, true)
+            Banner.Show("Records of the Dead", 3.0)
+        } else if reply == HellfeatherReply.ReadTransferred {
+            Quests.Records = 2
+            Quests.CellarSeconds = 0.0
+            GainExperience(250)
+            Banner.Show("COMPATIBLE SUCCESSOR", 3.0)
+        } else if reply == HellfeatherReply.ValeKey {
+            Quests.Records = 3
+            Give(world, HellfeatherItems.HospiceKey)
+            GainExperience(150)
+            ShowAllOf(HellfeatherPerson.Vale, false)
+            Banner.Show("The south wing is open", 3.0)
+        } else if reply == HellfeatherReply.FreeCorvin {
+            Quests.SouthWing = 2
+            ShowAllOf(HellfeatherPerson.Corvin, false)
+            int down = People.FindKind(HellfeatherSpotKind.StairsDown, HellfeatherRealm.SouthWingDeep)
+            if down >= 0 { People.Spots[down].Shown = true }
+            GainExperience(200)
+            Banner.Show("Corvin Hale is free", 3.0)
+        } else if reply == HellfeatherReply.SeverRelay {
+            Quests.SouthWing = 4
+            Give(world, HellfeatherItems.CarminesQuill)
+            GainExperience(600)
+            int socket = People.FindKind(HellfeatherSpotKind.Socket, HellfeatherRealm.RelayChapel)
+            if socket >= 0 { People.Spots[socket].Shown = false }
+            Banner.Show("The hospice relay is cut", 3.5)
+        } else if reply == HellfeatherReply.CutFrame {
+            CutFrame(world, spot)
+        } else if reply == HellfeatherReply.ValeBox {
+            Quests.SouthWing = 5
+            Talk.Begin("Interlude II", spot, false)
+            Talk.Narrate("A stone room, one candle. Inquisitor Rahel Dar.")
+            Talk.Say("You knew she had lied to you.")
+            Talk.Reply("Everyone lies to me. She was the first one who apologised before I found out.")
+            Talk.Offer("End of Act II", HellfeatherReply.Interlude)
+        } else if reply == HellfeatherReply.TellPilgrims {
+            Quests.PilgrimsTold = true
+            GainExperience(100)
+            Banner.Show("Half the pilgrims strike their tents", 3.0)
+        } else {
+            return false
+        }
+        return true
+    }
+
+    // Shows or hides every spot of a person on Act II's levels; Act I's
+    // Matthew and Vale keep their own places.
+    -ShowAllOf(HellfeatherPerson person, bool shown)
+    {
+        for i : 0; i < People.Spots.Len; i++ {
+            if People.Spots[i].Person == person && People.Spots[i].Kind == HellfeatherSpotKind.Person && HellfeatherRealm.IsActTwo(People.Spots[i].Realm) { People.Spots[i].Shown = shown }
+        }
+    }
+
+    -ShowRoadTo(HellfeatherRealm realm, bool shown)
+    {
+        for i : 0; i < People.Spots.Len; i++ {
+            if People.Spots[i].Kind == HellfeatherSpotKind.Road && People.Spots[i].Leads == realm { People.Spots[i].Shown = shown }
+        }
+    }
+
+    -PassCheckpoint()
+    {
+        Quests.CheckpointPassed = true
+        Quests.Ledgers = Math.Max(Quests.Ledgers, 1)
+        ShowAllOf(HellfeatherPerson.GateCuff, false)
+    }
+
+    // The Checkpoint Shakedown turns to a fight: the gate's Cuffs and their
+    // arbalist. Beating them passes the gate.
+    -ShakedownFight(QuaxelWorld& world, vec3 player)
+    {
+        Quests.Ledgers = Math.Max(Quests.Ledgers, 1)
+        Quests.LedgerFirst = -1
+        Quests.CheckpointFirst = (int)Enemies.Len
+        AddScripted(world, "HighwayCuff", player.X + 3.5, player.Z + 3.0)
+        AddScripted(world, "Cuffman", player.X - 3.0, player.Z + 3.5)
+        AddScripted(world, "BladelockArbalist", player.X + 1.0, player.Z + 7.0)
+        ShowAllOf(HellfeatherPerson.GateCuff, false)
+        Banner.Show("Checkpoint Shakedown", 3.0)
+    }
+
+    // A blank rune carved at the Loom into a rune of the board's two themes.
+    -CarveRune(QuaxelWorld& world)
+    {
+        if !Inventory.Items.TakeStack(HellfeatherItems.BlankRune, 1) { return }
+        HellfeatherItems [3] runes = {HellfeatherItems.RuneCleave, HellfeatherItems.RuneWarCry, HellfeatherItems.RuneDash}
+        HellfeatherItems carved = runes[Spawner.LootRandom.Below(3)]
+        Give(world, carved)
+        HellfeatherItemKind kind = HellfeatherItems.Get(carved)
+        Banner.Show("Carved: " + kind.Name, 2.5)
+    }
+
+    // A patient cut free in the relay chapel: Carmine can no longer draw on them.
+    -CutFrame(QuaxelWorld& world, int spot)
+    {
+        if spot < 0 || spot >= People.Spots.Len { return }
+        People.Spots[spot].Shown = false
+        Quests.FramesCut++
+        GainExperience(40)
+        Banner.Show("A patient is free", 2.0)
+    }
+
+    // The bound patients still in their frames, which Carmine heals from.
+    int FramesBound()
+    {
+        int bound = 0
+        for spot : People.Spots {
+            if spot.Kind == HellfeatherSpotKind.Frame && spot.Shown { bound++ }
+        }
+        return bound
+    }
+
+    // Lights the camp's fire as she first arrives: it burns from then on.
+    LightCampWaypoint()
+    {
+        for i : 0; i < Waypoints.Len; i++ {
+            if Waypoints[i].Name == HellfeatherQuests.CampName { Waypoints[i].Lit = true }
+        }
+    }
+
+    // The fires of Act II's dungeon landings, and the camp's, which the Feather
+    // Fire is. Made with Act I's, at the start.
+    AddActTwoBelowWaypoints()
+    {
+        int camp = AddWaypoint(HellfeatherQuests.CampName, HellfeatherRealm.Thornmere, HellfeatherCastTwo.FireAt(), 0.0)
+        Waypoints[camp].Placed = true
+        Waypoints[camp].Lit = Quests.ActTwo
+        AddWaypoint("The Cloister of Looms", HellfeatherRealm.Cloister, HellfeatherRealm.Landing(HellfeatherRealm.Cloister) + vec3(2.5, 0.0, 0.5), 0.0)
+        AddWaypoint("The Records Cellar", HellfeatherRealm.RecordsCellar, HellfeatherRealm.Landing(HellfeatherRealm.RecordsCellar) + vec3(2.5, 0.0, 0.5), 0.0)
+        AddWaypoint("The South Wing", HellfeatherRealm.SouthWing, HellfeatherRealm.Landing(HellfeatherRealm.SouthWing) + vec3(2.5, 0.0, 0.5), 0.0)
+    }
+
+    // The Thornmere's zone fires, once its layout is known. A saved game's lit
+    // ones light again.
+    -AddActTwoWaypoints()
+    {
+        HellfeatherZone [3] zones = {HellfeatherZone.HospiceRoad, HellfeatherZone.Shallows, HellfeatherZone.Thornwick}
+        for zone : zones {
+            string place = HellfeatherZoneNames.Name(zone + 0)
+            bool known = false
+            for waypoint : Waypoints {
+                if waypoint.Name == place { known = true }
+            }
+            if known { continue }
+            int site = -1
+            float nearest = 0.0
+            vec3 camp = HellfeatherRealm.CampMiddle()
+            for i : 0; i < Terrain.Layout.Sites.Len; i++ {
+                if Terrain.Layout.Sites[i].Module != zone + 0 { continue }
+                vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[i].X, Terrain.Layout.Sites[i].Z)
+                float distance = Math.Hypot(middle.X - camp.X, middle.Z - camp.Z)
+                if site < 0 || distance < nearest {
+                    site = (int)i
+                    nearest = distance
+                }
+            }
+            if site < 0 { continue }
+            vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[site].X, Terrain.Layout.Sites[site].Z)
+            AddWaypoint(place, HellfeatherRealm.Thornmere, Flat(middle), 4.0)
+        }
+        ApplySavedWaypoints()
+    }
+
+    // Act II's quests moving along on what happened this step.
+    StepActTwo(QuaxelWorld& world, float deltaSeconds)
+    {
+        if !Quests.ActTwo && Quests.Millrace >= 5 {
+            Quests.ActTwo = true
+            ShowRoadTo(HellfeatherRealm.Thornmere, true)
+            ShowRoadTo(HellfeatherRealm.SouthWing, true)
+        }
+        StepHindrance(world, deltaSeconds)
+        if Quests.Road == 1 && Quests.HangedCut >= HellfeatherQuests.HangedWanted { Quests.Road = 2 }
+        if Quests.Road == 2 && Quests.MatriarchSlain { Quests.Road = 3 }
+        if Quests.Road == 1 && Quests.MatriarchSlain && Quests.HangedCut >= HellfeatherQuests.HangedWanted { Quests.Road = 3 }
+        if Quests.CheckpointFirst >= 0 && !Quests.CheckpointPassed && AllFallenFrom(Quests.CheckpointFirst) {
+            Quests.CheckpointFirst = -1
+            PassCheckpoint()
+            GainExperience(80)
+            Banner.Show("The gate is yours", 2.5)
+        }
+        if Quests.Ledgers == 2 && Quests.LedgerFirst >= 0 && AllFallenFrom(Quests.LedgerFirst) {
+            Quests.Ledgers = 3
+            Inventory.Items.Gold += 150
+            GainExperience(250)
+            Banner.Show("The Barred Eye Ledgers: done", 3.0)
+        }
+        // The Burning Archive: a minute to put the Cuffs down before it is ash.
+        if Quests.Archive == 1 {
+            Quests.ArchiveSeconds -= deltaSeconds
+            if Quests.ArchiveFirst >= 0 && AllFallenFrom(Quests.ArchiveFirst) {
+                Quests.Archive = 2
+                Quests.ArchiveBurnt = true
+                GainExperience(Quests.ArchiveSeconds > 0.0 ? 250 | 120)
+                Banner.Show(Quests.ArchiveSeconds > 0.0 ? "You got the files out" | "Most of it burned", 3.0)
+            }
+        }
+        if Quests.Archive == 2 {
+            Quests.Archive = 3
+            ShowAllOf(HellfeatherPerson.Matthew, Terrain.Realm == HellfeatherRealm.Thornmere)
+            int matthew = -1
+            for i : 0; i < People.Spots.Len; i++ {
+                if People.Spots[i].Person == HellfeatherPerson.Matthew && People.Spots[i].Realm == HellfeatherRealm.Thornmere { matthew = (int)i }
+            }
+            if matthew >= 0 { People.Spots[matthew].Shown = true }
+        }
+        // Vale's four minutes in the cellar: then the watch comes down.
+        if Quests.Records == 1 && Quests.CellarSeconds > 0.0 && Terrain.Realm == HellfeatherRealm.RecordsCellar {
+            Quests.CellarSeconds -= deltaSeconds
+            if Quests.CellarSeconds <= 0.0 && !Quests.CellarAlarm {
+                Quests.CellarAlarm = true
+                vec3 player = world.GetPosition(PlayerNode)
+                AddScripted(world, "CellarWatchman", player.X + 4.0, player.Z + 3.0)
+                AddScripted(world, "HospiceOrderly", player.X - 3.5, player.Z + 4.0)
+                Banner.Show("The boiler is out. The watch comes", 3.0)
+            }
+        }
+        // Ten Minutes: when Carmine's time runs out, the wards open on her side.
+        if Quests.WardenWoke && Quests.SouthWing == 2 && Terrain.Realm == HellfeatherRealm.RelayChapel && Quests.WardenSeconds > 0.0 {
+            Quests.WardenSeconds -= deltaSeconds
+            if Quests.WardenSeconds <= 0.0 {
+                vec3 player = world.GetPosition(PlayerNode)
+                for n : 0; n < 4; n++ {
+                    float angle = (float)n * 1.5707963
+                    AddScripted(world, n % 2 == 0 ? "HospiceOrderly" | "StitchedPatient", player.X + Math.Cos(angle) * 6.0, player.Z + Math.Sin(angle) * 6.0)
+                }
+                Banner.Show("The hospice wakes", 3.0)
+            }
+        }
+    }
+
+    // A kill that counts toward Act II's quests.
+    CountActTwoKill(QuaxelWorld& world, int i)
+    {
+        string kindName = Spawner.Table.Kinds[Enemies[i].Kind].Name
+        if kindName == "SwanMatriarch" {
+            Quests.MatriarchSlain = true
+            Banner.Show("The Swan Matriarch is dead", 3.0)
+        } else if kindName == "TitheHanged" {
+            if Quests.Road >= 1 { Quests.HangedCut++ }
+        } else if kindName == "FailedLoom" {
+            Quests.FailedLoomSlain = true
+            Banner.Show("The Failed Loom comes apart", 3.0)
+        } else if kindName == "OrderlyBrann" {
+            Quests.BrannSlain = true
+            Banner.Show("Orderly Brann is down", 3.0)
+        } else if kindName == "RedWarden" {
+            Quests.SouthWing = Math.Max(Quests.SouthWing, 3)
+            Quests.WardenSeconds = 0.0
+            int socket = People.FindKind(HellfeatherSpotKind.Socket, HellfeatherRealm.RelayChapel)
+            if socket >= 0 { People.Spots[socket].Shown = true }
+            Banner.Show("Sister Carmine sits down, and stops", 3.5)
+        } else if kindName == "InkBlot" {
+            // A blot splits in two unless something wide put it down.
+            vec3 at = world.GetPosition(Enemies[i].Node)
+            AddScripted(world, "InkSmear", at.X + 0.8, at.Z)
+            AddScripted(world, "InkSmear", at.X - 0.8, at.Z)
+        }
+    }
+
+    // Whether she stands in the encampment, where the feathers burn and no
+    // portal is needed.
+    bool InCamp(vec3 player)
+    {
+        vec3 camp = HellfeatherRealm.CampMiddle()
+        return Terrain.Realm == HellfeatherRealm.Thornmere && Math.Hypot(player.X - camp.X, player.Z - camp.Z) <= PilgrimsEncampment.TorchRing
+    }
+}
+
+HellfeatherQuests
+{
+    int CheckpointFirst = -1
+}
+#{
+    #string CampName = "The Pilgrims' Encampment"
+    #int TitheGold = 50
+    #float WardenMinutes = 10.0
+}
+
+// The quest log asks by a quest's number across the acts: 0 to 5 are Act I's,
+// 6 to 11 Act II's.
+HellfeatherQuests
+{
+    // The number of the first quest of the act the log shows.
+    int Base() { return Act() == 2 ? HellfeatherQuests.PerAct | 0 }
+
+    HellfeatherQuestState StateOf(int quest) { return quest < HellfeatherQuests.PerAct ? State(quest) | StateTwo(quest) }
+
+    string [] JournalOf(int quest)
+    {
+        if quest < HellfeatherQuests.PerAct { return Journal(quest) }
+        return JournalTwo(quest)
+    }
+}
+#{
+    string TitleOf(int quest) { return quest < PerAct ? Title(quest) | TitleTwo(quest) }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // The level a raven portal's town end opens on: Ravenford, or in Act II's
+    // levels the encampment.
+    HellfeatherRealm TownRealm
+
+    // Starts in Act II's places from the command line, with the act open and
+    // the quests that lead there taken: camp, thornwick, shallows, cloister,
+    // cellar, wing and chapel.
+    bool GoToActTwoStart(QuaxelWorld& world)
+    {
+        bool known = StartAt == "camp" || StartAt == "thornwick" || StartAt == "shallows" || StartAt == "cloister" || StartAt == "cellar" || StartAt == "wing" || StartAt == "chapel" || StartAt == "in-tent"
+        if !known { return false }
+        Quests.Moult = Math.Max(Quests.Moult, 4)
+        Quests.Millrace = Math.Max(Quests.Millrace, 5)
+        Quests.ActTwo = true
+        Quests.TitheMark = true
+        LightCampWaypoint()
+        if Residence != HellfeatherResidence.PilgrimTent { MoveInto(HellfeatherResidence.PilgrimTent) }
+        if StartAt == "cloister" {
+            Quests.Laws = Math.Max(Quests.Laws, 1)
+            return TravelTo(world, HellfeatherRealm.Cloister, HellfeatherRealm.Landing(HellfeatherRealm.Cloister) + vec3(0.0, 0.0, 1.5), true)
+        }
+        if StartAt == "cellar" {
+            Quests.Records = Math.Max(Quests.Records, 1)
+            return TravelTo(world, HellfeatherRealm.RecordsCellar, HellfeatherRealm.Landing(HellfeatherRealm.RecordsCellar) + vec3(0.0, 0.0, 1.5), true)
+        }
+        if StartAt == "wing" || StartAt == "chapel" {
+            Quests.Records = Math.Max(Quests.Records, 3)
+            HellfeatherRealm wing = StartAt == "chapel" ? HellfeatherRealm.RelayChapel | HellfeatherRealm.SouthWing
+            if StartAt == "chapel" { Quests.SouthWing = Math.Max(Quests.SouthWing, 2) }
+            return TravelTo(world, wing, HellfeatherRealm.Landing(wing) + vec3(0.0, 0.0, 1.5), true)
+        }
+        if StartAt == "in-tent" { return TravelTo(world, HellfeatherRealm.PilgrimTent, HellfeatherRealm.Doorstep(HellfeatherRealm.PilgrimTent), false) }
+        if !TravelTo(world, HellfeatherRealm.Thornmere, HellfeatherCastTwo.RoadOut() + vec3(0.0, 0.0, -2.0), false) { return false }
+        vec3 there = vec3(0.0, 0.0, 0.0)
+        if StartAt == "thornwick" { there = ZoneMiddle(HellfeatherZone.Thornwick) }
+        else if StartAt == "shallows" { there = ZoneMiddle(HellfeatherZone.Shallows) }
+        else { return true }
+        return TravelTo(world, HellfeatherRealm.Thornmere, there, false)
+    }
+}

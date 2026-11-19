@@ -19,7 +19,7 @@
 //                 (HellfeatherZoneNames.Level), so later zones roll better bases.
 // EnemySpawnRules how the level is filled and when groups wake up.
 //
-// Act I. Each zone of HellfeatherZone rolls only its own groups, the Undercroft's
+// Acts I and II. Each zone of HellfeatherZone rolls only its own groups, the Undercroft's
 // two levels included. Models come from Tools/Models/act1.py; tall ones have
 // coarser voxels, so Height and VoxelSize are what the tool printed. StandIn is
 // the model to wear if a file is missing. Move picks the enemy's one move (two
@@ -67,6 +67,71 @@ HellfeatherEnemyData
             <EnemyKind Name="RingKeeperWarden" Rank=HellfeatherEnemyRank.Unique Model="Assets/RingKeeperWarden.qvox" StandIn="EvilDuck" StandInScale=1.3 Height=86 VoxelSize=0.0292 Radius=0.6 Speed=1.8 Reach=1.8 Notice=14.0 MaxHealth=360 Damage=18 Fire=9 Accuracy=40 Armor=40 Experience=90 Move=HellfeatherMove.RingPull Loot="Warden"/>
             <EnemyKind Name="Mardra" Rank=HellfeatherEnemyRank.Unique Model="Assets/Mardra.qvox" StandIn="EvilDuck" StandInScale=1.7 Height=72 VoxelSize=0.0389 Radius=0.9 Speed=1.6 Reach=2.0 Notice=18.0 MaxHealth=1400 Damage=19 Fire=11 Accuracy=45 Armor=40 Experience=600 Move=HellfeatherMove.Brood Feathers=20/>
 
+            <EnemyKind Name="TitheHanged" Rank=HellfeatherEnemyRank.Magic Model="Assets/TitheHanged.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=72 VoxelSize=0.0264 Radius=0.45 Speed=1.4 Reach=2.8 Notice=13.0 MaxHealth=110 Damage=14 Cold=6 Accuracy=45 Armor=25 Experience=24 Move=HellfeatherMove.Lash Loot="Act II drops"/>
+            <EnemyKind Name="MoultingHound" Model="Assets/MoultingHound.qvox" StandIn="EvilDuck" StandInScale=0.8 Height=44 VoxelSize=0.025 Radius=0.5 Speed=3.2 Reach=1.2 Notice=16.0 MaxHealth=70 Damage=10 Accuracy=45 Armor=15 Experience=14 Move=HellfeatherMove.Bite Feathers=1/>
+            <EnemyKind Name="HighwayCuff" Rank=HellfeatherEnemyRank.Rare Model="Assets/HighwayCuff.qvox" StandIn="EvilDuck" StandInScale=1.15 Height=72 VoxelSize=0.0264 Radius=0.5 Speed=1.8 Reach=1.6 Notice=15.0 MaxHealth=170 Damage=17 Fire=7 Accuracy=50 Armor=45 Experience=40 Move=HellfeatherMove.Horn Loot="Act II drops"/>
+            <EnemyKind Name="FeatherblightSwan" Rank=HellfeatherEnemyRank.Rare Model="Assets/FeatherblightSwan.qvox" StandIn="EvilDuck" StandInScale=1.4 Height=72 VoxelSize=0.0333 Radius=0.75 Speed=1.8 Reach=6.0 Notice=15.0 MaxHealth=180 Damage=15 Cold=9 Accuracy=50 Armor=30 Experience=42 Move=HellfeatherMove.Fan Feathers=4 Loot="Act II drops"/>
+            <EnemyKind Name="SwanMatriarch" Rank=HellfeatherEnemyRank.Unique Model="Assets/SwanMatriarch.qvox" StandIn="EvilDuck" StandInScale=1.9 Height=72 VoxelSize=0.0451 Radius=1.0 Speed=1.6 Reach=6.5 Notice=18.0 MaxHealth=1600 Damage=20 Cold=12 Accuracy=60 Armor=50 Experience=700 Move=HellfeatherMove.Matriarch Feathers=20 Loot="Matriarch"/>
+            <EnemyKind Name="CygnetBrood" Model="Assets/CygnetBrood.qvox" StandIn="EvilDuck" StandInScale=0.45 Height=30 VoxelSize=0.025 Radius=0.35 Speed=2.6 Reach=0.9 Notice=12.0 MaxHealth=24 Damage=6 Accuracy=40 Experience=5 Feathers=1/>
+            <EnemyKind Name="ReedDrowner" Rank=HellfeatherEnemyRank.Magic Model="Assets/ReedDrowner.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=72 VoxelSize=0.0257 Radius=0.5 Speed=1.6 Reach=1.6 Notice=10.0 MaxHealth=120 Damage=14 Cold=8 Accuracy=50 Armor=25 Experience=26 Move=HellfeatherMove.Drag Loot="Act II drops"/>
+
+            <EnemyKind Name="LoomWight" Rank=HellfeatherEnemyRank.Magic Model="Assets/LoomWight.qvox" StandIn="EvilDuck" StandInScale=1.15 Height=72 VoxelSize=0.0271 Radius=0.6 Speed=1.6 Reach=1.5 Notice=13.0 MaxHealth=150 Damage=16 Fire=8 Accuracy=50 Armor=35 Experience=30 Move=HellfeatherMove.Loom Loot="Act II drops"/>
+            <EnemyKind Name="NoviceWeaver" Rank=HellfeatherEnemyRank.Magic Model="Assets/NoviceWeaver.qvox" StandIn="EvilDuck" StandInScale=1.05 Height=70 VoxelSize=0.025 Radius=0.45 Speed=1.8 Reach=8.0 Notice=15.0 MaxHealth=80 Damage=10 Lightning=7 Accuracy=55 Armor=15 Experience=26 Move=HellfeatherMove.Dart Loot="Act II drops"/>
+            <EnemyKind Name="AnimatedShuttle" Model="Assets/AnimatedShuttle.qvox" StandIn="EvilDuck" StandInScale=0.3 Height=14 VoxelSize=0.025 Radius=0.35 Speed=3.5 Reach=1.0 Notice=14.0 MaxHealth=35 Damage=9 Accuracy=55 Experience=9 Move=HellfeatherMove.HopPeck/>
+            <EnemyKind Name="InkBlot" Rank=HellfeatherEnemyRank.Magic Model="Assets/InkBlot.qvox" StandIn="EvilDuck" StandInScale=0.6 Height=24 VoxelSize=0.025 Radius=0.6 Speed=1.0 Reach=1.1 Notice=10.0 MaxHealth=90 Damage=12 Cold=6 Accuracy=45 Armor=20 Experience=20/>
+            <EnemyKind Name="InkSmear" Model="Assets/InkBlot.qvox" StandIn="EvilDuck" StandInScale=0.35 Height=24 VoxelSize=0.015 Radius=0.35 Speed=1.3 Reach=0.9 Notice=10.0 MaxHealth=30 Damage=7 Accuracy=45 Experience=6/>
+            <EnemyKind Name="FailedLoom" Rank=HellfeatherEnemyRank.Unique Model="Assets/FailedLoom.qvox" StandIn="EvilDuck" StandInScale=1.7 Height=72 VoxelSize=0.0382 Radius=0.9 Speed=1.2 Reach=2.0 Notice=16.0 MaxHealth=1100 Damage=22 Fire=10 Accuracy=60 Armor=55 Experience=500 Move=HellfeatherMove.Weave Loot="Failed Loom"/>
+
+            <EnemyKind Name="ArchiveRat" Model="Assets/ArchiveRat.qvox" StandIn="EvilDuck" StandInScale=0.3 Height=14 VoxelSize=0.025 Radius=0.3 Speed=2.8 Reach=0.8 Notice=12.0 MaxHealth=18 Damage=5 Accuracy=50 Experience=4/>
+            <EnemyKind Name="CellarWatchman" Rank=HellfeatherEnemyRank.Rare Model="Assets/CellarWatchman.qvox" StandIn="EvilDuck" StandInScale=1.15 Height=72 VoxelSize=0.0264 Radius=0.5 Speed=1.7 Reach=1.5 Notice=12.0 MaxHealth=180 Damage=17 Fire=6 Accuracy=55 Armor=45 Experience=40 Move=HellfeatherMove.Watch Loot="Act II drops"/>
+            <EnemyKind Name="ClerkShade" Rank=HellfeatherEnemyRank.Magic Model="Assets/ClerkShade.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=72 VoxelSize=0.025 Radius=0.45 Speed=1.4 Reach=7.0 Notice=13.0 MaxHealth=100 Damage=11 Cold=8 Accuracy=60 Armor=15 Experience=28 Move=HellfeatherMove.Stamp/>
+
+            <EnemyKind Name="StitchedPatient" Rank=HellfeatherEnemyRank.Magic Model="Assets/StitchedPatient.qvox" StandIn="EvilDuck" StandInScale=1.2 Height=60 VoxelSize=0.025 Radius=0.6 Speed=1.0 Reach=1.6 Notice=11.0 MaxHealth=170 Damage=22 Accuracy=55 Armor=40 Experience=32 Move=HellfeatherMove.FrameSlam Loot="Act II drops"/>
+            <EnemyKind Name="WardScreamer" Rank=HellfeatherEnemyRank.Magic Model="Assets/WardScreamer.qvox" StandIn="EvilDuck" StandInScale=1.05 Height=72 VoxelSize=0.025 Radius=0.45 Speed=1.6 Reach=5.0 Notice=14.0 MaxHealth=90 Damage=8 Lightning=8 Accuracy=60 Armor=15 Experience=28 Move=HellfeatherMove.Scream/>
+            <EnemyKind Name="HospiceOrderly" Rank=HellfeatherEnemyRank.Rare Model="Assets/HospiceOrderly.qvox" StandIn="EvilDuck" StandInScale=1.35 Height=72 VoxelSize=0.0319 Radius=0.65 Speed=1.7 Reach=1.7 Notice=14.0 MaxHealth=240 Damage=20 Accuracy=60 Armor=55 Experience=48 Move=HellfeatherMove.Pin Loot="Act II drops"/>
+            <EnemyKind Name="OrderlyBrann" Rank=HellfeatherEnemyRank.Unique Model="Assets/OrderlyBrann.qvox" StandIn="EvilDuck" StandInScale=1.6 Height=72 VoxelSize=0.0361 Radius=0.75 Speed=1.6 Reach=1.9 Notice=16.0 MaxHealth=1300 Damage=26 Accuracy=65 Armor=65 Experience=550 Move=HellfeatherMove.Pin Loot="Brann"/>
+            <EnemyKind Name="LatticeHost" Rank=HellfeatherEnemyRank.Magic Model="Assets/LatticeHost.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=72 VoxelSize=0.0257 Radius=0.45 Speed=1.5 Reach=1.0 Notice=12.0 MaxHealth=130 Damage=9 Cold=6 Accuracy=55 Armor=20 Experience=30 Move=HellfeatherMove.Rot/>
+            <EnemyKind Name="RedWarden" Rank=HellfeatherEnemyRank.Unique Model="Assets/RedWarden.qvox" StandIn="EvilDuck" StandInScale=1.1 Height=72 VoxelSize=0.0257 Radius=0.5 Speed=1.6 Reach=7.0 Notice=20.0 MaxHealth=2400 Damage=18 Fire=12 Accuracy=70 Armor=55 Experience=1200 Move=HellfeatherMove.Warden/>
+
+            <LootTable Name="Act II drops" Chance=0.4 Rolls=1 GoldChance=0.7 MinGold=60 MaxGold=220>
+                <LootItem Item=HellfeatherItems.HealthPotion Weight=30/>
+                <LootItem Item=HellfeatherItems.ManaPotion Weight=20/>
+                <LootItem Item=HellfeatherItems.Scroll Weight=8/>
+                <LootItem Item=HellfeatherItems.GoldenKey Weight=6/>
+                <LootItem Item=HellfeatherItems.BlankRune Weight=6/>
+                <LootItem Item=HellfeatherItems.RuneCleave Weight=3/>
+                <LootItem Item=HellfeatherItems.RuneWarCry Weight=3/>
+                <LootItem Item=HellfeatherItems.RuneDash Weight=3/>
+                <LootItem Item=HellfeatherItems.RingMail Weight=4/>
+                <LootItem Item=HellfeatherItems.ScaleMail Weight=4/>
+                <LootItem Item=HellfeatherItems.PlateMail Weight=3/>
+                <LootItem Item=HellfeatherItems.GreatHelm Weight=4/>
+                <LootItem Item=HellfeatherItems.VisoredHelm Weight=3/>
+                <LootItem Item=HellfeatherItems.Gauntlets Weight=4/>
+                <LootItem Item=HellfeatherItems.SpikedGauntlets Weight=4/>
+                <LootItem Item=HellfeatherItems.PlateBoots Weight=4/>
+                <LootItem Item=HellfeatherItems.PlatedBelt Weight=4/>
+                <LootItem Item=HellfeatherItems.KiteShield Weight=3/>
+                <LootItem Item=HellfeatherItems.TowerShield Weight=3/>
+                <LootItem Item=HellfeatherItems.FlangedMace Weight=3/>
+                <LootItem Item=HellfeatherItems.WarHammer Weight=3/>
+                <LootItem Item=HellfeatherItems.BattleAxe Weight=3/>
+                <LootItem Item=HellfeatherItems.GarnetRing Weight=3/>
+                <LootItem Item=HellfeatherItems.RavenAmulet Weight=3/>
+                <LootItem Item=HellfeatherItems.PilgrimsBadge Weight=2/>
+            </LootTable>
+            <LootTable Name="Matriarch" Chance=1.0 Rolls=2 GoldChance=1.0 MinGold=300 MaxGold=500>
+                <LootItem Item=HellfeatherItems.PilgrimsBadge Weight=1/>
+                <LootItem Item=HellfeatherItems.HealthPotion Weight=2/>
+            </LootTable>
+            <LootTable Name="Failed Loom" Chance=1.0 Rolls=2 GoldChance=1.0 MinGold=250 MaxGold=420>
+                <LootItem Item=HellfeatherItems.BlankRune Weight=1/>
+            </LootTable>
+            <LootTable Name="Brann" Chance=1.0 Rolls=2 GoldChance=1.0 MinGold=280 MaxGold=460>
+                <LootItem Item=HellfeatherItems.TowerShield Weight=1/>
+                <LootItem Item=HellfeatherItems.PlateMail Weight=1/>
+                <LootItem Item=HellfeatherItems.HealthPotion Weight=2/>
+            </LootTable>
             <LootTable Name="Duck drops" Chance=0.35 Rolls=1 GoldChance=0.6 MinGold=30 MaxGold=130>
                 <LootItem Item=HellfeatherItems.HealthPotion Weight=30/>
                 <LootItem Item=HellfeatherItems.ManaPotion Weight=20/>
@@ -208,6 +273,93 @@ HellfeatherEnemyData
             <EnemyGroup Name="Wardens" Zone=HellfeatherZone.UndercroftDeep Weight=15 Spread=2.0>
                 <EnemyMember Kind="RingKeeperWarden" Min=1 Max=1/>
                 <EnemyMember Kind="BroodDrake" Min=1 Max=2/>
+            </EnemyGroup>
+            <EnemyGroup Name="Hanged on the road" Zone=HellfeatherZone.HospiceRoad Weight=40 Spread=2.5>
+                <EnemyMember Kind="TitheHanged" Min=2 Max=3/>
+            </EnemyGroup>
+            <EnemyGroup Name="Hound pack" Zone=HellfeatherZone.HospiceRoad Weight=30 Spread=2.5>
+                <EnemyMember Kind="MoultingHound" Min=3 Max=4/>
+            </EnemyGroup>
+            <EnemyGroup Name="Toll-takers" Zone=HellfeatherZone.HospiceRoad Weight=15 Spread=2.5>
+                <EnemyMember Kind="HighwayCuff" Min=1 Max=1/>
+                <EnemyMember Kind="Cuffman" Min=1 Max=1/>
+            </EnemyGroup>
+            <EnemyGroup Name="Murder on the gibbets" Zone=HellfeatherZone.HospiceRoad Weight=15 Spread=2.0>
+                <EnemyMember Kind="GallowsRook" Min=4 Max=5/>
+            </EnemyGroup>
+            <EnemyGroup Name="Heath hounds" Zone=HellfeatherZone.Heath Weight=40 Spread=2.5>
+                <EnemyMember Kind="MoultingHound" Min=2 Max=3/>
+            </EnemyGroup>
+            <EnemyGroup Name="Heath hanged" Zone=HellfeatherZone.Heath Weight=30 Spread=2.5>
+                <EnemyMember Kind="TitheHanged" Min=1 Max=2/>
+            </EnemyGroup>
+            <EnemyGroup Name="Heath rooks" Zone=HellfeatherZone.Heath Weight=30 Spread=2.0>
+                <EnemyMember Kind="GallowsRook" Min=2 Max=3/>
+            </EnemyGroup>
+            <EnemyGroup Name="Swan and cygnets" Zone=HellfeatherZone.Shallows Weight=40 Spread=2.5>
+                <EnemyMember Kind="FeatherblightSwan" Min=1 Max=1/>
+                <EnemyMember Kind="CygnetBrood" Min=2 Max=3/>
+            </EnemyGroup>
+            <EnemyGroup Name="Cygnet brood" Zone=HellfeatherZone.Shallows Weight=25 Spread=1.8>
+                <EnemyMember Kind="CygnetBrood" Min=4 Max=6/>
+            </EnemyGroup>
+            <EnemyGroup Name="Drowners" Zone=HellfeatherZone.Shallows Weight=35 Spread=2.5>
+                <EnemyMember Kind="ReedDrowner" Min=2 Max=2/>
+            </EnemyGroup>
+
+            <EnemyGroup Name="Practice dummies" Zone=HellfeatherZone.Cloister Weight=30 Spread=2.5>
+                <EnemyMember Kind="LoomWight" Min=2 Max=3/>
+            </EnemyGroup>
+            <EnemyGroup Name="Novices" Zone=HellfeatherZone.Cloister Weight=30 Spread=2.5>
+                <EnemyMember Kind="NoviceWeaver" Min=2 Max=2/>
+                <EnemyMember Kind="LoomWight" Min=1 Max=1/>
+            </EnemyGroup>
+            <EnemyGroup Name="Shuttles" Zone=HellfeatherZone.Cloister Weight=20 Spread=2.0>
+                <EnemyMember Kind="AnimatedShuttle" Min=2 Max=4/>
+            </EnemyGroup>
+            <EnemyGroup Name="Ink blots" Zone=HellfeatherZone.Cloister Weight=20 Spread=2.0>
+                <EnemyMember Kind="InkBlot" Min=1 Max=2/>
+            </EnemyGroup>
+            <EnemyGroup Name="Rat swarm" Zone=HellfeatherZone.RecordsCellar Weight=35 Spread=1.8>
+                <EnemyMember Kind="ArchiveRat" Min=6 Max=9/>
+            </EnemyGroup>
+            <EnemyGroup Name="The watch" Zone=HellfeatherZone.RecordsCellar Weight=30 Spread=2.5>
+                <EnemyMember Kind="CellarWatchman" Min=1 Max=1/>
+                <EnemyMember Kind="ArchiveRat" Min=2 Max=3/>
+            </EnemyGroup>
+            <EnemyGroup Name="Clerks" Zone=HellfeatherZone.RecordsCellar Weight=35 Spread=2.5>
+                <EnemyMember Kind="ClerkShade" Min=2 Max=2/>
+            </EnemyGroup>
+            <EnemyGroup Name="Stitched" Zone=HellfeatherZone.SouthWing Weight=30 Spread=2.5>
+                <EnemyMember Kind="StitchedPatient" Min=2 Max=2/>
+            </EnemyGroup>
+            <EnemyGroup Name="Screamers" Zone=HellfeatherZone.SouthWing Weight=25 Spread=2.5>
+                <EnemyMember Kind="WardScreamer" Min=1 Max=1/>
+                <EnemyMember Kind="StitchedPatient" Min=1 Max=1/>
+            </EnemyGroup>
+            <EnemyGroup Name="Orderly's round" Zone=HellfeatherZone.SouthWing Weight=25 Spread=2.5>
+                <EnemyMember Kind="HospiceOrderly" Min=1 Max=1/>
+                <EnemyMember Kind="StitchedPatient" Min=1 Max=2/>
+            </EnemyGroup>
+            <EnemyGroup Name="Hosts" Zone=HellfeatherZone.SouthWing Weight=20 Spread=2.0>
+                <EnemyMember Kind="LatticeHost" Min=2 Max=2/>
+            </EnemyGroup>
+            <EnemyGroup Name="Lower wards" Zone=HellfeatherZone.SouthWingDeep Weight=35 Spread=2.5>
+                <EnemyMember Kind="HospiceOrderly" Min=1 Max=1/>
+                <EnemyMember Kind="WardScreamer" Min=1 Max=1/>
+                <EnemyMember Kind="StitchedPatient" Min=1 Max=2/>
+            </EnemyGroup>
+            <EnemyGroup Name="Lower hosts" Zone=HellfeatherZone.SouthWingDeep Weight=35 Spread=2.0>
+                <EnemyMember Kind="LatticeHost" Min=2 Max=3/>
+            </EnemyGroup>
+            <EnemyGroup Name="Lower stitched" Zone=HellfeatherZone.SouthWingDeep Weight=30 Spread=2.5>
+                <EnemyMember Kind="StitchedPatient" Min=2 Max=3/>
+            </EnemyGroup>
+            <EnemyGroup Name="Chapel orderlies" Zone=HellfeatherZone.RelayChapel Weight=50 Spread=2.5>
+                <EnemyMember Kind="HospiceOrderly" Min=1 Max=1/>
+            </EnemyGroup>
+            <EnemyGroup Name="Chapel hosts" Zone=HellfeatherZone.RelayChapel Weight=50 Spread=2.0>
+                <EnemyMember Kind="LatticeHost" Min=1 Max=2/>
             </EnemyGroup>
         }
     }

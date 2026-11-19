@@ -21,7 +21,19 @@ HellfeatherZone : int
     UndercroftDeep,
     UndercroftLanding,
     // The room of a building's interior.
-    Interior
+    Interior,
+    // Act II. Heath is the Thornmere's fallback clearing, so it comes after
+    // the zones that claim clearings first.
+    Encampment,
+    HospiceRoad,
+    Shallows,
+    Thornwick,
+    Heath,
+    Cloister,
+    RecordsCellar,
+    SouthWing,
+    SouthWingDeep,
+    RelayChapel
 }
 
 // Reed marsh and duck ponds. Ponds and the mud around them follow one noise

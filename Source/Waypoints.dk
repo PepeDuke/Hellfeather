@@ -80,6 +80,7 @@ HellfeatherGame : QuaxelGameInstance
         }
         AddWaypoint("The Millrace Undercroft", HellfeatherRealm.Undercroft, HellfeatherRealm.Landing(HellfeatherRealm.Undercroft) + vec3(2.5, 0.0, 0.5), 0.0)
         AddWaypoint("The Undercroft, deeper", HellfeatherRealm.UndercroftDeep, HellfeatherRealm.Landing(HellfeatherRealm.UndercroftDeep) + vec3(2.5, 0.0, 0.5), 0.0)
+        AddActTwoBelowWaypoints()
         AddHomeWaypoint()
     }
 
@@ -98,7 +99,7 @@ HellfeatherGame : QuaxelGameInstance
     }
 
     // The zone's clearing nearest Ravenford, which the road reaches first.
-    -int NearestSiteOf(HellfeatherZone zone)
+    int NearestSiteOf(HellfeatherZone zone)
     {
         int best = -1
         float bestDistance = 0.0
@@ -146,7 +147,11 @@ HellfeatherGame : QuaxelGameInstance
             }
             int spot = SpotOfWaypoint(i)
             if spot < 0 {
-                spot = People.AddModel(HellfeatherSpotKind.Waypoint, HellfeatherWaypoints.Title(Waypoints[i].Name), Waypoints[i].Realm, Waypoints[i].Feet, Landmarks.Fireplace, HellfeatherArt.FineVoxel, HellfeatherLandmarks.FireplaceHeight)
+                // The encampment's fire is the Feather Fire before the shrine.
+                bool feathers = Waypoints[i].Name == HellfeatherQuests.CampName && ActTwoPieces.Has(HellfeatherActTwoPiece.FeatherFire)
+                int volume = feathers ? ActTwoPieces.Volume[HellfeatherActTwoPiece.FeatherFire] | Landmarks.Fireplace
+                int tall = feathers ? ActTwoPieces.Tall[HellfeatherActTwoPiece.FeatherFire] * 2 | HellfeatherLandmarks.FireplaceHeight
+                spot = People.AddModel(HellfeatherSpotKind.Waypoint, HellfeatherWaypoints.Title(Waypoints[i].Name), Waypoints[i].Realm, Waypoints[i].Feet, volume, HellfeatherArt.FineVoxel, tall)
             }
             People.Spots[spot].Feet.Y = Terrain.GroundY(Waypoints[i].Feet.X, Waypoints[i].Feet.Z)
             if !Waypoints[i].Lit && PlayerHealth > 0 && Math.Hypot(Waypoints[i].Feet.X - player.X, Waypoints[i].Feet.Z - player.Z) <= HellfeatherWaypoints.LightReach { LightWaypoint(i) }
@@ -266,7 +271,7 @@ T{
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
-        T.AreEqual(game.Waypoints.Len, (long)9)
+        T.AreEqual(game.Waypoints.Len, (long)13)
         T.IsTrue(game.Waypoints[0].Lit)
         // Her Home fire burns from the start too.
         int home = game.HomeWaypoint()

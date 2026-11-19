@@ -1,16 +1,2 @@
 Issues found during testing:
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-

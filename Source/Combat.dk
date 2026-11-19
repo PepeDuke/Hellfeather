@@ -208,13 +208,13 @@ HellfeatherGame : QuaxelGameInstance
             return false
         }
         if kind < 0 {
-            DamagePlayer(world, PlayerAfflictions.Worsened(physical))
+            DamagePlayer(world, Hindrance.Worsen(PlayerAfflictions.Worsened(physical)))
             return true
         }
         int fire = Spawner.Table.Kinds[kind].Fire
         int cold = Spawner.Table.Kinds[kind].Cold
         int lightning = Spawner.Table.Kinds[kind].Lightning
-        DamagePlayer(world, PlayerAfflictions.Worsened(HellfeatherCombat.BlowAgainst(stats, physical, fire, cold, lightning)))
+        DamagePlayer(world, Hindrance.Worsen(PlayerAfflictions.Worsened(HellfeatherCombat.BlowAgainst(stats, physical, fire, cold, lightning))))
         AfflictPlayer(world, fire, cold, lightning)
         return true
     }

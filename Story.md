@@ -166,14 +166,15 @@ Wren can't carve runes yet, but she can set them. From I-1 on, the Tithe-mark on
 | Zone | Type | Description |
 |---|---|---|
 | **The Hospice Road** | Wild | Gibbets, pilgrim camps, the Featherblight swans of the Thornmere. |
-| **Thornwick** | Town (secondary hub) | Weaving town. Dye smells, cloth banners, Red Cuff checkpoints. |
+| **The Pilgrims' Encampment** | Town (hub) | Tents and wagons around the Pilgrim Shrine of Orra on the Thornmere shore, outside Thornwick. The pilgrims burn the feathers in the Feather Fire. |
+| **Thornwick** | Town | Weaving town. Dye smells, cloth banners, Red Cuff checkpoints. Too dangerous to sleep in after Act I. |
 | **Thornmere Shallows** | Wild | Lake edge where the swans nest. |
 | **The Cloister of Looms** | Dungeon / interior | Weaving school with a library, practice halls and the expulsion archive. |
 | **Saint Orra's: Records Cellar** | Dungeon | Shelves of boxed lives. |
 | **Saint Orra's: South Wing** | Dungeon (3 levels) | Wards, stitch-frames, the relay chapel. |
 
 **Zone enemies**
-*Thornwick is a safe hub except for the Checkpoint Shakedown event. Act II enemies get 1–2 moves and introduce soft control (short slows, roots of 2 s or less, bleed). From here on, Bladelock Arbalists fire **Curving Blades** that bend once toward the player in flight.*
+*The Pilgrims' Encampment is a safe hub. Thornwick is safe except for the Checkpoint Shakedown event. Act II enemies get 1–2 moves and introduce soft control (short slows, roots of 2 s or less, bleed). From here on, Bladelock Arbalists fire **Curving Blades** that bend once toward the player in flight.*
 | Zone | Enemy | Look | Behaviour & attacks |
 |---|---|---|---|
 | **Hospice Road** | **Tithe-Hanged** | Pilgrims cut down from roadside gibbets. Rope still around the neck, heads tilted, tithe bracelets on their wrists. | Rise when the player passes. *Rope Lash:* a mid-range whip with the noose that slows. They sway as they walk, which makes them hard to hit at range. |
@@ -198,7 +199,11 @@ Wren can't carve runes yet, but she can set them. From I-1 on, the Tithe-mark on
 **Notable buildings**
 | Building | Zone | Function | Quests |
 |---|---|---|---|
-| **The Pilgrim Shrine of Orra** | Hospice Road | Waypoint. Feathers left as offerings. | II-1 |
+| **The Pilgrim Shrine of Orra** | Pilgrims' Encampment | The encampment's heart. The Feather Fire (waypoint) burns the offered feathers. | II-1 |
+| **Wren's Tent** | Pilgrims' Encampment | Her residence for Act II: Home fire and personal chest. | — |
+| **Hesk's Wagon** | Pilgrims' Encampment | Pilgrim Mother Hesk. Potions, portals and charms (vendor). | II-1 |
+| **Tolly's Cart** | Pilgrims' Encampment | Tolly the Tinker. Coats, boots and armour mending (vendor). | — |
+| **Corvin's Bench** | Pilgrims' Encampment | Packed up until II-6, then Corvin Hale's rune bench (vendor). | II-6 onward |
 | **Cloister Library** | Cloister of Looms | Mistress Agnet. *Laws of Weaving*, the inscription tutorial. | II-2 |
 | **The Inscription Loom** | Thornwick | Crafting station unlocked by II-2. Carve runes from Blank Runes and inscribe items. | II-2 onward |
 | **Thornwick Tithe-House** | Thornwick | Ledgers and coded bearers. Red Cuff garrison. | II-3 |
@@ -213,7 +218,8 @@ Wren can't carve runes yet, but she can set them. From I-1 on, the Tithe-mark on
 | **Checkpoint Shakedown** | Entering Thornwick | Thornwick gate | Red Cuffs demand the "pilgrim tithe". Pay, bluff, or fight. | II-3 |
 | **The Burning Archive** | Opening Matthew's ledger | Journeyman & Vale | Red Cuffs set fire to the rooms. Timed loot rescue. | II-4 |
 | **Ten Minutes** | Boss fight | Relay Chapel | When Carmine's timer runs out, the hospice itself wakes (see boss). | II-6 |
-| **Swan Night** | Night cycle | Thornmere Shallows | Featherblight swans roam inland. | II-1 |
+| **Swan Night** | Night cycle | Thornmere Shallows | Featherblight swans roam inland. They stop at the encampment's torch ring and stand white in the dark. | II-1 |
+| **Featherfall** (encampment) | Recurs as in Act I | Pilgrims' Encampment | Feathers fall over the camp but burn up inside the torch ring before they land. | — |
 
 **Main boss: Sister Carmine, the Red Warden.** Red-lipped warden of the south wing. She clicks a steel quill pen and stitches patients to their frames.
 - *Ten Minutes:* a visible countdown starts with the fight. At zero the ward doors open and stitched patients and orderlies flood in. Players beat her fast or fight the building.
@@ -228,7 +234,7 @@ Wren can't carve runes yet, but she can set them. From I-1 on, the Tithe-mark on
 | II-3 | **The Barred Eye Ledgers** | (self) | Thornwick · Tithe-House · *Checkpoint Shakedown* | Steal the ledgers. Codes like C-R17 are people. Of Jessa's 26 names, 7 were her dead and 19 were inflated. | **The Tithe Ledger**, gold |
 | II-4 | **The Journeyman's Archive** | (self) | Thornwick · Journeyman & Vale · *The Burning Archive* | Wren's file. The truth about Lise and the inn. Matthew appears: Wren's crossbow quarrel stops against his coat, and he hands it back. *"Improved?"* | **The Bent Quarrel**, Lise's file |
 | II-5 | **Records of the Dead** | Vale | Saint Orra's · Records Cellar | Midnight. Jessa's admission signed by Matthew. *COMPATIBLE SUCCESSOR: Wren Carrow.* Corvin Hale is alive. Vale's boiler-room distraction gives a 4-minute timer. | Hospice key |
-| II-6 | **The South Wing** | Vale | South Wing · Relay Chapel · *The Four Notes*, *Ten Minutes* | Free the wards, find Corvin, fight Carmine, sever the hospice relay with her ring. Corvin names the Box and Abbess Ysolde. Vale: *"I opened the box."* | **Carmine's Quill**, Corvin joins Thornwick as rune vendor, Act III |
+| II-6 | **The South Wing** | Vale | South Wing · Relay Chapel · *The Four Notes*, *Ten Minutes* | Free the wards, find Corvin, fight Carmine, sever the hospice relay with her ring. Corvin names the Box and Abbess Ysolde. Vale: *"I opened the box."* | **Carmine's Quill**, Corvin joins the encampment as rune vendor, Act III |
 
 **Interlude II**
 > "You knew she had lied to you."
@@ -595,6 +601,8 @@ It cannot harm Wren directly. Everything that hurts her in this fight is the wor
 | **Edda the Ravenkeeper** | Ravenford's raven keeper. Feather turn-ins. | — | Old, blunt. Knows more about feathers than about people, and prefers it. |
 | **Reeve Hollan** | Ravenford's reeve. Bounties, stash. | Hollis | Wants his family alive more than he wants heroics. Keeps copies anyway. |
 | **Old Hobb** | Miller, coerced. | Hank | Mardra's husband, Lise's father. |
+| **Pilgrim Mother Hesk** | Leader of the Pilgrims' Encampment. II-1 giver, vendor. | — | Feeds the Feather Fire with her own sooty hands. Sure of the hospice until Wren tells her. |
+| **Tolly the Tinker** | Encampment vendor. Coats, boots, mending. | — | Sells things he can't quite explain how he got. |
 | **Mistress Agnet** | Head of the Cloister of Looms. | — | Expelled Jessa "compassionately". |
 | **Sister Carmine** | Red Warden of Saint Orra's. Act II boss. | The red-lipped nurse | Clicks a steel pen. "You become my problem." |
 | **Emeric Venn** | Ysolde's nephew, key-holder. | Emil Venn | Act III choice. |
@@ -729,7 +737,7 @@ Each act's **Zone enemies** table has the looks and attacks for every zone. This
 - **Severing interactions:** release, return, close at relay sockets. A short hold-to-channel interaction while enemies press in. The closing stroke must face the bearer, and doing it wrong causes an *Inversion* event.
 - **Runes from Act I, crafting from Act II:** runes are in play from the first act. They drop from enemies, are sold by Moth at the Lantern & Moth, and are given as quest rewards (I-6 gives the Dash rune). Act II-2 unlocks **inscription crafting**: carving runes from Blank Runes and inscribing items. That uses the existing `Runes.dk` / `RuneScreen.dk` board. Lore: the rune board *is* the Tithe-mark on Wren's skin. Each rune is a mark set into it, and each level opens a new cell because the mark spreads. The War and Wind themes read as Orran marks of *Strike* and *Step*. See "Runes in Act I" below.
 - **Action bar mapping:** *Dash* is **Lattice Step**. *War Cry* fits as **Thief-Taker's Shout**. *Cleave* stays Cleave. *Tithe Touch* and *Orra's Chain* are new late-game actions.
-- **Feather economy:** black feathers drop everywhere and turn in at Edda in Ravenford, the hub's in-world reason to keep coming home.
+- **Feather economy:** black feathers drop everywhere and turn in at Edda in Ravenford, the hub's in-world reason to keep coming home. In Act II, Edda's raven waits in a cage at the Pilgrims' Encampment and carries feathers back, so turn-ins continue away from Ravenford.
 
 ---
 

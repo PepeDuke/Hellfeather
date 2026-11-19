@@ -79,6 +79,7 @@ HellfeatherStats
     // What one worn item gives. These match the items' detail lines.
     AddItem(HellfeatherStats& stats, HellfeatherItems item)
     {
+        HellfeatherItems.AddActTwo(stats, item)
         if item == HellfeatherItems.BattleAxe { stats.AddWeaponDamage(16, 24) }
         if item == HellfeatherItems.ShortSword { stats.AddWeaponDamage(9, 15) }
         if item == HellfeatherItems.RoundShield { stats.Defense += 8 }

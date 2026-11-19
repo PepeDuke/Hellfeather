@@ -135,6 +135,13 @@ HellfeatherTerrain : QuaxelTerrain
     UndercroftHall Hall
     UndercroftLanding Landing
     HellfeatherRoom Room
+    // Act II's: the Thornmere's clearings and the halls of its dungeons.
+    PilgrimsEncampment Camp
+    HospiceRoad Road
+    ThornmereShallows Shallows
+    ThornwickTown Thornwick
+    ThornHeath Heath
+    ActTwoHall Below
     // The level being built. Below the Fenmarch, only the Undercroft's modules
     // claim clearings: its halls take every one but the landing.
     HellfeatherRealm Realm
@@ -145,6 +152,7 @@ HellfeatherTerrain : QuaxelTerrain
     // was placed and drops the props that landed in its water.
     bool Configure(QuaxelTerrainConfig config)
     {
+        Below.Realm = Realm
         if !this.QuaxelTerrain.Configure(config) { return false }
         LayMillRiver()
         return true
@@ -208,12 +216,13 @@ HellfeatherTerrain : QuaxelTerrain
     int SpawnModule()
     {
         if Realm == HellfeatherRealm.Fenmarch { return HellfeatherZone.Ravenford + 0 }
+        if Realm == HellfeatherRealm.Thornmere { return HellfeatherZone.Encampment + 0 }
         if HellfeatherRealm.IsInterior(Realm) { return HellfeatherZone.Interior + 0 }
         return HellfeatherZone.UndercroftLanding + 0
     }
 
     // The zone the Undercroft's halls count as on the current level.
-    int HallZone() { return Realm == HellfeatherRealm.UndercroftDeep ? HellfeatherZone.UndercroftDeep + 0 | HellfeatherZone.Undercroft + 0 }
+    int HallZone() { return HellfeatherRealm.HallZone(Realm) }
 
     QuaxelTerrainModuleRules ModuleRules(int id)
     {
@@ -222,8 +231,17 @@ HellfeatherTerrain : QuaxelTerrain
             QuaxelTerrainModuleRules none
             return none
         }
+        if Realm == HellfeatherRealm.Thornmere {
+            if id == HellfeatherZone.Encampment + 0 { return Camp.Rules() }
+            if id == HellfeatherZone.HospiceRoad + 0 { return Road.Rules() }
+            if id == HellfeatherZone.Shallows + 0 { return Shallows.Rules() }
+            if id == HellfeatherZone.Thornwick + 0 { return Thornwick.Rules() }
+            if id == HellfeatherZone.Heath + 0 { return Heath.Rules() }
+            QuaxelTerrainModuleRules none
+            return none
+        }
         if Realm != HellfeatherRealm.Fenmarch {
-            if id == HallZone() { return Hall.Rules() }
+            if id == HallZone() { return HellfeatherRealm.IsActTwo(Realm) ? Below.Rules() | Hall.Rules() }
             if id == HellfeatherZone.UndercroftLanding + 0 { return Landing.Rules() }
             QuaxelTerrainModuleRules none
             return none
@@ -243,6 +261,18 @@ HellfeatherTerrain : QuaxelTerrain
 
     ModuleColumn(int id, QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
     {
+        if Realm == HellfeatherRealm.Thornmere {
+            if id == HellfeatherZone.Encampment + 0 { Camp.Column(site, x, z, column) }
+            else if id == HellfeatherZone.Shallows + 0 { Shallows.Column(site, x, z, column) }
+            else if id == HellfeatherZone.Thornwick + 0 { Thornwick.Column(site, x, z, column) }
+            else if id == HellfeatherZone.HospiceRoad + 0 { Road.Column(site, x, z, column) }
+            else { Heath.Column(site, x, z, column) }
+            return
+        }
+        if HellfeatherRealm.IsActTwo(Realm) && id == HallZone() {
+            Below.Column(site, x, z, column)
+            return
+        }
         if id == HellfeatherZone.Interior + 0 {
             vec3 shift = RoomShift(site)
             Room.ColumnIn(Realm, x + shift.X, z + shift.Z, column)
@@ -260,6 +290,18 @@ HellfeatherTerrain : QuaxelTerrain
 
     ModulePlace(int id, QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
     {
+        if Realm == HellfeatherRealm.Thornmere {
+            if id == HellfeatherZone.Encampment + 0 { Camp.Place(site, placer) }
+            else if id == HellfeatherZone.Shallows + 0 { Shallows.Place(site, placer) }
+            else if id == HellfeatherZone.Thornwick + 0 { Thornwick.Place(site, placer) }
+            else if id == HellfeatherZone.HospiceRoad + 0 { Road.Place(site, placer) }
+            else { Heath.Place(site, placer) }
+            return
+        }
+        if HellfeatherRealm.IsActTwo(Realm) && id == HallZone() {
+            Below.Place(site, placer)
+            return
+        }
         if id == HellfeatherZone.Interior + 0 {
             vec3 shift = RoomShift(site)
             Room.PlaceIn(Realm, shift.X, shift.Z, placer)
@@ -285,9 +327,11 @@ HellfeatherTerrain : QuaxelTerrain
     {
         int color = 0x3b3128
         if HellfeatherRealm.IsInterior(Realm) { return HellfeatherArt.Rgb(RoomColor(cell)) }
-        if Realm != HellfeatherRealm.Fenmarch && cell.Surface == QuaxelTerrainSurface.Rock { color = CryptColor(cell) }
-        else if Realm != HellfeatherRealm.Fenmarch && cell.Surface == HellfeatherSurface.Cracked { color = CrackedColor(cell) }
-        else if Realm != HellfeatherRealm.Fenmarch && cell.Surface != HellfeatherSurface.Wire && cell.Surface != HellfeatherSurface.Millpond { color = FlagstoneColor(cell) }
+        bool below = HellfeatherRealm.IsBelow(Realm)
+        if below && cell.Surface == QuaxelTerrainSurface.Rock { color = CryptColor(cell) }
+        else if below && cell.Surface == HellfeatherSurface.Cracked { color = CrackedColor(cell) }
+        else if below && cell.Surface == HellfeatherSurface.Planks { color = RoomColor(cell) }
+        else if below && cell.Surface != HellfeatherSurface.Wire && cell.Surface != HellfeatherSurface.Millpond { color = FlagstoneColor(cell) }
         else if cell.Surface == HellfeatherSurface.Wire { color = WireColor(cell) }
         else if cell.Surface == QuaxelTerrainSurface.Rock { color = RockColor(cell) }
         else if cell.Surface == QuaxelTerrainSurface.Water { color = (cell.Hash % 13) == 0 ? 0x39505a | 0x1e2d36 }
@@ -298,9 +342,29 @@ HellfeatherTerrain : QuaxelTerrain
         else if cell.Surface == HellfeatherSurface.Earth { color = EarthColor(cell) }
         else if cell.Surface == HellfeatherSurface.Mud { color = MudColor(cell) }
         else if cell.Surface == HellfeatherSurface.Millpond { color = MillpondColor(cell) }
+        else if cell.Surface == HellfeatherSurface.Trodden { color = TroddenColor(cell) }
+        else if cell.Surface == HellfeatherSurface.Ash { color = AshColor(cell) }
         else { color = GroundColor(cell) }
         int light = 100 - (int)(cell.Wall * 42.0)
         return HellfeatherArt.Rgb(HellfeatherArt.Shade(color, light))
+    }
+
+    // Churned mud with straw laid over it, between the encampment's tents.
+    -int TroddenColor(QuaxelTerrainCell cell)
+    {
+        if !cell.Top { return 0x2e261c }
+        if cell.Hash % 5 == 0 { return HellfeatherArt.Shade(0x8a7442, 70 + cell.Hash % 30) }
+        float ruts = QuaxelNoise.Fbm((uint)613, (float)cell.Column / 5.0, (float)cell.Row / 5.0, 2)
+        return HellfeatherArt.Shade(0x4a3b29, 70 + (int)(ruts * 40.0) + cell.Hash % 8)
+    }
+
+    // The grey circle round the Feather Fire, flecked with half-burnt black quills.
+    -int AshColor(QuaxelTerrainCell cell)
+    {
+        if !cell.Top { return 0x2a2826 }
+        if cell.Hash % 7 == 0 { return 0x1a1720 }
+        if cell.Hash % 23 == 0 { return 0x3a2a40 }
+        return HellfeatherArt.Shade(0x6e6a66, 72 + cell.Hash % 26)
     }
 
     // Rows of stones three columns deep, each row offset from the last.
@@ -410,6 +474,13 @@ HellfeatherTerrain : QuaxelTerrain
     // plaster walls with dark posts and rails, and darkness beyond them.
     -int RoomColor(QuaxelTerrainCell cell)
     {
+        // Her tent: straw over trodden earth, grey canvas walls.
+        if cell.Surface == HellfeatherSurface.Trodden { return TroddenColor(cell) }
+        if cell.Surface == HellfeatherSurface.Canvas {
+            if cell.Top { return 0x2a241e }
+            if (cell.Column + cell.Row) % 12 == 0 { return 0x4a3f33 }
+            return HellfeatherArt.Shade(0x8a7a68, 74 + cell.Hash % 14)
+        }
         if cell.Surface == HellfeatherSurface.Planks {
             if !cell.Top { return 0x24180f }
             // Boards three columns wide running along X, their ends staggered.

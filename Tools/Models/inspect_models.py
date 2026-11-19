@@ -35,6 +35,7 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import act1  # noqa: E402
+import act2  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ASSETS = ROOT / 'Assets'
@@ -213,7 +214,9 @@ def to_image(rgb, height):
 
 def reference(model, view, height):
     """The sheet's crop of a view, the background dimmed, at a given height."""
-    pixels = np.asarray(Image.open(act1.CROPS / f"{model['name']}.{view}.png").convert('RGB'), dtype=np.int32)
+    crops = model.get('crops', act1.CROPS)
+    shown_view = model.get('side_view', 'side') if view == 'side' else view
+    pixels = np.asarray(Image.open(crops / f"{model['name']}.{shown_view}.png").convert('RGB'), dtype=np.int32)
     if view == 'side' and model.get('flip'):
         pixels = pixels[:, ::-1]
     mask = act1.silhouette(pixels, model.get('trim', 0))
@@ -455,8 +458,9 @@ def main():
         for name in args.names:
             print(f'Sheet in {inspect_gear(name, args.gear, args.frames, twists, args.views, args.out)}')
         return
-    by_name = {m['name']: m for m in act1.MODELS}
-    names = args.names or [m['name'] for m in act1.MODELS] + ['Raven', 'SilverSpark']
+    every = act1.MODELS + act2.MODELS
+    by_name = {m['name']: m for m in every}
+    names = args.names or [m['name'] for m in every] + ['Raven', 'SilverSpark']
     failed = []
     print(f"{'model':20} {'front':>6} {'side':>6} {'color':>6}")
     for name in names:

@@ -295,6 +295,21 @@ HellfeatherGame : QuaxelGameInstance
         Terrain.Mill.Props = props
         Terrain.Hall.Props = props
         Terrain.Landing.Props = props
+        // Act II's clearings and halls share its pieces.
+        HellfeatherActTwoProps pieces = HellfeatherActTwoProps.Load(world)
+        Terrain.Camp.Props = props
+        Terrain.Camp.Pieces = pieces
+        Terrain.Road.Props = props
+        Terrain.Road.Pieces = pieces
+        Terrain.Shallows.Props = props
+        Terrain.Shallows.Pieces = pieces
+        Terrain.Thornwick.Props = props
+        Terrain.Thornwick.Pieces = pieces
+        Terrain.Heath.Props = props
+        Terrain.Heath.Pieces = pieces
+        Terrain.Below.Props = props
+        Terrain.Below.Pieces = pieces
+        ActTwoPieces = pieces
         if !Terrain.Configure(FenmarchConfig()) || !Terrain.Start(world, vec3(0.0, 0.0, 0.0)) { return false }
         SetUpCast(world)
         SetUpInteriors()
@@ -479,7 +494,7 @@ HellfeatherGame : QuaxelGameInstance
                 }
                 else {
                     stats : Stats()
-                    controller.Speed = PlayerSpeed() * (float)stats.MoveSpeed / 100.0 * (float)(100 - PlayerAfflictions.Slow()) / 100.0
+                    controller.Speed = PlayerSpeed() * (float)stats.MoveSpeed / 100.0 * (float)(100 - PlayerAfflictions.Slow()) / 100.0 * HinderedPace()
                     transform.Position = Walk(transform.Position, direction, controller.Speed, PlayerRadius(), deltaSeconds)
                 }
                 world.SetTransform(controller.Node, transform)

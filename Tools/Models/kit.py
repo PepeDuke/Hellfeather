@@ -97,6 +97,20 @@ BLOOD = color('blood', (112, 26, 22), (86, 20, 18))
 RAVEN_LIT = color('raven lit', (20, 20, 25), (30, 31, 37), (48, 50, 60), (14, 14, 18))
 MALLARD = color('mallard', (40, 66, 46), (30, 52, 38), (54, 84, 58))
 CHESTNUT = color('chestnut', (104, 58, 40), (88, 48, 34))
+# Act II's camp (camp.py), sampled from the CampMaterials and tent sheets.
+CANVAS = color('canvas', (136, 119, 106), (113, 97, 87), (152, 136, 120), (90, 76, 68))
+CANVAS_OILED = color('canvas oiled', (88, 73, 59), (71, 63, 56), (104, 88, 71), (61, 53, 46))
+FELT = color('felt', (76, 72, 71), (63, 59, 58), (90, 87, 86), (50, 47, 46))
+WICKER = color('wicker', (105, 77, 56), (84, 62, 45), (67, 48, 34))
+PITCH = color('pitch', (31, 30, 30), (48, 47, 48))
+TIN = color('tin', (150, 146, 138), (120, 116, 110), (96, 92, 88))
+DYE_RED = color('dye red', (95, 49, 50), (84, 42, 43), (73, 35, 37))
+DYE_BLUE = color('dye blue', (54, 60, 80), (47, 51, 69), (41, 43, 59))
+DYE_YELLOW = color('dye yellow', (151, 117, 65), (135, 103, 57), (118, 89, 48))
+QUILL_ASH = color('quill ash', (110, 107, 105), (86, 82, 79), (63, 58, 57))
+EMBER = color('ember', (255, 128, 44), (214, 78, 30), (130, 44, 26))
+# The black feathers burning in the Feather Fire, a little violet.
+QUILL_BLACK = color('quill black', (26, 24, 30), (40, 36, 46), (58, 50, 66))
 
 
 def compact(grids):

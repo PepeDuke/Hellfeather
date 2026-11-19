@@ -79,6 +79,28 @@ HellfeatherShop
             Add(HellfeatherItems.Amulet, false)
         } else if merchant == HellfeatherMerchant.Ravens {
             for n : 0; n < HellfeatherShop.HoardShelves; n++ { AddHoardFind() }
+        } else if merchant == HellfeatherMerchant.Hesk {
+            Add(HellfeatherItems.HealthPotion, true)
+            Add(HellfeatherItems.ManaPotion, true)
+            Add(HellfeatherItems.RavenPortal, true)
+            Add(HellfeatherItems.PilgrimsBadge, false)
+            Add(HellfeatherItems.OrranChalk, false)
+            Add(HellfeatherItems.RavenAmulet, false)
+        } else if merchant == HellfeatherMerchant.Tolly {
+            Add(HellfeatherItems.RingMail, false)
+            Add(HellfeatherItems.ChainCoif, false)
+            Add(HellfeatherItems.KiteShield, false)
+            Add(HellfeatherItems.ChainGloves, false)
+            Add(HellfeatherItems.ChainBoots, false)
+            Add(HellfeatherItems.HeavyBelt, false)
+            Add(HellfeatherItems.Gauntlets, false)
+        } else if merchant == HellfeatherMerchant.Corvin {
+            Add(HellfeatherItems.RuneCleave, false)
+            Add(HellfeatherItems.RuneWarCry, false)
+            Add(HellfeatherItems.RuneDash, false)
+            Add(HellfeatherItems.BlankRune, false)
+            Add(HellfeatherItems.BlankRune, false)
+            Add(HellfeatherItems.GarnetRing, false)
         }
     }
 

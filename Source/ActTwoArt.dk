@@ -1,0 +1,137 @@
+// Act II's static models: the Pilgrims' Encampment, the Hospice Road and the
+// Thornmere, Thornwick, and the dungeons below the Cloister and Saint Orra's.
+// They are built by Tools/Models/camp.py and act2.py from the Act II sheets, at
+// a sixteenth of a unit per voxel, facing +Z. Each piece is loaded by its name
+// in Assets; a missing file leaves its volume at -1 and it is not placed.
+HellfeatherActTwoPiece : int
+#@{
+    // The encampment.
+    PilgrimShrine,
+    FeatherFire,
+    WrensTent,
+    PilgrimTent,
+    PilgrimTentB,
+    PilgrimTentStruck,
+    Brazier,
+    CampWagon,
+    CampWagonB,
+    CookPot,
+    CorvinsBench,
+    CorvinsBenchPacked,
+    DryingRack,
+    FeatherSack,
+    HesksWagon,
+    Jetty,
+    LatrineScreen,
+    LongTable,
+    OfferingPile,
+    RavenCage,
+    StakePalisade,
+    SwanScare,
+    TinkersCart,
+    TorchPole,
+    TorchPoleCold,
+    WaterBarrels,
+    // The Hospice Road and the Thornmere.
+    RoadGibbet,
+    RoadGibbetEmpty,
+    RoadsideShrine,
+    SwanNest,
+    SwanMatriarchNest,
+    DrownedCart,
+    PilgrimCampRoadside,
+    // Thornwick and the hospice's south wing.
+    ThornwickGate,
+    TitheHouse,
+    ClothiersGuildhall,
+    ClothiersGuildhallBurnt,
+    ClothiersRow,
+    ClothiersRowB,
+    DyeVats,
+    InscriptionLoom,
+    CloisterOfLooms,
+    HospiceSouthWing,
+    // Below: the Cloister, the Records Cellar and the South Wing.
+    PracticeLoom,
+    Lectern,
+    Bookshelf,
+    ExpulsionCabinet,
+    ChalkCircle,
+    ThreadSpools,
+    RecordShelf,
+    TransferredCabinet,
+    ClerksDesk,
+    BoilerHatch,
+    WardBed,
+    WardBedOccupied,
+    StitchFrame,
+    CellDoor,
+    CellDoorOpen,
+    RestraintChair,
+    MedicineCart,
+    WardCurtain,
+    RelaySocket,
+    PatientFrame,
+    PatientFrameEmpty
+}
+
+// The pieces' volumes, with the footprint half and height of each in terrain
+// columns, worked out from its voxels.
+HellfeatherActTwoProps
+{
+    int [80] Volume
+    int [80] Half
+    int [80] Tall
+
+    // A piece offered as a building: it blocks its whole footprint. It counts
+    // as at most Sight columns tall for the strip behind it kept clear, as
+    // Orra's hospice does, so a town of tall houses still fits its clearing.
+    Building(QuaxelTerrainPlacer& placer, int group, HellfeatherActTwoPiece piece, float x, float z)
+    {
+        if Volume[piece] < 0 { return }
+        placer.OfferBuilding(group, Volume[piece], x, z, Half[piece], Tall[piece], Math.Min(Tall[piece], HellfeatherActTwoProps.Sight), HellfeatherArt.FineVoxel)
+    }
+
+    // A piece offered as a prop: it blocks only its footprint and may hide
+    // what is behind it.
+    Prop(QuaxelTerrainPlacer& placer, int group, HellfeatherActTwoPiece piece, float x, float z)
+    {
+        if Volume[piece] < 0 { return }
+        placer.OfferProp(group, Volume[piece], x, z, Half[piece], Tall[piece], HellfeatherArt.FineVoxel)
+    }
+
+    bool Has(HellfeatherActTwoPiece piece) { return Volume[piece] >= 0 }
+
+    // Half the piece's widest side, in world units.
+    float Reach(HellfeatherActTwoPiece piece) { return (float)Half[piece] * QuaxelTerrain.Cell }
+}
+#{
+    // The most a building counts as tall for its sight strip, in columns.
+    #int Sight = 30
+
+    HellfeatherActTwoProps Load(QuaxelWorld& world)
+    {
+        HellfeatherActTwoProps made
+        for i : 0; i < 80; i++ { made.Volume[i] = -1 }
+        for piece : HellfeatherActTwoPiece {
+            int volume = QuaxelAssets.LoadVoxelModel(world, "Assets/" + (string)piece.Name + ".qvox")
+            made.Volume[piece] = volume
+            if volume < 0 { continue }
+            ivec3 cells = world.VolumeCells(volume)
+            float widest = (float)Math.Max(cells.X, cells.Z) * HellfeatherArt.FineVoxel
+            made.Half[piece] = Math.Max(1, (int)Math.Ceil(widest * 0.5 / QuaxelTerrain.Cell))
+            made.Tall[piece] = Math.Max(1, (int)Math.Ceil((float)cells.Y * HellfeatherArt.FineVoxel / QuaxelTerrain.Cell))
+        }
+        return made
+    }
+}
+T{
+    // Every piece has room in the arrays, and every model file loads.
+    EveryActTwoPieceLoads()
+    {
+        T.IsTrue(HellfeatherActTwoPiece.Count <= 80)
+        QuaxelWorld world()
+        props : HellfeatherActTwoProps.Load(world)
+        for piece : HellfeatherActTwoPiece { T.IsTrue(props.Has(piece)) }
+    }
+}

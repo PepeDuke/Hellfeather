@@ -60,6 +60,8 @@ HellfeatherWarrior
         if item == HellfeatherItems.WarHammer { return "Assets/WarHammer.qvox" }
         if item == HellfeatherItems.TowerShield { return "Assets/TowerShield.qvox" }
         if item == HellfeatherItems.VisoredHelm { return "Assets/VisoredHelm.qvox" }
+        if item == HellfeatherItems.SwanboneBuckler { return "Assets/SwanboneBuckler.qvox" }
+        if item == HellfeatherItems.CarminesQuill { return "Assets/CarminesQuill.qvox" }
         return ""
     }
 }

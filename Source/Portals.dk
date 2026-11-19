@@ -191,8 +191,8 @@ HellfeatherGame : QuaxelGameInstance
             Banner.Show("No raven portals left", 2.0)
             return false
         }
-        if InTown(player) {
-            Banner.Show("You are already in Ravenford", 2.0)
+        if InTown(player) || InCamp(player) {
+            Banner.Show(InCamp(player) ? "You are already at the encampment" | "You are already in Ravenford", 2.0)
             return false
         }
         ClosePortals(world)
@@ -202,7 +202,9 @@ HellfeatherGame : QuaxelGameInstance
         // Up the screen from her, so she stands in front of it.
         PortalFeet = OpenNear(player + vec3(-HellfeatherPortals.StepOut, 0.0, -HellfeatherPortals.StepOut))
         PortalFeet.Y = Terrain.GroundY(PortalFeet.X, PortalFeet.Z)
-        TownPortalFeet = vec3(HellfeatherPortals.TownX, 0.0, HellfeatherPortals.TownZ)
+        // In Act II's levels a portal goes home to the encampment instead.
+        TownRealm = HellfeatherRealm.IsActTwo(Terrain.Realm) && Quests.ActTwo ? HellfeatherRealm.Thornmere | HellfeatherRealm.Fenmarch
+        TownPortalFeet = TownRealm == HellfeatherRealm.Thornmere ? HellfeatherCastTwo.Camp(2.5, -2.5) | vec3(HellfeatherPortals.TownX, 0.0, HellfeatherPortals.TownZ)
         PortalCast = true
         SyncPortals(world)
         PortalCast = false
@@ -217,12 +219,12 @@ HellfeatherGame : QuaxelGameInstance
         bool toTown = People.Spots[spot].Title == HellfeatherPortals.FieldTitle
         if toTown {
             vec3 arrival = TownPortalFeet + vec3(HellfeatherPortals.StepOut, 0.0, HellfeatherPortals.StepOut)
-            if !TravelTo(world, HellfeatherRealm.Fenmarch, arrival, false) { return false }
+            if !TravelTo(world, TownRealm, arrival, false) { return false }
             // Now the town has streamed in, the portal can stand on open ground.
             TownPortalFeet = OpenNear(TownPortalFeet)
             TownPortalFeet.Y = Terrain.GroundY(TownPortalFeet.X, TownPortalFeet.Z)
             SyncPortals(world)
-            Banner.Show("Ravenford", 2.5)
+            Banner.Show(TownRealm == HellfeatherRealm.Thornmere ? HellfeatherQuests.CampName | "Ravenford", 2.5)
             return true
         }
         vec3 back = PortalFeet + vec3(HellfeatherPortals.StepOut, 0.0, HellfeatherPortals.StepOut)
@@ -259,7 +261,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         if !PortalOpen { return }
         int field = PlacePortal(world, HellfeatherPortals.FieldTitle, PortalRealm, PortalFeet)
-        int town = PlacePortal(world, HellfeatherPortals.TownTitle, HellfeatherRealm.Fenmarch, TownPortalFeet)
+        int town = PlacePortal(world, HellfeatherPortals.TownTitle, TownRealm, TownPortalFeet)
         PortalEffect = KeepSwirl(world, PortalEffect, field)
         TownPortalEffect = KeepSwirl(world, TownPortalEffect, town)
     }

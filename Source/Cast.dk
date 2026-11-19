@@ -30,7 +30,7 @@ HellfeatherGame : QuaxelGameInstance
     -vec3 Flat(vec3 point) { return vec3(point.X, 0.0, point.Z) }
 
     // The first placement of a volume, or -1.
-    -int PlacementOf(int volume)
+    int PlacementOf(int volume)
     {
         if volume < 0 { return -1 }
         for i : 0; i < Terrain.Placements.Len; i++ {
@@ -93,6 +93,7 @@ HellfeatherGame : QuaxelGameInstance
         People.Spots[door].Leads = HellfeatherRealm.Mill
         int lise = People.AddPerson(HellfeatherPerson.Lise, "Lise Hobb", fen, Flat(millAt) + vec3(-(side + 0.5), 0.0, 1.2), "Assets/LiseHobb.qvox", 0.025, 72)
         People.Spots[lise].Shown = false
+        SetUpActTwoInFenmarch(world)
     }
 
     // Ravens on Ravenford's roofs and perches, the hill's shrines and gibbets,
@@ -184,7 +185,7 @@ HellfeatherGame : QuaxelGameInstance
     -int [] KeptEnemyRealm
     -EnemyEncounter [] KeptEncounters
     -int [] KeptEncounterRealm
-    -bool [8] Kept
+    -bool [32] Kept
 
     // Travel to a chosen point of a level
     bool TravelTo(QuaxelWorld& world, HellfeatherRealm realm, vec3 arrival, bool down)
@@ -200,12 +201,21 @@ HellfeatherGame : QuaxelGameInstance
         Terrain.Realm = realm
         bool inside = HellfeatherRealm.IsInterior(realm)
         QuaxelTerrainConfig config = realm == HellfeatherRealm.Fenmarch ? FenmarchConfig() | (inside ? HellfeatherRealm.Interior(realm) | HellfeatherRealm.Undercroft(realm))
+        if realm == HellfeatherRealm.Thornmere { config = HellfeatherRealm.ThornmereConfig((uint)TerrainSeed()) }
+        else if HellfeatherRealm.IsActTwo(realm) && !inside { config = HellfeatherRealm.Below(realm) }
+        // What the Thornmere shows depends on how far the story has gone.
+        Terrain.Camp.CorvinHere = Quests.SouthWing >= 4
+        Terrain.Camp.TentsStruck = Quests.PilgrimsTold
+        Terrain.Thornwick.ArchiveBurnt = Quests.ArchiveBurnt
+        Hindrance.Clear()
         if !Terrain.Reconfigure(world, config, arrival) { return false }
         arrival = OpenNear(arrival)
         QuaxelTransform transform = world.GetTransform(PlayerNode)
         transform.Position = StandingAt(arrival.X, arrival.Z, PlayerRadius())
         world.SetTransform(PlayerNode, transform)
         if realm == HellfeatherRealm.Fenmarch { SetUpRavens(world) }
+        else if realm == HellfeatherRealm.Thornmere { SetUpThornmere(world) }
+        else if HellfeatherRealm.IsActTwo(realm) && !inside { SetUpBelowActTwo(world, realm) }
         else if !inside { SetUpUndercroft(world, realm) }
         bool fresh = !ReturnToLevel(realm)
         // Nothing hostile comes indoors.
@@ -224,7 +234,8 @@ HellfeatherGame : QuaxelGameInstance
             vec3 deepest = Deepest()
             AddScripted(world, "Mardra", deepest.X, deepest.Z + 1.5)
         }
-        if realm != HellfeatherRealm.Fenmarch { Banner.Show(HellfeatherZoneNames.RealmName(realm), 2.5) }
+        if HellfeatherRealm.IsActTwo(realm) { ArriveActTwo(world, realm, fresh && !inside, arrival) }
+        if !HellfeatherRealm.IsOverland(realm) { Banner.Show(HellfeatherZoneNames.RealmName(realm), 2.5) }
         return UpdateSpawns(world, world.GetPosition(PlayerNode))
     }
 
@@ -340,6 +351,7 @@ HellfeatherGame : QuaxelGameInstance
             Quests.Rooms = Math.Max(Quests.Rooms, 1)
             return TravelTo(world, HellfeatherRealm.Garret, HellfeatherRealm.Doorstep(HellfeatherRealm.Garret), false)
         }
+        if GoToActTwoStart(world) { return true }
         if StartAt == "undercroft" || StartAt == "deep" {
             Quests.Millrace = 1
             if !Travel(world, HellfeatherRealm.Undercroft, true) { return false }
@@ -375,7 +387,12 @@ HellfeatherGame : QuaxelGameInstance
     }
 
     // Whether the warrior is out in the wild, where feathers fall.
-    -bool InTheWild(vec3 player) { return Terrain.Realm == HellfeatherRealm.Fenmarch && Math.Hypot(player.X, player.Z) > Ravenford.Wall + 6.0 }
+    -bool InTheWild(vec3 player)
+    {
+        // At the encampment the feathers burn up before they land.
+        if Terrain.Realm == HellfeatherRealm.Thornmere { return !InCamp(player) }
+        return Terrain.Realm == HellfeatherRealm.Fenmarch && Math.Hypot(player.X, player.Z) > Ravenford.Wall + 6.0
+    }
 
     // The bits of Act I that run every step.
     StepAct(QuaxelWorld& world, float deltaSeconds)
@@ -431,6 +448,7 @@ HellfeatherGame : QuaxelGameInstance
         StepZone(player, deltaSeconds)
         StepShots(world, deltaSeconds)
         StepQuests(world)
+        StepActTwo(world, deltaSeconds)
         // Walking away ends a conversation.
         if Talk.Open && Talk.Spot >= 0 && Talk.Spot < People.Spots.Len && Math.Hypot(People.Spots[Talk.Spot].Feet.X - player.X, People.Spots[Talk.Spot].Feet.Z - player.Z) > HellfeatherSpots.Reach + 1.5 {
             Talk.Close()

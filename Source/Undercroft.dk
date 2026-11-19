@@ -12,7 +12,16 @@ HellfeatherRealm : int
     Mill,
     Garret,
     // Her own house in Ravenford (Source/Residence.dk).
-    RavenfordHouse
+    RavenfordHouse,
+    // Act II.
+    Thornmere,
+    Cloister,
+    RecordsCellar,
+    SouthWing,
+    SouthWingDeep,
+    RelayChapel,
+    // Wren's tent at the encampment, her residence for Act II.
+    PilgrimTent
 }
 
 // A hall of the Undercroft: flagstones, silver wire run across the floor toward

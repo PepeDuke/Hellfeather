@@ -34,7 +34,40 @@ HellfeatherMove : int
     // The ring glows, pulls her in, and a cleaver comes down.
     RingPull,
     // Mardra: ring pull, brood call and the moult.
-    Brood
+    Brood,
+    // Act II.
+    // Tithe-Hanged: whirls the noose, then a whip at mid range that slows.
+    Lash,
+    // Moulting Hound: a quick bite that bleeds.
+    Bite,
+    // Highway Cuff: blows the horn for arbalists once, otherwise a thieving cut.
+    Horn,
+    // Featherblight Swan: a cone of razor feathers, and every third time a gust.
+    Fan,
+    // Reed Drowner: lies under the water until she is close, then grabs and roots.
+    Drag,
+    // Loom-Wight: its chest glows, blue for a push, red for a burst of fire.
+    Loom,
+    // Novice Weaver: weak darts from afar, and a chalk circle that roots.
+    Dart,
+    // Cellar Watchman: a slowing cudgel, and the alarm once.
+    Watch,
+    // Clerk-Shade: throws a seal that marks her DECEASED.
+    Stamp,
+    // Stitched Patient: a slow, heavy overhead slam with its frame.
+    FrameSlam,
+    // Ward Screamer: keeps away and screams, slowing all around it.
+    Scream,
+    // Hospice Orderly and Orderly Brann: the restraint pole's lunge pins her.
+    Pin,
+    // Lattice Host: a touch that rots.
+    Rot,
+    // The Swan Matriarch: fan, gust and her cygnets.
+    Matriarch,
+    // The Failed Loom: weaves shuttles, and rams with its beam.
+    Weave,
+    // Sister Carmine: needle volleys, the bind stitch, and healing from the bound.
+    Warden
 }
 
 // What each enemy is in the middle of. Phase 0 is closing in or standing; each
@@ -224,6 +257,7 @@ HellfeatherGame : QuaxelGameInstance
             StepMelee(world, i, direction, distance, deltaSeconds, 0.8, 0.0, true)
         }
         else if move == HellfeatherMove.Shield { StepMelee(world, i, direction, distance, deltaSeconds, 0.45, 0.0, true) }
+        else if HellfeatherMoves.IsActTwo(move) { StepActTwoMove(world, i, direction, distance, deltaSeconds) }
         else { StepPeck(world, i, direction, distance, deltaSeconds) }
     }
 
@@ -640,7 +674,7 @@ HellfeatherGame : QuaxelGameInstance
             shot.Life -= deltaSeconds
             shot.Position = shot.Position + shot.Velocity * deltaSeconds
             bool hit = Math.Hypot(shot.Position.X - player.X, shot.Position.Z - player.Z) < shot.Radius + PlayerRadius()
-            if hit && PlayerHealth > 0 { HitPlayerAs(world, shot.Kind, shot.Damage) }
+            if hit && PlayerHealth > 0 && HitPlayerAs(world, shot.Kind, shot.Damage) { ShotLanded(shot.Effect) }
             if hit || shot.Life <= 0.0 || Terrain.IsBlocked(shot.Position.X, shot.Position.Z) {
                 world.DestroyNode(shot.Node)
                 Shots -= shot

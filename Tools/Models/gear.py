@@ -1,4 +1,4 @@
-﻿"""Builds the models of the gear Wren wears and holds, which ride the sockets on
+"""Builds the models of the gear Wren wears and holds, which ride the sockets on
 her body model (player.py): helmets on `head`, shields on `hand_l`, weapons on
 `hand_r`. Each is a static .qvox with a `grip` socket, the point and turn the
 engine lines up with her socket (Quaxel-Engine Docs/VoxelModels.md).
@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import act1  # noqa: E402
 import player  # noqa: E402
 from figure import Rig, capsule, ellipsoid, fit, minus, where  # noqa: E402
-from kit import BRASS, CLOTH_RED, GLOW, IRON, LEATHER, RAVEN, SILVER, STONE, WOOD, WOOD_DARK, compact, hash2, pick  # noqa: E402
+from kit import BRASS, CLOTH_PALE, CLOTH_RED, FEATHER_PALE, GLOW, IRON, LEATHER, RAVEN, SILVER, STONE, WOOD, WOOD_DARK, compact, hash2, pick  # noqa: E402
 from people import speckled  # noqa: E402
 
 
@@ -327,6 +327,49 @@ def visored_helm():
     return r
 
 
+def swanbone_buckler():
+    """Act II's Swanbone Buckler (II-1): a small round buckler of pale boiled
+    leather over a frame of swan bones whose wingbone ends show at the rim, a
+    black feather tied to the iron boss. Faces +Z like the round shield."""
+    r = new_rig((0, 0, -1.4))
+    radius = 6.5
+    pale = [CLOTH_PALE[0], CLOTH_PALE[1], LEATHER[3]]
+
+    def face(x, y, z, pose):
+        out = pick(pale, hash2(np.floor(x).astype(int), np.floor(y).astype(int), 430) * 0.8)
+        # Bones run across the face as spokes, pale and knuckled at the rim.
+        angle = np.arctan2(y, x)
+        spoke = np.abs(np.sin(angle * 3.0)) < 0.16
+        return np.where(spoke | (np.hypot(x, y) > radius - 0.9), FEATHER_PALE[2], out)
+    disc = where(ellipsoid((0, 0, 0), (radius, radius, 0.7)), lambda x, y, z: True)
+    r.part('root', disc, face)
+    for k in range(6):
+        a = k * np.pi / 3.0
+        r.part('root', ellipsoid((np.cos(a) * (radius + 0.6), np.sin(a) * (radius + 0.6), 0), (0.9, 0.9, 0.9)), FEATHER_PALE[0])
+    r.part('root', where(ellipsoid((0, 0, 0.3), (1.8, 1.8, 1.4)), lambda x, y, z: z > 0.2), IRON[1])
+    r.part('root', capsule((0.6, -0.5, 1.4), (1.6, -5.5, 1.0), 0.45), RAVEN[0])
+    r.part('root', capsule((-2.0, 0, -1.2), (2.0, 0, -1.2), 0.55), LEATHER[2])
+    return r
+
+
+def carmines_quill():
+    """Carmine's Quill (II-6): the Red Warden's steel pen grown into a dagger, a
+    long split nib for a blade, a red-lacquered grip and a capped end. Held
+    like the short sword: along +Y, turned by yaw -90."""
+    r = new_rig((0, 0, 0), yaw=-90)
+    r.part('root', capsule((0, -3.0, 0), (0, 3.0, 0), 0.75), CLOTH_RED[0])
+    r.part('root', ellipsoid((0, -3.8, 0), (1.0, 1.0, 1.0)), SILVER[1])
+    r.part('root', capsule((-1.6, 3.6, 0), (1.6, 3.6, 0), 0.6), SILVER[1])
+
+    def nib(x, y, z):
+        half = 1.3 * np.clip((22 - y) / 18, 0, 1)
+        return (np.abs(x) <= half) & (np.abs(z) < 0.45) & (y > 4) & (y < 22)
+    nib.box = (np.array([-1.4, 4, -0.5]), np.array([1.4, 22, 0.5]))
+    # The slit down the middle of the nib, and the breather hole.
+    r.part('root', nib, lambda x, y, z, pose: np.where((np.abs(x) < 0.3) & (y > 9), RAVEN[0], np.where(np.hypot(x, y - 8) < 0.6, RAVEN[0], SILVER[0])))
+    return r
+
+
 GEAR = {
     'MinersHelmet': miners_helmet,
     'IronHelm': iron_helm,
@@ -342,6 +385,8 @@ GEAR = {
     'WarHammer': war_hammer,
     'TowerShield': tower_shield,
     'VisoredHelm': visored_helm,
+    'SwanboneBuckler': swanbone_buckler,
+    'CarminesQuill': carmines_quill,
 }
 
 

@@ -271,6 +271,7 @@ HellfeatherItemArt
         if item == HellfeatherItems.RingMail || item == HellfeatherItems.ScaleMail || item == HellfeatherItems.PlateMail { return HellfeatherItems.LeatherArmor }
         if item == HellfeatherItems.ChainGloves || item == HellfeatherItems.Gauntlets || item == HellfeatherItems.SpikedGauntlets { return HellfeatherItems.Gloves }
         if item == HellfeatherItems.HeavyBelt || item == HellfeatherItems.PlatedBelt { return HellfeatherItems.Belt }
+        if HellfeatherItems.IsActTwo(item) { return HellfeatherItems.ActTwoLikeness(item) }
         return item
     }
 
