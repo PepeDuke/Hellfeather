@@ -89,13 +89,14 @@ HellfeatherFurniture
 HellfeatherRealm
 #{
     // Whether a level is the inside of a building.
-    bool IsInterior(HellfeatherRealm realm) { return realm == HellfeatherRealm.Hospice || realm == HellfeatherRealm.Mill || realm == HellfeatherRealm.Garret }
+    bool IsInterior(HellfeatherRealm realm) { return realm == HellfeatherRealm.Hospice || realm == HellfeatherRealm.Mill || realm == HellfeatherRealm.Garret || realm == HellfeatherRealm.RavenfordHouse }
 
     // Half the room's width along X and depth along Z, in world units.
     float RoomHalfX(HellfeatherRealm realm)
     {
         if realm == HellfeatherRealm.Hospice { return 6.5 }
         if realm == HellfeatherRealm.Mill { return 6.0 }
+        if realm == HellfeatherRealm.RavenfordHouse { return 5.0 }
         return 3.5
     }
 
@@ -103,6 +104,7 @@ HellfeatherRealm
     {
         if realm == HellfeatherRealm.Hospice { return 4.5 }
         if realm == HellfeatherRealm.Mill { return 4.5 }
+        if realm == HellfeatherRealm.RavenfordHouse { return 3.5 }
         return 3.0
     }
 
@@ -230,6 +232,20 @@ HellfeatherRoom : QuaxelTerrainModule
             Put(placer, group, HellfeatherPiece.FeatherScatterSmall, 0.0, -1.0, 0)
             // Water dried on the floor in a curve, round where her boots stand.
             Put(placer, group, HellfeatherPiece.WaterStain, HellfeatherRoom.BootsX, HellfeatherRoom.BootsZ, 0)
+        } else if realm == HellfeatherRealm.RavenfordHouse {
+            // Her house: the chest in the back corner by the door's wall, the
+            // Home fire's hearth beside it (a spot of its own, not furniture),
+            // her bed and a shelf along the back wall, a table in the middle,
+            // the wardrobe on the right wall and barrels in the front corner.
+            Put(placer, group, HellfeatherPiece.Chest, HellfeatherHome.ChestX, HellfeatherHome.ChestZ, 0)
+            Put(placer, group, HellfeatherPiece.Cot, 1.9, -3.0, 0)
+            Put(placer, group, HellfeatherPiece.JarShelf, 4.3, -3.1, 0)
+            Put(placer, group, HellfeatherPiece.SconceEast, -4.86, -0.8, 32)
+            Put(placer, group, HellfeatherPiece.Table, 0.9, 0.4, 0)
+            Put(placer, group, HellfeatherPiece.Stool, 2.1, 0.4, 0)
+            Put(placer, group, HellfeatherPiece.Bench, 0.9, 2.2, 0)
+            Put(placer, group, HellfeatherPiece.WardrobeWest, 4.65, 0.3, 0)
+            Put(placer, group, HellfeatherPiece.Barrels, 4.0, 2.6, 0)
         }
     }
 
@@ -289,6 +305,7 @@ HellfeatherGame : QuaxelGameInstance
         People.Spots[boots].FacingX = 0.0
         People.Spots[boots].FacingZ = 1.0
         People.Spots[boots].Shown = !Quests.BootsTaken
+        SetUpResidences()
     }
 
     // Goes inside the building an entrance belongs to.
@@ -359,7 +376,7 @@ T{
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
-        HellfeatherRealm [3] rooms = {HellfeatherRealm.Hospice, HellfeatherRealm.Mill, HellfeatherRealm.Garret}
+        HellfeatherRealm [4] rooms = {HellfeatherRealm.Hospice, HellfeatherRealm.Mill, HellfeatherRealm.Garret, HellfeatherRealm.RavenfordHouse}
         for room : rooms {
             QuaxelTerrainPlacer placer()
             game.Terrain.Room.PlaceIn(room, 0.0, 0.0, placer)
@@ -375,7 +392,7 @@ T{
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
-        HellfeatherRealm [3] rooms = {HellfeatherRealm.Hospice, HellfeatherRealm.Mill, HellfeatherRealm.Garret}
+        HellfeatherRealm [4] rooms = {HellfeatherRealm.Hospice, HellfeatherRealm.Mill, HellfeatherRealm.Garret, HellfeatherRealm.RavenfordHouse}
         for room : rooms {
             T.IsTrue(game.TravelTo(world, room, HellfeatherRealm.Doorstep(room), false))
             vec3 door = HellfeatherRealm.DoorAt(room)

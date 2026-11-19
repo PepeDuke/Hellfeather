@@ -80,6 +80,7 @@ HellfeatherGame : QuaxelGameInstance
         }
         AddWaypoint("The Millrace Undercroft", HellfeatherRealm.Undercroft, HellfeatherRealm.Landing(HellfeatherRealm.Undercroft) + vec3(2.5, 0.0, 0.5), 0.0)
         AddWaypoint("The Undercroft, deeper", HellfeatherRealm.UndercroftDeep, HellfeatherRealm.Landing(HellfeatherRealm.UndercroftDeep) + vec3(2.5, 0.0, 0.5), 0.0)
+        AddHomeWaypoint()
     }
 
     -int AddWaypoint(string place, HellfeatherRealm realm, vec3 feet, float away)
@@ -258,16 +259,21 @@ HellfeatherGame : QuaxelGameInstance
     }
 }
 T{
-    // Ravenford's fire burns from the start; the rest are cold until she
+    // Ravenford's fire and her Home fire burn from the start; the rest are cold until she
     // comes near one, and there is one in each key place.
     EveryKeyPlaceHasAFireAndOnlyTownsBurns()
     {
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
-        T.AreEqual(game.Waypoints.Len, (long)8)
+        T.AreEqual(game.Waypoints.Len, (long)9)
         T.IsTrue(game.Waypoints[0].Lit)
-        for i : 1; i < game.Waypoints.Len; i++ { T.IsFalse(game.Waypoints[i].Lit) }
+        // Her Home fire burns from the start too.
+        int home = game.HomeWaypoint()
+        T.IsTrue(game.Waypoints[home].Lit)
+        for i : 1; i < game.Waypoints.Len; i++ {
+            if i != home { T.IsFalse(game.Waypoints[i].Lit) }
+        }
     }
 
     // Walking up to a cold fire lights it, and from town she can then travel

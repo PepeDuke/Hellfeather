@@ -36,6 +36,7 @@ HellfeatherZoneNames
         if realm == HellfeatherRealm.Hospice { return "Orra's Hospice" }
         if realm == HellfeatherRealm.Mill { return "Hobb's Mill" }
         if realm == HellfeatherRealm.Garret { return "Jessa's garret" }
+        if realm == HellfeatherRealm.RavenfordHouse { return HellfeatherHome.Title(HellfeatherResidence.RavenfordHouse) }
         return ""
     }
 

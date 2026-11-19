@@ -1,0 +1,743 @@
+// Wren's home. A residence is a building that is hers: a door outside, a room
+// inside, and in the room always two things, the Home waypoint's fire and her
+// personal chest. She starts in a timber house in Ravenford. Later acts add
+// larger buildings bought with gold; MoveInto takes the fire there, and the
+// chest's contents go with her, since there is only one chest whatever the house.
+HellfeatherResidence : int
+#@{
+    // A timber house in Ravenford, by the lane to the west wall. Hers from the start.
+    RavenfordHouse
+}
+
+// What each residence is: its level, its name, its door and where the hearth
+// and chest stand inside.
+HellfeatherHome
+#{
+    // The waypoint at the residence's hearth goes by this name, wherever she lives.
+    #string WaypointName = "Home"
+    // The chest's place in the room, from the room's middle.
+    #float ChestX = -3.9
+    #float ChestZ = -2.9
+
+    // The level that is the residence's inside.
+    HellfeatherRealm Realm(HellfeatherResidence residence)
+    {
+        if residence == HellfeatherResidence.RavenfordHouse { return HellfeatherRealm.RavenfordHouse }
+        return HellfeatherRealm.RavenfordHouse
+    }
+
+    // The name over its door and in the corner while inside.
+    string Title(HellfeatherResidence residence)
+    {
+        if residence == HellfeatherResidence.RavenfordHouse { return "Your house" }
+        return ""
+    }
+
+    // Its door, in world units on the Fenmarch. The Ravenford house stands at
+    // (-9, 11) in town (Source/Ravenford.dk); its door is in the front wall, on
+    // the camera's side, left of the middle.
+    vec3 Door(HellfeatherResidence residence)
+    {
+        if residence == HellfeatherResidence.RavenfordHouse { return vec3(-9.75, 0.0, 12.7) }
+        return vec3(0.0, 0.0, 0.0)
+    }
+
+    // The hearth that burns as the Home waypoint, against the back wall.
+    vec3 Hearth(HellfeatherResidence residence) { return HellfeatherRealm.InRoom(Realm(residence), -1.0, -2.6) }
+
+    // Where a click opens the personal chest: just before it.
+    vec3 ChestSpot(HellfeatherResidence residence) { return HellfeatherRealm.InRoom(Realm(residence), ChestX, ChestZ + 0.5) }
+}
+
+// The personal chest: a grid of its own, larger than the bag, that keeps what
+// she leaves in it. Items keep their mods and their places. Taking from it and
+// putting into it hand what comes back to the cursor out in Back and BackMods.
+HellfeatherChest
+{
+    HellfeatherBagEntry [] Entries
+    HellfeatherItems Back
+    HellfeatherItemMods BackMods
+
+    // The index of the entry covering a cell, or -1.
+    int EntryAt(int x, int y)
+    {
+        for i : 0; i < Entries.Len; i++ {
+            HellfeatherItemKind kind = HellfeatherItems.Get(Entries[i].Item)
+            if x >= Entries[i].X && y >= Entries[i].Y && x < Entries[i].X + kind.Width && y < Entries[i].Y + kind.Height { return i }
+        }
+        return -1
+    }
+
+    bool InBounds(HellfeatherItems item, int x, int y)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        return x >= 0 && y >= 0 && x + kind.Width <= HellfeatherChest.Columns && y + kind.Height <= HellfeatherChest.Rows
+    }
+
+    // How many entries an item would overlap here; Only is the last of them.
+    int CountOverlaps(HellfeatherItems item, int x, int y, int& only)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        int count = 0
+        only = -1
+        for i : 0; i < Entries.Len; i++ {
+            HellfeatherItemKind other = HellfeatherItems.Get(Entries[i].Item)
+            if x < Entries[i].X + other.Width && Entries[i].X < x + kind.Width && y < Entries[i].Y + other.Height && Entries[i].Y < y + kind.Height {
+                count++
+                only = i
+            }
+        }
+        return count
+    }
+
+    bool IsFree(HellfeatherItems item, int x, int y)
+    {
+        int only = -1
+        return InBounds(item, x, y) && CountOverlaps(item, x, y, only) == 0
+    }
+
+    PutWithAt(HellfeatherItems item, HellfeatherItemMods mods, int x, int y)
+    {
+        HellfeatherBagEntry entry
+        entry.Item = item
+        entry.Mods = mods
+        entry.X = x
+        entry.Y = y
+        Entries += entry
+    }
+
+    -RemoveEntry(int index)
+    {
+        Entries[index] = Entries[(int)Entries.Len - 1]
+        Entries--
+    }
+
+    // Stores an item in the first space that fits, scanning columns from the
+    // left; a stacking item tops up a stack with room for it first.
+    bool AddWith(HellfeatherItems item, HellfeatherItemMods mods)
+    {
+        if item == HellfeatherItems.None { return false }
+        int most = HellfeatherItems.StackMost(item)
+        if most > 1 {
+            for i : 0; i < Entries.Len; i++ {
+                if Entries[i].Item != item || Entries[i].Mods.Amount() + mods.Amount() > most { continue }
+                Entries[i].Mods.Stack = Entries[i].Mods.Amount() + mods.Amount()
+                return true
+            }
+        }
+        for x : 0; x < HellfeatherChest.Columns; x++ {
+            for y : 0; y < HellfeatherChest.Rows; y++ {
+                if IsFree(item, x, y) {
+                    PutWithAt(item, mods, x, y)
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    // Takes out the entry at an index, into Back and BackMods.
+    bool Take(int index)
+    {
+        if index < 0 || index >= Entries.Len { return false }
+        Back = Entries[index].Item
+        BackMods = Entries[index].Mods
+        RemoveEntry(index)
+        return true
+    }
+
+    // Whether an item could go here, alone or by swapping with one item.
+    bool CanPlace(HellfeatherItems held, int x, int y)
+    {
+        int only = -1
+        return held != HellfeatherItems.None && InBounds(held, x, y) && CountOverlaps(held, x, y, only) <= 1
+    }
+
+    // Puts an item with its top-left at a cell. Back is what returns to the
+    // cursor: the one item it covered, what is left of a stack dropped on a
+    // stack of the same, or None.
+    bool Place(int x, int y, HellfeatherItems item, HellfeatherItemMods mods)
+    {
+        if !CanPlace(item, x, y) { return false }
+        Back = HellfeatherItems.None
+        BackMods.Clear()
+        int only = -1
+        CountOverlaps(item, x, y, only)
+        int most = HellfeatherItems.StackMost(item)
+        if only >= 0 && most > 1 && Entries[only].Item == item && Entries[only].Mods.Amount() < most {
+            int move = Math.Min(most - Entries[only].Mods.Amount(), mods.Amount())
+            Entries[only].Mods.Stack = Entries[only].Mods.Amount() + move
+            if move < mods.Amount() {
+                Back = item
+                BackMods = mods
+                BackMods.Stack = mods.Amount() - move
+            }
+            return true
+        }
+        if only >= 0 { Take(only) }
+        PutWithAt(item, mods, x, y)
+        return true
+    }
+
+    // How many of an item the chest holds, stacks counted in full.
+    int AmountOf(HellfeatherItems item)
+    {
+        int amount = 0
+        for entry : Entries {
+            if entry.Item == item { amount += entry.Mods.Amount() }
+        }
+        return amount
+    }
+}
+#{
+    #int Columns = 10
+    // As many rows as the panel holds below its title band.
+    #int Rows = 13
+}
+
+// What a click on the chest panel asks the game to do with the cursor.
+HellfeatherChestRequest : int
+#@{
+    None,
+    // Lift the item at the cell onto the cursor.
+    Lift,
+    // Put the cursor's item down at the cell.
+    Place,
+    // Put the cursor's item wherever it fits.
+    Store,
+    // Move the item at the cell straight into the bag.
+    ToBag
+}
+
+// Paints the chest panel into the atlas, below the quest log. It shares the
+// inventory panel's size, stone and frame; the grid fills it.
+HellfeatherChestArt
+#{
+    #int Top = 1792
+    #int GridX = 8
+    #int GridY = 28
+    // A short notice, such as a full chest, goes in the strip under the grid.
+    #int NoticeY = 240
+
+    Paint(QuaxelUi& ui)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        HellfeatherInventoryArt.PaintStone(ui, Top)
+        HellfeatherInventoryArt.PaintFrame(ui, Top)
+        HellfeatherInventoryArt.PaintClose(ui, Top)
+        HellfeatherInventoryArt.Well(ui, GridX, Top + GridY, HellfeatherChest.Columns * cell, HellfeatherChest.Rows * cell)
+        for row : 0; row < HellfeatherChest.Rows; row++ {
+            for column : 0; column < HellfeatherChest.Columns; column++ {
+                int x = GridX + column * cell
+                int y = Top + GridY + row * cell
+                HellfeatherInventoryArt.Fill(ui, x, y, cell, 1, 0x2d2823)
+                HellfeatherInventoryArt.Fill(ui, x, y, 1, cell, 0x2d2823)
+                HellfeatherInventoryArt.Fill(ui, x + 1, y + 1, cell - 1, cell - 1, (column + row) % 2 == 0 ? 0x1a1510 | 0x1e1913)
+            }
+        }
+    }
+}
+
+// The chest window: on the left, like the shop, with the bag open on the right.
+// A click lifts an item onto the cursor or puts the cursor's item down; with
+// Shift, an item goes straight into the bag. The game owns the cursor, so a
+// click only sets Request and the game carries it out. All coordinates are on
+// the UI pixel grid.
+HellfeatherChestScreen
+{
+    HellfeatherChest Chest
+    bool Open
+    // Set by the game each frame.
+    bool ShiftHeld
+    HellfeatherChestRequest Request
+    int RequestX
+    int RequestY
+    -bool MouseWasDown
+    -int Scale = 1
+    -int PanelX
+    -int PanelY
+    -string Notice
+    -int NoticeFrames
+
+    bool OverPanel(int mouseX, int mouseY)
+    {
+        if !Open { return false }
+        int x = mouseX / Scale
+        int y = mouseY / Scale
+        return x >= PanelX && y >= PanelY && x < PanelX + HellfeatherInventoryArt.PanelWidth && y < PanelY + HellfeatherInventoryArt.PanelHeight
+    }
+
+    bool Captures(int mouseX, int mouseY) { return OverPanel(mouseX, mouseY) }
+
+    // A short message in the info well.
+    Say(string text)
+    {
+        Notice = text
+        NoticeFrames = 150
+    }
+
+    // Runs once per frame, before the inventory, so the item on the cursor is
+    // drawn over this panel too. Held is the item on the cursor.
+    Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool down, HellfeatherItems held)
+    {
+        HellfeatherInventoryArt.EnsurePainted(ui)
+        bool pressed = down && !MouseWasDown
+        MouseWasDown = down
+        if !Open { return }
+        Scale = ui.ScaleFor(width, height)
+        PanelX = HellfeatherInventoryScreen.Margin
+        PanelY = Math.Max(0, (height / Scale - HellfeatherInventoryArt.PanelHeight) / 2)
+        int pointerX = mouseX / Scale - PanelX
+        int pointerY = mouseY / Scale - PanelY
+        if NoticeFrames > 0 { NoticeFrames-- }
+        if pressed && OverPanel(mouseX, mouseY) { Click(pointerX, pointerY, held) }
+        if Open { Draw(ui, pointerX, pointerY, held) }
+    }
+
+    -bool OnClose(int pointerX, int pointerY)
+    {
+        int x = HellfeatherInventoryArt.CloseX
+        int y = HellfeatherInventoryArt.CloseY
+        int size = HellfeatherInventoryArt.CloseSize
+        return pointerX >= x && pointerY >= y && pointerX < x + size && pointerY < y + size
+    }
+
+    -bool InGrid(int pointerX, int pointerY)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        return pointerX >= HellfeatherChestArt.GridX && pointerY >= HellfeatherChestArt.GridY && pointerX < HellfeatherChestArt.GridX + HellfeatherChest.Columns * cell && pointerY < HellfeatherChestArt.GridY + HellfeatherChest.Rows * cell
+    }
+
+    -int CellX(int pointerX) { return (pointerX - HellfeatherChestArt.GridX) / HellfeatherInventoryArt.Cell }
+
+    -int CellY(int pointerY) { return (pointerY - HellfeatherChestArt.GridY) / HellfeatherInventoryArt.Cell }
+
+    // The cell the held item's top-left would go to, centered on the pointer.
+    -int HeldCellX(int pointerX, HellfeatherItems held)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(held)
+        return QuaxelNoise.FloorDiv(pointerX - HellfeatherChestArt.GridX - (kind.Width - 1) * HellfeatherInventoryArt.Cell / 2, HellfeatherInventoryArt.Cell)
+    }
+
+    -int HeldCellY(int pointerY, HellfeatherItems held)
+    {
+        HellfeatherItemKind kind = HellfeatherItems.Get(held)
+        return QuaxelNoise.FloorDiv(pointerY - HellfeatherChestArt.GridY - (kind.Height - 1) * HellfeatherInventoryArt.Cell / 2, HellfeatherInventoryArt.Cell)
+    }
+
+    -Ask(HellfeatherChestRequest request, int x, int y)
+    {
+        Request = request
+        RequestX = x
+        RequestY = y
+    }
+
+    -Click(int pointerX, int pointerY, HellfeatherItems held)
+    {
+        if OnClose(pointerX, pointerY) {
+            Open = false
+            return
+        }
+        if held != HellfeatherItems.None {
+            // In the grid it goes where it is dropped; anywhere else on the
+            // panel, into the first space.
+            if InGrid(pointerX, pointerY) { Ask(HellfeatherChestRequest.Place, HeldCellX(pointerX, held), HeldCellY(pointerY, held)) }
+            else { Ask(HellfeatherChestRequest.Store, 0, 0) }
+            return
+        }
+        if !InGrid(pointerX, pointerY) || Chest.EntryAt(CellX(pointerX), CellY(pointerY)) < 0 { return }
+        Ask(ShiftHeld ? HellfeatherChestRequest.ToBag | HellfeatherChestRequest.Lift, CellX(pointerX), CellY(pointerY))
+    }
+
+    -Draw(QuaxelUi& ui, int pointerX, int pointerY, HellfeatherItems held)
+    {
+        int cell = HellfeatherInventoryArt.Cell
+        ui.OverlaySprite(PanelX, PanelY, 0, HellfeatherChestArt.Top, HellfeatherInventoryArt.PanelWidth, HellfeatherInventoryArt.PanelHeight)
+        string title = "PERSONAL CHEST"
+        ui.OverlayText(PanelX + (HellfeatherInventoryArt.PanelWidth - (int)Length(title) * 6) / 2, PanelY + 9, title, 0xFFE8B070)
+        int gridX = PanelX + HellfeatherChestArt.GridX
+        int gridY = PanelY + HellfeatherChestArt.GridY
+        if held != HellfeatherItems.None && InGrid(pointerX, pointerY) {
+            HellfeatherItemKind carried = HellfeatherItems.Get(held)
+            int x = HeldCellX(pointerX, held)
+            int y = HeldCellY(pointerY, held)
+            ui.OverlayRect(gridX + x * cell, gridY + y * cell, carried.Width * cell, carried.Height * cell, Chest.CanPlace(held, x, y) ? 0x5040C060 | 0x50C04030)
+        }
+        int hovered = held == HellfeatherItems.None && InGrid(pointerX, pointerY) ? Chest.EntryAt(CellX(pointerX), CellY(pointerY)) | -1
+        for i : 0; i < Chest.Entries.Len; i++ {
+            item : Chest.Entries[i].Item
+            HellfeatherItemKind kind = HellfeatherItems.Get(item)
+            int x = gridX + Chest.Entries[i].X * cell
+            int y = gridY + Chest.Entries[i].Y * cell
+            ui.OverlayRect(x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, i == hovered ? 0x40FFFFFF | HellfeatherItemMods.CellTint(item, Chest.Entries[i].Mods.Rarity))
+            ui.OverlayOutlinedSprite(x, y, HellfeatherInventoryArt.IconX(item), HellfeatherInventoryArt.IconY(item), kind.Width * cell, kind.Height * cell, HellfeatherInventoryArt.IconOutline)
+            if HellfeatherItems.StackMost(item) > 1 {
+                string count = QuaxelUi.FormatInt(Chest.Entries[i].Mods.Amount())
+                ui.OverlayText(x + cell - (int)Length(count) * 6, y + cell - 8, count, 0xFFF0E6D2)
+            }
+        }
+        if NoticeFrames > 0 { ui.OverlayText(gridX, PanelY + HellfeatherChestArt.NoticeY, Notice, 0xFFD05A40) }
+        if hovered >= 0 { DrawTooltip(ui, PanelX + pointerX, PanelY + pointerY, hovered) }
+    }
+
+    // The hovered item's name, base stat and mods, beside the pointer toward
+    // the middle of the window, away from the left edge the panel sits on.
+    -DrawTooltip(QuaxelUi& ui, int mouseX, int mouseY, int hovered)
+    {
+        item : Chest.Entries[hovered].Item
+        mods : Chest.Entries[hovered].Mods
+        HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        int most = HellfeatherItems.StackMost(item)
+        if most > 1 {
+            kind.Name = QuaxelUi.FormatInt(mods.Amount()) + " " + kind.Name + (mods.Amount() == 1 ? "" | "s")
+            kind.Detail = "Stack " + QuaxelUi.FormatInt(mods.Amount()) + " of " + QuaxelUi.FormatInt(most) + ". " + kind.Detail
+        }
+        string hint = "Shift-click: to your bag"
+        int characters = (int)Math.Max(Length(kind.Name), Length(kind.Detail))
+        characters = Math.Max(characters, (int)Length(hint))
+        for i : 0; i < mods.Count; i++ { characters = Math.Max(characters, (int)Length(mods.Line(i))) }
+        int boxWidth = characters * 6 + 12
+        int boxHeight = 39 + mods.Count * 11
+        int x = mouseX + 10
+        int y = Math.Max(2, mouseY - boxHeight - 3)
+        ui.OverlayRect(x - 1, y - 1, boxWidth + 2, boxHeight + 2, 0xFF625749)
+        ui.OverlayRect(x, y, boxWidth, boxHeight, 0xF0120F0D)
+        ui.OverlayText(x + 6, y + 4, kind.Name, HellfeatherItemMods.NameColor(item, mods.Rarity))
+        ui.OverlayText(x + 6, y + 15, kind.Detail, 0xFFC8CCD4)
+        for i : 0; i < mods.Count; i++ { ui.OverlayText(x + 6, y + 26 + i * 11, mods.Line(i), 0xFF8FB4FF) }
+        int hintY = y + 26 + mods.Count * 11
+        ui.OverlayRect(x + 4, hintY, boxWidth - 8, 1, 0xFF3A3128)
+        ui.OverlayText(x + 6, hintY + 3, hint, 0xFF8C8880)
+    }
+}
+@{
+    PanelScale: Scale
+    PanelLeft: PanelX
+    PanelTop: PanelY
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // The building she lives in. Saved; the Home waypoint and her chest are there.
+    HellfeatherResidence Residence = HellfeatherResidence.RavenfordHouse
+    HellfeatherChestScreen Stash
+    // The bag was opened with the chest, so it closes with it.
+    -bool BagForChest
+
+    // Each residence's door in town, and its personal chest inside. Only her
+    // own residence shows them.
+    -SetUpResidences()
+    {
+        for residence : HellfeatherResidence {
+            HellfeatherRealm inside = HellfeatherHome.Realm(residence)
+            int door = People.Add(HellfeatherSpotKind.Entrance, HellfeatherHome.Title(residence), HellfeatherRealm.Fenmarch, HellfeatherHome.Door(residence))
+            People.Spots[door].Leads = inside
+            People.Spots[door].Shown = residence == Residence
+            int chest = People.Add(HellfeatherSpotKind.Stash, "Personal chest", inside, HellfeatherHome.ChestSpot(residence))
+            People.Spots[chest].Shown = residence == Residence
+        }
+    }
+
+    // The Home fire, at her residence's hearth. It burns from the start.
+    -AddHomeWaypoint()
+    {
+        int home = AddWaypoint(HellfeatherHome.WaypointName, HellfeatherHome.Realm(Residence), HellfeatherHome.Hearth(Residence), 0.0)
+        Waypoints[home].Lit = true
+        Waypoints[home].Placed = true
+    }
+
+    // The Home waypoint's index, or -1.
+    int HomeWaypoint()
+    {
+        for i : 0; i < Waypoints.Len; i++ {
+            if Waypoints[i].Name == HellfeatherHome.WaypointName { return (int)i }
+        }
+        return -1
+    }
+
+    // Makes another building her home: its door and chest show, the old ones
+    // hide, and the Home fire moves to its hearth. The chest's contents stay hers.
+    MoveInto(HellfeatherResidence residence)
+    {
+        Residence = residence
+        HellfeatherRealm inside = HellfeatherHome.Realm(residence)
+        for i : 0; i < People.Spots.Len; i++ {
+            if People.Spots[i].Kind == HellfeatherSpotKind.Stash { People.Spots[i].Shown = People.Spots[i].Realm == inside }
+            if People.Spots[i].Kind == HellfeatherSpotKind.Entrance && People.Spots[i].Realm == HellfeatherRealm.Fenmarch {
+                for other : HellfeatherResidence {
+                    if People.Spots[i].Leads == HellfeatherHome.Realm(other) { People.Spots[i].Shown = other == residence }
+                }
+            }
+        }
+        int home = HomeWaypoint()
+        if home < 0 { return }
+        int spot = SpotOfWaypoint(home)
+        Waypoints[home].Realm = inside
+        Waypoints[home].Feet = HellfeatherHome.Hearth(residence)
+        if spot >= 0 {
+            People.Spots[spot].Realm = inside
+            People.Spots[spot].Feet = Waypoints[home].Feet
+        }
+    }
+
+    // Opens the chest on the left with the bag beside it on the right.
+    OpenChest()
+    {
+        Shop.Open = false
+        Stash.Open = true
+        StatsScreen.Open = false
+        Passives.Open = false
+        Runes.Open = false
+        QuestLog.Open = false
+        BagForChest = true
+        if !Inventory.Open { Inventory.Toggle() }
+    }
+
+    // Walking away from the chest or closing the bag closes it, and the bag
+    // that opened with it closes after.
+    SyncChest(QuaxelWorld& world)
+    {
+        if Stash.Open && (!Inventory.Open || FarFromChest(world)) { Stash.Open = false }
+        if !Stash.Open && BagForChest {
+            BagForChest = false
+            if Inventory.Open { Inventory.Toggle() }
+        }
+    }
+
+    -bool FarFromChest(QuaxelWorld& world)
+    {
+        vec3 player = world.GetPosition(PlayerNode)
+        for spot : People.Spots {
+            if spot.Kind != HellfeatherSpotKind.Stash || !spot.Shown || spot.Realm != Terrain.Realm { continue }
+            return Math.Hypot(spot.Feet.X - player.X, spot.Feet.Z - player.Z) > HellfeatherMerchants.LeaveReach
+        }
+        return true
+    }
+
+    // Carries out what the chest panel asked for this frame.
+    ApplyChestRequest()
+    {
+        HellfeatherChestRequest request = Stash.Request
+        int x = Stash.RequestX
+        int y = Stash.RequestY
+        Stash.Request = HellfeatherChestRequest.None
+        if request == HellfeatherChestRequest.Lift && Inventory.Items.Held == HellfeatherItems.None {
+            if Stash.Chest.Take(Stash.Chest.EntryAt(x, y)) {
+                Inventory.Items.Held = Stash.Chest.Back
+                Inventory.Items.HeldMods = Stash.Chest.BackMods
+            }
+        } else if request == HellfeatherChestRequest.Place {
+            if Stash.Chest.Place(x, y, Inventory.Items.Held, Inventory.Items.HeldMods) {
+                Inventory.Items.Held = Stash.Chest.Back
+                Inventory.Items.HeldMods = Stash.Chest.BackMods
+            }
+        } else if request == HellfeatherChestRequest.Store {
+            StoreHeldInChest()
+        } else if request == HellfeatherChestRequest.ToBag {
+            int index = Stash.Chest.EntryAt(x, y)
+            if index >= 0 && Inventory.Items.AddWith(Stash.Chest.Entries[index].Item, Stash.Chest.Entries[index].Mods) { Stash.Chest.Take(index) }
+            else if index >= 0 { Stash.Say("No room in your bag") }
+        }
+    }
+
+    // Puts the cursor's item in the chest wherever it fits. Full, it stays put.
+    -bool StoreHeldInChest()
+    {
+        if Stash.Chest.AddWith(Inventory.Items.Held, Inventory.Items.HeldMods) {
+            Inventory.Items.ClearHeld()
+            return true
+        }
+        Stash.Say("The chest is full")
+        return false
+    }
+
+    // Stores the item a Shift-click in the bag put on the cursor, or puts it
+    // back in the bag when the chest is full.
+    ApplyQuickStore()
+    {
+        if !Inventory.QuickStoreRequest { return }
+        Inventory.QuickStoreRequest = false
+        if !StoreHeldInChest() { Inventory.Items.StowHeld() }
+    }
+}
+T{
+    // She has a house in Ravenford: its door leads into a room with the Home
+    // fire burning and her chest, and back out to the step before the door.
+    HerHouseInRavenfordHasTheHomeFireAndHerChest()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherRealm house = HellfeatherHome.Realm(game.Residence)
+        int entrance = game.FindEntrance(house)
+        T.IsTrue(entrance >= 0)
+        T.IsTrue(game.InTown(game.People.Spots[entrance].Feet))
+        game.Use(world, entrance)
+        T.AreEqual(game.Terrain.Realm, house)
+        vec3 at = world.GetPosition(game.PlayerNode)
+        T.IsFalse(game.Terrain.CircleBlocked(at.X, at.Z, game.PlayerRadius()))
+        T.AreEqual(game.Enemies.Len, 0)
+        int home = game.HomeWaypoint()
+        T.IsTrue(home >= 0)
+        T.IsTrue(game.Waypoints[home].Lit)
+        T.AreEqual(game.Waypoints[home].Realm, house)
+        int chest = game.People.FindKind(HellfeatherSpotKind.Stash, house)
+        T.IsTrue(chest >= 0)
+        T.IsTrue(game.People.Spots[chest].Shown)
+        // The spot before the chest is open floor she can stand on.
+        vec3 before = game.People.Spots[chest].Feet
+        T.IsFalse(game.Terrain.IsBlocked(before.X, before.Z))
+        int exit = game.People.FindKind(HellfeatherSpotKind.Exit, house)
+        game.Use(world, exit)
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Fenmarch)
+        at = world.GetPosition(game.PlayerNode)
+        vec3 door = game.People.Spots[entrance].Feet
+        T.IsTrue(Math.Hypot(at.X - door.X, at.Z - door.Z) < 3.0)
+    }
+
+    // From any lit fire she can travel Home, and arrives inside her house.
+    EveryFireCanTakeHerHome()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int home = game.HomeWaypoint()
+        T.IsTrue(game.TravelToWaypoint(world, home))
+        T.AreEqual(game.Terrain.Realm, HellfeatherHome.Realm(game.Residence))
+        vec3 at = world.GetPosition(game.PlayerNode)
+        T.IsFalse(game.Terrain.CircleBlocked(at.X, at.Z, game.PlayerRadius()))
+        T.IsTrue(game.TravelToWaypoint(world, 0))
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Fenmarch)
+    }
+
+    // A new character starts inside her house.
+    ANewCharacterStartsAtHome()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "in-home"
+        T.IsTrue(game.Prepare(world))
+        T.AreEqual(game.Terrain.Realm, HellfeatherHome.Realm(game.Residence))
+    }
+
+    // A click on the chest opens it with the bag; walking off closes both.
+    UsingTheChestOpensItBesideTheBag()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherRealm house = HellfeatherHome.Realm(game.Residence)
+        T.IsTrue(game.TravelTo(world, house, HellfeatherRealm.Doorstep(house), false))
+        int chest = game.People.FindKind(HellfeatherSpotKind.Stash, house)
+        vec3 before = game.People.Spots[chest].Feet
+        HellfeatherActOne.Stand(game, world, before.X, before.Z + 0.4, 2)
+        game.Use(world, chest)
+        T.IsTrue(game.Stash.Open)
+        T.IsTrue(game.Inventory.Open)
+        T.IsFalse(game.Shop.Open)
+        game.SyncChest(world)
+        T.IsTrue(game.Stash.Open)
+        game.Stash.Open = false
+        game.SyncChest(world)
+        T.IsFalse(game.Inventory.Open)
+    }
+
+    // Items go in and come out with their mods, stacks fill, and an item
+    // swaps with the one it is dropped on.
+    TheChestKeepsItemsAndSwapsLikeTheBag()
+    {
+        HellfeatherChest chest
+        HellfeatherItemMods magic
+        magic.Clear()
+        magic.Rarity = HellfeatherRarity.Magic
+        magic.Kinds[0] = HellfeatherModKind.Strength
+        magic.Values[0] = 2
+        magic.Count = 1
+        T.IsTrue(chest.Place(0, 0, HellfeatherItems.Ring, magic))
+        T.AreEqual(chest.Back, HellfeatherItems.None)
+        T.IsTrue(chest.Take(chest.EntryAt(0, 0)))
+        T.AreEqual(chest.Back, HellfeatherItems.Ring)
+        T.AreEqual(chest.BackMods.Rarity, HellfeatherRarity.Magic)
+        T.IsTrue(chest.AddWith(HellfeatherItems.Ring, magic))
+        // A sword dropped over the ring hands the ring back.
+        HellfeatherItemMods plain
+        plain.Clear()
+        T.IsTrue(chest.Place(0, 0, HellfeatherItems.ShortSword, plain))
+        T.AreEqual(chest.Back, HellfeatherItems.Ring)
+        T.AreEqual(chest.BackMods.Values[0], 2)
+        // Feathers top up a stack rather than taking a new cell.
+        HellfeatherItemMods three
+        three.Clear()
+        three.Stack = 3
+        HellfeatherItemMods one
+        one.Clear()
+        one.Stack = 1
+        T.IsTrue(chest.AddWith(HellfeatherItems.BlackFeather, three))
+        long before = chest.Entries.Len
+        T.IsTrue(chest.AddWith(HellfeatherItems.BlackFeather, one))
+        T.AreEqual(chest.Entries.Len, before)
+        T.AreEqual(chest.AmountOf(HellfeatherItems.BlackFeather), 4)
+        // Out of bounds is refused.
+        T.IsFalse(chest.CanPlace(HellfeatherItems.BattleAxe, HellfeatherChest.Columns - 1, 0))
+    }
+
+    // Shift-click moves an item between the chest and the bag either way.
+    ShiftClickMovesBetweenChestAndBag()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenChest()
+        T.IsTrue(game.Inventory.Items.Add(HellfeatherItems.Ring))
+        // As a Shift-click on the ring in the bag leaves it.
+        T.IsTrue(game.Inventory.Items.PickUp(game.Inventory.Items.Bag[0].X, game.Inventory.Items.Bag[0].Y))
+        game.Inventory.QuickStoreRequest = true
+        game.ApplyQuickStore()
+        T.AreEqual(game.Inventory.Items.Held, HellfeatherItems.None)
+        T.AreEqual(game.Stash.Chest.AmountOf(HellfeatherItems.Ring), 1)
+        T.AreEqual(game.Inventory.Items.AmountOf(HellfeatherItems.Ring), 0)
+        // And a Shift-click on it in the chest.
+        game.Stash.Request = HellfeatherChestRequest.ToBag
+        game.Stash.RequestX = game.Stash.Chest.Entries[0].X
+        game.Stash.RequestY = game.Stash.Chest.Entries[0].Y
+        game.ApplyChestRequest()
+        T.AreEqual(game.Stash.Chest.Entries.Len, (long)0)
+        T.AreEqual(game.Inventory.Items.AmountOf(HellfeatherItems.Ring), 1)
+    }
+
+    // A click on the grid with an item on the cursor puts it there, and a
+    // click on it again lifts it back.
+    ClickingTheChestGridStoresAndLifts()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenChest()
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        game.Inventory.Items.Held = HellfeatherItems.Ring
+        game.Stash.Update(ui, 960, 540, 0, 0, false, game.Inventory.Items.Held)
+        int s = game.Stash.PanelScale
+        int x = (game.Stash.PanelLeft + HellfeatherChestArt.GridX + 4) * s
+        int y = (game.Stash.PanelTop + HellfeatherChestArt.GridY + 4) * s
+        T.IsTrue(game.Stash.Captures(x, y))
+        game.Stash.Update(ui, 960, 540, x, y, true, game.Inventory.Items.Held)
+        game.ApplyChestRequest()
+        T.AreEqual(game.Inventory.Items.Held, HellfeatherItems.None)
+        T.AreEqual(game.Stash.Chest.EntryAt(0, 0), 0)
+        game.Stash.Update(ui, 960, 540, x, y, false, game.Inventory.Items.Held)
+        game.Stash.Update(ui, 960, 540, x, y, true, game.Inventory.Items.Held)
+        game.ApplyChestRequest()
+        T.AreEqual(game.Inventory.Items.Held, HellfeatherItems.Ring)
+    }
+
+    // The chest panel has its own place in the atlas.
+    TheChestPanelFitsTheAtlas()
+    {
+        T.IsTrue(HellfeatherChestArt.Top + HellfeatherInventoryArt.PanelHeight <= HellfeatherInventoryArt.AtlasHeight)
+        T.IsTrue(HellfeatherChestArt.Top >= HellfeatherQuestLogArt.Top + HellfeatherInventoryArt.PanelHeight)
+        // The grid and the notice under it stay inside the frame.
+        T.IsTrue(HellfeatherChestArt.GridY + HellfeatherChest.Rows * HellfeatherInventoryArt.Cell <= HellfeatherChestArt.NoticeY - 2)
+        T.IsTrue(HellfeatherChestArt.NoticeY + 8 <= HellfeatherInventoryArt.PanelHeight - 5)
+    }
+}

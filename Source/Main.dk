@@ -101,6 +101,8 @@ Main(string [] args)
         next.UniformProbeUpdates = uniform
         next.ActiveSlot = slot
         next.LoadSlot = fresh ? 0 | slot
+        // A new character wakes in her house in Ravenford.
+        if fresh { next.StartAt = "in-home" }
         if !QuaxelEngine.Run(next) { return }
         again = next.Restart
         slot = next.NextSlot

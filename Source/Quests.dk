@@ -395,6 +395,10 @@ HellfeatherGame : QuaxelGameInstance
             UseMillPortal(world)
             return
         }
+        if kind == HellfeatherSpotKind.Stash {
+            OpenChest()
+            return
+        }
         if kind == HellfeatherSpotKind.Waypoint {
             UseWaypoint(spot)
             return

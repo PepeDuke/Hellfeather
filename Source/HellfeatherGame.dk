@@ -864,7 +864,7 @@ HellfeatherGame : QuaxelGameInstance
     // ClickWorld decides whether it does.
     -bool ClickTaken(int mouseX, int mouseY)
     {
-        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || QuestLog.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || People.Hovered >= 0 || Talk.Captures(mouseX, mouseY)
+        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || QuestLog.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Stash.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || People.Hovered >= 0 || Talk.Captures(mouseX, mouseY)
     }
 
     // Moves the item on the cursor to the ground beside the warrior.
@@ -945,7 +945,7 @@ HellfeatherGame : QuaxelGameInstance
         else { SampleAttack(mouseX, mouseY, held) }
         if !pressed || PlayerHealth <= 0 { return }
         if Inventory.Items.Held != HellfeatherItems.None {
-            if !Inventory.OverPanel(mouseX, mouseY) && !StatsScreen.OverPanel(mouseX, mouseY) && !Passives.OverPanel(mouseX, mouseY) && !Runes.OverPanel(mouseX, mouseY) && !QuestLog.OverPanel(mouseX, mouseY) && !Shop.OverPanel(mouseX, mouseY) && !Actions.OverBar(mouseX, mouseY) { DropHeld(world) }
+            if !Inventory.OverPanel(mouseX, mouseY) && !StatsScreen.OverPanel(mouseX, mouseY) && !Passives.OverPanel(mouseX, mouseY) && !Runes.OverPanel(mouseX, mouseY) && !QuestLog.OverPanel(mouseX, mouseY) && !Shop.OverPanel(mouseX, mouseY) && !Stash.OverPanel(mouseX, mouseY) && !Actions.OverBar(mouseX, mouseY) { DropHeld(world) }
             return
         }
         if Talk.Captures(mouseX, mouseY) { return }
@@ -971,7 +971,7 @@ HellfeatherGame : QuaxelGameInstance
             Inventory.Toggle()
             return
         }
-        if Shop.Open { return }
+        if Shop.Open || Stash.Open { return }
         if panel == HellfeatherHudPanel.Stats {
             StatsScreen.Toggle()
             if StatsScreen.Open {
@@ -1035,7 +1035,7 @@ HellfeatherGame : QuaxelGameInstance
         CloseUp.Hide(world)
         // Drawn first, so that the inventory panel covers the titles.
         if hasWindow {
-            bool panelsFree = !Inventory.Captures(mouseX, mouseY) && !StatsScreen.Captures(mouseX, mouseY) && !Passives.Captures(mouseX, mouseY) && !Runes.Captures(mouseX, mouseY) && !QuestLog.Captures(mouseX, mouseY) && !Shop.Captures(mouseX, mouseY) && !Actions.Captures(mouseX, mouseY)
+            bool panelsFree = !Inventory.Captures(mouseX, mouseY) && !StatsScreen.Captures(mouseX, mouseY) && !Passives.Captures(mouseX, mouseY) && !Runes.Captures(mouseX, mouseY) && !QuestLog.Captures(mouseX, mouseY) && !Shop.Captures(mouseX, mouseY) && !Stash.Captures(mouseX, mouseY) && !Actions.Captures(mouseX, mouseY)
             DrawPeople(ui, world, windowWidth, windowHeight, mouseX, mouseY, panelsFree && !Talk.Captures(mouseX, mouseY))
             Ground.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, panelsFree)
             // An item's title wins over the person behind it.
@@ -1050,7 +1050,7 @@ HellfeatherGame : QuaxelGameInstance
             HellfeatherQuests quests = Quests
             QuestLog.Notice(quests)
             // Where she is, in the corner the open panels on the left would cover.
-            if !StatsScreen.Open && !Passives.Open && !Runes.Open && !QuestLog.Open && !Shop.Open { HellfeatherZoneNames.Draw(ui, ZoneName()) }
+            if !StatsScreen.Open && !Passives.Open && !Runes.Open && !QuestLog.Open && !Shop.Open && !Stash.Open { HellfeatherZoneNames.Draw(ui, ZoneName()) }
         }
         // Before the panels handle this click, so closing one cannot also swing the axe.
         ClickWorld(world, mouseX, mouseY, mouseDown)
@@ -1059,7 +1059,7 @@ HellfeatherGame : QuaxelGameInstance
             // Under the inventory, which covers it when the window is too narrow for both.
             int clearWidth = Inventory.Open ? Inventory.PanelLeft * Inventory.PanelScale | windowWidth
             // Worked out here, since the stats panel places itself after the bar.
-            int coveredLeft = StatsScreen.Open || Passives.Open || Runes.Open || QuestLog.Open || Shop.Open ? (HellfeatherStatsScreen.Margin + HellfeatherInventoryArt.PanelWidth) * ui.ScaleFor(windowWidth, windowHeight) | 0
+            int coveredLeft = StatsScreen.Open || Passives.Open || Runes.Open || QuestLog.Open || Shop.Open || Stash.Open ? (HellfeatherStatsScreen.Margin + HellfeatherInventoryArt.PanelWidth) * ui.ScaleFor(windowWidth, windowHeight) | 0
             Actions.CoveredLeft = coveredLeft
             Actions.ExperienceShare = Passives.Level.Share()
             Actions.UnspentPoints = Passives.Open ? 0 | Passives.Points()
@@ -1071,7 +1071,7 @@ HellfeatherGame : QuaxelGameInstance
             Actions.PanelOpen[HellfeatherHudPanel.Passives] = Passives.Open
             Actions.Portals = Inventory.Items.Portals
             Globes.CoveredLeft = coveredLeft
-            Actions.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, clearWidth, Inventory.OverPanel(mouseX, mouseY) || StatsScreen.OverPanel(mouseX, mouseY) || Passives.OverPanel(mouseX, mouseY) || Runes.OverPanel(mouseX, mouseY) || QuestLog.OverPanel(mouseX, mouseY) || Shop.OverPanel(mouseX, mouseY), Means())
+            Actions.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, clearWidth, Inventory.OverPanel(mouseX, mouseY) || StatsScreen.OverPanel(mouseX, mouseY) || Passives.OverPanel(mouseX, mouseY) || Runes.OverPanel(mouseX, mouseY) || QuestLog.OverPanel(mouseX, mouseY) || Shop.OverPanel(mouseX, mouseY) || Stash.OverPanel(mouseX, mouseY), Means())
             if Actions.PortalRequest {
                 Actions.PortalRequest = false
                 OpenPortal(world)
@@ -1080,6 +1080,9 @@ HellfeatherGame : QuaxelGameInstance
             Shop.HeldMods = Inventory.Items.HeldMods
             Shop.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, Purse(), Inventory.Items.Held)
             ApplyShopRequests()
+            Stash.ShiftHeld = ShiftHeld
+            Stash.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown, Inventory.Items.Held)
+            ApplyChestRequest()
             stats : Stats()
             StatsScreen.Level = Passives.Level.Level
             StatsScreen.Experience = Passives.Level.Experience
@@ -1097,8 +1100,10 @@ HellfeatherGame : QuaxelGameInstance
             Inventory.Trading = Shop.Open
             Inventory.CanSell = Shop.Open && !Shop.Shop.ForFeathers
             Inventory.ShiftHeld = ShiftHeld
+            Inventory.CanStore = Stash.Open
             Inventory.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
             ApplyQuickSell()
+            ApplyQuickStore()
             if Actions.PanelRequest >= 0 {
                 ToggleHudPanel((HellfeatherHudPanel)Actions.PanelRequest)
                 Actions.PanelRequest = -1
@@ -1106,6 +1111,7 @@ HellfeatherGame : QuaxelGameInstance
             // Without the bag beside it the board has nowhere to put a lifted rune.
             if !Inventory.Open { Runes.Open = false }
             SyncShop(world)
+            SyncChest(world)
             // An item the bag had no room for when the panel closed goes on the ground.
             if !Inventory.Open { DropHeld(world) }
             Globes.Anchor(world, windowWidth, windowHeight, clearWidth)

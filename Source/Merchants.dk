@@ -108,6 +108,7 @@ HellfeatherGame : QuaxelGameInstance
         Shop.BlurbOne = HellfeatherMerchants.BlurbOne(merchant)
         Shop.BlurbTwo = HellfeatherMerchants.BlurbTwo(merchant)
         Shop.Open = true
+        Stash.Open = false
         // The shop takes the left side, so the panels there close, and the bag
         // opens in its place on the right.
         StatsScreen.Open = false

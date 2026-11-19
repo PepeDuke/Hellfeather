@@ -10,7 +10,9 @@ HellfeatherRealm : int
     // The insides of buildings (Source/Interiors.dk).
     Hospice,
     Mill,
-    Garret
+    Garret,
+    // Her own house in Ravenford (Source/Residence.dk).
+    RavenfordHouse
 }
 
 // A hall of the Undercroft: flagstones, silver wire run across the floor toward

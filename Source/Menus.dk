@@ -779,7 +779,7 @@ HellfeatherGame : QuaxelGameInstance
     // Closes every panel that is open. Returns false if none was.
     bool CloseAllPanels()
     {
-        bool any = Inventory.Open || StatsScreen.Open || Passives.Open || Runes.Open || QuestLog.Open || Shop.Open || AutoMap.Open || Actions.Picking >= 0
+        bool any = Inventory.Open || StatsScreen.Open || Passives.Open || Runes.Open || QuestLog.Open || Shop.Open || Stash.Open || AutoMap.Open || Actions.Picking >= 0
         // The bag puts a held item on the ground as it closes, like the I key.
         if Inventory.Open { Inventory.Toggle() }
         StatsScreen.Open = false
@@ -787,6 +787,7 @@ HellfeatherGame : QuaxelGameInstance
         Runes.Open = false
         QuestLog.Open = false
         Shop.Open = false
+        Stash.Open = false
         AutoMap.Open = false
         Actions.Picking = -1
         return any

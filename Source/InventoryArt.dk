@@ -5,8 +5,8 @@ HellfeatherInventoryArt
     #int AtlasWidth = 512
     // The inventory uses the top rows, the action bar the next, then the shop
     // panel, the character panel, the passive tree, the rune board and the quest
-    // log at the bottom.
-    #int AtlasHeight = 1792
+    // log, then the personal chest at the bottom.
+    #int AtlasHeight = 2048
     #int PanelWidth = 176
     #int PanelHeight = 256
     #int Cell = 16
@@ -49,6 +49,7 @@ HellfeatherInventoryArt
         HellfeatherPassiveArt.Paint(ui)
         HellfeatherRuneArt.Paint(ui)
         HellfeatherQuestLogArt.Paint(ui)
+        HellfeatherChestArt.Paint(ui)
         for item : HellfeatherItems { if item != HellfeatherItems.None { PaintIcon(ui, item, IconX(item), IconY(item)) } }
         HellfeatherActionArt.Paint(ui)
     }
@@ -300,6 +301,10 @@ HellfeatherInventoryScreen
     // Set when such a click has put the item on the cursor to be sold; the
     // game sells it and clears this.
     bool QuickSellRequest
+    // Set by the game while her chest is open: a Shift-click stores an item
+    // there instead. The click lifts it and sets QuickStoreRequest; the game stores it.
+    bool CanStore
+    bool QuickStoreRequest
     -bool MouseWasDown
     -int Scale = 1
     -int PanelX
@@ -401,7 +406,10 @@ HellfeatherInventoryScreen
         // carrying it over. Anything else is picked up as usual.
         int entry = Items.EntryAt(cellX, cellY)
         bool quick = CanSell && ShiftHeld && entry >= 0 && HellfeatherShop.Buys(Items.Bag[entry].Item)
-        if Items.PickUp(cellX, cellY) && quick { QuickSellRequest = true }
+        bool store = CanStore && ShiftHeld && entry >= 0
+        bool lifted = Items.PickUp(cellX, cellY)
+        if lifted && quick { QuickSellRequest = true }
+        if lifted && store { QuickStoreRequest = true }
     }
 
     -Icon(QuaxelUi& ui, HellfeatherItems item, int x, int y)
@@ -452,6 +460,13 @@ HellfeatherInventoryScreen
             Highlight(ui, x, y, slotWidth, slotHeight, Items.Accepts(slot, Items.Held) ? 0x5040C060 | 0x50C04030)
         } else if hovered {
             Highlight(ui, x, y, slotWidth, slotHeight, 0x30FFFFFF)
+        } else if Items.Held != HellfeatherItems.None && Items.Accepts(slot, Items.Held) {
+            // The slot the held item would go in glows softly, with a brighter rim.
+            Highlight(ui, x, y, slotWidth, slotHeight, 0x22E8B070)
+            Highlight(ui, x, y, slotWidth, 1, 0x90E8B070)
+            Highlight(ui, x, y + slotHeight - 1, slotWidth, 1, 0x90E8B070)
+            Highlight(ui, x, y + 1, 1, slotHeight - 2, 0x90E8B070)
+            Highlight(ui, x + slotWidth - 1, y + 1, 1, slotHeight - 2, 0x90E8B070)
         }
         item : Items.Equipped[slot]
         if item == HellfeatherItems.None { return }

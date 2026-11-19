@@ -417,6 +417,14 @@ HellfeatherGame : QuaxelGameInstance
         if Inventory.Items.Held != HellfeatherItems.None { HellfeatherSaves.WriteItem(io.Out, "held", Inventory.Items.Held, Inventory.Items.HeldMods, false, 0, 0) }
         io.Out.EndObject()
 
+        // Her residence and what she keeps in her personal chest.
+        io.Out.BeginObject("home")
+        io.Out.Text("residence", Residence.Name)
+        io.Out.BeginArray("chest")
+        for entry : Stash.Chest.Entries { HellfeatherSaves.WriteItem(io.Out, "", entry.Item, entry.Mods, true, entry.X, entry.Y) }
+        io.Out.EndArray()
+        io.Out.EndObject()
+
         io.Out.BeginObject("progress")
         io.Out.Int("level", Passives.Level.Level)
         io.Out.Int("experience", Passives.Level.Experience)
@@ -511,6 +519,7 @@ HellfeatherGame : QuaxelGameInstance
         if !HellfeatherSaves.ReadNewest(slot, io.In) { return false }
         PlayedSeconds = (float)io.In.Int(io.In.Find(0, "summary"), "playedSeconds", 0)
         LoadInventory(io.In)
+        LoadHome(io.In)
         LoadProgress(io.In)
         LoadRunes(io.In)
         LoadActions(io.In)
@@ -568,6 +577,30 @@ HellfeatherGame : QuaxelGameInstance
         if HellfeatherSaves.ReadItem(json, json.Find(inventory, "held"), held, heldMods) {
             Inventory.Items.ReplaceHeld(held)
             Inventory.Items.HeldMods = heldMods
+        }
+    }
+
+    // Her residence by name, and the chest's items where they lay. An old save
+    // without them keeps the Ravenford house and an empty chest.
+    -LoadHome(QuaxelJson& json)
+    {
+        int home = json.Find(0, "home")
+        if home < 0 { return }
+        name residence = json.Text(home, "residence")
+        for each : HellfeatherResidence {
+            if each.Name == residence { Residence = each }
+        }
+        int chest = json.Find(home, "chest")
+        if !json.IsArray(chest) { return }
+        Stash.Chest.Entries.Clear()
+        for entry : json.First(chest); entry >= 0; entry = json.Next(entry) {
+            HellfeatherItems item = HellfeatherItems.None
+            HellfeatherItemMods mods
+            if !HellfeatherSaves.ReadItem(json, entry, item, mods) { continue }
+            int x = json.Int(entry, "x", -1)
+            int y = json.Int(entry, "y", -1)
+            if Stash.Chest.IsFree(item, x, y) { Stash.Chest.PutWithAt(item, mods, x, y) }
+            else if !Stash.Chest.AddWith(item, mods) { Print("A saved item did not fit in the chest") }
         }
     }
 
@@ -690,6 +723,13 @@ T{
         game.Actions.Slots.Kills = 17
         game.Waypoints[1].Lit = true
         game.PlayedSeconds = 3725.0
+        HellfeatherItemMods kept
+        kept.Clear()
+        kept.Rarity = HellfeatherRarity.Magic
+        kept.Kinds[0] = HellfeatherModKind.Strength
+        kept.Values[0] = 4
+        kept.Count = 1
+        game.Stash.Chest.PutWithAt(HellfeatherItems.KiteShield, kept, 3, 2)
         int bagged = (int)game.Inventory.Items.Bag.Len
         T.IsTrue(game.SaveCharacter())
 
@@ -720,6 +760,12 @@ T{
         T.AreEqual(loaded.Actions.Slots.Kills, 17)
         T.IsTrue(loaded.Waypoints[1].Lit)
         T.AreEqual(loaded.PlayedSeconds, 3725.0)
+        // What she left in her chest is there, where she left it, mods and all.
+        T.AreEqual(loaded.Residence, HellfeatherResidence.RavenfordHouse)
+        T.AreEqual(loaded.Stash.Chest.Entries.Len, (long)1)
+        T.AreEqual(loaded.Stash.Chest.EntryAt(3, 2), 0)
+        T.AreEqual(loaded.Stash.Chest.Entries[0].Item, HellfeatherItems.KiteShield)
+        T.AreEqual(loaded.Stash.Chest.Entries[0].Mods.Values[0], 4)
         T.IsTrue(HellfeatherSaves.Delete(3))
         T.IsFalse(HellfeatherSaves.Exists(3))
         HellfeatherSaves.Folder = "Saves"

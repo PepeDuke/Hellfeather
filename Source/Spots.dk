@@ -25,7 +25,9 @@ HellfeatherSpotKind : int
     Entrance,
     Exit,
     // Jessa's Waterwalkers, standing in the dry outline in her garret.
-    Boots
+    Boots,
+    // Her personal chest, in whichever residence is hers (Source/Residence.dk).
+    Stash
 }
 
 HellfeatherPerson : int

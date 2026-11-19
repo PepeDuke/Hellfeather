@@ -191,6 +191,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         Talk.Close()
         Shop.Open = false
+        Stash.Open = false
         KeepLevel(Terrain.Realm)
         ClearShots(world)
         Ravens.Clear(world)
@@ -327,6 +328,11 @@ HellfeatherGame : QuaxelGameInstance
     {
         if Length(StartAt) == 0 { return true }
         // Inside a building: in-hospice, in-mill or in-garret.
+        // Inside her own house, where a new character begins, or at its door.
+        if StartAt == "in-home" {
+            HellfeatherRealm house = HellfeatherHome.Realm(Residence)
+            return TravelTo(world, house, HellfeatherRealm.Doorstep(house), false)
+        }
         if StartAt == "in-hospice" { return TravelTo(world, HellfeatherRealm.Hospice, HellfeatherRealm.Doorstep(HellfeatherRealm.Hospice), false) }
         if StartAt == "in-mill" { return TravelTo(world, HellfeatherRealm.Mill, HellfeatherRealm.Doorstep(HellfeatherRealm.Mill), false) }
         if StartAt == "in-garret" {
@@ -347,6 +353,7 @@ HellfeatherGame : QuaxelGameInstance
             int ward = FindEntrance(HellfeatherRealm.Hospice)
             there = People.Spots[ward].Feet + vec3(0.0, 0.0, 2.5)
         }
+        else if StartAt == "home" { there = HellfeatherHome.Door(Residence) + vec3(0.0, 0.0, 1.5) }
         else if StartAt == "garret" { there = HellfeatherCast.GarretAt() + vec3(0.0, 0.0, 1.5) }
         else if StartAt == "marsh" { there = ZoneMiddle(HellfeatherZone.FennickWater) }
         if !Terrain.Reconfigure(world, FenmarchConfig(), there) { return false }
