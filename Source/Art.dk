@@ -179,9 +179,7 @@ HellfeatherArt
         }
     }
 
-    // The stand alone, for braziers that burn with a live fire effect: a stone
-    // post and an iron collar under a flared iron bowl. A bed of embers lies
-    // sunk below the rim, so the fire burns down inside the bowl.
+    // The stand alone, for braziers that burn with a live fire effect
     BrazierStand(QuaxelWorld& world, int volume, int cx, int cz)
     {
         StoneBox(world, volume, cx - 3, 0, cz - 3, cx + 4, 2, cz + 4)

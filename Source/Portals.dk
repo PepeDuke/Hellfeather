@@ -18,6 +18,21 @@ HellfeatherPortals
     #float StepOut = 1.1
     // The middle of the oval, above the portal's feet.
     #float Middle = 1.2
+    // How long a portal takes to grow open and to shrink shut, in seconds. It
+    // starts to grow as the first ravens reach it.
+    #float OpenSeconds = 0.8
+    #float OpenDelay = 0.45
+    #float CloseSeconds = 0.5
+    // The ravens that fly in from all sides to make a portal, and burst out of
+    // it as it shuts: how many, how far out they start or end, how high above
+    // the middle, how fast they fly in world units per second, and the most
+    // one waits after the first before it sets off, in seconds.
+    #int RavenCount = 6
+    #float RavenReach = 4.5
+    #float RavenRiseMin = 0.8
+    #float RavenRiseMax = 2.6
+    #float RavenSpeed = 8.0
+    #float RavenStagger = 0.35
 
     // Magenta motes drifting up and around the oval until it closes.
     QuaxelEffectStyle Swirl()
@@ -60,8 +75,95 @@ HellfeatherPortals
     }
 }
 
+// One raven of a portal's flock, flying a straight line into or out of its middle.
+HellfeatherPortalRaven
+{
+    HellfeatherRealm Realm
+    vec3 From
+    vec3 To
+    // Seconds before it sets off, and since it was sent.
+    float Delay
+    float Timer
+    float Seconds
+    // Flying out of a closing portal rather than into an opening one.
+    bool Leaving
+    int Node
+    int Visual
+}
+
 HellfeatherGame : QuaxelGameInstance
 {
+    -HellfeatherPortalRaven [] PortalRavens
+
+    // Sends the flock in to a portal's middle, or out of it, on her level.
+    SendPortalRavens(QuaxelWorld& world, int spot, bool leaving)
+    {
+        if People.Spots[spot].Realm != Terrain.Realm || !Ravens.Load(world) { return }
+        vec3 middle = People.Spots[spot].Feet + vec3(0.0, HellfeatherPortals.Middle, 0.0)
+        int count = HellfeatherPortals.RavenCount
+        float start = Ravens.Random.Range(0.0, 6.2831853)
+        for k : 0; k < count; k++ {
+            float angle = start + (float)k * 6.2831853 / (float)count + Ravens.Random.Range(-0.3, 0.3)
+            float reach = HellfeatherPortals.RavenReach * Ravens.Random.Range(0.8, 1.2)
+            vec3 far = middle + vec3(Math.Cos(angle) * reach, Ravens.Random.Range(HellfeatherPortals.RavenRiseMin, HellfeatherPortals.RavenRiseMax), Math.Sin(angle) * reach)
+            HellfeatherPortalRaven bird
+            bird.Realm = Terrain.Realm
+            bird.Leaving = leaving
+            bird.From = leaving ? middle | far
+            bird.To = leaving ? far | middle
+            bird.Seconds = (far - middle).Length() / HellfeatherPortals.RavenSpeed
+            bird.Delay = Ravens.Random.Range(0.0, HellfeatherPortals.RavenStagger)
+            PortalRavens += bird
+        }
+    }
+
+    // Flies the flocks along. One coming in shrinks into the portal as it
+    // reaches it; one leaving grows out of it and dwindles into the distance.
+    // A flock left behind on another level is dropped.
+    StepPortalRavens(QuaxelWorld& world, float deltaSeconds)
+    {
+        for -bird : PortalRavens {
+            bird.Timer += deltaSeconds
+            float t = (bird.Timer - bird.Delay) / bird.Seconds
+            if bird.Realm != Terrain.Realm || t >= 1.0 {
+                if bird.Node != 0 { world.DestroyNode(bird.Node) }
+                PortalRavens -= bird
+                continue
+            }
+            if t < 0.0 { continue }
+            if bird.Node == 0 {
+                bird.Node = world.CreateNode()
+                world.AttachTransform(bird.Node, QuaxelTransform.Make(bird.From, vec3(1.0, 1.0, 1.0)))
+                world.SetCatchesEffects(bird.Node, false)
+                bird.Visual = world.CreateChild(bird.Node)
+                world.AttachTransform(bird.Visual, QuaxelTransform.Make(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)))
+                world.AttachAnimator(bird.Visual, Ravens.Animation)
+                world.PlayClip(bird.Visual, "fly")
+            }
+            // Swooping: in fast and easing at the portal, or out fast from it.
+            float along = bird.Leaving ? t * t | 1.0 - (1.0 - t) * (1.0 - t)
+            vec3 at = bird.From.Lerp(bird.To, along)
+            float size = 1.0
+            if bird.Leaving { size = Math.Min(t / 0.2, 1.0) * Math.Min((1.0 - t) / 0.4, 1.0) }
+            else { size = Math.Min((1.0 - t) / 0.35, 1.0) }
+            size = Math.Max(size, 0.01)
+            world.SetTransform(bird.Node, QuaxelTransform.Make(at, vec3(1.0, 1.0, 1.0)))
+            float voxel = HellfeatherRavens.Voxel * size
+            // Centred on the line, so it shrinks into the middle of the oval.
+            QuaxelTransform pose = QuaxelTransform.Make(vec3(0.0, 0.0, 0.0), vec3(voxel, voxel, voxel))
+            vec3 heading = bird.To - bird.From
+            float flat = Math.Hypot(heading.X, heading.Z)
+            if flat > 0.001 {
+                pose.FacingX = heading.X / flat
+                pose.FacingZ = heading.Z / flat
+            }
+            world.SetTransform(bird.Visual, pose)
+        }
+    }
+
+    // How many portal ravens are in flight, for tests.
+    int PortalRavensFlying() { return (int)PortalRavens.Len }
+
     // The open pair, if any: the level and spot she cast it from, and the town end.
     -bool PortalOpen
     -HellfeatherRealm PortalRealm
@@ -71,6 +173,8 @@ HellfeatherGame : QuaxelGameInstance
     -int TownPortalEffect = -1
     -bool PortalKeyHeld
     -int MillPortalEffect = -1
+    // Set while a new pair is placed, so both ends grow open.
+    -bool PortalCast
 
     bool IsPortalOpen() { return PortalOpen }
 
@@ -99,7 +203,9 @@ HellfeatherGame : QuaxelGameInstance
         PortalFeet = OpenNear(player + vec3(-HellfeatherPortals.StepOut, 0.0, -HellfeatherPortals.StepOut))
         PortalFeet.Y = Terrain.GroundY(PortalFeet.X, PortalFeet.Z)
         TownPortalFeet = vec3(HellfeatherPortals.TownX, 0.0, HellfeatherPortals.TownZ)
+        PortalCast = true
         SyncPortals(world)
+        PortalCast = false
         return true
     }
 
@@ -121,18 +227,24 @@ HellfeatherGame : QuaxelGameInstance
         }
         vec3 back = PortalFeet + vec3(HellfeatherPortals.StepOut, 0.0, HellfeatherPortals.StepOut)
         if !TravelTo(world, PortalRealm, back, false) { return false }
+        // The level was rebuilt without it: stand it back up, open, so she
+        // sees it shut behind her.
+        SyncPortals(world)
         ClosePortals(world)
         StepZone(world.GetPosition(PlayerNode), 1.0)
         Banner.Show(ZoneName(), 2.5)
         return true
     }
 
-    // Closes the pair: the spots stay in the list, hidden, for the next one.
+    // Closes the pair: each end shrinks shut, and the spots stay in the list,
+    // hidden, for the next one.
     ClosePortals(QuaxelWorld& world)
     {
         PortalOpen = false
-        for spot : People.Spots {
-            if spot.Kind == HellfeatherSpotKind.Portal { spot.Shown = false }
+        for i : 0; i < People.Spots.Len; i++ {
+            if People.Spots[i].Kind != HellfeatherSpotKind.Portal || !People.Spots[i].Shown || People.IsClosing((int)i) { continue }
+            People.CloseDown((int)i, HellfeatherPortals.CloseSeconds)
+            SendPortalRavens(world, (int)i, true)
         }
         if PortalEffect >= 0 { world.StopEffect(PortalEffect) }
         if TownPortalEffect >= 0 { world.StopEffect(TownPortalEffect) }
@@ -146,23 +258,27 @@ HellfeatherGame : QuaxelGameInstance
     SyncPortals(QuaxelWorld& world)
     {
         if !PortalOpen { return }
-        int field = PlacePortal(HellfeatherPortals.FieldTitle, PortalRealm, PortalFeet)
-        int town = PlacePortal(HellfeatherPortals.TownTitle, HellfeatherRealm.Fenmarch, TownPortalFeet)
+        int field = PlacePortal(world, HellfeatherPortals.FieldTitle, PortalRealm, PortalFeet)
+        int town = PlacePortal(world, HellfeatherPortals.TownTitle, HellfeatherRealm.Fenmarch, TownPortalFeet)
         PortalEffect = KeepSwirl(world, PortalEffect, field)
         TownPortalEffect = KeepSwirl(world, TownPortalEffect, town)
     }
 
-    -int PlacePortal(string title, HellfeatherRealm realm, vec3 feet)
+    // An end added back to a rebuilt level stands already open. A new cast,
+    // or a move to another place, grows it open from nothing.
+    -int PlacePortal(QuaxelWorld& world, string title, HellfeatherRealm realm, vec3 feet)
     {
         int index = FindPortal(title)
         if index < 0 { index = People.AddModel(HellfeatherSpotKind.Portal, title, realm, feet, Landmarks.Portal, HellfeatherArt.FineVoxel, HellfeatherLandmarks.PortalHeight) }
-        // A move to another place takes the old model down, so it rises anew there.
         bool moved = People.Spots[index].Realm != realm || Math.Hypot(People.Spots[index].Feet.X - feet.X, People.Spots[index].Feet.Z - feet.Z) > 0.01
         if moved {
             People.Spots[index].Realm = realm
             People.Spots[index].Feet = feet
         }
-        People.Spots[index].Shown = true
+        if PortalCast || moved || !People.Spots[index].Shown || People.IsClosing(index) {
+            People.OpenUp(world, index, HellfeatherPortals.OpenDelay, HellfeatherPortals.OpenSeconds)
+            SendPortalRavens(world, index, false)
+        }
         return index
     }
 
@@ -317,6 +433,13 @@ T{
         int field = game.FindPortal(HellfeatherPortals.FieldTitle)
         int town = game.FindPortal(HellfeatherPortals.TownTitle)
         T.IsTrue(field >= 0 && town >= 0)
+        // Ravens fly in from all sides and it grows open from nothing.
+        T.IsTrue(game.People.Spots[field].Open < 0.5)
+        T.AreEqual(game.PortalRavensFlying(), HellfeatherPortals.RavenCount)
+        QuaxelInputState input
+        game.Simulate(world, input, 120)
+        T.IsTrue(game.People.Spots[field].Open (0.0)== 1.0)
+        T.AreEqual(game.PortalRavensFlying(), 0)
         T.AreEqual(game.People.Spots[field].Realm, HellfeatherRealm.Undercroft)
         T.AreEqual(game.People.Spots[town].Realm, HellfeatherRealm.Fenmarch)
         // Through to Ravenford, beside the town end.
@@ -333,8 +456,13 @@ T{
         vec3 back = world.GetPosition(game.PlayerNode)
         T.IsTrue(Math.Hypot(back.X - cast.X, back.Z - cast.Z) < 4.0)
         T.IsFalse(game.IsPortalOpen())
+        // It shrinks shut behind her, then is gone.
         field = game.FindPortal(HellfeatherPortals.FieldTitle)
-        T.IsTrue(field < 0 || !game.People.Spots[field].Shown)
+        T.IsTrue(field >= 0 && game.People.IsClosing(field))
+        T.AreEqual(game.PortalRavensFlying(), HellfeatherPortals.RavenCount)
+        game.Simulate(world, input, 120)
+        T.IsFalse(game.People.Spots[field].Shown)
+        T.AreEqual(game.PortalRavensFlying(), 0)
     }
 
     // A trip home and back leaves the level as she left it: the slain stay

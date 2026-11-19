@@ -186,12 +186,7 @@ HellfeatherGame : QuaxelGameInstance
     -int [] KeptEncounterRealm
     -bool [8] Kept
 
-    // Travel to a chosen point of a level, as a raven portal takes her. The
-    // terrain is built again even when she stays on it, but the enemies are
-    // the ones she left there; a level is only rolled the first time. Enemies
-    // that were up and about are kept just so, where they stood and as hurt as
-    // they were: their models wait in the level she left, far from any other,
-    // and they only stop moving while she is away.
+    // Travel to a chosen point of a level
     bool TravelTo(QuaxelWorld& world, HellfeatherRealm realm, vec3 arrival, bool down)
     {
         Talk.Close()
@@ -388,6 +383,8 @@ HellfeatherGame : QuaxelGameInstance
         }
         StepWaypoints(world, player)
         if !People.Step(world, player, Terrain.Realm) { Print("People failed to spawn") }
+        People.Animate(world, deltaSeconds)
+        StepPortalRavens(world, deltaSeconds)
         if TalkOnStart && !Talk.Open {
             for i : 0; i < People.Spots.Len; i++ {
                 if People.Spots[i].Node != 0 && Length(People.Spots[i].Model) > 0 && People.InReach(i, player) {

@@ -60,6 +60,10 @@ HellfeatherSpot
     float Voxel = 0.025
     int Height = 72
     bool Shown = true
+    // How far the model has grown in, 0 to 1, and how fast that changes per
+    // second: up while it opens, down while it closes, after which it is hidden.
+    float Open = 1.0
+    float Opening
     int Node
     int Visual
     // The enemy a Bearer spot stands for.
@@ -154,10 +158,7 @@ HellfeatherSpots
             world.AttachTransform(spot.Node, QuaxelTransform.Make(spot.Feet, vec3(1.0, 1.0, 1.0)))
             world.SetCatchesEffects(spot.Node, false)
             spot.Visual = world.CreateChild(spot.Node)
-            QuaxelTransform pose = QuaxelTransform.Make(vec3(0.0, (float)spot.Height * spot.Voxel * 0.5, 0.0), vec3(spot.Voxel, spot.Voxel, spot.Voxel))
-            pose.FacingX = spot.FacingX
-            pose.FacingZ = spot.FacingZ
-            world.AttachTransform(spot.Visual, pose)
+            world.AttachTransform(spot.Visual, VisualPose(spot.Voxel, spot.Height, spot.FacingX, spot.FacingZ, spot.Open))
             if Length(spot.Model) > 0 {
                 int animation = AnimationFor(world, spot.Model)
                 if animation < 0 || !world.AttachAnimator(spot.Visual, animation) { return false }
@@ -165,6 +166,63 @@ HellfeatherSpots
             } else if !world.AttachVoxels(spot.Visual, spot.Volume) { return false }
         }
         return true
+    }
+
+    // The model's pose over its feet, centred halfway up. Part open, it grows
+    // out from that middle: first a tall slit, which then widens.
+    QuaxelTransform VisualPose(float voxel, int height, float facingX, float facingZ, float open)
+    {
+        float tall = Math.Clamp(open * 1.6, 0.0, 1.0)
+        float wide = Math.Clamp(open, 0.0, 1.0)
+        tall = Math.Max(tall * tall * (3.0 - 2.0 * tall), 0.01)
+        wide = Math.Max(wide * wide * (3.0 - 2.0 * wide), 0.01)
+        QuaxelTransform pose = QuaxelTransform.Make(vec3(0.0, (float)height * voxel * 0.5, 0.0), vec3(voxel * wide, voxel * tall, voxel * wide))
+        pose.FacingX = facingX
+        pose.FacingZ = facingZ
+        return pose
+    }
+
+    // Shows a spot and, after a delay, grows its model in from nothing over
+    // seconds. A model already standing is taken down, so it rises anew where
+    // the spot now is.
+    OpenUp(QuaxelWorld& world, int index, float delay, float seconds)
+    {
+        if Spots[index].Node != 0 {
+            world.DestroyNode(Spots[index].Node)
+            Spots[index].Node = 0
+            Spots[index].Visual = 0
+        }
+        Spots[index].Shown = true
+        // Below zero is the wait before it starts to grow.
+        Spots[index].Open = -delay / seconds
+        Spots[index].Opening = 1.0 / seconds
+    }
+
+    // Shrinks a shown spot's model away over seconds, then hides the spot.
+    CloseDown(int index, float seconds)
+    {
+        if !Spots[index].Shown { return }
+        Spots[index].Opening = -1.0 / seconds
+    }
+
+    bool IsClosing(int index) { return Spots[index].Shown && Spots[index].Opening < 0.0 }
+
+    // Moves opening and closing models along.
+    Animate(QuaxelWorld& world, float deltaSeconds)
+    {
+        for spot : Spots {
+            if spot.Opening (0.0)== 0.0 { continue }
+            spot.Open = Math.Min(spot.Open + spot.Opening * deltaSeconds, 1.0)
+            if spot.Opening < 0.0 { spot.Open = Math.Max(spot.Open, 0.0) }
+            if spot.Opening > 0.0 && spot.Open >= 1.0 { spot.Opening = 0.0 }
+            if spot.Opening < 0.0 && spot.Open <= 0.0 {
+                spot.Opening = 0.0
+                spot.Open = 1.0
+                spot.Shown = false
+                continue
+            }
+            if spot.Visual != 0 { world.SetTransform(spot.Visual, VisualPose(spot.Voxel, spot.Height, spot.FacingX, spot.FacingZ, spot.Open)) }
+        }
     }
 
     // A person's model, loaded once.
@@ -207,7 +265,7 @@ HellfeatherSpots
         int gridWidth = width / scale
         int gridHeight = height / scale
         for i : 0; i < Spots.Len; i++ {
-            if !Spots[i].Shown || Spots[i].Realm != realm { continue }
+            if !Spots[i].Shown || IsClosing(i) || Spots[i].Realm != realm { continue }
             vec3 feet = Spots[i].Feet
             if Math.Hypot(feet.X - player.X, feet.Z - player.Z) > WakeRadius { continue }
             vec4 low = screen * vec4(feet, 1.0)
