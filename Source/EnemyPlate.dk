@@ -100,6 +100,58 @@ HellfeatherEnemyPlate
         ui.OverlayText(x + (width - ((int)Length(title) * 6 - 1)) / 2 + 1, Top + 5, title, 0xFF000000)
         ui.OverlayText(x + (width - ((int)Length(title) * 6 - 1)) / 2, Top + 4, title, color)
     }
+
+    // Under the plate, a group for each status the enemy suffers: its icon
+    // (Source/StatusPictures.dk) and four pips in its element's color, lit up
+    // to its tier. A burst lights all four inside a white rim.
+    #int PipSize = 3
+    #int PipGap = 1
+    #int GroupGap = 4
+
+    // The icon with its outline margin, then the pips.
+    int IconBox() { return HellfeatherStatusArt.Size + 2 }
+
+    int PipsWidth() { return 4 * PipSize + 3 * PipGap }
+
+    int GroupWidth() { return IconBox() + 1 + PipsWidth() }
+
+    // Four pips in a status's color, lit up to its tier. Frozen, overloaded or
+    // ignited lights all four inside a white rim.
+    Pips(QuaxelUi& ui, int x, int y, uint lit, int tier)
+    {
+        if tier >= 4 { ui.OverlayRect(x - 1, y - 1, PipsWidth() + 2, PipSize + 2, 0xFFFFFFFF) }
+        for pip : 0; pip < 4; pip++ {
+            ui.OverlayRect(x + pip * (PipSize + PipGap), y, PipSize, PipSize, pip < tier ? lit | 0xFF2A2420)
+        }
+    }
+
+    // How many statuses show: those at their first tier or above.
+    int StatusGroups(HellfeatherAfflictions afflictions)
+    {
+        int groups = 0
+        for status : HellfeatherStatus {
+            if afflictions.Tier(status) > 0 { groups++ }
+        }
+        return groups
+    }
+
+    DrawStatuses(QuaxelUi& ui, int gridWidth, HellfeatherAfflictions afflictions)
+    {
+        int groups = StatusGroups(afflictions)
+        if groups == 0 { return }
+        int width = groups * GroupWidth() + (groups - 1) * GroupGap
+        int x = (gridWidth - width) / 2
+        int y = Top + Height + 1
+        ui.OverlayRect(x - 2, y - 1, width + 4, IconBox() + 2, Fill)
+        for status : HellfeatherStatus {
+            int tier = afflictions.Tier(status)
+            if tier <= 0 { continue }
+            uint lit = HellfeatherStatuses.Color(status)
+            HellfeatherStatusArt.DrawIcon(ui, x, y, HellfeatherStatusArt.IconOf(status))
+            Pips(ui, x + IconBox() + 1, y + (IconBox() - PipSize) / 2, lit, tier)
+            x += GroupWidth() + GroupGap
+        }
+    }
 }
 
 HellfeatherGame : QuaxelGameInstance
@@ -146,6 +198,7 @@ HellfeatherGame : QuaxelGameInstance
         if HoveredEnemy < 0 { return }
         EnemyKind hovered = Spawner.Table.Kinds[Enemies[HoveredEnemy].Kind]
         HellfeatherEnemyPlate.Draw(ui, gridWidth, HellfeatherEnemyPlate.TitleOf(hovered), HellfeatherEnemyPlate.ColorOf(hovered.Rank), Enemies[HoveredEnemy].Health, Enemies[HoveredEnemy].MaxHealth)
+        HellfeatherEnemyPlate.DrawStatuses(ui, gridWidth, Enemies[HoveredEnemy].Afflictions)
     }
 }
 T{
@@ -202,5 +255,23 @@ T{
         T.AreEqual(game.HoveredEnemy, -1)
         game.DrawEnemyPlate(ui, world, 960, 540, 20, 20, true)
         T.AreEqual(game.HoveredEnemy, -1)
+    }
+}
+
+// Where the status icons sit in the atlas: beside the chest panel's rows, past
+// its right edge.
+HellfeatherStatusArt
+#{
+    #int IconY = 1800
+
+    int IconX(HellfeatherStatusIcon icon) { return 200 + (icon + 0) * (Size + 3) }
+
+    // A status's icon: its own, as the statuses come first among the icons.
+    HellfeatherStatusIcon IconOf(HellfeatherStatus status) { return (HellfeatherStatusIcon)(status + 0) }
+
+    // An icon with its outline, its top left at x, y on the UI grid.
+    DrawIcon(QuaxelUi& ui, int x, int y, HellfeatherStatusIcon icon)
+    {
+        ui.OverlayOutlinedSprite(x, y, IconX(icon), IconY, Size + 2, Size + 2, HellfeatherInventoryArt.IconOutline)
     }
 }

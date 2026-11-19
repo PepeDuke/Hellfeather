@@ -165,6 +165,7 @@ HellfeatherGame : QuaxelGameInstance
             // Leaves that save alone rather than overwrite it with a fresh start.
             ActiveSlot = 0
         }
+        if ElementsOnStart { GiveElementalWeapon() }
         // The socketed starting rune teaches Cleave quietly, without the notice.
         SyncRuneSkills()
         Actions.Slots.LearnedSeconds = 0.0
@@ -453,6 +454,7 @@ HellfeatherGame : QuaxelGameInstance
         Globes.Step(world, (float)PlayerHealth / (float)PlayerMaxHealth(), (float)PlayerMana / (float)PlayerMaxMana(), deltaSeconds)
         HudVoxels.Step(world, deltaSeconds)
         StepAct(world, deltaSeconds)
+        StepAfflictions(world, deltaSeconds)
         if PlayerHealth <= 0 {
             StepFallenPlayer(world, deltaSeconds)
             RequestedAction = HellfeatherAction.None
@@ -461,6 +463,11 @@ HellfeatherGame : QuaxelGameInstance
         }
         RegenerateMana(deltaSeconds)
         vec3 direction = talking ? vec3(0.0, 0.0, 0.0) | HellfeatherMovement.Direction(world.GetCamera(activeCamera), input)
+        // Frozen or dazed, she neither moves nor acts.
+        if PlayerHeld() {
+            direction = vec3(0.0, 0.0, 0.0)
+            RequestedAction = HellfeatherAction.None
+        }
         UseRequested(world, direction)
         for controller : Controllers {
             if world.Has(controller.Node, QuaxelComponents.Transform) {
@@ -472,7 +479,7 @@ HellfeatherGame : QuaxelGameInstance
                 }
                 else {
                     stats : Stats()
-                    controller.Speed = PlayerSpeed() * (float)stats.MoveSpeed / 100.0
+                    controller.Speed = PlayerSpeed() * (float)stats.MoveSpeed / 100.0 * (float)(100 - PlayerAfflictions.Slow()) / 100.0
                     transform.Position = Walk(transform.Position, direction, controller.Speed, PlayerRadius(), deltaSeconds)
                 }
                 world.SetTransform(controller.Node, transform)
@@ -573,8 +580,13 @@ HellfeatherGame : QuaxelGameInstance
         action : RequestedAction
         if action == HellfeatherAction.None || HellfeatherAction.IsSwing(action) { return }
         RequestedAction = HellfeatherAction.None
+        // Frostbitten, she cannot dash.
+        if action == HellfeatherAction.Dash && PlayerAfflictions.Hobbled() {
+            Banner.Show("Too frostbitten to dash", 1.0)
+            return
+        }
         if !Perform(action) { return }
-        if action == HellfeatherAction.HealthPotion { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + HealthPotionHeal()) }
+        if action == HellfeatherAction.HealthPotion { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + PlayerAfflictions.Healed(HealthPotionHeal())) }
         else if action == HellfeatherAction.ManaPotion { PlayerMana = Math.Min(PlayerMaxMana(), PlayerMana + ManaPotionRestore()) }
         else if action == HellfeatherAction.WarCry { Shout(world, direction) }
         else if action == HellfeatherAction.Dash { StartDash(world, direction) }
@@ -651,6 +663,11 @@ HellfeatherGame : QuaxelGameInstance
         if WarCrySeconds > 0.0 { range = range.Times(200) }
         if cleave { CleaveArc(world, origin) }
         bool shards = Inventory.Items.Equipped[HellfeatherSlot.Neck] == HellfeatherItems.MardrasRingShards
+        // Her elements ride on every blow and build their statuses.
+        stats : Stats()
+        int fire = stats.FireDamage
+        int cold = stats.ColdDamage
+        int lightning = stats.LightningDamage
         for i : 0; i < Enemies.Len; i++ {
             if !Enemies[i].Awake || Enemies[i].Health <= 0 { continue }
             if GroundDistance(origin, world.GetPosition(Enemies[i].Node)) > reach { continue }
@@ -659,21 +676,38 @@ HellfeatherGame : QuaxelGameInstance
             // Each blow rolls its own damage, unless the enemy's armor turns it.
             int damage = RollStrike(world, i, range)
             if damage < 0 { continue }
-            Enemies[i].Health -= Taken(world, i, origin, damage)
-            if shards { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + 2) }
+            // What it suffers already: a shocked or frozen enemy takes more,
+            // a shocked one staggers and passes some of the blow on.
+            int blow = Enemies[i].Afflictions.Worsened(Taken(world, i, origin, damage + fire + cold + lightning))
+            float stagger = Enemies[i].Afflictions.StaggerOnHit()
+            float arc = Enemies[i].Afflictions.ArcShare()
+            Enemies[i].Health -= blow
+            if shards { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + Math.Max(0, PlayerAfflictions.Healed(2))) }
             bool slain = Enemies[i].Health <= 0
             Bleed(world, Enemies[i].Node, origin, slain)
-            if slain {
-                Actions.Slots.CountKill()
-                GainExperience(Spawner.Table.Kinds[Enemies[i].Kind].Experience)
-                Enemies[i].Health = 0
-                Enemies[i].RespawnTimer = RespawnSeconds()
-                DropLoot(world, i)
-                DropFeathers(world, i)
-                CountKill(world, i)
-            }
+            if slain { SlayEnemy(world, i) }
             world.PlayClip(Enemies[i].VisualNode, slain ? "death" | "hit")
+            if slain { continue }
+            if stagger > 0.0 { Enemies[i].Stagger = Math.Max(Enemies[i].Stagger, stagger) }
+            if arc > 0.0 { ChainFrom(world, i, (int)((float)blow * arc), 1, HellfeatherStatuses.ArcRadius) }
+            AfflictEnemy(world, i, fire, cold, lightning)
         }
+    }
+
+    // An enemy falls to her: the kill counts, it drops its loot, and its
+    // statuses end.
+    -SlayEnemy(QuaxelWorld& world, int i)
+    {
+        Actions.Slots.CountKill()
+        GainExperience(Spawner.Table.Kinds[Enemies[i].Kind].Experience)
+        Enemies[i].Health = 0
+        Enemies[i].RespawnTimer = RespawnSeconds()
+        Enemies[i].Stagger = 0.0
+        DropLoot(world, i)
+        DropFeathers(world, i)
+        CountKill(world, i)
+        Enemies[i].Afflictions.Clear(world)
+        world.SetAnimationSpeed(Enemies[i].VisualNode, 1.0)
     }
 
     // What a blow does to an enemy. A shield turns half of a blow from the front,
@@ -760,6 +794,12 @@ HellfeatherGame : QuaxelGameInstance
         PlayerHealth -= amount
         Bleed(world, PlayerNode, world.GetPosition(PlayerNode), PlayerHealth <= 0)
         if PlayerHealth > 0 { return }
+        FallPlayer(world)
+    }
+
+    // She falls: health at 0, and whatever she was doing stops.
+    -FallPlayer(QuaxelWorld& world)
+    {
         PlayerHealth = 0
         FallenSeconds = 0.0
         WarCrySeconds = 0.0
@@ -1115,6 +1155,7 @@ HellfeatherGame : QuaxelGameInstance
             // An item the bag had no room for when the panel closed goes on the ground.
             if !Inventory.Open { DropHeld(world) }
             Globes.Anchor(world, windowWidth, windowHeight, clearWidth)
+            DrawStatusColumn(ui, windowWidth, windowHeight, mouseX, mouseY)
             HudVoxels.Anchor(world, windowWidth, windowHeight, Actions.BarLeft, Actions.BarTop, Actions.BarScale)
         }
         // The open panel covers the corner the counter sits in.

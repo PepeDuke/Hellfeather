@@ -182,7 +182,8 @@ HellfeatherGame : QuaxelGameInstance
     int RollStrike(QuaxelWorld& world, int i, HellfeatherDamageRange range)
     {
         stats : Stats()
-        int armor = Spawner.Table.Kinds[Enemies[i].Kind].Armor
+        // A scorched enemy's armor is cut.
+        int armor = Spawner.Table.Kinds[Enemies[i].Kind].Armor * (100 - Enemies[i].Afflictions.ArmorCut()) / 100
         if HellfeatherCombat.Dodges(CombatRoll(), armor, stats.Accuracy()) {
             PuffMiss(world, world.GetPosition(Enemies[i].Node))
             return -1
@@ -200,18 +201,21 @@ HellfeatherGame : QuaxelGameInstance
         if PlayerHealth <= 0 { return false }
         stats : Stats()
         int accuracy = kind >= 0 ? Spawner.Table.Kinds[kind].Accuracy | 0
-        if HellfeatherCombat.Dodges(CombatRoll(), stats.Defense, accuracy) {
+        // Scorched, her defense is cut; shocked or frozen, blows land harder.
+        int defense = stats.Defense * (100 - PlayerAfflictions.ArmorCut()) / 100
+        if HellfeatherCombat.Dodges(CombatRoll(), defense, accuracy) {
             PuffMiss(world, world.GetPosition(PlayerNode))
             return false
         }
         if kind < 0 {
-            DamagePlayer(world, physical)
+            DamagePlayer(world, PlayerAfflictions.Worsened(physical))
             return true
         }
         int fire = Spawner.Table.Kinds[kind].Fire
         int cold = Spawner.Table.Kinds[kind].Cold
         int lightning = Spawner.Table.Kinds[kind].Lightning
-        DamagePlayer(world, HellfeatherCombat.BlowAgainst(stats, physical, fire, cold, lightning))
+        DamagePlayer(world, PlayerAfflictions.Worsened(HellfeatherCombat.BlowAgainst(stats, physical, fire, cold, lightning)))
+        AfflictPlayer(world, fire, cold, lightning)
         return true
     }
 
@@ -355,5 +359,19 @@ T{
         T.IsTrue(spawner.Table.Kinds[leech].Cold > 0 && spawner.Table.Kinds[leech].Damage > 0)
         T.IsTrue(spawner.Table.Kinds[drake].Cold > 0 && spawner.Table.Kinds[drake].Damage > 0)
         T.AreEqual(spawner.Table.Kinds[duck].Cold + spawner.Table.Kinds[duck].Fire + spawner.Table.Kinds[duck].Lightning, 0)
+        // From the marsh on, every foe's blow is part physical and part element;
+        // the crofts and the road stay plain.
+        string [] later = {"ReedDuck", "MoultedGander", "BlackHoneyLeech", "OldGreyneck", "PilgrimPenitent", "BlackHoneyFiend", "GallowsRook", "PondDrake", "MillhandThrall", "Cuffman", "BladelockArbalist", "SergeantOttar", "HollowedBearer", "BroodDrake", "SilverSpark", "RingKeeperWarden", "Mardra"}
+        for foe : later {
+            int kind = spawner.Table.KindNamed(foe)
+            T.IsTrue(kind >= 0)
+            T.IsTrue(spawner.Table.Kinds[kind].Damage > 0)
+            T.IsTrue(spawner.Table.Kinds[kind].Cold + spawner.Table.Kinds[kind].Fire + spawner.Table.Kinds[kind].Lightning > 0)
+        }
+        string [] early = {"EvilDuck", "RoadDrake", "CarrionRook", "TitheStray"}
+        for foe : early {
+            int kind = spawner.Table.KindNamed(foe)
+            T.AreEqual(spawner.Table.Kinds[kind].Cold + spawner.Table.Kinds[kind].Fire + spawner.Table.Kinds[kind].Lightning, 0)
+        }
     }
 }

@@ -24,7 +24,11 @@ HellfeatherModKind : int
     FireResist,
     ColdResist,
     LightningResist,
-    MoveSpeed
+    MoveSpeed,
+    // Elemental damage added to each of her blows; it builds that element's status.
+    FireDamage,
+    ColdDamage,
+    LightningDamage
 }
 
 // Which pool of mods an item rolls from.
@@ -93,6 +97,9 @@ HellfeatherItemMods
             if kind == HellfeatherModKind.ColdResist { stats.ColdResist += value }
             if kind == HellfeatherModKind.LightningResist { stats.LightningResist += value }
             if kind == HellfeatherModKind.MoveSpeed { stats.MoveSpeed += value }
+            if kind == HellfeatherModKind.FireDamage { stats.FireDamage += value }
+            if kind == HellfeatherModKind.ColdDamage { stats.ColdDamage += value }
+            if kind == HellfeatherModKind.LightningDamage { stats.LightningDamage += value }
         }
     }
 
@@ -120,7 +127,7 @@ HellfeatherItemMods
     {
         group : GroupOf(item)
         if group == HellfeatherModGroup.Weapon {
-            return kind == HellfeatherModKind.Damage || kind == HellfeatherModKind.DamagePercent || kind == HellfeatherModKind.Strength || kind == HellfeatherModKind.Agility || kind == HellfeatherModKind.HitChance
+            return kind == HellfeatherModKind.Damage || kind == HellfeatherModKind.DamagePercent || kind == HellfeatherModKind.Strength || kind == HellfeatherModKind.Agility || kind == HellfeatherModKind.HitChance || HellfeatherItemMods.IsElemental(kind)
         }
         if group == HellfeatherModGroup.Armor {
             if kind == HellfeatherModKind.MoveSpeed {
@@ -134,6 +141,9 @@ HellfeatherItemMods
         }
         return false
     }
+
+    // Fire, cold or lightning damage on her blows.
+    bool IsElemental(HellfeatherModKind kind) { return kind == HellfeatherModKind.FireDamage || kind == HellfeatherModKind.ColdDamage || kind == HellfeatherModKind.LightningDamage }
 
     // The lowest and highest value a mod rolls.
     Range(HellfeatherModKind kind, int& low, int& high)
@@ -150,6 +160,7 @@ HellfeatherItemMods
         if kind == HellfeatherModKind.ManaRegen { Set(2, 10, low, high) }
         if kind == HellfeatherModKind.FireResist || kind == HellfeatherModKind.ColdResist || kind == HellfeatherModKind.LightningResist { Set(3, 12, low, high) }
         if kind == HellfeatherModKind.MoveSpeed { Set(4, 12, low, high) }
+        if IsElemental(kind) { Set(2, 9, low, high) }
     }
 
     -Set(int a, int b, int& low, int& high)
@@ -174,6 +185,9 @@ HellfeatherItemMods
         if kind == HellfeatherModKind.ColdResist { return amount + "% cold resist" }
         if kind == HellfeatherModKind.LightningResist { return amount + "% lightning resist" }
         if kind == HellfeatherModKind.MoveSpeed { return amount + "% move speed" }
+        if kind == HellfeatherModKind.FireDamage { return amount + " fire damage" }
+        if kind == HellfeatherModKind.ColdDamage { return amount + " cold damage" }
+        if kind == HellfeatherModKind.LightningDamage { return amount + " lightning damage" }
         return ""
     }
 

@@ -1,0 +1,1180 @@
+// Status effects: what damage of an element leaves on whoever takes it, the
+// warrior and her enemies alike.
+//
+// Each status keeps a meter from 0 to 1 on each creature. Damage of its element
+// fills it, less what the creature resists: a hit of BuildShare of the
+// creature's maximum health fills it from empty. The meter holds for Hold
+// seconds after the last hit, then drains Drain per second. Its quarters are
+// the status's tiers: 25% the first, 50% the second, 75% the third, and filling
+// it sets off the fourth, the status's burst. After a burst the meter cannot
+// build again for Lockout seconds, so nothing is held down for good.
+//
+// To register a status: add it to HellfeatherStatus, give its element in
+// OfElement, its numbers in Kind and its looks in Look. Creatures carry room for
+// HellfeatherAfflictions.Most of them.
+
+HellfeatherElement : int
+#@{
+    Fire,
+    Cold,
+    Lightning
+}
+
+HellfeatherStatus : int
+#@{
+    // Fire: burns over time, then cuts healing and armor, and ignites at the top.
+    Burn,
+    // Cold: slows, then hobbles, and freezes solid at the top.
+    Chill,
+    // Lightning: makes every blow land harder, then staggers and arcs, and
+    // overloads at the top.
+    Shock
+}
+
+// What a status does when its meter fills.
+HellfeatherStatusBurst : int
+#@{
+    None,
+    // A burst of fire on the creature that spreads the burn to those near it.
+    Ignite,
+    // Frozen solid for BurstSeconds: no moving, no acting, and blows land harder.
+    Freeze,
+    // Lightning chains to the nearest others, and the creature is dazed.
+    Overload
+}
+
+// What one tier of a status does while the meter is at it or above.
+HellfeatherStatusTier
+{
+    string Name
+    // Damage per second, as a share of the heaviest hit of the element that
+    // built the meter.
+    float BurnShare
+    // Percent slower: walking, and attacks coming round.
+    int SlowPercent
+    // Percent more damage from every blow.
+    int VulnerablePercent
+    // Percent less healing.
+    int HealingCut
+    // Percent off armor, so blows miss less.
+    int ArmorCut
+    // No dashing.
+    bool Hobbled
+    // Seconds each blow staggers it.
+    float StaggerOnHit
+    // Share of each blow that arcs to the nearest other enemy.
+    float ArcShare
+}
+
+// A registered status: its element, its four tiers and its meter's pace.
+HellfeatherStatusKind
+{
+    string Name
+    HellfeatherElement Element
+    // In order: the first tier, at a quarter full, to the fourth.
+    HellfeatherStatusTier [] Tiers
+    HellfeatherStatusBurst Burst
+    float BuildShare = 0.35
+    float Hold = 2.0
+    float Drain = 0.3
+    // How long the burst lasts; 0 for one that is over at once.
+    float BurstSeconds
+    float Lockout = 1.5
+}
+
+HellfeatherStatuses
+#{
+    // An ignition deals this many times the burn's heat, and spreads within IgniteRadius.
+    #float IgniteFactor = 3.0
+    #float IgniteRadius = 2.5
+    // An overload chains to ChainCount others within ChainRadius, each taking
+    // OverloadFactor times the shock's heat, and dazes for DazeSeconds.
+    #int ChainCount = 3
+    #float ChainRadius = 5.0
+    #float OverloadFactor = 1.5
+    #float DazeSeconds = 0.6
+    // How far a tier's arc reaches.
+    #float ArcRadius = 4.0
+
+    // The status's color on the enemy plate's pips.
+    uint Color(HellfeatherStatus status)
+    {
+        if status == HellfeatherStatus.Chill { return 0xFF8CCBFF }
+        if status == HellfeatherStatus.Shock { return 0xFFF2E85A }
+        return 0xFFFF7A1A
+    }
+
+    // The status each element's damage builds.
+    HellfeatherStatus OfElement(HellfeatherElement element)
+    {
+        if element == HellfeatherElement.Cold { return HellfeatherStatus.Chill }
+        if element == HellfeatherElement.Lightning { return HellfeatherStatus.Shock }
+        return HellfeatherStatus.Burn
+    }
+
+    // The status's numbers. Tiers[0] is the first tier, at a quarter full.
+    HellfeatherStatusKind Kind(HellfeatherStatus status)
+    {
+        HellfeatherStatusKind kind
+        if status == HellfeatherStatus.Burn {
+            kind.Name = "Burn"
+            kind.Element = HellfeatherElement.Fire
+            kind.Burst = HellfeatherStatusBurst.Ignite
+            kind.Hold = 2.5
+            Tier(kind, "Smouldering", 0.15, 0, 0, 0, 0, false, 0.0, 0.0)
+            Tier(kind, "Burning", 0.3, 0, 0, 25, 0, false, 0.0, 0.0)
+            Tier(kind, "Scorched", 0.45, 0, 0, 25, 15, false, 0.0, 0.0)
+            Tier(kind, "Ignited", 0.45, 0, 0, 25, 15, false, 0.0, 0.0)
+        } else if status == HellfeatherStatus.Chill {
+            kind.Name = "Chill"
+            kind.Element = HellfeatherElement.Cold
+            kind.Burst = HellfeatherStatusBurst.Freeze
+            kind.BurstSeconds = 1.5
+            kind.Lockout = 4.0
+            Tier(kind, "Chilled", 0.0, 10, 0, 0, 0, false, 0.0, 0.0)
+            Tier(kind, "Numbed", 0.0, 20, 0, 0, 0, false, 0.0, 0.0)
+            Tier(kind, "Frostbitten", 0.0, 30, 0, 0, 0, true, 0.0, 0.0)
+            Tier(kind, "Frozen", 0.0, 100, 25, 0, 0, true, 0.0, 0.0)
+        } else if status == HellfeatherStatus.Shock {
+            kind.Name = "Shock"
+            kind.Element = HellfeatherElement.Lightning
+            kind.Burst = HellfeatherStatusBurst.Overload
+            kind.Drain = 0.35
+            Tier(kind, "Jolted", 0.0, 0, 5, 0, 0, false, 0.0, 0.0)
+            Tier(kind, "Shocked", 0.0, 0, 10, 0, 0, false, 0.25, 0.0)
+            Tier(kind, "Overcharged", 0.0, 0, 20, 0, 0, false, 0.25, 0.25)
+            Tier(kind, "Overloaded", 0.0, 0, 20, 0, 0, false, 0.25, 0.25)
+        }
+        return kind
+    }
+
+    // Adds the next tier.
+    -Tier(HellfeatherStatusKind& kind, string title, float burn, int slow, int vulnerable, int healing, int armor, bool hobbled, float stagger, float arc)
+    {
+        HellfeatherStatusTier tier
+        tier.Name = title
+        tier.BurnShare = burn
+        tier.SlowPercent = slow
+        tier.VulnerablePercent = vulnerable
+        tier.HealingCut = healing
+        tier.ArmorCut = armor
+        tier.Hobbled = hobbled
+        tier.StaggerOnHit = stagger
+        tier.ArcShare = arc
+        kind.Tiers += tier
+    }
+
+    // The aura a creature shows at a tier, from 1 to 4: more of it, and
+    // bigger, at each. SpawnRadius is per unit of the creature's height.
+    QuaxelEffectStyle Look(HellfeatherStatus status, int tier)
+    {
+        float t = (float)tier
+        QuaxelEffectStyle style
+        style.EmitSeconds = -1.0
+        style.Floor = 0.5
+        style.MaxParticles = 200
+        style.SpawnRadius = 0.22
+        if status == HellfeatherStatus.Burn {
+            // Licks of flame off the body, taller and thicker at each tier.
+            style.VoxelSize = 0.035
+            style.Rate = 6.0 + 14.0 * t
+            style.SpeedMin = 0.2
+            style.SpeedMax = 0.5 + 0.15 * t
+            style.Spread = 25.0
+            style.Gravity = 2.5
+            style.Drag = 1.6
+            style.Wander = 2.0
+            style.LifeMin = 0.3
+            style.LifeMax = 0.5 + 0.1 * t
+            style.SizeStart = 0.9 + 0.35 * t
+            style.SizeEnd = 0.3
+            style.DensityStart = 0.95
+            style.DensityEnd = 0.4
+            style.ColorStart = 0xfff3a8
+            style.ColorMiddle = 0xff8c1a
+            style.ColorEnd = 0x8a1c08
+            style.MiddleAt = 0.35
+            style.Shade = 0.12
+            style.Flicker = true
+        } else if status == HellfeatherStatus.Chill {
+            // Frost motes drifting down around it; frozen, a still shell of ice.
+            style.VoxelSize = 0.03
+            style.Rate = 5.0 + 8.0 * t
+            style.SpeedMin = 0.05
+            style.SpeedMax = 0.35
+            style.Spread = 180.0
+            style.Gravity = -0.5
+            style.Drag = 1.0
+            style.Wander = 1.2
+            style.LifeMin = 0.7
+            style.LifeMax = 1.3
+            style.SizeStart = 0.8 + 0.2 * t
+            style.SizeEnd = 0.3
+            style.DensityStart = 0.9
+            style.DensityEnd = 0.2
+            style.ColorStart = 0xf4fbff
+            style.ColorMiddle = 0xa8d8ff
+            style.ColorEnd = 0x5a8fd0
+            style.Shade = 0.08
+            if tier >= 4 {
+                style.Rate = 150.0
+                style.SpawnRadius = 0.28
+                style.SpeedMin = 0.0
+                style.SpeedMax = 0.08
+                style.Gravity = 0.0
+                style.LifeMin = 0.3
+                style.LifeMax = 0.5
+                style.SizeStart = 1.8
+                style.SizeEnd = 1.4
+                style.DensityStart = 1.0
+                style.DensityEnd = 0.7
+                style.ColorStart = 0xeef8ff
+                style.ColorMiddle = 0xc4e8ff
+                style.ColorEnd = 0x8cc4f0
+                style.Flicker = true
+            }
+        } else if status == HellfeatherStatus.Shock {
+            // Crackling sparks that jump off it, more often at each tier.
+            style.VoxelSize = 0.025
+            style.Rate = 4.0 + 8.0 * t
+            style.SpeedMin = 1.5
+            style.SpeedMax = 2.5 + 0.5 * t
+            style.Spread = 180.0
+            style.Drag = 3.0
+            style.LifeMin = 0.06
+            style.LifeMax = 0.16
+            style.SizeStart = 1.0
+            style.SizeEnd = 0.6
+            style.Streak = 1.4
+            style.ColorStart = 0xffffff
+            style.ColorMiddle = 0xb8e0ff
+            style.ColorEnd = 0x4060ff
+            style.MiddleAt = 0.3
+            style.Flicker = true
+        }
+        return style
+    }
+
+    // The one burst a status's top tier sets off on the creature.
+    QuaxelEffectStyle BurstLook(HellfeatherStatus status)
+    {
+        QuaxelEffectStyle style
+        style.Floor = 0.5
+        style.MaxParticles = 400
+        style.Burst = 260
+        style.SpawnRadius = 0.2
+        style.Spread = 180.0
+        if status == HellfeatherStatus.Burn {
+            style.VoxelSize = 0.05
+            style.SpeedMin = 1.5
+            style.SpeedMax = 3.5
+            style.Gravity = 2.0
+            style.Drag = 2.5
+            style.LifeMin = 0.3
+            style.LifeMax = 0.7
+            style.SizeStart = 2.4
+            style.SizeEnd = 0.6
+            style.DensityEnd = 0.3
+            style.ColorStart = 0xfff7c0
+            style.ColorMiddle = 0xff7a10
+            style.ColorEnd = 0x6a1404
+            style.MiddleAt = 0.3
+            style.Flicker = true
+        } else if status == HellfeatherStatus.Chill {
+            style.VoxelSize = 0.035
+            style.SpeedMin = 0.8
+            style.SpeedMax = 2.2
+            style.Gravity = -4.0
+            style.Drag = 2.0
+            style.LifeMin = 0.4
+            style.LifeMax = 0.9
+            style.SizeStart = 1.4
+            style.SizeEnd = 0.6
+            style.ColorStart = 0xffffff
+            style.ColorMiddle = 0xbfe6ff
+            style.ColorEnd = 0x6aa6e0
+            style.Streak = 0.4
+        } else {
+            style.VoxelSize = 0.03
+            style.SpeedMin = 3.0
+            style.SpeedMax = 6.0
+            style.Drag = 3.5
+            style.LifeMin = 0.08
+            style.LifeMax = 0.25
+            style.SizeStart = 1.3
+            style.SizeEnd = 0.6
+            style.Streak = 2.0
+            style.ColorStart = 0xffffff
+            style.ColorMiddle = 0xc0e4ff
+            style.ColorEnd = 0x3050ff
+            style.MiddleAt = 0.3
+            style.Flicker = true
+        }
+        return style
+    }
+
+    // A crackle of lightning at one point along an arc.
+    QuaxelEffectStyle ArcSpark()
+    {
+        QuaxelEffectStyle style
+        style.VoxelSize = 0.025
+        style.Floor = 0.5
+        style.MaxParticles = 40
+        style.Burst = 14
+        style.SpawnRadius = 0.12
+        style.SpeedMin = 1.0
+        style.SpeedMax = 2.4
+        style.Spread = 180.0
+        style.Drag = 4.0
+        style.LifeMin = 0.08
+        style.LifeMax = 0.2
+        style.SizeStart = 1.2
+        style.SizeEnd = 0.6
+        style.Streak = 1.8
+        style.ColorStart = 0xffffff
+        style.ColorMiddle = 0xb8e0ff
+        style.ColorEnd = 0x4060ff
+        style.MiddleAt = 0.3
+        style.Flicker = true
+        return style
+    }
+}
+
+// What one creature suffers: a meter per status, and the aura it shows.
+HellfeatherAfflictions
+{
+    float [4] Meter
+    // Seconds since the meter last built.
+    float [4] Since
+    // The heaviest hit of the element since the meter was empty, after resistance.
+    float [4] Heat
+    // Seconds left of a lasting burst, such as a freeze.
+    float [4] BurstLeft
+    float [4] Lockout
+    // Burn damage owed but not yet whole.
+    float [4] Owed
+    // The aura's effect, and which tier it shows.
+    int [4] Effect
+    int [4] Showing
+    // The heat of the burst Build last set off, for the damage it deals.
+    float BurstHeat
+
+    // 0 below a quarter, then 1 to 4.
+    int Tier(HellfeatherStatus status)
+    {
+        if BurstLeft[status] > 0.0 || Meter[status] >= 1.0 { return 4 }
+        return Math.Clamp((int)(Meter[status] * 4.0), 0, 3)
+    }
+
+    // The numbers of the tier it is at, or of none.
+    HellfeatherStatusTier Current(HellfeatherStatus status)
+    {
+        HellfeatherStatusTier none
+        int tier = Tier(status)
+        if tier <= 0 { return none }
+        kind : HellfeatherStatuses.Kind(status)
+        if tier > kind.Tiers.Len { return none }
+        return kind.Tiers[tier - 1]
+    }
+
+    // Damage of the status's element lands. Resist is in percent. True when it
+    // fills the meter and sets off the burst; BurstHeat is then its heat.
+    bool Build(HellfeatherStatus status, int amount, int maxHealth, int resist)
+    {
+        if amount <= 0 || maxHealth <= 0 || Lockout[status] > 0.0 || BurstLeft[status] > 0.0 { return false }
+        kind : HellfeatherStatuses.Kind(status)
+        float taken = (float)HellfeatherCombat.Resisted(amount, resist)
+        if taken <= 0.0 { return false }
+        Meter[status] += taken / ((float)maxHealth * kind.BuildShare)
+        Since[status] = 0.0
+        Heat[status] = Math.Max(Heat[status], taken)
+        if Meter[status] < 1.0 { return false }
+        BurstHeat = Heat[status]
+        Meter[status] = 1.0
+        if kind.BurstSeconds > 0.0 { BurstLeft[status] = kind.BurstSeconds }
+        else { End(status, kind.Lockout) }
+        return true
+    }
+
+    // Starts a status at its first tier at least, as an ignition spreading does.
+    Kindle(HellfeatherStatus status, float heat)
+    {
+        if Lockout[status] > 0.0 || BurstLeft[status] > 0.0 { return }
+        Meter[status] = Math.Max(Meter[status], 0.26)
+        Heat[status] = Math.Max(Heat[status], heat)
+        Since[status] = 0.0
+    }
+
+    -End(HellfeatherStatus status, float lockout)
+    {
+        Meter[status] = 0.0
+        Heat[status] = 0.0
+        Since[status] = 0.0
+        Owed[status] = 0.0
+        BurstLeft[status] = 0.0
+        Lockout[status] = lockout
+    }
+
+    // Advances one step: bursts run out, meters hold and then drain, and
+    // burns add up. Returns the whole burn damage due this step.
+    int Step(float deltaSeconds)
+    {
+        int burn = 0
+        for status : HellfeatherStatus {
+            if Lockout[status] > 0.0 { Lockout[status] = Math.Max(0.0, Lockout[status] - deltaSeconds) }
+            // Nothing to do for a status it is free of.
+            if BurstLeft[status] <= 0.0 && Meter[status] <= 0.0 { continue }
+            kind : HellfeatherStatuses.Kind(status)
+            if BurstLeft[status] > 0.0 {
+                BurstLeft[status] -= deltaSeconds
+                if BurstLeft[status] <= 0.0 { End(status, kind.Lockout) }
+                continue
+            }
+            if Meter[status] <= 0.0 { continue }
+            tier : Current(status)
+            if tier.BurnShare > 0.0 {
+                Owed[status] += Heat[status] * tier.BurnShare * deltaSeconds
+                int whole = (int)Owed[status]
+                burn += whole
+                Owed[status] -= (float)whole
+            }
+            Since[status] += deltaSeconds
+            if Since[status] > kind.Hold {
+                Meter[status] -= kind.Drain * deltaSeconds
+                if Meter[status] <= 0.0 { End(status, 0.0) }
+            }
+        }
+        return burn
+    }
+
+    // Percent slower, from every status together; frozen is 100.
+    int Slow()
+    {
+        int total = 0
+        for status : HellfeatherStatus {
+            tier : Current(status)
+            total += tier.SlowPercent
+        }
+        return Math.Clamp(total, 0, 100)
+    }
+
+    // Percent more damage from each blow.
+    int Vulnerable()
+    {
+        int total = 0
+        for status : HellfeatherStatus {
+            tier : Current(status)
+            total += tier.VulnerablePercent
+        }
+        return total
+    }
+
+    int HealingCut()
+    {
+        int most = 0
+        for status : HellfeatherStatus {
+            tier : Current(status)
+            most = Math.Max(most, tier.HealingCut)
+        }
+        return most
+    }
+
+    int ArmorCut()
+    {
+        int most = 0
+        for status : HellfeatherStatus {
+            tier : Current(status)
+            most = Math.Max(most, tier.ArmorCut)
+        }
+        return most
+    }
+
+    bool Hobbled()
+    {
+        for status : HellfeatherStatus {
+            tier : Current(status)
+            if tier.Hobbled { return true }
+        }
+        return false
+    }
+
+    float StaggerOnHit()
+    {
+        float most = 0.0
+        for status : HellfeatherStatus {
+            tier : Current(status)
+            most = Math.Max(most, tier.StaggerOnHit)
+        }
+        return most
+    }
+
+    float ArcShare()
+    {
+        float most = 0.0
+        for status : HellfeatherStatus {
+            tier : Current(status)
+            most = Math.Max(most, tier.ArcShare)
+        }
+        return most
+    }
+
+    // Frozen solid by a lasting freeze.
+    bool Frozen()
+    {
+        for status : HellfeatherStatus {
+            if BurstLeft[status] <= 0.0 { continue }
+            kind : HellfeatherStatuses.Kind(status)
+            if kind.Burst == HellfeatherStatusBurst.Freeze { return true }
+        }
+        return false
+    }
+
+    // A whole number less the healing cut.
+    int Healed(int amount) { return amount * (100 - HealingCut()) / 100 }
+
+    // A blow's damage with the vulnerability on it.
+    int Worsened(int amount) { return amount * (100 + Vulnerable()) / 100 }
+
+    // Keeps each status's aura on the creature at its tier, moved to where it
+    // stands. Feet is its point on the ground and Height its height.
+    ShowAt(QuaxelWorld& world, vec3 feet, float height)
+    {
+        vec3 middle = feet + vec3(0.0, height * 0.45, 0.0)
+        for status : HellfeatherStatus {
+            int tier = Tier(status)
+            if tier != Showing[status] {
+                if Effect[status] > 0 { world.StopEffect(Effect[status]) }
+                Effect[status] = 0
+                Showing[status] = tier
+                if tier > 0 {
+                    QuaxelEffectStyle look = HellfeatherStatuses.Look(status, tier)
+                    look.SpawnRadius = look.SpawnRadius * height
+                    Effect[status] = world.StartEffect(look, middle, vec3(0.0, 1.0, 0.0))
+                }
+            } else if Effect[status] > 0 {
+                world.MoveEffect(Effect[status], middle)
+            }
+        }
+    }
+
+    // Ends every status and stops its aura, as when the creature falls or leaves.
+    Clear(QuaxelWorld& world)
+    {
+        for status : HellfeatherStatus {
+            if Effect[status] > 0 { world.StopEffect(Effect[status]) }
+            Effect[status] = 0
+            Showing[status] = 0
+            End(status, 0.0)
+        }
+    }
+
+    bool Any()
+    {
+        for status : HellfeatherStatus {
+            if Meter[status] > 0.0 || BurstLeft[status] > 0.0 { return true }
+        }
+        return false
+    }
+}
+#{
+    // Room for this many registered statuses.
+    #int Most = 4
+}
+
+EnemyController
+{
+    HellfeatherAfflictions Afflictions
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherAfflictions PlayerAfflictions
+    // Seconds she stays dazed by an overload: no moving, no acting.
+    float DazedSeconds
+    -bool PlayerWasFrozen
+    // Starts her with a rare axe that deals all three elements, to see them.
+    bool ElementsOnStart
+
+    // Whether a status holds her where she stands.
+    bool PlayerHeld() { return PlayerAfflictions.Frozen() || DazedSeconds > 0.0 }
+
+    -vec3 PlayerFeet(QuaxelWorld& world)
+    {
+        vec3 at = world.GetPosition(PlayerNode)
+        return vec3(at.X, Terrain.GroundY(at.X, at.Z), at.Z)
+    }
+
+    -vec3 EnemyFeet(QuaxelWorld& world, int i)
+    {
+        vec3 at = world.GetPosition(Enemies[i].Node)
+        return vec3(at.X, Terrain.GroundY(at.X, at.Z), at.Z)
+    }
+
+    -float EnemyHeight(int i) { return (float)Spawner.Table.Kinds[Enemies[i].Kind].Height * Spawner.Table.Kinds[Enemies[i].Kind].VoxelSize }
+
+    -vec3 EnemyMiddle(QuaxelWorld& world, int i) { return EnemyFeet(world, i) + vec3(0.0, EnemyHeight(i) * 0.45, 0.0) }
+
+    // Speed and pace of an enemy, after what slows it.
+    -float Unslowed(int i) { return (float)(100 - Enemies[i].Afflictions.Slow()) / 100.0 }
+
+    -float Pace(int i) { return Frenzy(i) * Unslowed(i) }
+
+    // Fire, cold and lightning landing on her, after her resistances.
+    -AfflictPlayer(QuaxelWorld& world, int fire, int cold, int lightning)
+    {
+        stats : Stats()
+        int most = PlayerMaxHealth()
+        if PlayerAfflictions.Build(HellfeatherStatus.Burn, fire, most, stats.FireResist) { PlayerBurst(world, HellfeatherStatus.Burn) }
+        if PlayerAfflictions.Build(HellfeatherStatus.Chill, cold, most, stats.ColdResist) { PlayerBurst(world, HellfeatherStatus.Chill) }
+        if PlayerAfflictions.Build(HellfeatherStatus.Shock, lightning, most, stats.LightningResist) { PlayerBurst(world, HellfeatherStatus.Shock) }
+    }
+
+    -PlayerBurst(QuaxelWorld& world, HellfeatherStatus status)
+    {
+        float height = (float)HellfeatherWarrior.Height * HellfeatherWarrior.VoxelSize
+        world.StartEffect(HellfeatherStatuses.BurstLook(status), PlayerFeet(world) + vec3(0.0, height * 0.45, 0.0), vec3(0.0, 1.0, 0.0))
+        if status == HellfeatherStatus.Burn {
+            Banner.Show("You ignite", 1.5)
+            BurnPlayer(world, (int)(PlayerAfflictions.BurstHeat * HellfeatherStatuses.IgniteFactor))
+        }
+        if status == HellfeatherStatus.Chill { Banner.Show("Frozen solid", 1.5) }
+        if status == HellfeatherStatus.Shock {
+            Banner.Show("Overloaded", 1.5)
+            DazedSeconds = HellfeatherStatuses.DazeSeconds
+        }
+    }
+
+    // Her blow's elements landing on an enemy. Enemies resist nothing yet.
+    -AfflictEnemy(QuaxelWorld& world, int i, int fire, int cold, int lightning)
+    {
+        int most = Enemies[i].MaxHealth
+        if Enemies[i].Afflictions.Build(HellfeatherStatus.Burn, fire, most, 0) { EnemyBurst(world, i, HellfeatherStatus.Burn) }
+        if Enemies[i].Health > 0 && Enemies[i].Afflictions.Build(HellfeatherStatus.Chill, cold, most, 0) { EnemyBurst(world, i, HellfeatherStatus.Chill) }
+        if Enemies[i].Health > 0 && Enemies[i].Afflictions.Build(HellfeatherStatus.Shock, lightning, most, 0) { EnemyBurst(world, i, HellfeatherStatus.Shock) }
+    }
+
+    -EnemyBurst(QuaxelWorld& world, int i, HellfeatherStatus status)
+    {
+        vec3 middle = EnemyMiddle(world, i)
+        float heat = Enemies[i].Afflictions.BurstHeat
+        world.StartEffect(HellfeatherStatuses.BurstLook(status), middle, vec3(0.0, 1.0, 0.0))
+        if status == HellfeatherStatus.Burn {
+            // The ignition spreads a smoulder to whoever stands close.
+            vec3 at = world.GetPosition(Enemies[i].Node)
+            for j : 0; j < Enemies.Len; j++ {
+                if j == i || !Enemies[j].Awake || Enemies[j].Node == 0 || Enemies[j].Health <= 0 { continue }
+                if GroundDistance(at, world.GetPosition(Enemies[j].Node)) > HellfeatherStatuses.IgniteRadius { continue }
+                Enemies[j].Afflictions.Kindle(HellfeatherStatus.Burn, heat)
+                HurtEnemy(world, j, (int)heat)
+            }
+            HurtEnemy(world, i, (int)(heat * HellfeatherStatuses.IgniteFactor))
+        }
+        if status == HellfeatherStatus.Shock {
+            Enemies[i].Stagger = Math.Max(Enemies[i].Stagger, HellfeatherStatuses.DazeSeconds)
+            ChainFrom(world, i, (int)(heat * HellfeatherStatuses.OverloadFactor), HellfeatherStatuses.ChainCount, HellfeatherStatuses.ChainRadius)
+        }
+    }
+
+    // Lightning jumping from one enemy to the nearest others in turn, each
+    // within reach of the last.
+    -ChainFrom(QuaxelWorld& world, int i, int amount, int count, float reach)
+    {
+        int [] struck = {i}
+        int last = i
+        for n : 0; n < count; n++ {
+            vec3 from = world.GetPosition(Enemies[last].Node)
+            int best = -1
+            float bestDistance = reach
+            for j : 0; j < Enemies.Len; j++ {
+                if !Enemies[j].Awake || Enemies[j].Node == 0 || Enemies[j].Health <= 0 { continue }
+                bool already = false
+                for k : struck {
+                    if k == j { already = true }
+                }
+                if already { continue }
+                float distance = GroundDistance(from, world.GetPosition(Enemies[j].Node))
+                if distance <= bestDistance {
+                    best = j
+                    bestDistance = distance
+                }
+            }
+            if best < 0 { return }
+            ArcBetween(world, EnemyMiddle(world, last), EnemyMiddle(world, best))
+            struck += best
+            last = best
+            HurtEnemy(world, best, amount)
+        }
+    }
+
+    // A line of crackles from one point to another.
+    -ArcBetween(QuaxelWorld& world, vec3 from, vec3 to)
+    {
+        float distance = (to - from).Length()
+        int steps = Math.Max(1, (int)(distance / 0.6))
+        for k : 0; k <= steps; k++ {
+            vec3 point = from.Lerp(to, (float)k / (float)steps)
+            world.StartEffect(HellfeatherStatuses.ArcSpark(), point, vec3(0.0, 1.0, 0.0))
+        }
+    }
+
+    // Damage to an enemy outside a swing, from burns, arcs and bursts. A kill
+    // still counts as hers.
+    -HurtEnemy(QuaxelWorld& world, int i, int amount)
+    {
+        if amount <= 0 || !Enemies[i].Awake || Enemies[i].Node == 0 || Enemies[i].Health <= 0 { return }
+        Enemies[i].Provoked = true
+        Enemies[i].Health -= amount
+        if Enemies[i].Health > 0 { return }
+        SlayEnemy(world, i)
+        world.PlayClip(Enemies[i].VisualNode, "death")
+    }
+
+    // Burns hurt her without drawing blood.
+    -BurnPlayer(QuaxelWorld& world, int amount)
+    {
+        if PlayerHealth <= 0 || amount <= 0 { return }
+        PlayerHealth -= amount
+        if PlayerHealth <= 0 { FallPlayer(world) }
+    }
+
+    // Steps every status on her and on each awake enemy: burns, auras,
+    // thawing, and what a sleeping or fallen creature leaves behind.
+    StepAfflictions(QuaxelWorld& world, float deltaSeconds)
+    {
+        for i : 0; i < Enemies.Len; i++ {
+            if !Enemies[i].Awake || Enemies[i].Node == 0 || Enemies[i].Health <= 0 {
+                if Enemies[i].Afflictions.Any() || Enemies[i].Afflictions.Effect[0] > 0 || Enemies[i].Afflictions.Effect[1] > 0 || Enemies[i].Afflictions.Effect[2] > 0 { Enemies[i].Afflictions.Clear(world) }
+                continue
+            }
+            bool wasFrozen = Enemies[i].Afflictions.Frozen()
+            int burn = Enemies[i].Afflictions.Step(deltaSeconds)
+            if wasFrozen && !Enemies[i].Afflictions.Frozen() { world.SetAnimationSpeed(Enemies[i].VisualNode, 1.0) }
+            Enemies[i].Afflictions.ShowAt(world, EnemyFeet(world, i), EnemyHeight(i))
+            HurtEnemy(world, i, burn)
+        }
+        if PlayerHealth <= 0 {
+            PlayerAfflictions.Clear(world)
+            DazedSeconds = 0.0
+        } else {
+            if DazedSeconds > 0.0 { DazedSeconds = Math.Max(0.0, DazedSeconds - deltaSeconds) }
+            int burn = PlayerAfflictions.Step(deltaSeconds)
+            PlayerAfflictions.ShowAt(world, PlayerFeet(world), (float)HellfeatherWarrior.Height * HellfeatherWarrior.VoxelSize)
+            BurnPlayer(world, burn)
+        }
+        // Frozen, her pose holds; thawed, it moves again.
+        bool frozen = PlayerAfflictions.Frozen()
+        if frozen != PlayerWasFrozen {
+            for controller : Controllers { world.SetAnimationSpeed(controller.VisualNode, frozen ? 0.0 | 1.0) }
+            PlayerWasFrozen = frozen
+        }
+    }
+
+    // Every enemy's statuses end, as when she leaves the level.
+    -ClearEnemyAfflictions(QuaxelWorld& world)
+    {
+        for i : 0; i < Enemies.Len; i++ { Enemies[i].Afflictions.Clear(world) }
+    }
+
+    // A rare hand axe with fire, cold and lightning on it, for --elements.
+    -GiveElementalWeapon()
+    {
+        HellfeatherItemMods mods
+        mods.Clear()
+        mods.Rarity = HellfeatherRarity.Rare
+        mods.Add(HellfeatherModKind.FireDamage, 9)
+        mods.Add(HellfeatherModKind.ColdDamage, 9)
+        mods.Add(HellfeatherModKind.LightningDamage, 9)
+        Inventory.Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.HandAxe
+        Inventory.Items.EquippedMods[HellfeatherSlot.MainHand] = mods
+    }
+}
+T{
+    // The meter's quarters are the tiers, and filling it sets off the burst.
+    TheMeterClimbsThroughFourTiers()
+    {
+        HellfeatherAfflictions afflictions
+        HellfeatherStatus chill = HellfeatherStatus.Chill
+        kind : HellfeatherStatuses.Kind(chill)
+        // A hit of BuildShare of max health fills it; a fifth of that is one tier.
+        int quarter = (int)(100.0 * kind.BuildShare * 0.26) + 1
+        T.AreEqual(afflictions.Tier(chill), 0)
+        T.IsFalse(afflictions.Build(chill, quarter, 100, 0))
+        T.AreEqual(afflictions.Tier(chill), 1)
+        T.AreEqual(afflictions.Slow(), 10)
+        T.IsFalse(afflictions.Build(chill, quarter, 100, 0))
+        T.AreEqual(afflictions.Tier(chill), 2)
+        T.AreEqual(afflictions.Slow(), 20)
+        T.IsFalse(afflictions.Build(chill, quarter, 100, 0))
+        T.AreEqual(afflictions.Tier(chill), 3)
+        T.IsTrue(afflictions.Hobbled())
+        T.IsTrue(afflictions.Build(chill, quarter, 100, 0))
+        T.AreEqual(afflictions.Tier(chill), 4)
+        T.IsTrue(afflictions.Frozen())
+        T.AreEqual(afflictions.Slow(), 100)
+        T.AreEqual(afflictions.Worsened(100), 125)
+        // The freeze runs out, and it cannot build again at once.
+        for n : 0; n < 100; n++ { afflictions.Step(0.02) }
+        T.IsFalse(afflictions.Frozen())
+        T.AreEqual(afflictions.Tier(chill), 0)
+        T.IsFalse(afflictions.Build(chill, quarter, 100, 0))
+        T.AreEqual(afflictions.Tier(chill), 0)
+    }
+
+    // Resistance builds less, and a resisted element can build nothing.
+    ResistanceSlowsTheMeter()
+    {
+        HellfeatherAfflictions open
+        HellfeatherAfflictions guarded
+        open.Build(HellfeatherStatus.Shock, 20, 100, 0)
+        guarded.Build(HellfeatherStatus.Shock, 20, 100, 50)
+        T.IsTrue(guarded.Meter[HellfeatherStatus.Shock] < open.Meter[HellfeatherStatus.Shock])
+        T.AreEqual(guarded.Meter[HellfeatherStatus.Shock] * 2.0, open.Meter[HellfeatherStatus.Shock])
+    }
+
+    // A burn deals its share of the fire that lit it each second, and fades
+    // once the fire stops.
+    ABurnDealsDamageAndThenFades()
+    {
+        HellfeatherAfflictions afflictions
+        HellfeatherStatus burn = HellfeatherStatus.Burn
+        afflictions.Build(burn, 20, 100, 0)
+        int tier = afflictions.Tier(burn)
+        T.IsTrue(tier >= 2)
+        int total = 0
+        for n : 0; n < 50; n++ { total += afflictions.Step(0.02) }
+        T.IsTrue(total > 0)
+        for n : 0; n < 1000; n++ { afflictions.Step(0.02) }
+        T.AreEqual(afflictions.Tier(burn), 0)
+        T.IsFalse(afflictions.Any())
+    }
+
+    // Shock makes blows land harder, more at each tier, and stacks with a freeze.
+    ShockMakesBlowsLandHarder()
+    {
+        HellfeatherAfflictions afflictions
+        afflictions.Meter[HellfeatherStatus.Shock] = 0.3
+        T.AreEqual(afflictions.Worsened(100), 105)
+        afflictions.Meter[HellfeatherStatus.Shock] = 0.8
+        T.AreEqual(afflictions.Worsened(100), 120)
+        T.IsTrue(afflictions.ArcShare() > 0.0)
+        afflictions.Meter[HellfeatherStatus.Burn] = 0.6
+        T.AreEqual(afflictions.Healed(40), 30)
+    }
+
+    // The plate shows a group of pips for each status at its first tier or above.
+    ThePlateShowsAGroupForEachStatus()
+    {
+        HellfeatherAfflictions afflictions
+        T.AreEqual(HellfeatherEnemyPlate.StatusGroups(afflictions), 0)
+        afflictions.Meter[HellfeatherStatus.Burn] = 0.1
+        T.AreEqual(HellfeatherEnemyPlate.StatusGroups(afflictions), 0)
+        afflictions.Meter[HellfeatherStatus.Burn] = 0.5
+        afflictions.Meter[HellfeatherStatus.Shock] = 0.3
+        T.AreEqual(HellfeatherEnemyPlate.StatusGroups(afflictions), 2)
+        afflictions.BurstLeft[HellfeatherStatus.Chill] = 1.0
+        T.AreEqual(HellfeatherEnemyPlate.StatusGroups(afflictions), 3)
+        // Three groups fit under the narrowest plate.
+        T.IsTrue(3 * HellfeatherEnemyPlate.GroupWidth() + 2 * HellfeatherEnemyPlate.GroupGap <= HellfeatherEnemyPlate.MinWidth)
+        for status : HellfeatherStatus {
+            T.AreNotEqual(HellfeatherStatuses.Color(status), (uint)0)
+            // Each icon has a picture, inside the atlas and clear of the chest panel.
+            T.AreEqual(HellfeatherStatusArt.IconOf(status).Name, status.Name)
+        }
+        for icon : HellfeatherStatusIcon {
+            T.AreNotEqual(HellfeatherStatusArt.ColorOf(icon, 97), 0)
+            T.IsTrue(HellfeatherStatusArt.IconX(icon) >= HellfeatherInventoryArt.PanelWidth)
+            T.IsTrue(HellfeatherStatusArt.IconX(icon) + HellfeatherEnemyPlate.IconBox() <= HellfeatherInventoryArt.AtlasWidth)
+        }
+        T.IsTrue(HellfeatherStatusArt.IconY + HellfeatherEnemyPlate.IconBox() <= HellfeatherInventoryArt.AtlasHeight)
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        HellfeatherEnemyPlate.DrawStatuses(ui, 480, afflictions)
+    }
+
+    // Every status fits the creatures' arrays, and each has four named tiers.
+    EveryStatusIsRegisteredWithFourTiers()
+    {
+        T.IsTrue(HellfeatherStatus.Count <= HellfeatherAfflictions.Most)
+        for status : HellfeatherStatus {
+            kind : HellfeatherStatuses.Kind(status)
+            T.IsTrue(Length(kind.Name) > 0)
+            T.AreEqual(HellfeatherStatuses.OfElement(kind.Element), status)
+            T.AreEqual(kind.Tiers.Len, (long)4)
+            for tier : kind.Tiers { T.IsTrue(Length(tier.Name) > 0) }
+            for t : 1...4 {
+                QuaxelEffectStyle look = HellfeatherStatuses.Look(status, t)
+                T.IsTrue(look.Rate > 0.0)
+            }
+        }
+    }
+
+    // Her elemental blows burn, chill and shock an enemy, and its aura follows it.
+    HerElementalBlowsAfflictEnemies()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "mill"
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        game.Simulate(world, input, 30)
+        int target = -1
+        for i : 0; i < game.Enemies.Len; i++ {
+            if target < 0 && game.Enemies[i].Awake && game.Enemies[i].Node != 0 && game.Enemies[i].Health > 0 { target = (int)i }
+        }
+        T.IsTrue(target >= 0)
+        game.Enemies[target].Health = 100000
+        game.Enemies[target].MaxHealth = 100
+        game.AfflictEnemy(world, target, 10, 10, 10)
+        T.IsTrue(game.Enemies[target].Afflictions.Tier(HellfeatherStatus.Burn) >= 1)
+        T.IsTrue(game.Enemies[target].Afflictions.Tier(HellfeatherStatus.Chill) >= 1)
+        T.IsTrue(game.Enemies[target].Afflictions.Tier(HellfeatherStatus.Shock) >= 1)
+        game.StepAfflictions(world, 0.02)
+        T.IsTrue(world.IsEffectPlaying(game.Enemies[target].Afflictions.Effect[HellfeatherStatus.Burn]))
+        T.IsTrue(world.IsEffectPlaying(game.Enemies[target].Afflictions.Effect[HellfeatherStatus.Chill]))
+        // Filled with cold, it freezes and stands still.
+        game.AfflictEnemy(world, target, 0, 200, 0)
+        T.IsTrue(game.Enemies[target].Afflictions.Frozen())
+        vec3 before = world.GetPosition(game.Enemies[target].Node)
+        game.Simulate(world, input, 20)
+        vec3 after = world.GetPosition(game.Enemies[target].Node)
+        T.AreEqual(Math.Hypot(after.X - before.X, after.Z - before.Z), 0.0)
+        // Slain, its auras stop.
+        int burnEffect = game.Enemies[target].Afflictions.Effect[HellfeatherStatus.Burn]
+        game.Enemies[target].Health = 1
+        game.HurtEnemy(world, target, 5)
+        game.StepAfflictions(world, 0.02)
+        T.AreEqual(game.Enemies[target].Afflictions.Effect[HellfeatherStatus.Burn], 0)
+        T.IsFalse(game.Enemies[target].Afflictions.Any())
+        T.IsTrue(burnEffect > 0)
+    }
+
+    // Frozen or dazed, she cannot walk; chilled, she walks slower.
+    StatusesHoldAndSlowHer()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        input.SetDown(QuaxelKey.D, true)
+        vec3 start = world.GetPosition(game.PlayerNode)
+        game.Simulate(world, input, 25)
+        vec3 walked = world.GetPosition(game.PlayerNode)
+        float free = Math.Hypot(walked.X - start.X, walked.Z - start.Z)
+        T.IsTrue(free > 0.1)
+        game.PlayerAfflictions.Meter[HellfeatherStatus.Chill] = 0.8
+        game.PlayerAfflictions.Since[HellfeatherStatus.Chill] = -100.0
+        game.Simulate(world, input, 25)
+        vec3 chilled = world.GetPosition(game.PlayerNode)
+        float slow = Math.Hypot(chilled.X - walked.X, chilled.Z - walked.Z)
+        T.IsTrue(slow < free * 0.8)
+        game.DazedSeconds = 5.0
+        game.Simulate(world, input, 10)
+        vec3 dazed = world.GetPosition(game.PlayerNode)
+        T.AreEqual(Math.Hypot(dazed.X - chilled.X, dazed.Z - chilled.Z), 0.0)
+    }
+
+    // Elemental mods add their element to her blows' numbers.
+    ElementalModsAddToHerStats()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.ElementsOnStart = true
+        T.IsTrue(game.Prepare(world))
+        stats : game.Stats()
+        T.AreEqual(stats.FireDamage, 9)
+        T.AreEqual(stats.ColdDamage, 9)
+        T.AreEqual(stats.LightningDamage, 9)
+    }
+}
+
+// Her own statuses and buffs as small tiles beside the health globe: each a
+// square with a faint border, its icon on top and its tier's pips under it (a
+// buff shows a bar of the time it has left instead). They stack up from the
+// globe's bottom, MaxRows to a column, then fill the next column to the right.
+// Pointing at one shows what it is and what it does to her.
+HellfeatherStatusColumn
+#{
+    #int Tile = 15
+    #int TileHeight = 18
+    #int Gap = 2
+    #int MaxRows = 3
+    #int PipSize = 2
+    #uint BuffColor = 0xFFE8B040
+    #uint Border = 0x80C8B48C
+    #uint Backing = 0x70100C0A
+    // The entry that stands for the war cry; statuses are their own value.
+    #int WarCryEntry = -1
+
+    // What shows, in order: the war cry, then each status at its first tier or above.
+    int [] Entries(HellfeatherAfflictions afflictions, float warCryShare)
+    {
+        int [] entries
+        if warCryShare > 0.0 { entries += WarCryEntry }
+        for status : HellfeatherStatus {
+            if afflictions.Tier(status) > 0 { entries += status + 0 }
+        }
+        return entries
+    }
+
+    // The top left of the nth tile on the UI grid.
+    TileAt(int left, int bottom, int n, int& x, int& y)
+    {
+        int column = n / MaxRows
+        int row = n % MaxRows
+        x = left + column * (Tile + Gap)
+        y = bottom - (row + 1) * TileHeight - row * Gap
+    }
+
+    // The tile under a point, or -1.
+    int TileUnder(int left, int bottom, int count, int px, int py)
+    {
+        for n : 0; n < count; n++ {
+            int x = 0
+            int y = 0
+            TileAt(left, bottom, n, x, y)
+            if px >= x && py >= y && px < x + Tile && py < y + TileHeight { return n }
+        }
+        return -1
+    }
+
+    // Mouse values are on the UI grid. WarCryShare is the war cry's time
+    // left, 0 to 1, and WarCrySeconds the same in seconds.
+    Draw(QuaxelUi& ui, int left, int bottom, HellfeatherAfflictions afflictions, float warCryShare, float warCrySeconds, int mouseX, int mouseY)
+    {
+        entries : Entries(afflictions, warCryShare)
+        int pipsWidth = 4 * PipSize + 3
+        for n : 0; n < entries.Len; n++ {
+            int x = 0
+            int y = 0
+            TileAt(left, bottom, n, x, y)
+            int entry = entries[n]
+            int tier = entry >= 0 ? afflictions.Tier((HellfeatherStatus)entry) | 0
+            // A burst, such as frozen, rims its tile in white.
+            Frame(ui, x, y, tier >= 4 ? 0xD0FFFFFF | Border)
+            int inner = x + (Tile - HellfeatherEnemyPlate.IconBox()) / 2
+            HellfeatherStatusArt.DrawIcon(ui, inner, y + 2, entry < 0 ? HellfeatherStatusIcon.WarCry | HellfeatherStatusArt.IconOf((HellfeatherStatus)entry))
+            int under = y + 2 + HellfeatherEnemyPlate.IconBox() + 1
+            int startX = x + (Tile - pipsWidth) / 2
+            if entry < 0 {
+                ui.OverlayRect(startX, under, pipsWidth, PipSize, 0xC02A2420)
+                ui.OverlayRect(startX, under, Math.Max(1, (int)((float)pipsWidth * Math.Clamp(warCryShare, 0.0, 1.0) + 0.5)), PipSize, BuffColor)
+                continue
+            }
+            uint lit = HellfeatherStatuses.Color((HellfeatherStatus)entry)
+            for pip : 0; pip < 4; pip++ {
+                ui.OverlayRect(startX + pip * (PipSize + 1), under, PipSize, PipSize, pip < tier ? lit | 0xC02A2420)
+            }
+        }
+        int hovered = TileUnder(left, bottom, (int)entries.Len, mouseX, mouseY)
+        if hovered >= 0 { Tooltip(ui, mouseX, mouseY, entries[hovered], afflictions, warCrySeconds) }
+    }
+
+    -Frame(QuaxelUi& ui, int x, int y, uint border)
+    {
+        ui.OverlayRect(x + 1, y + 1, Tile - 2, TileHeight - 2, Backing)
+        ui.OverlayRect(x, y, Tile, 1, border)
+        ui.OverlayRect(x, y + TileHeight - 1, Tile, 1, border)
+        ui.OverlayRect(x, y + 1, 1, TileHeight - 2, border)
+        ui.OverlayRect(x + Tile - 1, y + 1, 1, TileHeight - 2, border)
+    }
+
+    // The tooltip's lines: the name and tier first, then what it does to her.
+    string [] TooltipLines(int entry, HellfeatherAfflictions afflictions, float warCrySeconds)
+    {
+        string [] lines
+        if entry < 0 {
+            lines += "War Cry"
+            lines += "Double damage"
+            lines += QuaxelUi.FormatInt((int)Math.Ceil(warCrySeconds)) + "s left"
+            return lines
+        }
+        HellfeatherStatus status = (HellfeatherStatus)entry
+        kind : HellfeatherStatuses.Kind(status)
+        tier : afflictions.Current(status)
+        int level = afflictions.Tier(status)
+        lines += kind.Name + ": " + tier.Name
+        if afflictions.Frozen() && status == HellfeatherStatus.Chill { lines += "Frozen solid: no moving" }
+        else if tier.SlowPercent > 0 { lines += QuaxelUi.FormatInt(tier.SlowPercent) + "% slower" }
+        if tier.BurnShare > 0.0 { lines += "Burning over time" }
+        if tier.VulnerablePercent > 0 { lines += "Takes " + QuaxelUi.FormatInt(tier.VulnerablePercent) + "% more damage" }
+        if tier.HealingCut > 0 { lines += QuaxelUi.FormatInt(tier.HealingCut) + "% less healing" }
+        if tier.ArmorCut > 0 { lines += QuaxelUi.FormatInt(tier.ArmorCut) + "% less defense" }
+        if tier.Hobbled { lines += "Cannot dash" }
+        lines += "Tier " + QuaxelUi.FormatInt(level) + " of 4"
+        return lines
+    }
+
+    -Tooltip(QuaxelUi& ui, int mouseX, int mouseY, int entry, HellfeatherAfflictions afflictions, float warCrySeconds)
+    {
+        lines : TooltipLines(entry, afflictions, warCrySeconds)
+        int characters = 0
+        for line : lines { characters = Math.Max(characters, (int)Length(line)) }
+        int boxWidth = characters * 6 + 12
+        int boxHeight = 4 + (int)lines.Len * 11
+        int x = mouseX + 8
+        int y = Math.Max(2, mouseY - boxHeight - 4)
+        ui.OverlayRect(x - 1, y - 1, boxWidth + 2, boxHeight + 2, 0xFF625749)
+        ui.OverlayRect(x, y, boxWidth, boxHeight, 0xF0120F0D)
+        uint title = entry < 0 ? BuffColor | HellfeatherStatuses.Color((HellfeatherStatus)entry)
+        for i : 0; i < lines.Len; i++ {
+            uint color = i == 0 ? title | 0xFFC8CCD4
+            if i == lines.Len - 1 && i > 0 { color = 0xFF8C8880 }
+            ui.OverlayText(x + 6, y + 4 + (int)i * 11, lines[i], color)
+        }
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // Her statuses and buffs beside the health globe. Mouse is in window pixels.
+    DrawStatusColumn(QuaxelUi& ui, int width, int height, int mouseX, int mouseY)
+    {
+        float warCry = WarCrySeconds > 0.0 ? WarCrySeconds / Math.Max(0.01, WarCrySecondsTotal()) | 0.0
+        int scale = ui.ScaleFor(width, height)
+        HellfeatherStatusColumn.Draw(ui, Globes.HealthRight / scale + 3, Globes.HealthBottom / scale, PlayerAfflictions, warCry, WarCrySeconds, mouseX / scale, mouseY / scale)
+    }
+}
+T{
+    // A tile for each status she suffers and each buff she has: up from the
+    // globe's bottom, then a new column; pointing at one says what it does.
+    HerStatusesShowAsTilesBesideTheHealthGlobe()
+    {
+        HellfeatherAfflictions afflictions
+        entries : HellfeatherStatusColumn.Entries(afflictions, 0.0)
+        T.AreEqual(entries.Len, (long)0)
+        afflictions.Meter[HellfeatherStatus.Chill] = 0.6
+        afflictions.Meter[HellfeatherStatus.Burn] = 0.3
+        afflictions.Meter[HellfeatherStatus.Shock] = 0.8
+        all : HellfeatherStatusColumn.Entries(afflictions, 0.5)
+        T.AreEqual(all.Len, (long)4)
+        T.AreEqual(all[0], HellfeatherStatusColumn.WarCryEntry)
+        // Three to a column; the fourth starts the next one at the bottom.
+        int x0 = 0
+        int y0 = 0
+        int x3 = 0
+        int y3 = 0
+        HellfeatherStatusColumn.TileAt(100, 200, 0, x0, y0)
+        HellfeatherStatusColumn.TileAt(100, 200, 3, x3, y3)
+        T.AreEqual(y3, y0)
+        T.AreEqual(x3, x0 + HellfeatherStatusColumn.Tile + HellfeatherStatusColumn.Gap)
+        T.AreEqual(y0 + HellfeatherStatusColumn.TileHeight, 200)
+        T.AreEqual(HellfeatherStatusColumn.TileUnder(100, 200, 4, x3 + 2, y3 + 2), 3)
+        T.AreEqual(HellfeatherStatusColumn.TileUnder(100, 200, 4, 10, 10), -1)
+        lines : HellfeatherStatusColumn.TooltipLines(HellfeatherStatus.Chill + 0, afflictions, 0.0)
+        T.AreEqual(lines[0], "Chill: Numbed")
+        T.AreEqual(lines[1], "20% slower")
+        cry : HellfeatherStatusColumn.TooltipLines(HellfeatherStatusColumn.WarCryEntry, afflictions, 3.2)
+        T.AreEqual(cry[2], "4s left")
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Globes.Anchor(world, 960, 540, 960)
+        // Right of the globe, in the bottom left of the window.
+        T.IsTrue(game.Globes.HealthRight > 0 && game.Globes.HealthRight < 480)
+        T.IsTrue(game.Globes.HealthBottom > 400 && game.Globes.HealthBottom <= 540)
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        game.PlayerAfflictions.Meter[HellfeatherStatus.Burn] = 1.0
+        game.DrawStatusColumn(ui, 960, 540, game.Globes.HealthRight + 8, game.Globes.HealthBottom - 10)
+    }
+}

@@ -192,6 +192,7 @@ HellfeatherGame : QuaxelGameInstance
         Talk.Close()
         Shop.Open = false
         Stash.Open = false
+        ClearEnemyAfflictions(world)
         KeepLevel(Terrain.Realm)
         ClearShots(world)
         Ravens.Clear(world)

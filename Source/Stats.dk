@@ -14,6 +14,11 @@ HellfeatherStats
     int FireResist
     int ColdResist
     int LightningResist
+    // Elemental damage on each of her blows, on top of the weapon's. Each
+    // builds its element's status on the enemy (Source/Statuses.dk).
+    int FireDamage
+    int ColdDamage
+    int LightningDamage
     // Percent of normal walking speed.
     int MoveSpeed = 100
     float ManaPerSecond

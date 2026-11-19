@@ -155,8 +155,13 @@ HellfeatherGame : QuaxelGameInstance
     {
         int node = Enemies[i].Node
         int visual = Enemies[i].VisualNode
+        // Frozen solid: its pose holds and nothing moves on until it thaws.
+        if Enemies[i].Afflictions.Frozen() {
+            world.SetAnimationSpeed(visual, 0.0)
+            return
+        }
         Enemies[i].PhaseTime += deltaSeconds
-        if Enemies[i].Cooldown > 0.0 { Enemies[i].Cooldown -= deltaSeconds * (2.0 - Frenzy(i)) }
+        if Enemies[i].Cooldown > 0.0 { Enemies[i].Cooldown -= deltaSeconds * (2.0 - Frenzy(i)) * Unslowed(i) }
         if Enemies[i].GrowTimer > 0.0 {
             Enemies[i].GrowTimer -= deltaSeconds
             if Enemies[i].GrowTimer <= 0.0 { GrowDuckling(world, i) }
@@ -232,7 +237,7 @@ HellfeatherGame : QuaxelGameInstance
             return
         }
         if distance > Enemies[i].Reach {
-            Stride(world, i, direction, Enemies[i].Speed * Frenzy(i), deltaSeconds)
+            Stride(world, i, direction, Enemies[i].Speed * Pace(i), deltaSeconds)
             world.PlayClip(visual, "walk")
         } else if Enemies[i].Cooldown > 0.0 {
             world.PlayClip(visual, "idle")
@@ -255,7 +260,7 @@ HellfeatherGame : QuaxelGameInstance
         FaceAlong(world, visual, direction)
         if distance > Enemies[i].Reach {
             if mobile {
-                Stride(world, i, direction, Enemies[i].Speed * Frenzy(i), deltaSeconds)
+                Stride(world, i, direction, Enemies[i].Speed * Pace(i), deltaSeconds)
                 world.PlayClip(visual, "walk")
             } else { world.PlayClip(visual, "idle") }
         } else if Enemies[i].Cooldown > 0.0 {
@@ -275,7 +280,7 @@ HellfeatherGame : QuaxelGameInstance
             FaceAlong(world, visual, direction)
             if distance > 5.5 || Enemies[i].Cooldown > 0.0 {
                 if distance > Enemies[i].Reach {
-                    Stride(world, i, direction, Enemies[i].Speed * Frenzy(i), deltaSeconds)
+                    Stride(world, i, direction, Enemies[i].Speed * Pace(i), deltaSeconds)
                     world.PlayClip(visual, "walk")
                 } else { world.PlayClip(visual, "idle") }
                 return
@@ -333,7 +338,7 @@ HellfeatherGame : QuaxelGameInstance
         if phase == 0 {
             FaceAlong(world, visual, direction)
             if distance > 2.8 {
-                Stride(world, i, direction, Enemies[i].Speed * Frenzy(i), deltaSeconds)
+                Stride(world, i, direction, Enemies[i].Speed * Pace(i), deltaSeconds)
                 world.PlayClip(visual, "walk")
                 return
             }

@@ -50,6 +50,7 @@ HellfeatherInventoryArt
         HellfeatherRuneArt.Paint(ui)
         HellfeatherQuestLogArt.Paint(ui)
         HellfeatherChestArt.Paint(ui)
+        HellfeatherStatusArt.Paint(ui)
         for item : HellfeatherItems { if item != HellfeatherItems.None { PaintIcon(ui, item, IconX(item), IconY(item)) } }
         HellfeatherActionArt.Paint(ui)
     }
