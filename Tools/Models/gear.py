@@ -259,6 +259,74 @@ def flanged_mace():
     return r
 
 
+def war_hammer():
+    """A war hammer from the Undercroft: a blocky steel head with a square face
+    on each side and a short spike on top, on an iron-banded haft."""
+    r = new_rig((0, 0, 0), yaw=-90)
+    r.part('root', capsule((0, -4.0, 0), (0, 24.0, 0), 0.9), lambda x, y, z, pose: np.where(np.floor(y) % 7 == 0, IRON[0], WOOD_DARK[0]))
+    r.part('root', capsule((0, -3.0, 0), (0, 2.5, 0), 1.1), LEATHER[2])
+
+    def head(x, y, z):
+        return (np.abs(x) <= 4.6) & (np.abs(z) <= 2.2) & (y > 20.0) & (y < 26.0)
+    head.box = (np.array([-4.7, 19.9, -2.3]), np.array([4.7, 26.1, 2.3]))
+
+    def steel(x, y, z, pose):
+        face = np.abs(x) > 3.8
+        band = np.abs(y - 23.0) < 0.6
+        out = np.where(face, SILVER[0], SILVER[1])
+        return np.where(band & ~face, IRON[0], out)
+    r.part('root', head, steel)
+    r.part('root', capsule((0, 26.0, 0), (0, 29.5, 0), 0.7), SILVER[0])
+    return r
+
+
+def tower_shield():
+    """A tall oblong tower shield of iron-bound planks with a steel rim and a
+    dark boss. Built and gripped like the round shield."""
+    r = new_rig((0, 0, -1.6))
+    half_w, low, high = 6.5, -15.0, 10.0
+
+    def board(x, y, z):
+        return (np.abs(x) <= half_w) & (y >= low) & (y <= high) & (np.abs(z) < 0.8)
+    board.box = (np.array([-half_w - 0.1, low - 0.1, -0.9]), np.array([half_w + 0.1, high + 0.1, 0.9]))
+
+    def planks(x, y, z, pose):
+        out = pick(WOOD[:3], hash2(np.floor(x / 2.6).astype(int), 0, 415))
+        out = np.where(np.abs(((x / 2.6) % 1.0) - 0.5) > 0.42, WOOD_DARK[0], out)
+        bands = (np.abs(y - 6.0) < 0.7) | (np.abs(y + 10.0) < 0.7)
+        out = np.where(bands, IRON[0], out)
+        rim = (np.abs(x) > half_w - 1.0) | (y < low + 1.0) | (y > high - 1.0)
+        return np.where(rim, IRON[1], out)
+    r.part('root', board, planks)
+    r.part('root', where(ellipsoid((0, -2.0, 0.4), (2.2, 2.2, 1.6)), lambda x, y, z: z > 0.3), IRON[0])
+    r.part('root', capsule((-2.5, 0, -1.4), (2.5, 0, -1.4), 0.6), LEATHER[2])
+    return r
+
+
+def visored_helm():
+    """A steel helm with a pointed visor drawn forward like a snout, rows of
+    breathing slits on it, and a gold rim around the face opening."""
+    hx, hy, hz = player.HEAD
+    r = new_rig(player.HEAD)
+    skull = where(ellipsoid((0, hy + 0.8, hz - 0.6), (5.5, 6.6, 5.7)), lambda x, y, z: y > hy - 5.2)
+    r.part('root', skull, lambda x, y, z, pose: np.where(hash2(np.floor(x).astype(int), np.floor(y).astype(int), 416) < 0.5, SILVER[1], IRON[1]))
+
+    def visor(x, y, z):
+        # A wedge that narrows to a ridge as it reaches forward.
+        reach = np.clip((z - hz) / 4.0, 0, 1)
+        return (z > hz) & (z < hz + 4.0 + 1.6) & (np.abs(x) <= 4.6 * (1.0 - reach) + 0.6) & (y > hy - 4.0) & (y < hy + 2.6)
+    visor.box = (np.array([-5.3, hy - 4.1, hz]), np.array([5.3, hy + 2.7, hz + 5.7]))
+
+    def slits(x, y, z, pose):
+        out = np.where(np.abs(x) < 0.7, SILVER[0], SILVER[1])
+        eye = np.abs(y - (hy + 1.2)) < 0.5
+        vents = (y < hy - 0.6) & (np.floor(y + 0.5).astype(int) % 2 == 0) & (np.abs(x) > 0.8)
+        return np.where(eye | vents, IRON[0], out)
+    r.part('root', visor, slits)
+    r.part('root', where(ellipsoid((0, hy + 0.8, hz - 0.6), (5.8, 6.8, 6.0)), lambda x, y, z: (y > hy + 2.6) & (y < hy + 3.4)), BRASS[0])
+    return r
+
+
 GEAR = {
     'MinersHelmet': miners_helmet,
     'IronHelm': iron_helm,
@@ -271,6 +339,9 @@ GEAR = {
     'KiteShield': kite_shield,
     'ChainCoif': chain_coif,
     'GreatHelm': great_helm,
+    'WarHammer': war_hammer,
+    'TowerShield': tower_shield,
+    'VisoredHelm': visored_helm,
 }
 
 

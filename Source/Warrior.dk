@@ -57,6 +57,9 @@ HellfeatherWarrior
         if item == HellfeatherItems.MinersHelmet { return "Assets/MinersHelmet.qvox" }
         if item == HellfeatherItems.ChainCoif { return "Assets/ChainCoif.qvox" }
         if item == HellfeatherItems.GreatHelm { return "Assets/GreatHelm.qvox" }
+        if item == HellfeatherItems.WarHammer { return "Assets/WarHammer.qvox" }
+        if item == HellfeatherItems.TowerShield { return "Assets/TowerShield.qvox" }
+        if item == HellfeatherItems.VisoredHelm { return "Assets/VisoredHelm.qvox" }
         return ""
     }
 }

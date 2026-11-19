@@ -410,4 +410,54 @@ T{
         T.IsFalse(game.Shop.Open)
         T.IsFalse(game.BagForTrade)
     }
+
+    // Shift-clicking a merchant who trades with her opens the shop, not the
+    // conversation. One who does not trade yet still talks.
+    ShiftClickingAMerchantOpensTheShop()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.ShiftHeld = true
+        game.UseOrTrade(world, game.People.FindPerson(HellfeatherPerson.Marra))
+        T.IsTrue(game.Shop.Open)
+        T.IsTrue(game.Trading == HellfeatherMerchant.Marra)
+        T.IsFalse(game.Talk.Open)
+        game.Shop.Open = false
+        game.UseOrTrade(world, game.People.FindPerson(HellfeatherPerson.Moth))
+        T.IsFalse(game.Shop.Open)
+        T.IsTrue(game.Talk.Open)
+    }
+
+    // Shift-clicking an item in the bag while trading sells it on the spot;
+    // without Shift it is only picked up, and a quest item never sells.
+    ShiftClickingABagItemSellsIt()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.OpenShop(HellfeatherMerchant.Edda)
+        game.Inventory.Items.Bag.Clear()
+        T.IsTrue(game.Inventory.Items.Add(HellfeatherItems.Ring))
+        int gold = game.Inventory.Items.Gold
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        game.Inventory.CanSell = true
+        game.Inventory.ShiftHeld = true
+        game.Inventory.Update(ui, 960, 540, 0, 0, false)
+        int s = game.Inventory.PanelScale
+        int x = (game.Inventory.PanelLeft + HellfeatherInventoryArt.GridX + 4) * s
+        int y = (game.Inventory.PanelTop + HellfeatherInventoryArt.GridY + 4) * s
+        game.Inventory.Update(ui, 960, 540, x, y, true)
+        game.ApplyQuickSell()
+        T.AreEqual(game.Inventory.Items.Bag.Len, (long)0)
+        T.IsTrue(game.Inventory.Items.Held == HellfeatherItems.None)
+        T.IsTrue(game.Inventory.Items.Gold > gold)
+        // A quest item is only picked up.
+        T.IsTrue(game.Inventory.Items.Add(HellfeatherItems.GreyKey))
+        game.Inventory.Update(ui, 960, 540, x, y, false)
+        game.Inventory.Update(ui, 960, 540, x, y, true)
+        game.ApplyQuickSell()
+        T.IsTrue(game.Inventory.Items.Held == HellfeatherItems.GreyKey)
+    }
 }

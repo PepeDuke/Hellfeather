@@ -487,6 +487,8 @@ T{
         int visual = game.Controllers[0].VisualNode
         vec3 player = world.GetPosition(game.PlayerNode)
         T.IsTrue(game.Ground.Place(world, HellfeatherItems.Ring, player))
+        // She starts with Cleave there; a plain swing shows the click got through.
+        T.IsTrue(game.Actions.Slots.Assign(HellfeatherActionSlot.Right, HellfeatherAction.Attack))
         game.Ground.Hovered = 0
         game.SampleRightClick(480, 270, true)
         QuaxelInputState input

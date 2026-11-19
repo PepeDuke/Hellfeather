@@ -293,6 +293,13 @@ HellfeatherInventoryScreen
     bool Open
     // While a shop is open, item tooltips say what a merchant pays for them.
     bool Trading
+    // Set by the game: whether the open shop pays gold, and whether Shift is
+    // held. Together a click on an item it buys sells it at once.
+    bool CanSell
+    bool ShiftHeld
+    // Set when such a click has put the item on the cursor to be sold; the
+    // game sells it and clears this.
+    bool QuickSellRequest
     -bool MouseWasDown
     -int Scale = 1
     -int PanelX
@@ -388,7 +395,13 @@ HellfeatherInventoryScreen
             Items.Drop(HeldCellX(pointerX), HeldCellY(pointerY))
             return
         }
-        Items.PickUp((pointerX - HellfeatherInventoryArt.GridX) / HellfeatherInventoryArt.Cell, (pointerY - HellfeatherInventoryArt.GridY) / HellfeatherInventoryArt.Cell)
+        int cellX = (pointerX - HellfeatherInventoryArt.GridX) / HellfeatherInventoryArt.Cell
+        int cellY = (pointerY - HellfeatherInventoryArt.GridY) / HellfeatherInventoryArt.Cell
+        // Shift-click while trading sells what the merchant will buy, without
+        // carrying it over. Anything else is picked up as usual.
+        int entry = Items.EntryAt(cellX, cellY)
+        bool quick = CanSell && ShiftHeld && entry >= 0 && HellfeatherShop.Buys(Items.Bag[entry].Item)
+        if Items.PickUp(cellX, cellY) && quick { QuickSellRequest = true }
     }
 
     -Icon(QuaxelUi& ui, HellfeatherItems item, int x, int y)
@@ -510,6 +523,7 @@ HellfeatherInventoryScreen
         int characters = (int)Math.Max(Length(kind.Name), Length(kind.Detail))
         for i : 0; i < mods.Count; i++ { characters = Math.Max(characters, (int)Length(mods.Line(i))) }
         string price = Trading ? "Sells for " + QuaxelUi.FormatInt(HellfeatherShop.SellValue(item, mods)) + " gold" | ""
+        if CanSell && slot < 0 { price = price + ", Shift-click" }
         if Trading && !HellfeatherShop.Buys(item) { price = "Merchants don't buy these" }
         if Trading && HellfeatherItems.IsQuest(item) { price = "Not for sale" }
         // A quest item or a valuable says so under its name.

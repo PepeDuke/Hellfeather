@@ -265,11 +265,11 @@ HellfeatherItemArt
         if item == HellfeatherItems.EddasQuillCharm || item == HellfeatherItems.MardrasRingShards || item == HellfeatherItems.GreyneckQuill || item == HellfeatherItems.RavenAmulet { return HellfeatherItems.Amulet }
         if item == HellfeatherItems.JessasWaterwalkers || item == HellfeatherItems.ChainBoots || item == HellfeatherItems.PlateBoots { return HellfeatherItems.Boots }
         if item == HellfeatherItems.MillstoneMaul { return HellfeatherItems.BattleAxe }
-        if item == HellfeatherItems.HandAxe || item == HellfeatherItems.Falchion || item == HellfeatherItems.FlangedMace { return HellfeatherItems.ShortSword }
-        if item == HellfeatherItems.KiteShield { return HellfeatherItems.RoundShield }
-        if item == HellfeatherItems.ChainCoif || item == HellfeatherItems.GreatHelm { return HellfeatherItems.IronHelm }
-        if item == HellfeatherItems.RingMail || item == HellfeatherItems.ScaleMail { return HellfeatherItems.LeatherArmor }
-        if item == HellfeatherItems.ChainGloves || item == HellfeatherItems.Gauntlets { return HellfeatherItems.Gloves }
+        if item == HellfeatherItems.HandAxe || item == HellfeatherItems.Falchion || item == HellfeatherItems.FlangedMace || item == HellfeatherItems.WarHammer { return HellfeatherItems.ShortSword }
+        if item == HellfeatherItems.KiteShield || item == HellfeatherItems.TowerShield { return HellfeatherItems.RoundShield }
+        if item == HellfeatherItems.ChainCoif || item == HellfeatherItems.GreatHelm || item == HellfeatherItems.VisoredHelm { return HellfeatherItems.IronHelm }
+        if item == HellfeatherItems.RingMail || item == HellfeatherItems.ScaleMail || item == HellfeatherItems.PlateMail { return HellfeatherItems.LeatherArmor }
+        if item == HellfeatherItems.ChainGloves || item == HellfeatherItems.Gauntlets || item == HellfeatherItems.SpikedGauntlets { return HellfeatherItems.Gloves }
         if item == HellfeatherItems.HeavyBelt || item == HellfeatherItems.PlatedBelt { return HellfeatherItems.Belt }
         return item
     }

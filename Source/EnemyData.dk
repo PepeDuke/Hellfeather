@@ -103,6 +103,11 @@ HellfeatherEnemyData
                 <LootItem Item=HellfeatherItems.GreatHelm Weight=3 MinLevel=9/>
                 <LootItem Item=HellfeatherItems.FlangedMace Weight=3 MinLevel=9/>
                 <LootItem Item=HellfeatherItems.ScaleMail Weight=2 MinLevel=9/>
+                <LootItem Item=HellfeatherItems.SpikedGauntlets Weight=4 MinLevel=10/>
+                <LootItem Item=HellfeatherItems.TowerShield Weight=3 MinLevel=10/>
+                <LootItem Item=HellfeatherItems.WarHammer Weight=3 MinLevel=10/>
+                <LootItem Item=HellfeatherItems.VisoredHelm Weight=3 MinLevel=11/>
+                <LootItem Item=HellfeatherItems.PlateMail Weight=2 MinLevel=11/>
             </LootTable>
             <LootTable Name="Tithe bracelet" Chance=0.5 Rolls=1>
                 <LootItem Item=HellfeatherItems.TitheBracelet Weight=1/>
@@ -327,6 +332,31 @@ T{
         T.AreEqual(axes, 0)
     }
 
+    // The Undercroft's own bases never drop before zone level 10, and the
+    // deep Undercroft drops each of them.
+    TheUndercroftRollsItsOwnBases()
+    {
+        HellfeatherEnemySpawner spawner()
+        QuaxelWorld world()
+        spawner.Data = HellfeatherEnemyData.Build()
+        T.IsTrue(spawner.Load(world))
+        int loot = spawner.Table.LootNamed("Duck drops")
+        spawner.LootRandom.Begin((uint)91)
+        HellfeatherItems [] deep = {HellfeatherItems.WarHammer, HellfeatherItems.TowerShield, HellfeatherItems.VisoredHelm, HellfeatherItems.PlateMail, HellfeatherItems.SpikedGauntlets}
+        int [5] seen
+        int early = 0
+        for n : 0; n < 4000; n++ {
+            mill : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.HobbsMill + 0))
+            below : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.UndercroftDeep + 0))
+            for i : 0; i < 5; i++ {
+                if mill == deep[i] { early++ }
+                if below == deep[i] { seen[i]++ }
+            }
+        }
+        T.AreEqual(early, 0)
+        for count : seen { T.IsTrue(count > 0) }
+    }
+
     // Every item base that can be worn drops somewhere, or is given.
     EveryWornBaseDropsSomewhere()
     {
@@ -334,7 +364,7 @@ T{
         QuaxelWorld world()
         spawner.Data = HellfeatherEnemyData.Build()
         T.IsTrue(spawner.Load(world))
-        HellfeatherItems [] bases = {HellfeatherItems.HandAxe, HellfeatherItems.Falchion, HellfeatherItems.FlangedMace, HellfeatherItems.BattleAxe, HellfeatherItems.KiteShield, HellfeatherItems.ChainCoif, HellfeatherItems.GreatHelm, HellfeatherItems.RingMail, HellfeatherItems.ScaleMail, HellfeatherItems.ChainGloves, HellfeatherItems.Gauntlets, HellfeatherItems.ChainBoots, HellfeatherItems.PlateBoots, HellfeatherItems.HeavyBelt, HellfeatherItems.PlatedBelt, HellfeatherItems.GarnetRing, HellfeatherItems.RavenAmulet}
+        HellfeatherItems [] bases = {HellfeatherItems.HandAxe, HellfeatherItems.Falchion, HellfeatherItems.FlangedMace, HellfeatherItems.BattleAxe, HellfeatherItems.KiteShield, HellfeatherItems.ChainCoif, HellfeatherItems.GreatHelm, HellfeatherItems.RingMail, HellfeatherItems.ScaleMail, HellfeatherItems.ChainGloves, HellfeatherItems.Gauntlets, HellfeatherItems.ChainBoots, HellfeatherItems.PlateBoots, HellfeatherItems.HeavyBelt, HellfeatherItems.PlatedBelt, HellfeatherItems.GarnetRing, HellfeatherItems.RavenAmulet, HellfeatherItems.WarHammer, HellfeatherItems.TowerShield, HellfeatherItems.VisoredHelm, HellfeatherItems.PlateMail, HellfeatherItems.SpikedGauntlets}
         for wanted : bases {
             bool found = false
             for entry : spawner.Table.LootItems { if entry.Item == wanted { found = true } }

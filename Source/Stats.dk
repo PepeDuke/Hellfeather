@@ -112,6 +112,11 @@ HellfeatherStats
         if item == HellfeatherItems.PlatedBelt { stats.Defense += 7 }
         if item == HellfeatherItems.GarnetRing { stats.Strength += 2 }
         if item == HellfeatherItems.RavenAmulet { stats.MaxMana += 15 }
+        if item == HellfeatherItems.WarHammer { stats.AddWeaponDamage(26, 42) }
+        if item == HellfeatherItems.TowerShield { stats.Defense += 22 }
+        if item == HellfeatherItems.VisoredHelm { stats.Defense += 17 }
+        if item == HellfeatherItems.PlateMail { stats.Defense += 42 }
+        if item == HellfeatherItems.SpikedGauntlets { stats.Defense += 13 }
     }
 
     // A rate with one decimal, such as "2.0".
@@ -136,6 +141,23 @@ HellfeatherInventory
     }
 }
 T{
+    // Every weapon deals a range, and its detail line shows the same range
+    // its stats give.
+    EveryWeaponShowsTheRangeItDeals()
+    {
+        int weapons = 0
+        for item : HellfeatherItems {
+            HellfeatherItemKind kind = HellfeatherItems.Get(item)
+            if kind.Gear != HellfeatherGear.Weapon { continue }
+            HellfeatherStats stats
+            HellfeatherStats.AddItem(stats, item)
+            T.IsTrue(stats.WeaponMax > stats.WeaponMin)
+            T.AreEqual(kind.Detail,"Damage " + QuaxelUi.FormatInt(stats.WeaponMin) + "-" + QuaxelUi.FormatInt(stats.WeaponMax))
+            weapons++
+        }
+        T.IsTrue(weapons >= 6)
+    }
+
     TheWarriorStartsWithHerBaseAttributes()
     {
         HellfeatherInventory items

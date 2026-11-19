@@ -28,6 +28,7 @@ HellfeatherGame : QuaxelGameInstance
     -bool RunesKeyHeld
     -bool QuestKeyHeld
     -bool LabelKeyHeld
+    bool ShiftHeld
     // The rune board's Version when the known skills last matched it.
     -int RunesSynced
     HellfeatherInventoryScreen Inventory
@@ -194,6 +195,16 @@ HellfeatherGame : QuaxelGameInstance
             BagForTrade = false
             if Inventory.Open { Inventory.Toggle() }
         }
+    }
+
+    // Sells the item a Shift-click in the bag put on the cursor, as if it had
+    // been carried over to the shop.
+    ApplyQuickSell()
+    {
+        if !Inventory.QuickSellRequest { return }
+        Inventory.QuickSellRequest = false
+        Shop.SellRequest = true
+        ApplyShopRequests()
     }
 
     // Carries out the buy or sell the shop window asked for this frame.
@@ -423,6 +434,8 @@ HellfeatherGame : QuaxelGameInstance
         bool labelKey = input.IsDown(QuaxelKey.Alt)
         if labelKey && !LabelKeyHeld && !talking { Ground.ShowLabels = !Ground.ShowLabels }
         LabelKeyHeld = labelKey
+        // Shift sells from the bag and goes straight to a merchant's shop.
+        ShiftHeld = input.IsDown(QuaxelKey.Shift)
         if !talking {
             StepPortalKey(world, input)
             StepMapKey(input)
@@ -937,7 +950,19 @@ HellfeatherGame : QuaxelGameInstance
         }
         if Talk.Captures(mouseX, mouseY) { return }
         if Ground.Hovered >= 0 { TakeFromGround(world, Ground.Hovered) }
-        else if People.Hovered >= 0 && People.InReach(People.Hovered, world.GetPosition(PlayerNode)) { Use(world, People.Hovered) }
+        else if People.Hovered >= 0 && People.InReach(People.Hovered, world.GetPosition(PlayerNode)) { UseOrTrade(world, People.Hovered) }
+    }
+
+    // A click on a spot in reach. With Shift, a merchant who trades with her
+    // opens their shop at once instead of the conversation.
+    UseOrTrade(QuaxelWorld& world, int spot)
+    {
+        HellfeatherPerson person = People.Spots[spot].Person
+        if ShiftHeld && People.Spots[spot].Kind == HellfeatherSpotKind.Person && Sells(person) {
+            OpenShop(HellfeatherMerchants.Of(person))
+            return
+        }
+        Use(world, spot)
     }
 
     ToggleHudPanel(HellfeatherHudPanel panel)
@@ -1070,7 +1095,10 @@ HellfeatherGame : QuaxelGameInstance
             Runes.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
             Inventory.Items.ReplaceHeld(Runes.Held)
             Inventory.Trading = Shop.Open
+            Inventory.CanSell = Shop.Open && !Shop.Shop.ForFeathers
+            Inventory.ShiftHeld = ShiftHeld
             Inventory.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
+            ApplyQuickSell()
             if Actions.PanelRequest >= 0 {
                 ToggleHudPanel((HellfeatherHudPanel)Actions.PanelRequest)
                 Actions.PanelRequest = -1
