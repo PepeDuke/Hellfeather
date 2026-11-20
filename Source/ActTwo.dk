@@ -766,7 +766,21 @@ HellfeatherGame : QuaxelGameInstance
     bool AnswerActTwo(QuaxelWorld& world, HellfeatherReply reply, int spot)
     {
         vec3 player = world.GetPosition(PlayerNode)
-        if reply == HellfeatherReply.TakeTheRoad {
+        if reply == HellfeatherReply.Interlude && Quests.Millrace >= 5 && Quests.SouthWing < 5 {
+            // The end of Act I: on up the Hospice Road to the encampment.
+            Quests.ActTwo = true
+            int road = -1
+            for i : 0; i < People.Spots.Len; i++ {
+                if People.Spots[i].Kind == HellfeatherSpotKind.Road && People.Spots[i].Leads == HellfeatherRealm.Thornmere { road = (int)i }
+            }
+            if road >= 0 {
+                People.Spots[road].Shown = true
+                TakeRoad(world, road)
+            }
+            Banner.Show("Act II: Rooms Remember", 4.0)
+        } else if reply == HellfeatherReply.Interlude && Quests.SouthWing >= 5 {
+            Banner.Show("The end of Act II. Act III is still to come", 4.0)
+        } else if reply == HellfeatherReply.TakeTheRoad {
             if spot >= 0 { TakeRoad(world, spot) }
         } else if reply == HellfeatherReply.HeskRoad {
             Quests.Road = 1

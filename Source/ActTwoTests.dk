@@ -345,3 +345,19 @@ T{
         T.AreEqual(placed, 7)
     }
 }
+T{
+    // Ending Act I's interlude takes her up the Hospice Road to the encampment.
+    EndingActOneGoesToTheEncampment()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Quests.Moult = 4
+        game.Quests.Millrace = 5
+        game.Answer(world, HellfeatherReply.Interlude)
+        T.IsTrue(game.Quests.ActTwo)
+        T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Thornmere)
+        T.IsTrue(game.InCamp(world.GetPosition(game.PlayerNode)))
+        T.AreEqual(game.Residence, HellfeatherResidence.PilgrimTent)
+    }
+}
