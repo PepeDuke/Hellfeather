@@ -89,7 +89,7 @@ def read_qvox(path):
             clips[-1][1].append(current)
             y = z = 0
             continue
-        if line.startswith('socket '):
+        if line.startswith('socket ') or line.startswith('call '):
             continue
         if current is None:
             current = new_grid()

@@ -31,6 +31,24 @@ HellfeatherMenu
     // The pointer only takes the highlight when it moves, so it does not fight the keys.
     -int LastMouseX = -1
     -int LastMouseY = -1
+    // Set by a choice taken, and by the highlight moving; the game plays the
+    // click and the hover and clears them with TakeClick and TakeHover.
+    -bool Clicked
+    -bool Hovered
+
+    bool TakeClick()
+    {
+        bool was = Clicked
+        Clicked = false
+        return was
+    }
+
+    bool TakeHover()
+    {
+        bool was = Hovered
+        Hovered = false
+        return was
+    }
 
     Show()
     {
@@ -53,14 +71,17 @@ HellfeatherMenu
         bool pick = input.Down[HellfeatherKeys.Enter] || input.Down[HellfeatherKeys.Space]
         bool picked = pick && !PickHeld
         int count = (int)Choices.Len
+        int before = Highlight
         if count > 0 {
             if up && !UpHeld { Highlight = (Highlight + count - 1) % count }
             if down && !DownHeld { Highlight = (Highlight + 1) % count }
         }
+        if Highlight != before { Hovered = true }
         UpHeld = up
         DownHeld = down
         PickHeld = pick
         if !picked || count == 0 { return HellfeatherMenuChoice.None }
+        Clicked = true
         return Choices[Math.Clamp(Highlight, 0, count - 1)]
     }
 
@@ -95,10 +116,14 @@ HellfeatherMenu
         for i : 0; i < count; i++ {
             int y = top + i * (HellfeatherMenu.ButtonHeight + HellfeatherMenu.ButtonGap)
             bool over = pointerX >= left && pointerX < left + HellfeatherMenu.ButtonWidth && pointerY >= y && pointerY < y + HellfeatherMenu.ButtonHeight
-            if over && moved { Highlight = i }
+            if over && moved && Highlight != i {
+                Highlight = i
+                Hovered = true
+            }
             if over && pressed {
                 Highlight = i
                 clicked = Choices[i]
+                Clicked = true
             }
             DrawButton(ui, left, y, HellfeatherMenu.Label(Choices[i]), i == Highlight)
         }
@@ -127,6 +152,9 @@ HellfeatherMenu
     #int ButtonWidth = 110
     #int ButtonHeight = 15
     #int ButtonGap = 4
+    // Frames the loading screen stays up before the world is rebuilt: about a
+    // sixth of a second, so the click that asked is not cut off.
+    #int LoadingFrames = 10
 
     string Label(HellfeatherMenuChoice choice)
     {
@@ -726,12 +754,13 @@ HellfeatherGame : QuaxelGameInstance
     bool Restart
     int NextSlot
     bool NextIsNew
-    // The loading frame has been shown, so the run may end.
-    -bool LoadingShown
+    // Frames the loading screen has been shown. The run ends after
+    // HellfeatherMenu.LoadingFrames, so the click that asked is heard first.
+    -int LoadingFrames
 
     bool WorldPaused() { return Screen == HellfeatherScreen.Paused }
 
-    bool Restarting() { return Restart && LoadingShown }
+    bool Restarting() { return Restart && LoadingFrames >= HellfeatherMenu.LoadingFrames }
 
     // True while no character has been played or loaded in this world, so one
     // can start in it as it is.
@@ -879,7 +908,7 @@ HellfeatherGame : QuaxelGameInstance
         Restart = true
         NextSlot = slot
         NextIsNew = fresh
-        LoadingShown = false
+        LoadingFrames = 0
     }
 
     // Runs the menus' part of a step. Returns true while a menu holds the game still.
@@ -893,11 +922,13 @@ HellfeatherGame : QuaxelGameInstance
             // The land around her keeps streaming in behind the menu.
             if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
             ChooseCharacter(world, Characters.StepKeys(input))
+            PlayMenuSounds(world)
             return true
         }
         if Screen == HellfeatherScreen.Paused {
             if pressed { Choose(world, HellfeatherMenuChoice.Resume) }
             else { Choose(world, Menu.StepKeys(input)) }
+            PlayMenuSounds(world)
             return true
         }
         StepSaving(deltaSeconds)
@@ -922,18 +953,29 @@ HellfeatherGame : QuaxelGameInstance
         int gridWidth = width / scale
         int gridHeight = height / scale
         if Restart {
-            // One frame saying so before the world is rebuilt.
+            // Saying so before the world is rebuilt.
             ui.OverlayRect(0, 0, gridWidth, gridHeight, 0xE0000000)
             string loading = "Loading"
             ui.OverlayText((gridWidth - (int)Length(loading) * 6 + 1) / 2, gridHeight / 2 - 4, loading, 0xFFE0B860)
-            LoadingShown = true
+            LoadingFrames++
             return
         }
         if Screen == HellfeatherScreen.MainMenu {
             ChooseCharacter(world, Characters.Draw(ui, width, height, mouseX, mouseY, mouseDown))
-            return
         }
-        Choose(world, Menu.Draw(ui, width, height, mouseX, mouseY, mouseDown, gridHeight / 2 + 8, true))
+        else { Choose(world, Menu.Draw(ui, width, height, mouseX, mouseY, mouseDown, gridHeight / 2 + 8, true)) }
+        PlayMenuSounds(world)
+    }
+
+    // The menus' clicks and hovers, from the mouse or the keys.
+    -PlayMenuSounds(QuaxelWorld& world)
+    {
+        bool click = Characters.TakeClick()
+        click = Menu.TakeClick() || click
+        bool hover = Characters.TakeHover()
+        hover = Menu.TakeHover() || hover
+        if click { Sfx.Play(world, HellfeatherSound.UiClick) }
+        else if hover { Sfx.Hover(world) }
     }
 }
 T{
@@ -979,6 +1021,26 @@ T{
         T.IsFalse(HellfeatherMenuArt.TitleCellLit(t, 1))
         T.IsTrue(HellfeatherMenuArt.TitleCellLit(t + 2, 6))
         T.AreEqual(HellfeatherMenuArt.TitleColumns(), 65)
+    }
+
+    PauseMenuKeysSignalHoverAndClick()
+    {
+        HellfeatherMenu menu
+        menu.Show()
+        menu.Add(HellfeatherMenuChoice.Resume)
+        menu.Add(HellfeatherMenuChoice.ExitGame)
+        QuaxelInputState input
+        menu.StepKeys(input)
+        T.IsFalse(menu.TakeHover())
+        input.Down[HellfeatherKeys.Down] = true
+        menu.StepKeys(input)
+        T.IsTrue(menu.TakeHover())
+        T.IsFalse(menu.TakeClick())
+        input.Down[HellfeatherKeys.Down] = false
+        input.Down[HellfeatherKeys.Enter] = true
+        T.AreEqual(menu.StepKeys(input), HellfeatherMenuChoice.ExitGame)
+        T.IsTrue(menu.TakeClick())
+        T.IsFalse(menu.TakeHover())
     }
 
     MenuKeysMoveTheHighlightAndPickOncePerPress()

@@ -1,0 +1,536 @@
+// The game's sound effects, in Assets/Sounds.
+HellfeatherSound : int
+#@{
+    PlayerHurt, PotionDrink, Dash, UiClick, UiPanel
+}
+
+// The parts of an axe swing. Her attack clips call for Start and Whoosh on
+// their frames; the strike frame plays Hit when the blow lands, else End.
+HellfeatherSwing : int
+#@{
+    Start, Whoosh, Hit, End
+}
+
+// The sound sets for her swings, one per way a weapon swings. A weapon's
+// HellfeatherWeaponCategory picks its set with SwingSetOf.
+HellfeatherSwingSet : int
+#@{
+    // Maces, hammers and, for now, axes: heavy swishes and thumps.
+    Blunt,
+    // Faster, thinner swishes and ringing cuts.
+    Sword
+}
+
+// The family of an enemy's sounds, set by its EnemyKind's Voice. None is
+// silent. (HellfeatherVoice is the dialogue's speakers.)
+HellfeatherEnemyVoice : int
+#@{
+    None, Duck, Rook, Human, Honey, Spark
+}
+
+// What her boots land on, each with its own set of footsteps.
+HellfeatherFooting : int
+#@{
+    Grass, Dirt, Stone, Wood, Water
+}
+
+// Where she is, which sets how much her steps echo.
+HellfeatherSpace : int
+#@{
+    Outdoors, Indoors, Underground
+}
+
+// Plays the warrior's sounds unpositioned: the camera follows her, so they
+// would sit in the middle of the stereo field anyway. A missing file only
+// leaves its sound silent.
+HellfeatherSounds
+{
+    // Clip handles from the world, zero when a file did not load.
+    -int [16] Clips
+    // Footstep sound groups, one per footing, zero when none loaded.
+    -int [8] Steps
+    // Swing sound groups, one per part.
+    -int [8] Swings
+    // Enemy sound groups, one attack and one death per voice.
+    -int [8] VoiceAttacks
+    -int [8] VoiceDeaths
+    // Sounds asked for where no world is at hand, played on the next Flush.
+    -bool [16] Pending
+    -HellfeatherSpace Space
+    -bool SpaceSet
+
+    Load(QuaxelWorld& world)
+    {
+        for sound : HellfeatherSound
+        {
+            Clips[sound] = world.LoadSound(HellfeatherSounds.Path(sound))
+            Pending[sound] = false
+        }
+        for footing : HellfeatherFooting
+        {
+            paths : HellfeatherSounds.StepPaths(footing)
+            Steps[footing] = world.LoadSoundGroup(paths, 0.07, 0.25)
+        }
+        for set : HellfeatherSwingSet
+        {
+            for part : HellfeatherSwing
+            {
+                paths : HellfeatherSounds.SwingPaths(set, part)
+                Swings[set * 4 + part] = world.LoadSoundGroup(paths, 0.06, 0.2)
+            }
+        }
+        for voice : HellfeatherEnemyVoice
+        {
+            VoiceAttacks[voice] = 0
+            VoiceDeaths[voice] = 0
+            if voice != HellfeatherEnemyVoice.None
+            {
+                attacks : HellfeatherSounds.VoicePaths(voice, false)
+                VoiceAttacks[voice] = world.LoadSoundGroup(attacks, 0.08, 0.2)
+                deaths : HellfeatherSounds.VoicePaths(voice, true)
+                VoiceDeaths[voice] = world.LoadSoundGroup(deaths, 0.06, 0.15)
+            }
+        }
+        SpaceSet = false
+    }
+
+    // Sets the world's reverb to the room she is in, when that changes.
+    SetSpace(QuaxelWorld& world, HellfeatherSpace space)
+    {
+        if SpaceSet && space == Space { return }
+        Space = space
+        SpaceSet = true
+        world.SetReverb(HellfeatherSounds.Room(space))
+    }
+
+    Play(QuaxelWorld& world, HellfeatherSound sound)
+    {
+        int clip = Clips[sound]
+        if clip > 0 { world.PlaySound(clip, 0, HellfeatherSounds.Gain(sound), false) }
+    }
+
+    Queue(HellfeatherSound sound) { Pending[sound] = true }
+
+    // The pointer or keys moving onto a menu button: the click, higher and soft.
+    Hover(QuaxelWorld& world)
+    {
+        int clip = Clips[HellfeatherSound.UiClick]
+        if clip > 0 { world.PlaySoundPitched(clip, 0, 0.18, false, 1.7) }
+    }
+
+    Flush(QuaxelWorld& world)
+    {
+        for sound : HellfeatherSound
+        {
+            if Pending[sound] { Play(world, sound) }
+            Pending[sound] = false
+        }
+    }
+
+    // One footstep on that footing, echoing as the current space does. Her
+    // walk animation calls for it on the frames where a foot lands.
+    Footstep(QuaxelWorld& world, HellfeatherFooting footing)
+    {
+        int group = Steps[footing]
+        if group == 0 { return }
+        long voice = world.PlaySoundGroup(group, 0, HellfeatherSounds.StepGain(footing), false)
+        world.SetVoiceReverb(voice, HellfeatherSounds.StepReverb(Space))
+    }
+
+    // One variant of a part of her swing with a weapon of that category,
+    // ringing in the room she is in.
+    Swing(QuaxelWorld& world, HellfeatherSwing part, HellfeatherWeaponCategory category)
+    {
+        int group = Swings[HellfeatherSounds.SwingSetOf(category) * 4 + part]
+        if group == 0 { return }
+        long voice = world.PlaySoundGroup(group, 0, HellfeatherSounds.SwingGain(part), false)
+        world.SetVoiceReverb(voice, HellfeatherSounds.SwingReverb(Space))
+    }
+
+    int SwingVariants(HellfeatherSwingSet set, HellfeatherSwing part) { return Swings[set * 4 + part] }
+
+    // An enemy's attack or death, from its node, which needs EnemySource.
+    // Pitch shifts the voice's whole set for the kind's size.
+    Enemy(QuaxelWorld& world, int node, HellfeatherEnemyVoice voice, float pitch, bool death)
+    {
+        int group = death ? VoiceDeaths[voice] | VoiceAttacks[voice]
+        if group == 0 { return }
+        long played = world.PlaySoundGroupPitched(group, node, death ? 0.7 | 0.55, false, Math.Clamp(pitch, 0.5, 2.0))
+        world.SetVoiceReverb(played, HellfeatherSounds.SwingReverb(Space))
+    }
+
+    int VoiceVariants(HellfeatherEnemyVoice voice, bool death) { return death ? VoiceDeaths[voice] | VoiceAttacks[voice] }
+
+    bool Loaded(HellfeatherSound sound) { return Clips[sound] > 0 }
+
+    int StepVariants(HellfeatherFooting footing) { return Steps[footing] }
+}
+T{
+    EverySoundFileLoads()
+    {
+        QuaxelWorld world()
+        HellfeatherSounds sounds
+        sounds.Load(world)
+        for sound : HellfeatherSound
+            T.IsTrue(sounds.Loaded(sound))
+        for footing : HellfeatherFooting
+            T.AreEqual(world.SoundGroupSize(sounds.StepVariants(footing)), 4)
+        for set : HellfeatherSwingSet
+        {
+            for part : HellfeatherSwing
+                T.AreEqual(world.SoundGroupSize(sounds.SwingVariants(set, part)), 4)
+        }
+        for voice : HellfeatherEnemyVoice
+        {
+            int expected = voice == HellfeatherEnemyVoice.None ? 0 | 4
+            T.AreEqual(world.SoundGroupSize(sounds.VoiceVariants(voice, false)), expected)
+            T.AreEqual(world.SoundGroupSize(sounds.VoiceVariants(voice, true)), expected)
+        }
+    }
+
+    EachFootstepPlaysOneVoice()
+    {
+        QuaxelWorld world()
+        HellfeatherSounds sounds
+        sounds.Load(world)
+        sounds.Footstep(world, HellfeatherFooting.Stone)
+        sounds.Footstep(world, HellfeatherFooting.Grass)
+        T.AreEqual(world.PlaySound(1, 0, 1.0, false), (long)3)
+    }
+
+    HerSwingsCallStartThenWhooshBeforeTheBlow()
+    {
+        QuaxelWorld world()
+        int animation = QuaxelAssets.LoadVoxelAnimation(world, "Assets/Warrior.qvox")
+        T.IsTrue(animation >= 0)
+        int node = world.CreateNode()
+        world.AttachTransform(node, QuaxelTransform.Make(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)))
+        T.IsTrue(world.AttachAnimator(node, animation))
+        string [] clips = {"attack", "attack_walk", "cleave", "cleave_walk"}
+        for clip : clips {
+            world.StopClip(node)
+            T.IsTrue(world.PlayClip(node, clip))
+            int startFrame = -1
+            int whooshFrame = -1
+            for i : 0; i < 60; i++ {
+                world.AdvanceAnimations(1.0 / 60.0)
+                for c : 0; c < world.AnimationCallCount(); c++ {
+                    QuaxelAnimationCall call = world.AnimationCallAt(c)
+                    if call.Name == "swing_start" { startFrame = call.Frame }
+                    if call.Name == "swing_whoosh" { whooshFrame = call.Frame }
+                }
+            }
+            T.AreEqual(startFrame, 0)
+            T.AreEqual(whooshFrame, 2)
+        }
+    }
+
+    EnemiesCallAttackBeforeTheBlowAndDeathAsTheyFall()
+    {
+        QuaxelWorld world()
+        string [] models = {"EvilDuck", "PilgrimPenitent", "SilverSpark", "Mardra"}
+        int [4] strikes = {2, 4, 2, 2}
+        for m : 0; m < 4; m++ {
+            int animation = QuaxelAssets.LoadVoxelAnimation(world, "Assets/" + models[m] + ".qvox")
+            T.IsTrue(animation >= 0)
+            int node = world.CreateNode()
+            world.AttachTransform(node, QuaxelTransform.Make(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)))
+            T.IsTrue(world.AttachAnimator(node, animation))
+            string [] clips = {"attack", "death"}
+            for clip : clips {
+                world.StopClip(node)
+                world.PlayClip(node, clip)
+                int frame = -1
+                int count = 0
+                for i : 0; i < 120; i++ {
+                    world.AdvanceAnimations(1.0 / 60.0)
+                    for c : 0; c < world.AnimationCallCount(); c++ {
+                        QuaxelAnimationCall call = world.AnimationCallAt(c)
+                        if call.Node == node && call.Name == clip {
+                            frame = call.Frame
+                            count++
+                        }
+                    }
+                }
+                T.AreEqual(count, 1)
+                T.AreEqual(frame, clip == "attack" ? strikes[m] - 1 | 0)
+            }
+        }
+    }
+
+    TheWarriorsWalkCallsAFootstepTwiceARound()
+    {
+        QuaxelWorld world()
+        int animation = QuaxelAssets.LoadVoxelAnimation(world, "Assets/Warrior.qvox")
+        T.IsTrue(animation >= 0)
+        int node = world.CreateNode()
+        world.AttachTransform(node, QuaxelTransform.Make(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)))
+        T.IsTrue(world.AttachAnimator(node, animation) && world.PlayClip(node, "walk"))
+        int steps = 0
+        // Two whole cycles of 608 ms at 60 steps a second.
+        for i : 0; i < 73; i++ {
+            world.AdvanceAnimations(1.0 / 60.0)
+            for c : 0; c < world.AnimationCallCount(); c++ {
+                QuaxelAnimationCall call = world.AnimationCallAt(c)
+                if call.Name == "footstep" { steps++ }
+            }
+        }
+        T.AreEqual(steps, 4)
+    }
+
+    StepsEchoMoreBelowGround()
+    {
+        QuaxelWorld world()
+        HellfeatherSounds sounds
+        sounds.Load(world)
+        sounds.SetSpace(world, HellfeatherSounds.SpaceOf(HellfeatherRealm.Undercroft))
+        QuaxelReverbSettings below = world.GetReverb()
+        T.AreEqual(below.RoomSize, 0.85)
+        sounds.SetSpace(world, HellfeatherSpace.Outdoors)
+        QuaxelReverbSettings outside = world.GetReverb()
+        T.IsTrue(outside.RoomSize < below.RoomSize)
+        T.IsTrue(HellfeatherSounds.StepReverb(HellfeatherSpace.Underground) > HellfeatherSounds.StepReverb(HellfeatherSpace.Outdoors))
+        for space : HellfeatherSpace
+        {
+            T.IsTrue(HellfeatherSounds.SwingReverb(space) > HellfeatherSounds.StepReverb(space))
+            T.IsTrue(HellfeatherSounds.SwingReverb(space) <= 1.0)
+        }
+    }
+
+    SwordsHaveTheirOwnSwingsAndTheRestSwingBlunt()
+    {
+        T.AreEqual(HellfeatherSounds.SwingSetOf(HellfeatherWeaponCategory.Sword), HellfeatherSwingSet.Sword)
+        T.AreEqual(HellfeatherSounds.SwingSetOf(HellfeatherWeaponCategory.Blunt), HellfeatherSwingSet.Blunt)
+        T.AreEqual(HellfeatherSounds.SwingSetOf(HellfeatherWeaponCategory.Axe), HellfeatherSwingSet.Blunt)
+        T.AreEqual(HellfeatherSounds.SwingSetOf(HellfeatherWeaponCategory.None), HellfeatherSwingSet.Blunt)
+        QuaxelWorld world()
+        HellfeatherSounds sounds
+        sounds.Load(world)
+        T.AreNotEqual(sounds.SwingVariants(HellfeatherSwingSet.Sword, HellfeatherSwing.Hit), sounds.SwingVariants(HellfeatherSwingSet.Blunt, HellfeatherSwing.Hit))
+    }
+
+    SurfacesPickTheirFooting()
+    {
+        T.AreEqual(HellfeatherSounds.Footing(QuaxelTerrainSurface.Grass, false), HellfeatherFooting.Grass)
+        T.AreEqual(HellfeatherSounds.Footing(HellfeatherSurface.Cobble, false), HellfeatherFooting.Stone)
+        T.AreEqual(HellfeatherSounds.Footing(HellfeatherSurface.Planks, false), HellfeatherFooting.Wood)
+        T.AreEqual(HellfeatherSounds.Footing(HellfeatherSurface.Mud, false), HellfeatherFooting.Water)
+        T.AreEqual(HellfeatherSounds.Footing(QuaxelTerrainSurface.Path, false), HellfeatherFooting.Dirt)
+        T.AreEqual(HellfeatherSounds.Footing(-1, false), HellfeatherFooting.Dirt)
+        // Underground, the floor is flagstone whatever the column says.
+        T.AreEqual(HellfeatherSounds.Footing(QuaxelTerrainSurface.Grass, true), HellfeatherFooting.Stone)
+        T.AreEqual(HellfeatherSounds.Footing(HellfeatherSurface.Planks, true), HellfeatherFooting.Wood)
+    }
+}
+#{
+    // The footing for a terrain surface. Below is true in the Undercroft and
+    // Act II's dungeons, which floor every ordinary column with flagstone.
+    HellfeatherFooting Footing(int surface, bool below)
+    {
+        if surface == HellfeatherSurface.Planks || surface == QuaxelTerrainSurface.Bridge { return HellfeatherFooting.Wood }
+        if surface == QuaxelTerrainSurface.Water || surface == HellfeatherSurface.Mud || surface == HellfeatherSurface.Millpond { return HellfeatherFooting.Water }
+        if below { return HellfeatherFooting.Stone }
+        if surface == QuaxelTerrainSurface.Grass { return HellfeatherFooting.Grass }
+        if surface == QuaxelTerrainSurface.Rock || surface == HellfeatherSurface.Cobble || surface == HellfeatherSurface.Flagstone || surface == HellfeatherSurface.Wire || surface == HellfeatherSurface.Cracked || surface == HellfeatherSurface.Plaster || surface == HellfeatherSurface.Void { return HellfeatherFooting.Stone }
+        return HellfeatherFooting.Dirt
+    }
+
+    // The camera listens from about 35 units above and behind her, so enemies
+    // around her stay at full volume, panning as they stand left or right, and
+    // fade once they are well off the far side of the screen.
+    QuaxelAudioSource EnemySource()
+    {
+        QuaxelAudioSource source
+        source.InnerRadius = 38.0
+        source.OuterRadius = 58.0
+        return source
+    }
+
+    string [] VoicePaths(HellfeatherEnemyVoice voice, bool death)
+    {
+        string stem = "Assets/Sounds/Enemies/" + VoiceStem(voice)
+        return Variants(death ? stem + "_death" | stem + "_attack")
+    }
+
+    string VoiceStem(HellfeatherEnemyVoice voice)
+    {
+        Switch (voice)
+        {
+            case HellfeatherEnemyVoice.Duck:
+                return "duck"
+            case HellfeatherEnemyVoice.Rook:
+                return "rook"
+            case HellfeatherEnemyVoice.Human:
+                return "human"
+            case HellfeatherEnemyVoice.Honey:
+                return "honey"
+            default:
+                return "spark"
+        }
+    }
+
+    // Four variants: <stem>_1.wav to <stem>_4.wav.
+    string [] Variants(string stem)
+    {
+        string [] paths = {stem + "_1.wav", stem + "_2.wav", stem + "_3.wav", stem + "_4.wav"}
+        return paths
+    }
+
+    string [] StepPaths(HellfeatherFooting footing)
+    {
+        Switch (footing)
+        {
+            case HellfeatherFooting.Grass:
+                return Variants("Assets/Sounds/Footsteps/grass")
+            case HellfeatherFooting.Stone:
+                return Variants("Assets/Sounds/Footsteps/stone")
+            case HellfeatherFooting.Wood:
+                return Variants("Assets/Sounds/Footsteps/wood")
+            case HellfeatherFooting.Water:
+                return Variants("Assets/Sounds/Footsteps/water")
+            default:
+                return Variants("Assets/Sounds/Footsteps/dirt")
+        }
+    }
+
+    // Swords have their own set; maces, hammers, axes and bare hands share Blunt.
+    HellfeatherSwingSet SwingSetOf(HellfeatherWeaponCategory category)
+    {
+        if category == HellfeatherWeaponCategory.Sword { return HellfeatherSwingSet.Sword }
+        return HellfeatherSwingSet.Blunt
+    }
+
+    string [] SwingPaths(HellfeatherSwingSet set, HellfeatherSwing part)
+    {
+        string folder = set == HellfeatherSwingSet.Sword ? "Assets/Sounds/Swing/Sword/" | "Assets/Sounds/Swing/Blunt/"
+        Switch (part)
+        {
+            case HellfeatherSwing.Start:
+                return Variants(folder + "start")
+            case HellfeatherSwing.Whoosh:
+                return Variants(folder + "whoosh")
+            case HellfeatherSwing.Hit:
+                return Variants(folder + "hit")
+            default:
+                return Variants(folder + "end")
+        }
+    }
+
+    float SwingGain(HellfeatherSwing part)
+    {
+        Switch (part)
+        {
+            case HellfeatherSwing.Whoosh:
+                return 0.55
+            case HellfeatherSwing.Hit:
+                return 0.75
+            default:
+                return 0.3
+        }
+    }
+
+    // Each file peaks at -3 dB, so steps sit well under the axe at 0.6.
+    float StepGain(HellfeatherFooting footing)
+    {
+        Switch (footing)
+        {
+            case HellfeatherFooting.Grass:
+                return 0.08
+            case HellfeatherFooting.Water:
+                return 0.12
+            default:
+                return 0.1
+        }
+    }
+
+    HellfeatherSpace SpaceOf(HellfeatherRealm realm)
+    {
+        if HellfeatherRealm.IsBelow(realm) { return HellfeatherSpace.Underground }
+        if HellfeatherRealm.IsInterior(realm) { return HellfeatherSpace.Indoors }
+        return HellfeatherSpace.Outdoors
+    }
+
+    // Outdoors only a faint slap back; a house's small room; long stone halls below.
+    QuaxelReverbSettings Room(HellfeatherSpace space)
+    {
+        QuaxelReverbSettings room
+        Switch (space)
+        {
+            case HellfeatherSpace.Underground:
+                room.RoomSize = 0.85
+                room.Damping = 0.3
+                room.Wet = 0.45
+                break
+            case HellfeatherSpace.Indoors:
+                room.RoomSize = 0.45
+                room.Damping = 0.6
+                room.Wet = 0.3
+                break
+            default:
+                room.RoomSize = 0.2
+                room.Damping = 0.7
+                room.Wet = 0.2
+                break
+        }
+        return room
+    }
+
+    // How much of each swing goes to the reverb: more than her steps, so the
+    // blows carry into the room, and plainly even outdoors.
+    float SwingReverb(HellfeatherSpace space)
+    {
+        Switch (space)
+        {
+            case HellfeatherSpace.Underground:
+                return 0.75
+            case HellfeatherSpace.Indoors:
+                return 0.55
+            default:
+                return 0.4
+        }
+    }
+
+    // How much of each footstep goes to the reverb.
+    float StepReverb(HellfeatherSpace space)
+    {
+        Switch (space)
+        {
+            case HellfeatherSpace.Underground:
+                return 0.6
+            case HellfeatherSpace.Indoors:
+                return 0.4
+            default:
+                return 0.15
+        }
+    }
+
+    string Path(HellfeatherSound sound)
+    {
+        Switch (sound)
+        {
+            case HellfeatherSound.PlayerHurt:
+                return "Assets/Sounds/player_hurt.wav"
+            case HellfeatherSound.PotionDrink:
+                return "Assets/Sounds/potion_drink.wav"
+            case HellfeatherSound.Dash:
+                return "Assets/Sounds/dash.wav"
+            case HellfeatherSound.UiClick:
+                return "Assets/Sounds/ui_click.wav"
+            default:
+                return "Assets/Sounds/ui_panel.wav"
+        }
+    }
+
+    float Gain(HellfeatherSound sound)
+    {
+        Switch (sound)
+        {
+            case HellfeatherSound.PlayerHurt:
+                return 0.7
+            case HellfeatherSound.UiClick, HellfeatherSound.UiPanel:
+                return 0.45
+            default:
+                return 0.6
+        }
+    }
+}

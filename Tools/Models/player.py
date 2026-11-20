@@ -155,6 +155,48 @@ def walk_legs(a):
             'offset': (0, -0.8 * (1 - abs(math.cos(a))), 0)}
 
 
+# Where her feet land in the walk cycle, in milliseconds: each hip swings
+# furthest and the bob sits lowest a quarter and three quarters of the way round.
+FOOTFALLS = (WALK_MS // 4, 3 * WALK_MS // 4)
+
+
+def footsteps(clips):
+    """A `footstep` call on each frame of the walk, and of the actions' _walk
+    twins, during which a foot lands. Their legs keep the walk's timing from
+    the clip's start, so the same moments apply."""
+    calls = {}
+    for name, looping, frames in clips:
+        if name != 'walk' and not name.endswith('_walk'):
+            continue
+        at, marks = 0, {}
+        for k, (_, ms) in enumerate(frames):
+            if any((t - at) % WALK_MS < ms for t in FOOTFALLS):
+                marks[k] = ['footstep']
+            at += ms
+        calls[name] = marks
+    return calls
+
+
+# The swing's sounds on her attack clips: the grip and creak as she winds up,
+# and the whoosh on the downswing, just before the blow lands on frame 3.
+SWING_CALLS = {0: ['swing_start'], 2: ['swing_whoosh']}
+SWINGS = ('attack', 'attack_walk', 'cleave', 'cleave_walk')
+
+
+def frame_calls(clips):
+    """Every frame's `call` lines, for the game's AnimationCall: footsteps and
+    the swing's sounds. Hit or miss plays from the game, which knows which."""
+    calls = footsteps(clips)
+    for name, _, frames in clips:
+        if name not in SWINGS:
+            continue
+        marks = calls.setdefault(name, {})
+        for k, names in SWING_CALLS.items():
+            if k < len(frames):
+                marks[k] = names + marks.get(k, [])
+    return calls
+
+
 def walking(frames):
     """The same frames with the walk's legs under them, for using an action on
     the move. The upper body keeps the action's pose and timing; the legs and
@@ -250,7 +292,8 @@ def main():
     # Both scaled alike, by her own height without clothes or helmet.
     fit(base, HEIGHT)
     armored.scale = base.scale
-    build_variants({'Warrior': base, 'WarriorLeatherArmor': armored}, clips(), (64, 96, 72), args.preview)
+    made = clips()
+    build_variants({'Warrior': base, 'WarriorLeatherArmor': armored}, made, (64, 96, 72), args.preview, frame_calls(made))
 
 
 if __name__ == '__main__':

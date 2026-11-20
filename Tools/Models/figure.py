@@ -239,10 +239,12 @@ def build(name, rig, clips, size, preview=False):
     build_variants({name: rig}, clips, size, preview)
 
 
-def build_variants(rigs, clips, size, preview=False):
+def build_variants(rigs, clips, size, preview=False, calls=None):
     """Builds several rigs that share bones and clips, such as a body in each
     outfit, into files with the same box and sockets, so the game can swap one
-    for another without the model shifting. rigs maps file names to rigs."""
+    for another without the model shifting. rigs maps file names to rigs.
+    calls maps a clip name to {frame index: [call names]}, written as the
+    frames' `call` lines for the game's AnimationCall."""
     first = next(iter(rigs.values()))
     renders = {}
     for name, rig in rigs.items():
@@ -256,7 +258,9 @@ def build_variants(rigs, clips, size, preview=False):
             for grid, _ in frames:
                 union = np.maximum(union, grid)
     shift = trim_shift(union, [])
-    sockets = [[first.socket_lines(pose, size, shift) for pose, _ in frames] for _, _, frames in clips]
+    calls = calls or {}
+    sockets = [[[f'call {c}' for c in calls.get(clip, {}).get(k, [])] + first.socket_lines(pose, size, shift)
+                for k, (pose, _) in enumerate(frames)] for clip, _, frames in clips]
     box = act1.trim(union, [])[0].shape
     x0, z0 = shift
 

@@ -17,13 +17,15 @@ Issues found during testing:
 [] remove the millrace undercroft waypoint (keep only the deeper version)
 [] in the Ravens' hoard i need to be able to sell items as well, thay should abviesly not do directly to the hord but to the normal sell invetory
 [] Ravens' hoard should have re-roll button for example for 1 feather
-[] ring mail has same visual as lether armour
+[] ring mail has same visual as lether armour, scale mail as well
 [] on level up vendors inventory should reset
 [] what does power do for dash?
 [] maradra seems too easy 
 [] maradra should have maybe dead child next to her?
 [] we need to change the ending of act 1 it is supper un-clear. "The Hospice Road" is basicly nowhere no quest leads you there as well, the soulth wing is also strange?
 [] the waypoints show up way too late, when you almost near them
+[] make eda just buy the fether as well so you can get rid of them if you do not feel like gamble
+[] fethers should be also avalible in the gamble show from the personal storige
 
 act 2:
  scuffed models: 

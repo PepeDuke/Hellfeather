@@ -490,7 +490,31 @@ def linear(channel):
     return int(round(value * 255.0))
 
 
+# Act I's enemies, whose models call for their sounds: `attack` on the frame
+# before the blow lands, and `death` as they start to fall. The game's
+# AnimationCall plays the kind's Voice. Blows land on frame 2 unless the kind's
+# StrikeFrame in Source/EnemyData.dk says otherwise.
+ACT1_ENEMIES = ('EvilDuck', 'RoadDrake', 'CarrionRook', 'TitheStray', 'ReedDuck', 'Duckling',
+                'MoultedGander', 'BlackHoneyLeech', 'OldGreyneck', 'PilgrimPenitent', 'BlackHoneyFiend',
+                'GallowsRook', 'PondDrake', 'MillhandThrall', 'Cuffman', 'BladelockArbalist',
+                'SergeantOttar', 'HollowedBearer', 'BroodDrake', 'SilverSpark', 'RingKeeperWarden', 'Mardra')
+STRIKE_FRAMES = {'PilgrimPenitent': 4}
+
+
+def enemy_calls(name, clip_names):
+    """{clip: {frame index: [call names]}} for a model, empty for all but Act I's enemies."""
+    if name not in ACT1_ENEMIES:
+        return {}
+    calls = {}
+    if 'attack' in clip_names:
+        calls['attack'] = {max(0, STRIKE_FRAMES.get(name, 2) - 1): ['attack']}
+    if 'death' in clip_names:
+        calls['death'] = {0: ['death']}
+    return calls
+
+
 def write(path, palette, base, clips):
+    calls = enemy_calls(path.stem, [name for name, _, _ in clips])
     w, h, d = base.shape
     lines = ['qvox 1', f'size {w} {h} {d}', '']
     for i, color in enumerate(palette):
@@ -511,8 +535,9 @@ def write(path, palette, base, clips):
         lines.append(f"clip {name} {'loop' if looping else 'once'}")
         # A frame may carry a third item: its socket lines, such as
         # 'socket hand_r 10.5 38 38 12 20 16', from figure.py.
-        for grid, ms, *sockets in frames:
+        for k, (grid, ms, *sockets) in enumerate(frames):
             lines.append(f'frame {ms}')
+            lines.extend(f'call {c}' for c in calls.get(name, {}).get(k, []))
             lines.extend(sockets[0] if sockets else [])
             grid_lines(grid)
     path.write_text('\n'.join(lines) + '\n', encoding='ascii')

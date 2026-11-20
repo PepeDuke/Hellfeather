@@ -78,6 +78,10 @@ EnemyKind
     // Most black feathers it drops when slain. Birds of the Moult drop them, and
     // grow frenzied during a Featherfall.
     int Feathers
+    // The family of sounds its model's `call attack` and `call death` play,
+    // pitched by VoicePitch: above 1 for small kinds, below for big ones.
+    HellfeatherEnemyVoice Voice = HellfeatherEnemyVoice.None
+    float VoicePitch = 1.0
 
     AddTo(EnemyTable& table)
     {
@@ -938,6 +942,8 @@ HellfeatherGame : QuaxelGameInstance
             int node = world.CreateNode()
             world.AttachTransform(node, QuaxelTransform.Make(Enemies[i].Home, vec3(1.0, 1.0, 1.0)))
             world.SetCatchesEffects(node, false)
+            // Its sounds come from where it stands.
+            world.SetAudioSource(node, HellfeatherSounds.EnemySource())
             int visual = world.CreateChild(node)
             float cell = Spawner.Table.Kinds[Enemies[i].Kind].VoxelSize
             float halfHeight = (float)Spawner.Table.Kinds[Enemies[i].Kind].Height * cell * 0.5

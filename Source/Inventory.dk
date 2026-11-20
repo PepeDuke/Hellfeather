@@ -46,6 +46,18 @@ HellfeatherSlot
 }
 
 // Width and Height are in backpack cells.
+// What sort of weapon an item is. It picks how her swings sound, and is there
+// for anything else that should tell weapons apart, such as skills, passives
+// or mods that favour one sort. None for everything that is not a weapon.
+HellfeatherWeaponCategory : int
+#@{
+    None,
+    // Maces, hammers and mauls: heavy, crushing blows.
+    Blunt,
+    Axe,
+    Sword
+}
+
 HellfeatherItemKind
 {
     string Name
@@ -53,6 +65,8 @@ HellfeatherItemKind
     int Width = 1
     int Height = 1
     HellfeatherGear Gear
+    // Set for weapons; None for everything else.
+    HellfeatherWeaponCategory Category
     // What the shopkeeper asks for it, in gold. He pays a quarter of this, or
     // all of it for a valuable.
     int Price
@@ -156,11 +170,26 @@ HellfeatherItems
         return kind
     }
 
+    // A weapon: worn in the main hand, of a category.
+    -HellfeatherItemKind MakeWeapon(string title, string detail, int width, int height, int price, HellfeatherWeaponCategory category)
+    {
+        kind : Make(title, detail, width, height, HellfeatherGear.Weapon, price)
+        kind.Category = category
+        return kind
+    }
+
+    // The category of the weapon an item is, None when it is not one.
+    HellfeatherWeaponCategory CategoryOf(HellfeatherItems item)
+    {
+        kind : Get(item)
+        return kind.Category
+    }
+
     HellfeatherItemKind Get(HellfeatherItems item)
     {
         if HellfeatherItems.IsActTwo(item) { return HellfeatherItems.ActTwoKind(item) }
-        if item == HellfeatherItems.BattleAxe { return Make("Battle Axe", "Damage 16-24", 2, 3, HellfeatherGear.Weapon, 300) }
-        if item == HellfeatherItems.ShortSword { return Make("Short Sword", "Damage 9-15", 1, 3, HellfeatherGear.Weapon, 120) }
+        if item == HellfeatherItems.BattleAxe { return MakeWeapon("Battle Axe", "Damage 16-24", 2, 3, 300, HellfeatherWeaponCategory.Axe) }
+        if item == HellfeatherItems.ShortSword { return MakeWeapon("Short Sword", "Damage 9-15", 1, 3, 120, HellfeatherWeaponCategory.Sword) }
         if item == HellfeatherItems.RoundShield { return Make("Round Shield", "Defense 8", 2, 2, HellfeatherGear.Shield, 100) }
         if item == HellfeatherItems.IronHelm { return Make("Iron Helm", "Defense 5", 2, 2, HellfeatherGear.Head, 90) }
         if item == HellfeatherItems.LeatherArmor { return Make("Leather Armor", "Defense 12", 2, 3, HellfeatherGear.Body, 160) }
@@ -187,12 +216,12 @@ HellfeatherItems
         if item == HellfeatherItems.MarrasThimble { return Make("Marra's Thimble", "Defense 6, Strength 3", 1, 1, HellfeatherGear.Ring, 420) }
         if item == HellfeatherItems.MardrasRingShards { return Make("Mardra's Ring Shards", "Heal 2 per hit", 1, 1, HellfeatherGear.Neck, 600) }
         if item == HellfeatherItems.GreyneckQuill { return Make("Greyneck's Quill", "Agility 6", 1, 1, HellfeatherGear.Neck, 380) }
-        if item == HellfeatherItems.MillstoneMaul { return Make("Millstone Maul", "Damage 24-40", 2, 3, HellfeatherGear.Weapon, 520) }
+        if item == HellfeatherItems.MillstoneMaul { return MakeWeapon("Millstone Maul", "Damage 24-40", 2, 3, 520, HellfeatherWeaponCategory.Blunt) }
         if item == HellfeatherItems.MinersHelmet { return Make("Miner's Helmet", "Defense 2", 2, 2, HellfeatherGear.Head, 40) }
         if item == HellfeatherItems.RavenPortal { return Make("Raven Portal", "Opens a way to town: H", 1, 1, HellfeatherGear.None, 50) }
-        if item == HellfeatherItems.HandAxe { return Make("Hand Axe", "Damage 10-14", 1, 3, HellfeatherGear.Weapon, 60) }
-        if item == HellfeatherItems.Falchion { return Make("Falchion", "Damage 12-20", 1, 3, HellfeatherGear.Weapon, 220) }
-        if item == HellfeatherItems.FlangedMace { return Make("Flanged Mace", "Damage 20-32", 1, 3, HellfeatherGear.Weapon, 400) }
+        if item == HellfeatherItems.HandAxe { return MakeWeapon("Hand Axe", "Damage 10-14", 1, 3, 60, HellfeatherWeaponCategory.Axe) }
+        if item == HellfeatherItems.Falchion { return MakeWeapon("Falchion", "Damage 12-20", 1, 3, 220, HellfeatherWeaponCategory.Sword) }
+        if item == HellfeatherItems.FlangedMace { return MakeWeapon("Flanged Mace", "Damage 20-32", 1, 3, 400, HellfeatherWeaponCategory.Blunt) }
         if item == HellfeatherItems.KiteShield { return Make("Kite Shield", "Defense 14", 2, 3, HellfeatherGear.Shield, 240) }
         if item == HellfeatherItems.ChainCoif { return Make("Chain Coif", "Defense 8", 2, 2, HellfeatherGear.Head, 150) }
         if item == HellfeatherItems.GreatHelm { return Make("Great Helm", "Defense 12", 2, 2, HellfeatherGear.Head, 320) }
@@ -206,7 +235,7 @@ HellfeatherItems
         if item == HellfeatherItems.PlatedBelt { return Make("Plated Belt", "Defense 7", 2, 1, HellfeatherGear.Waist, 220) }
         if item == HellfeatherItems.GarnetRing { return Make("Garnet Ring", "Strength 2", 1, 1, HellfeatherGear.Ring, 300) }
         if item == HellfeatherItems.RavenAmulet { return Make("Raven Amulet", "Mana 15", 1, 1, HellfeatherGear.Neck, 360) }
-        if item == HellfeatherItems.WarHammer { return Make("War Hammer", "Damage 26-42", 1, 3, HellfeatherGear.Weapon, 560) }
+        if item == HellfeatherItems.WarHammer { return MakeWeapon("War Hammer", "Damage 26-42", 1, 3, 560, HellfeatherWeaponCategory.Blunt) }
         if item == HellfeatherItems.TowerShield { return Make("Tower Shield", "Defense 22", 2, 3, HellfeatherGear.Shield, 420) }
         if item == HellfeatherItems.VisoredHelm { return Make("Visored Helm", "Defense 17", 2, 2, HellfeatherGear.Head, 460) }
         if item == HellfeatherItems.PlateMail { return Make("Plate Mail", "Defense 42", 2, 3, HellfeatherGear.Body, 700) }
@@ -533,6 +562,18 @@ HellfeatherInventory
     #int MaxPortals = 20
 }
 T{
+    EveryWeaponHasACategoryAndNothingElseDoes()
+    {
+        for item : HellfeatherItems {
+            kind : HellfeatherItems.Get(item)
+            T.AreEqual(kind.Gear == HellfeatherGear.Weapon, kind.Category != HellfeatherWeaponCategory.None)
+        }
+        T.AreEqual(HellfeatherItems.CategoryOf(HellfeatherItems.HandAxe), HellfeatherWeaponCategory.Axe)
+        T.AreEqual(HellfeatherItems.CategoryOf(HellfeatherItems.Falchion), HellfeatherWeaponCategory.Sword)
+        T.AreEqual(HellfeatherItems.CategoryOf(HellfeatherItems.WarHammer), HellfeatherWeaponCategory.Blunt)
+        T.AreEqual(HellfeatherItems.CategoryOf(HellfeatherItems.None), HellfeatherWeaponCategory.None)
+    }
+
     FeathersStackFiveToACell()
     {
         HellfeatherInventory bag

@@ -26,6 +26,30 @@ HellfeatherCharacterMenu
     -bool PickHeld = true
     -bool DeleteHeld = true
     -bool EscapeHeld = true
+    // Set by a click on any button or row, or a key that picks; the game
+    // plays the click and clears it with TakeClick.
+    -bool Clicked
+    // Set when the pointer or the keys move onto another button or row.
+    -bool Hovered
+    // The button or row under the pointer, numbered as drawn, or -1.
+    -int Hovering = -1
+    -int Element
+    // True while drawing the question's own buttons, the only live ones then.
+    -bool InQuestion
+
+    bool TakeClick()
+    {
+        bool was = Clicked
+        Clicked = false
+        return was
+    }
+
+    bool TakeHover()
+    {
+        bool was = Hovered
+        Hovered = false
+        return was
+    }
 
     // Reads every slot and chooses Slot's row, or the newest.
     Refresh(int slot)
@@ -87,25 +111,41 @@ HellfeatherCharacterMenu
         DeleteHeld = erase
         EscapeHeld = escape
         if Confirming {
-            if escaped { Confirming = false }
+            if escaped {
+                Confirming = false
+                Clicked = true
+            }
             return HellfeatherCharacterAction.None
         }
         int count = (int)Rows.Len
         if count > 0 && (upPressed || downPressed) {
             Selected = Math.Clamp(Selected + (downPressed ? 1 | -1), 0, count - 1)
             Notice = ""
+            Hovered = true
             return HellfeatherCharacterAction.Select
         }
         if erased && Selected >= 0 {
             Confirming = true
+            Clicked = true
             return HellfeatherCharacterAction.None
         }
-        if picked { return SelectedReadable() ? HellfeatherCharacterAction.Continue | count == 0 ? HellfeatherCharacterAction.NewCharacter | HellfeatherCharacterAction.None }
-        return HellfeatherCharacterAction.None
+        if !picked { return HellfeatherCharacterAction.None }
+        Clicked = true
+        return SelectedReadable() ? HellfeatherCharacterAction.Continue | count == 0 ? HellfeatherCharacterAction.NewCharacter | HellfeatherCharacterAction.None
     }
 
     // Draws the menu and returns what a click asked for this frame.
     HellfeatherCharacterAction Draw(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool mouseDown)
+    {
+        int before = Hovering
+        Hovering = -1
+        Element = 0
+        asked : DrawMenu(ui, width, height, mouseX, mouseY, mouseDown)
+        if Hovering >= 0 && Hovering != before { Hovered = true }
+        return asked
+    }
+
+    -HellfeatherCharacterAction DrawMenu(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool mouseDown)
     {
         int scale = ui.ScaleFor(width, height)
         int gridWidth = width / scale
@@ -141,6 +181,8 @@ HellfeatherCharacterMenu
         for i : 0; i < Rows.Len; i++ {
             int y = top + 18 + i * rowTall
             bool over = !Confirming && Inside(px, py, left + 3, y, wide - 6, rowTall - 2)
+            if over { Hovering = 1000 + i }
+            if over && pressed { Clicked = true }
             if over && pressed && Selected != i {
                 Selected = i
                 Notice = ""
@@ -167,7 +209,10 @@ HellfeatherCharacterMenu
 
         if !Confirming { return asked }
         // Clicks behind the question do nothing.
-        return Confirm(ui, gridWidth, gridHeight, px, py, pressed)
+        InQuestion = true
+        answer : Confirm(ui, gridWidth, gridHeight, px, py, pressed)
+        InQuestion = false
+        return answer
     }
 
     // Are you sure? Delete or Cancel, over a dimmed screen.
@@ -223,6 +268,11 @@ HellfeatherCharacterMenu
         int w = Math.Max(given, (int)Length(label) * 6 - 1 + 2 * HellfeatherCharacterMenu.LabelPadding)
         int x = left - (w - given) / 2
         bool over = Inside(px, py, x, y, w, h)
+        int id = Element
+        Element++
+        bool live = !Confirming || InQuestion
+        if over && live { Hovering = id }
+        if over && pressed && live { Clicked = true }
         bool lit = over || primary
         ui.OverlayRect(x, y, w, h, over ? (uint)0xFFE0B060 | lit ? (uint)0xFFC8963C | (uint)0xFF4A3C30)
         ui.OverlayRect(x + 1, y + 1, w - 2, h - 2, lit ? (uint)0xF0301A10 | (uint)0xE0100C0B)
@@ -267,6 +317,49 @@ T{
         int exitY = under + HellfeatherMenu.ButtonHeight + 5 + 7
         menu.Draw(ui, 960, 540, 480, exitY * 2, false)
         T.AreEqual(menu.Draw(ui, 960, 540, 480, exitY * 2, true), HellfeatherCharacterAction.ExitGame)
+    }
+
+    ButtonsSignalTheirHoverAndClick()
+    {
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        HellfeatherCharacterMenu menu
+        int under = 270 * 72 / 100
+        int exitY = under + HellfeatherMenu.ButtonHeight + 5 + 7
+        // The pointer over nothing, then onto New Character: one hover.
+        menu.Draw(ui, 960, 540, 4, 4, false)
+        T.IsFalse(menu.TakeHover())
+        menu.Draw(ui, 960, 540, 480, (under + 7) * 2, false)
+        T.IsTrue(menu.TakeHover())
+        menu.Draw(ui, 960, 540, 480, (under + 7) * 2, false)
+        T.IsFalse(menu.TakeHover())
+        // Onto Exit Game: another.
+        menu.Draw(ui, 960, 540, 480, exitY * 2, false)
+        T.IsTrue(menu.TakeHover())
+        T.IsFalse(menu.TakeClick())
+        menu.Draw(ui, 960, 540, 480, exitY * 2, true)
+        T.IsTrue(menu.TakeClick())
+        T.IsFalse(menu.TakeClick())
+    }
+
+    TheQuestionAloneTakesClicks()
+    {
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        HellfeatherCharacterMenu menu
+        HellfeatherSaveSummary row
+        row.Slot = 1
+        row.Readable = true
+        menu.Rows += row
+        menu.Selected = 0
+        menu.Confirming = true
+        // Exit Game at the bottom of the list sits behind the question.
+        int exitY = 270 - HellfeatherCharacterMenu.Margin - 4 - HellfeatherMenu.ButtonHeight + 7
+        int x = (HellfeatherCharacterMenu.Margin + 20) * 2
+        menu.Draw(ui, 960, 540, x, exitY * 2, false)
+        menu.Draw(ui, 960, 540, x, exitY * 2, true)
+        T.IsFalse(menu.TakeClick())
+        T.IsFalse(menu.TakeHover())
     }
 
     TheDeleteLabelFitsItsButton()

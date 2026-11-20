@@ -46,6 +46,7 @@ HellfeatherGame : QuaxelGameInstance
     HellfeatherGroundItems Ground
     HellfeatherFires Fires
     HellfeatherShopScreen Shop
+    HellfeatherSounds Sfx
 
     int WindowWidth() { return Benchmark.Enabled ? 1920 | 960 }
     int WindowHeight() { return Benchmark.Enabled ? 1080 | 540 }
@@ -98,6 +99,9 @@ HellfeatherGame : QuaxelGameInstance
     }
 
     float AxeReach() { return 1.6 }
+
+    // The category of the weapon in her main hand, None when it is empty.
+    HellfeatherWeaponCategory WeaponCategory() { return HellfeatherItems.CategoryOf(Inventory.Items.Equipped[HellfeatherSlot.MainHand]) }
 
     HellfeatherDamageRange CleaveDamage()
     {
@@ -172,6 +176,7 @@ HellfeatherGame : QuaxelGameInstance
         long clock = 0
         QuaxelPlatform.ReadClock(clock)
         StockMerchants((uint)(clock & (long)0x7FFFFFFF))
+        Sfx.Load(world)
         bool ready = SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world) && GoToStart(world)
         if ready { ApplySavedWaypoints() }
         // A game started straight into play, as after picking a character, has begun.
@@ -518,6 +523,10 @@ HellfeatherGame : QuaxelGameInstance
                     }
                     else if !shouting { world.PlayClip(visual, moving ? "walk" | "idle") }
                 }
+                // The walk plays at her pace, so her legs, and the footsteps
+                // their frames call, keep up as slows and boots change her speed.
+                bool walkingClip = moving && !swinging && !startingSwing && !shouting
+                world.SetAnimationSpeed(visual, walkingClip ? Math.Clamp(controller.Speed / PlayerSpeed(), 0.3, 3.0) | 1.0)
                 vec3 facing = Math.Normalize(vec3(transform.Position.X - before.X, 0.0, transform.Position.Z - before.Z))
                 if (facing.X != 0.0 || facing.Z != 0.0) && world.Has(controller.VisualNode, QuaxelComponents.Transform) {
                     QuaxelTransform pose = world.GetTransform(controller.VisualNode)
@@ -542,6 +551,32 @@ HellfeatherGame : QuaxelGameInstance
             bool down = input.Down[keys[slot]]
             if down && !SlotKeysHeld[slot] { RequestSlot(slot) }
             SlotKeysHeld[slot] = down
+        }
+    }
+
+    // Her model's `call` lines: footstep where a foot lands, and swing_start
+    // and swing_whoosh through her attack and cleave.
+    AnimationCall(QuaxelWorld& world, QuaxelAnimationCall call)
+    {
+        for controller : Controllers {
+            if controller.VisualNode != call.Node { continue }
+            Sfx.SetSpace(world, HellfeatherSounds.SpaceOf(Terrain.Realm))
+            if call.Name == "footstep" {
+                vec3 feet = world.GetPosition(controller.Node)
+                Sfx.Footstep(world, HellfeatherSounds.Footing(Terrain.SurfaceAt(feet.X, feet.Z), HellfeatherRealm.IsBelow(Terrain.Realm)))
+            }
+            else if call.Name == "swing_start" { Sfx.Swing(world, HellfeatherSwing.Start, WeaponCategory()) }
+            else if call.Name == "swing_whoosh" { Sfx.Swing(world, HellfeatherSwing.Whoosh, WeaponCategory()) }
+            return
+        }
+        // An enemy's `call attack` just before its blow, `call death` as it falls.
+        bool death = call.Name == "death"
+        if !death && call.Name != "attack" { return }
+        for enemy : Enemies {
+            if enemy.VisualNode != call.Node || enemy.Node == 0 { continue }
+            kind : Spawner.Table.Kinds[enemy.Kind]
+            Sfx.Enemy(world, enemy.Node, kind.Voice, kind.VoicePitch, death)
+            return
         }
     }
 
@@ -601,6 +636,8 @@ HellfeatherGame : QuaxelGameInstance
             return
         }
         if !Perform(action) { return }
+        if action == HellfeatherAction.HealthPotion || action == HellfeatherAction.ManaPotion { Sfx.Play(world, HellfeatherSound.PotionDrink) }
+        else if action == HellfeatherAction.Dash { Sfx.Play(world, HellfeatherSound.Dash) }
         if action == HellfeatherAction.HealthPotion { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + PlayerAfflictions.Healed(HealthPotionHeal())) }
         else if action == HellfeatherAction.ManaPotion { PlayerMana = Math.Min(PlayerMaxMana(), PlayerMana + ManaPotionRestore()) }
         else if action == HellfeatherAction.WarCry { Shout(world, direction) }
@@ -683,6 +720,7 @@ HellfeatherGame : QuaxelGameInstance
         int fire = stats.FireDamage
         int cold = stats.ColdDamage
         int lightning = stats.LightningDamage
+        bool landed = false
         for i : 0; i < Enemies.Len; i++ {
             if !Enemies[i].Awake || Enemies[i].Health <= 0 { continue }
             if GroundDistance(origin, world.GetPosition(Enemies[i].Node)) > reach { continue }
@@ -697,6 +735,7 @@ HellfeatherGame : QuaxelGameInstance
             float stagger = Enemies[i].Afflictions.StaggerOnHit()
             float arc = Enemies[i].Afflictions.ArcShare()
             Enemies[i].Health -= blow
+            landed = true
             if shards { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + Math.Max(0, PlayerAfflictions.Healed(2))) }
             bool slain = Enemies[i].Health <= 0
             Bleed(world, Enemies[i].Node, origin, slain)
@@ -707,6 +746,8 @@ HellfeatherGame : QuaxelGameInstance
             if arc > 0.0 { ChainFrom(world, i, (int)((float)blow * arc), 1, HellfeatherStatuses.ArcRadius) }
             AfflictEnemy(world, i, fire, cold, lightning)
         }
+        // One thud however many the blow catches; a miss just ends the swing.
+        Sfx.Swing(world, landed ? HellfeatherSwing.Hit | HellfeatherSwing.End, WeaponCategory())
     }
 
     // An enemy falls to her: the kill counts, it drops its loot, and its
@@ -807,6 +848,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         if PlayerHealth <= 0 { return }
         PlayerHealth -= amount
+        Sfx.Play(world, HellfeatherSound.PlayerHurt)
         Bleed(world, PlayerNode, world.GetPosition(PlayerNode), PlayerHealth <= 0)
         if PlayerHealth > 0 { return }
         FallPlayer(world)
@@ -993,6 +1035,7 @@ HellfeatherGame : QuaxelGameInstance
     ClickWorld(QuaxelWorld& world, int mouseX, int mouseY, bool held)
     {
         bool pressed = held && !MouseHeld
+        if pressed && ClickTaken(mouseX, mouseY) { Sfx.Play(world, HellfeatherSound.UiClick) }
         // An item in reach takes the click. One out of reach does not, so the
         // click still swings rather than being lost.
         bool taking = Ground.Hovered >= 0 && Ground.InReach(Ground.Hovered, world.GetPosition(PlayerNode))
@@ -1022,6 +1065,7 @@ HellfeatherGame : QuaxelGameInstance
 
     ToggleHudPanel(HellfeatherHudPanel panel)
     {
+        Sfx.Queue(HellfeatherSound.UiPanel)
         if panel == HellfeatherHudPanel.Inventory {
             Inventory.Toggle()
             return
@@ -1069,6 +1113,8 @@ HellfeatherGame : QuaxelGameInstance
         QuaxelPlatform.GetMousePosition(mouseX, mouseY)
         bool mouseDown = QuaxelPlatform.IsMouseButtonDown()
         bool rightDown = QuaxelPlatform.IsRightMouseButtonDown()
+        // Panels opened since the last frame, by key or by button.
+        Sfx.Flush(world)
         // Taken every frame, so turns made while the map is shut do not pile up.
         int wheel = QuaxelPlatform.TakeWheelNotches()
         if AutoMap.Open { AutoMap.Zoom(wheel) }
