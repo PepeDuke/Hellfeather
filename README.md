@@ -22,7 +22,7 @@ Keep Duck, Quaxel-Engine and Hellfeather as sibling directories by default.
 
 Use `-DuckRoot <path>` to locate another Duck toolchain. Build that toolchain
 first with CMake as described in the Quaxel Engine README. Changing the engine
-location requires updating `references` in both game manifests.
+location requires updating `references` in the game manifests.
 
 The default headless executable runs three simulation steps totaling 0.05 seconds.
 Build outputs are ignored under `.duck/`.
@@ -43,7 +43,19 @@ Gameplay tests run without a GPU:
 ./.duck/build/windows/debug/Hellfeather.exe
 ```
 
-Both configurations compile the same game source. The x64 Windows build
+With an activated Emscripten SDK, build and serve the browser version:
+
+```powershell
+./build.ps1 -Platform web -Profile release
+python -m http.server 8000 --bind 127.0.0.1 --directory .duck/build/web/wasm64/release/site
+```
+
+Open `http://127.0.0.1:8000/Hellfeather.html` in a browser supporting WebGL 2,
+WebAssembly Memory64 and JSPI. Click New Character or Continue to play.
+Saves stay in this browser at the same origin. For command-line starts, pass
+one URL parameter per argument, for example `?arg=--start&arg=mill`.
+
+All configurations compile the same game source. The x64 Windows build
 requires the Vulkan SDK and opens a resizable window. Use `--no-menu` to start playing immediately.
 
 ## Gameplay and controls

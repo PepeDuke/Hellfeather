@@ -59,7 +59,59 @@ HellfeatherGame : QuaxelGameInstance
     // World units shown each way from the player along the ground.
     float ViewHalfExtent() { return 10.0 }
 
-    int TerrainSeed() { return 7 }
+    // The seed the outdoor levels and the Undercroft are laid out from. With
+    // NewWorldEachRun, Prepare picks a new one from the clock, so each launch
+    // or restart lays out new clearings and passages between the story's
+    // zones. Tests leave it at 7 and see the same world every time.
+    uint WorldSeed = (uint)7
+    bool NewWorldEachRun
+
+    uint TerrainSeed() { return WorldSeed }
+
+    // The first seed from Start on that lays out every story zone of the
+    // Fenmarch and the Thornmere. About one seed in five has no clearing
+    // isolated enough for Thornwick. Falls back to the default world.
+    uint PickWorldSeed(uint start)
+    {
+        uint kept = WorldSeed
+        for attempt : 0; attempt < 12; attempt++ {
+            WorldSeed = start + (uint)attempt * (uint)7919
+            if WorldSeedFits() {
+                uint found = WorldSeed
+                WorldSeed = kept
+                return found
+            }
+        }
+        WorldSeed = kept
+        return (uint)7
+    }
+
+    // Lays out both overland realms with WorldSeed on a spare terrain and
+    // checks that each zone the story needs got a clearing.
+    bool WorldSeedFits()
+    {
+        HellfeatherTerrain probe
+        probe.Realm = HellfeatherRealm.Fenmarch
+        if !probe.Configure(FenmarchConfig()) { return false }
+        for zone : HellfeatherZone {
+            if zone + 0 > HellfeatherZone.Fenmarch + 0 && zone + 0 < HellfeatherZone.Undercroft + 0 && !Placed(probe, zone) { return false }
+        }
+        probe.Realm = HellfeatherRealm.Thornmere
+        if !probe.Configure(HellfeatherRealm.ThornmereConfig(TerrainSeed())) { return false }
+        return Placed(probe, HellfeatherZone.Encampment) && Placed(probe, HellfeatherZone.HospiceRoad) && Placed(probe, HellfeatherZone.Shallows) && Placed(probe, HellfeatherZone.Thornwick)
+    }
+
+    -bool Placed(HellfeatherTerrain& terrain, HellfeatherZone zone)
+    {
+        for site : terrain.Layout.Sites {
+            if site.Module == zone + 0 { return true }
+        }
+        return false
+    }
+
+    // A level's own seed, moved by the world's. The default world keeps the
+    // levels' own seeds.
+    uint Reseed(uint seed) { return seed + (WorldSeed ^ (uint)7) * (uint)2654435761 }
 
     // Generation budget per fixed step, in columns. A chunk needs about 60,000.
     int TerrainColumnsPerStep() { return 3000 }
@@ -176,6 +228,7 @@ HellfeatherGame : QuaxelGameInstance
         long clock = 0
         QuaxelPlatform.ReadClock(clock)
         StockMerchants((uint)(clock & (long)0x7FFFFFFF))
+        if NewWorldEachRun { WorldSeed = PickWorldSeed((uint)(((clock >> 8) ^ (clock >> 29)) & (long)0x7FFFFFFF)) }
         Sfx.Load(world)
         bool ready = SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world) && GoToStart(world)
         if ready { ApplySavedWaypoints() }
@@ -256,7 +309,7 @@ HellfeatherGame : QuaxelGameInstance
     QuaxelTerrainConfig FenmarchConfig()
     {
         QuaxelTerrainConfig config
-        config.Seed = (uint)TerrainSeed()
+        config.Seed = TerrainSeed()
         config.RoadWidth = 1.6
         config.GroundRoughness = 1
         config.TerraceStep = 5
@@ -344,6 +397,9 @@ HellfeatherGame : QuaxelGameInstance
         HellfeatherItems mainHand = Inventory.Items.Equipped[HellfeatherSlot.MainHand]
         HellfeatherItems offHand = Inventory.Items.Equipped[HellfeatherSlot.OffHand]
         HellfeatherItems head = Inventory.Items.Equipped[HellfeatherSlot.Head]
+        Wardrobe.Marked = Quests.TitheMark
+        // Her marked body is ready before the mark takes, so the swap is instant.
+        if !Quests.TitheMark { Wardrobe.Preload(world, HellfeatherWarrior.BodyModel(body, true)) }
         return Wardrobe.Dress(world, visual, body, mainHand, offHand, head)
     }
 
@@ -475,6 +531,7 @@ HellfeatherGame : QuaxelGameInstance
         HudVoxels.Step(world, deltaSeconds)
         StepAct(world, deltaSeconds)
         StepAfflictions(world, deltaSeconds)
+        StepMark(world, deltaSeconds)
         if PlayerHealth <= 0 {
             StepFallenPlayer(world, deltaSeconds)
             RequestedAction = HellfeatherAction.None
@@ -509,6 +566,8 @@ HellfeatherGame : QuaxelGameInstance
                 string clip = world.CurrentClipName(visual)
                 bool swinging = HellfeatherWarrior.IsSwingClip(clip) && animator.Playing
                 bool shouting = HellfeatherWarrior.IsShoutClip(clip) && animator.Playing
+                // The mark taking hold plays through, like the war cry.
+                bool hurting = clip == "pain" && animator.Playing
                 if swinging && !SwingLanded && animator.Frame >= AxeStrikeFrame() {
                     SwingLanded = true
                     StrikeEnemies(world, transform.Position, SwingAction)
@@ -521,7 +580,7 @@ HellfeatherGame : QuaxelGameInstance
                         SwingLanded = false
                         SwingAction = RequestedAction
                     }
-                    else if !shouting { world.PlayClip(visual, moving ? "walk" | "idle") }
+                    else if !shouting && !hurting { world.PlayClip(visual, moving ? "walk" | "idle") }
                 }
                 // The walk plays at her pace, so her legs, and the footsteps
                 // their frames call, keep up as slows and boots change her speed.
@@ -800,6 +859,14 @@ HellfeatherGame : QuaxelGameInstance
         Ground.PlaceFeathers(world, amount, DropSpotAround(world.GetPosition(Enemies[index].Node)))
     }
 
+    // A quest item drops only while she has none: not in her bag, on her
+    // cursor or in her chest at home. Everything else always may.
+    bool MayDrop(HellfeatherItems item)
+    {
+        if !HellfeatherItems.IsQuest(item) { return true }
+        return Inventory.Items.AmountOf(item) == 0 && Stash.Chest.AmountOf(item) == 0
+    }
+
     // Rolls the enemy's loot onto the ground around it, the first time it falls.
     -DropLoot(QuaxelWorld& world, int index)
     {
@@ -807,9 +874,19 @@ HellfeatherGame : QuaxelGameInstance
         if loot < 0 || Enemies[index].LootDropped { return }
         Enemies[index].LootDropped = true
         vec3 corpse = world.GetPosition(Enemies[index].Node)
+        HellfeatherItems [] quest
         for roll : 0; roll < Spawner.Table.Loots[loot].Rolls; roll++ {
             item : Spawner.RollLootAt(loot, LootLevel(index))
-            if item == HellfeatherItems.None { continue }
+            if item == HellfeatherItems.None || !MayDrop(item) { continue }
+            // One of a quest item per kill, too.
+            if HellfeatherItems.IsQuest(item) {
+                bool again = false
+                for dropped : quest {
+                    if dropped == item { again = true }
+                }
+                if again { continue }
+                quest += item
+            }
             mods : Spawner.RollMods(item)
             Ground.PlaceWith(world, item, mods, DropSpotAround(corpse))
             int gold = Spawner.RollGold(loot)
@@ -1427,13 +1504,69 @@ T{
         T.IsTrue(bar.X >= covered)
     }
 
+    // The default world lays out every story zone, and so does whatever seed
+    // a run picks, while different runs get different layouts.
+    EachRunPicksAWorldWithEveryStoryZone()
+    {
+        HellfeatherGame fixed()
+        T.IsTrue(fixed.WorldSeedFits())
+        uint [] picked
+        for n : 0; n < 6; n++ {
+            HellfeatherGame game()
+            game.WorldSeed = game.PickWorldSeed((uint)(n * 104729 + 3))
+            T.IsTrue(game.WorldSeedFits())
+            picked += game.WorldSeed
+        }
+        int different = 0
+        for seed : picked {
+            if seed != picked[0] { different++ }
+        }
+        T.IsTrue(different > 0)
+        // A different seed moves the clearings, not only the noise on them.
+        HellfeatherGame one()
+        HellfeatherGame two()
+        two.WorldSeed = picked[1] != (uint)7 ? picked[1] | picked[2]
+        one.Terrain.Realm = HellfeatherRealm.Fenmarch
+        two.Terrain.Realm = HellfeatherRealm.Fenmarch
+        T.IsTrue(one.Terrain.Configure(one.FenmarchConfig()))
+        T.IsTrue(two.Terrain.Configure(two.FenmarchConfig()))
+        int millOne = one.NearestSiteOf(HellfeatherZone.HobbsMill)
+        int millTwo = two.NearestSiteOf(HellfeatherZone.HobbsMill)
+        vec3 a = one.Terrain.WorldPoint(one.Terrain.Layout.Sites[millOne].X, one.Terrain.Layout.Sites[millOne].Z)
+        vec3 b = two.Terrain.WorldPoint(two.Terrain.Layout.Sites[millTwo].X, two.Terrain.Layout.Sites[millTwo].Z)
+        T.IsTrue(Math.Hypot(a.X - b.X, a.Z - b.Z) > 1.0)
+    }
+
+    // The tithe bracelet drops only while she has none, in the bag or the chest.
+    AQuestItemDropsOnlyWhileSheHasNone()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(game.MayDrop(HellfeatherItems.TitheBracelet))
+        T.IsTrue(game.Inventory.Items.Add(HellfeatherItems.TitheBracelet))
+        T.IsFalse(game.MayDrop(HellfeatherItems.TitheBracelet))
+        // Moved to the chest, it still counts.
+        long last = game.Inventory.Items.Bag.Len - 1
+        T.IsTrue(game.Inventory.Items.PickUp(game.Inventory.Items.Bag[last].X, game.Inventory.Items.Bag[last].Y))
+        game.OpenChest()
+        game.Inventory.QuickStoreRequest = true
+        game.ApplyQuickStore()
+        T.AreEqual(game.Stash.Chest.AmountOf(HellfeatherItems.TitheBracelet), 1)
+        T.AreEqual(game.Inventory.Items.AmountOf(HellfeatherItems.TitheBracelet), 0)
+        T.IsFalse(game.MayDrop(HellfeatherItems.TitheBracelet))
+        // Ordinary loot drops however much of it she has.
+        T.IsTrue(game.MayDrop(HellfeatherItems.HealthPotion))
+    }
+
     TheWarriorStartsWithHerAxeEquipped()
     {
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
         T.AreEqual(game.Inventory.Items.Equipped[HellfeatherSlot.MainHand], HellfeatherItems.HandAxe)
-        T.AreEqual(game.Inventory.Items.Bag.Len, 0)
+        // Her bag holds only her two health potions and one mana potion.
+        T.AreEqual(game.Inventory.Items.Bag.Len, 3)
         // Her Cleave rune starts socketed, so Cleave is known and on the right mouse button.
         T.AreEqual(game.Runes.Board.Sockets.Len, 1)
         T.AreEqual(game.Runes.Board.Sockets[0].Item, HellfeatherItems.RuneCleave)
@@ -2150,8 +2283,8 @@ T{
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
-        game.Inventory.Items.Add(HellfeatherItems.HealthPotion)
-        game.Inventory.Items.Add(HellfeatherItems.HealthPotion)
+        // She starts with two.
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), 2)
         game.PlayerHealth = 20
         QuaxelInputState input
         input.SetDown(QuaxelKey.Q, true)

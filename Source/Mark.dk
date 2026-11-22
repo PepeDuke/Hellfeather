@@ -1,0 +1,127 @@
+// The Tithe-mark taking hold, when Jessa dies holding Wren's arm (I-1). Wren
+// plays pain and is held still while it lasts; the lattice on her right
+// forearm flares silver-white, throws a spray of silver sparks and fades. The
+// light rides the `mark` socket of her model (Tools/Models/player.py), so it
+// moves with the arm.
+HellfeatherMark
+#{
+    // How long she is held, about the length of the pain clip.
+    #float PainSeconds = 2.0
+    // How long the glow lasts, and how bright it flares at first.
+    #float GlowSeconds = 4.5
+    #float GlowPeak = 26.0
+    #float GlowRadius = 3.2
+
+    // The mark's light at Age seconds into the glow: up fast, a stutter while
+    // she clutches the arm, then a slow fade.
+    float Intensity(float age)
+    {
+        if age < 0.0 || age >= GlowSeconds { return 0.0 }
+        float rise = Math.Clamp(age / 0.18, 0.0, 1.0)
+        float fade = 1.0 - age / GlowSeconds
+        float stutter = 0.8 + 0.2 * Math.Sin(age * 19.0)
+        return GlowPeak * rise * fade * fade * stutter
+    }
+
+    // Fine silver motes that spill from the forearm and drift down.
+    QuaxelEffectStyle Motes()
+    {
+        QuaxelEffectStyle style = QuaxelEffectStyle.Sparks()
+        style.VoxelSize = 0.03
+        style.Floor = 0.5
+        style.Burst = 70
+        style.Rate = 45.0
+        style.SizeStart = 1.2
+        style.SizeEnd = 0.3
+        style.EmitSeconds = 1.4
+        style.SpawnRadius = 0.08
+        style.SpeedMin = 0.6
+        style.SpeedMax = 2.2
+        style.Spread = 120.0
+        style.Gravity = -2.5
+        style.Drag = 1.6
+        style.LifeMin = 0.5
+        style.LifeMax = 1.2
+        style.ColorStart = 0xffffff
+        style.ColorMiddle = 0xc8dcff
+        style.ColorEnd = 0x5a6c8c
+        style.Contact = QuaxelEffectContact.Die
+        return style
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // Seconds she is still held by the pain, and into the glow, and its light.
+    -float MarkSeconds
+    -float MarkAge = -1.0
+    -int MarkLight
+
+    // Starts the mark taking hold on her.
+    TakeMark(QuaxelWorld& world)
+    {
+        for controller : Controllers {
+            int visual = controller.VisualNode
+            // The marked body now, so the lattice is there as it flares.
+            DressPlayer(world, visual)
+            world.PlayClip(visual, "pain")
+            Sfx.Play(world, HellfeatherSound.PlayerHurt)
+            if MarkLight != 0 { world.DestroyNode(MarkLight) }
+            MarkLight = world.CreateNode()
+            if !world.AttachToSocket(MarkLight, visual, "mark") {
+                // A model without the socket gets no glow, only the pain.
+                world.DestroyNode(MarkLight)
+                MarkLight = 0
+            } else {
+                SetMarkLight(world, 0.0)
+                mat4 socket
+                if world.GetSocketMatrix(visual, "mark", socket) {
+                    world.StartEffectIgnoring(HellfeatherMark.Motes(), vec3(socket[3][0], socket[3][1], socket[3][2]), vec3(0.0, 1.0, 0.0), visual)
+                }
+            }
+        }
+        MarkSeconds = HellfeatherMark.PainSeconds
+        MarkAge = 0.0
+    }
+
+    // Runs every step: counts down the pain and fades the glow.
+    StepMark(QuaxelWorld& world, float deltaSeconds)
+    {
+        MarkSeconds = Math.Max(0.0, MarkSeconds - deltaSeconds)
+        if MarkAge < 0.0 { return }
+        MarkAge += deltaSeconds
+        if MarkAge >= HellfeatherMark.GlowSeconds {
+            if MarkLight != 0 { world.DestroyNode(MarkLight) }
+            MarkLight = 0
+            if CloseUp.MarkLight != 0 { world.DestroyNode(CloseUp.MarkLight) }
+            CloseUp.MarkLight = 0
+            MarkAge = -1.0
+            return
+        }
+        SetMarkLight(world, HellfeatherMark.Intensity(MarkAge))
+    }
+
+    // True while the mark is glowing on her arm.
+    bool MarkGlowing() { return MarkAge >= 0.0 && MarkLight != 0 }
+
+    // The mark's light in the world and, while it is showing, in the close-up.
+    -SetMarkLight(QuaxelWorld& world, float intensity)
+    {
+        QuaxelPointLight light
+        light.Color = vec3(0.72, 0.84, 1.0)
+        light.Radius = HellfeatherMark.GlowRadius
+        light.Intensity = intensity
+        if MarkLight != 0 { world.SetPointLight(MarkLight, light) }
+        if CloseUp.MarkLight != 0 { world.SetPointLight(CloseUp.MarkLight, light) }
+    }
+}
+T{
+    // The glow comes up quickly, then fades out by its end.
+    TheMarkFlaresThenFades()
+    {
+        T.AreEqual(HellfeatherMark.Intensity(0.0), 0.0)
+        T.IsTrue(HellfeatherMark.Intensity(0.3) > HellfeatherMark.GlowPeak * 0.5)
+        T.IsTrue(HellfeatherMark.Intensity(0.3) > HellfeatherMark.Intensity(3.0))
+        T.AreEqual(HellfeatherMark.Intensity(HellfeatherMark.GlowSeconds), 0.0)
+    }
+}

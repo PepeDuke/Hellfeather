@@ -534,29 +534,37 @@ HellfeatherGame : QuaxelGameInstance
         } else if person == HellfeatherPerson.Jessa {
             BeginTalk("Jessa Brune", spot)
             if q.Moult == 2 {
-                Talk.Narrate("Her hand closes on your arm. The pain goes in without breaking the skin. You see silver threads run out of every bed, toward the mountains.")
+                Talk.Narrate("Her eyes open. Black at the lips, black under the nails. She knows you before you speak.")
+                Talk.Say("Matthew's thief-taker. Good. I haven't long, and it won't wait for me to finish.")
+                Talk.Say("They'll tell you I killed them. Twenty-seven at the mill. Write it down if it helps you.")
+                Talk.Say("It isn't why. Nobody ever asks why.")
+                Talk.Narrate("Her hand finds your right forearm and closes. Cold, then not cold at all.")
+                Talk.Narrate("The pain goes in without breaking the skin. Silver threads run out of every bed in the ward, toward the mountains.")
                 Talk.Say("Find the Grey Sister. Sever the bearers first. Then the heart. Don't break the box.")
+                Talk.Say("I'm sorry. It had to be someone who could carry it.")
                 Talk.Offer("...", HellfeatherReply.JessaDies)
                 forced = true
             } else if q.Moult > 2 {
-                Talk.Narrate("She looks smaller than she did.")
+                Talk.Narrate("She looks smaller than she did. Her hand lies open on the blanket, where it let go of you.")
             } else {
                 Talk.Narrate("Asleep, black-stained lips moving. A sister in red is watching you.")
             }
         } else if person == HellfeatherPerson.Reeve {
             BeginTalk("Reeve Hollan", spot)
             if q.Ford == 0 {
-                Talk.Say("Ducks have the Ford Road. Carts won't go.")
-                Talk.Say("Clear a dozen off it and I'll pay. Edda at the Rookery wants their black feathers, if you can stomach picking them up.")
+                Talk.Say("Ah. You'll be the one with the sword. Splendid.")
+                Talk.Say("Those wretched ducks have taken the Ford Road, and with it our only line to Bellhaven. Not a cart in or out for a fortnight.")
+                Talk.Say("No trade, no grain, no coin. Ravenford is going hungry, and I am running out of polite ways to say so.")
+                Talk.Say("Clear a dozen of the beasts off it and the Hall will pay handsomely. Edda at the Rookery wants their black feathers, should you have the stomach for picking them up.")
                 Talk.Offer("Take the bounty", HellfeatherReply.TakeBounty)
             } else if q.Ford == 1 && !q.ReevePaid && q.DucksCleared >= HellfeatherQuests.DucksWanted {
-                Talk.Say("Road's quieter. The carters noticed. Here.")
+                Talk.Say("The road's gone quiet, and the carters have noticed. First wagon for Bellhaven left this morning. Your bounty, with the Hall's thanks.")
                 Talk.Offer("Take the bounty", HellfeatherReply.ClaimBounty)
                 forced = true
             } else if q.Ford == 1 && !q.ReevePaid {
-                Talk.Say("A dozen, I said. You've done " + QuaxelUi.FormatInt(q.DucksCleared) + ". The road's still theirs.")
+                Talk.Say("A dozen, I believe we said. You've managed " + QuaxelUi.FormatInt(q.DucksCleared) + ". The road is still very much theirs.")
             } else {
-                Talk.Say("Copies of everything. Always copies.")
+                Talk.Say("Copies of everything, mind. Always copies.")
             }
         } else if person == HellfeatherPerson.Edda {
             BeginTalk("Edda the Ravenkeeper", spot)
@@ -677,10 +685,28 @@ HellfeatherGame : QuaxelGameInstance
         } else if reply == HellfeatherReply.JessaDies {
             Quests.Moult = 3
             Quests.TitheMark = true
+            // She lets go and dies, and the mark takes in Wren's arm.
             int jessa = People.FindPerson(HellfeatherPerson.Jessa)
-            if jessa >= 0 { People.Spots[jessa].Title = "Jessa Brune, dead" }
+            if jessa >= 0 {
+                People.Spots[jessa].Title = "Jessa Brune, dead"
+                People.Spots[jessa].Rest = "dead"
+                if People.Spots[jessa].Visual != 0 { world.PlayClip(People.Spots[jessa].Visual, "death") }
+            }
+            TakeMark(world)
             Banner.Show("The Tithe-mark lives in you now", 3.5)
             GainExperience(60)
+            // In the close-up she dies before Wren's eyes, and the mark takes
+            // there, before the conversation lets her go.
+            if CloseUp.Shown && spot >= 0 {
+                CloseUp.ThemRest = "dead"
+                CloseUp.PlayThem(world, "death")
+                CloseUp.Mark(world)
+                SetMarkLight(world, 0.0)
+                Talk.Begin("Jessa Brune", spot, true)
+                Talk.Narrate("Her grip tightens once, hard enough to bruise, and lets go. Her hand falls open on the blanket.")
+                Talk.Narrate("Under your skin the silver goes on burning, a lattice from wrist to elbow, long after she is still.")
+                Talk.Offer("...", HellfeatherReply.Leave)
+            }
         } else if reply == HellfeatherReply.MatthewPays {
             Quests.Moult = 4
             Quests.Rooms = Math.Max(Quests.Rooms, 1)

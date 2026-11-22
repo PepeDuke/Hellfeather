@@ -1,0 +1,11 @@
+version = 1
+references = ["../Quaxel-Engine/Quaxel.Web.dkp"]
+
+[project]
+name = "Hellfeather"
+entry = "hellfeather"
+build_dir = ".duck/build/web"
+
+[modules.hellfeather]
+sources = ["Source/**/*.dk"]
+depends = ["quaxel_core", "quaxel_platform", "quaxel_engine"]

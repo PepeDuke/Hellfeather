@@ -246,14 +246,15 @@ T{
         T.IsTrue(game.BagForTrade)
         game.Inventory.Items.Gold = 100
         // Edda's first shelf holds endless health potions.
+        int had = game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion)
         game.Shop.BuyRequest = 0
         game.ApplyShopRequests()
-        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), 1)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), had + 1)
         T.AreEqual(game.Inventory.Items.Gold, 100 - game.Shop.Shop.PriceOf(0))
         game.Inventory.Items.Gold = 5
         game.Shop.BuyRequest = 0
         game.ApplyShopRequests()
-        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), 1)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), had + 1)
         game.Inventory.Items.Held = HellfeatherItems.Ring
         game.Shop.SellRequest = true
         game.ApplyShopRequests()

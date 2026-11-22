@@ -596,7 +596,7 @@ HellfeatherGame : QuaxelGameInstance
     bool ElementsOnStart
 
     // Whether a status holds her where she stands.
-    bool PlayerHeld() { return PlayerAfflictions.Frozen() || DazedSeconds > 0.0 }
+    bool PlayerHeld() { return PlayerAfflictions.Frozen() || DazedSeconds > 0.0 || MarkSeconds > 0.0 }
 
     -vec3 PlayerFeet(QuaxelWorld& world)
     {

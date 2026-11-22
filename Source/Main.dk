@@ -82,6 +82,9 @@ Main(string [] args)
         game.ActiveSlot = HellfeatherSaves.MostRecent()
         game.LoadSlot = game.ActiveSlot
     }
+    // Each run lays out a new world, except the benchmark, which needs the same one.
+    bool newWorld = !game.Benchmark.Enabled
+    game.NewWorldEachRun = newWorld
     if !QuaxelEngine.Run(game) { return }
     if game.Benchmark.Enabled { game.Benchmark.Report() }
     if !QuaxelPlatform.SupportsWindowing() {
@@ -101,6 +104,7 @@ Main(string [] args)
         HellfeatherGame next()
         next.UseDdgi = ddgi
         next.UniformProbeUpdates = uniform
+        next.NewWorldEachRun = newWorld
         next.ActiveSlot = slot
         next.LoadSlot = fresh ? 0 | slot
         // A new character wakes in her house in Ravenford.

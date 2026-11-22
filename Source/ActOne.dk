@@ -37,6 +37,15 @@ T{
         game.Answer(world, HellfeatherReply.JessaDies)
         T.IsTrue(game.Quests.TitheMark)
         T.AreEqual(game.Quests.Moult, 3)
+        // She dies where she lies and stays dead; the mark takes in Wren,
+        // who is held in pain while it glows.
+        T.IsTrue(game.People.Spots[jessa].Rest == "dead")
+        T.IsTrue(game.PlayerHeld())
+        T.IsTrue(game.MarkGlowing())
+        QuaxelInputState input
+        game.Simulate(world, input, 400)
+        T.IsFalse(game.PlayerHeld())
+        T.IsFalse(game.MarkGlowing())
         game.Use(world, matthew)
         game.Answer(world, HellfeatherReply.MatthewPays)
         T.AreEqual(game.Quests.Moult, 4)
@@ -371,5 +380,66 @@ T{
         vec3 at = world.GetPosition(game.PlayerNode)
         vec3 ward = game.People.Spots[game.FindEntrance(HellfeatherRealm.Hospice)].Feet
         T.IsTrue(Math.Hypot(at.X - ward.X, at.Z - ward.Z) < 4.0)
+    }
+
+    // Jessa is talked to in a close-up, lying in her bed; she dies there and
+    // Wren takes the mark, before the close-up lets her go.
+    JessaDiesInTheCloseUp()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "in-hospice"
+        game.Quests.Moult = 2
+        T.IsTrue(game.Prepare(world))
+        int jessa = game.People.FindPerson(HellfeatherPerson.Jessa)
+        T.IsTrue(game.People.Spots[jessa].Lying)
+        game.Use(world, jessa)
+        T.IsTrue(game.Talk.CloseUp)
+        T.IsTrue(game.ShowCloseUp(world))
+        T.IsTrue(game.CloseUp.ThemClip(world) == "idle")
+        game.Answer(world, HellfeatherReply.JessaDies)
+        T.IsTrue(game.CloseUp.ThemClip(world) == "death")
+        T.IsTrue(game.CloseUp.WrenClip(world) == "pain")
+        T.IsTrue(game.CloseUp.MarkLight != 0)
+        // The close-up stays for what follows her death.
+        T.IsTrue(game.InCloseUp())
+        game.CloseUp.Speaking(world, HellfeatherVoice.Them, true)
+        T.IsTrue(game.CloseUp.ThemClip(world) == "death")
+        game.Answer(world, HellfeatherReply.Leave)
+        T.IsFalse(game.Talk.Open)
+    }
+
+    // Jessa dies in her bed and Wren takes the mark: her death clip, then
+    // she stays dead; Wren's pain clip on her newly marked body.
+    JessaDiesInHerBedAndTheMarkTakesInWren()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.StartAt = "in-hospice"
+        game.Quests.Moult = 2
+        T.IsTrue(game.Prepare(world))
+        int jessa = game.People.FindPerson(HellfeatherPerson.Jessa)
+        HellfeatherActOne.Stand(game, world, game.People.Spots[jessa].Feet.X - 1.0, game.People.Spots[jessa].Feet.Z + 1.0, 2)
+        int bed = game.People.Spots[jessa].Visual
+        T.IsTrue(bed != 0)
+        T.IsTrue(world.CurrentClipName(bed) == "idle")
+        int wren = game.Controllers[0].VisualNode
+        mat4 socket
+        // No mark on her arm yet, though the socket for its glow is there.
+        T.IsFalse(game.Quests.TitheMark)
+        T.IsTrue(world.GetSocketMatrix(wren, "mark", socket))
+        game.Use(world, jessa)
+        game.Answer(world, HellfeatherReply.JessaDies)
+        T.IsTrue(world.CurrentClipName(bed) == "death")
+        T.IsTrue(world.CurrentClipName(wren) == "pain")
+        QuaxelInputState input
+        game.Simulate(world, input, 30)
+        // Still in pain, not walking it off.
+        T.IsTrue(world.CurrentClipName(wren) == "pain")
+        game.Simulate(world, input, 400)
+        T.IsTrue(world.CurrentClipName(wren) == "idle")
+        // Talking to her again leaves her dead.
+        game.Use(world, jessa)
+        T.IsTrue(world.CurrentClipName(bed) == "dead")
     }
 }

@@ -297,10 +297,16 @@ HellfeatherGame : QuaxelGameInstance
         }
         HellfeatherRealm hospice = HellfeatherRealm.Hospice
         People.AddPerson(HellfeatherPerson.Carmine, "Sister Carmine", hospice, HellfeatherRealm.InRoom(hospice, 1.0, -1.4), "Assets/SisterCarmine.qvox", 0.025, 72)
-        int bed = People.AddModel(HellfeatherSpotKind.Person, "Jessa Brune", hospice, HellfeatherRealm.InRoom(hospice, 3.7, -3.6), Landmarks.JessaBed, 0.025, 40)
-        People.Spots[bed].Person = HellfeatherPerson.Jessa
+        // Jessa in her bed, animated, and lying down in the close-up. Once
+        // she has died she stays dead.
+        int bed = People.AddPerson(HellfeatherPerson.Jessa, "Jessa Brune", hospice, HellfeatherRealm.InRoom(hospice, 3.7, -3.6), "Assets/JessaBed.qvox", 0.025, 40)
+        People.Spots[bed].Lying = true
         People.Spots[bed].FacingX = 0.0
         People.Spots[bed].FacingZ = 1.0
+        if Quests.Moult >= 3 {
+            People.Spots[bed].Title = "Jessa Brune, dead"
+            People.Spots[bed].Rest = "dead"
+        }
 
         HellfeatherRealm mill = HellfeatherRealm.Mill
         People.AddPerson(HellfeatherPerson.OldHobb, "Old Hobb", mill, HellfeatherRealm.InRoom(mill, -1.2, -1.0), "Assets/OldHobb.qvox", 0.025, 68)

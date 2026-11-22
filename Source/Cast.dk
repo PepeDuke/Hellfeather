@@ -201,8 +201,10 @@ HellfeatherGame : QuaxelGameInstance
         Terrain.Realm = realm
         bool inside = HellfeatherRealm.IsInterior(realm)
         QuaxelTerrainConfig config = realm == HellfeatherRealm.Fenmarch ? FenmarchConfig() | (inside ? HellfeatherRealm.Interior(realm) | HellfeatherRealm.Undercroft(realm))
-        if realm == HellfeatherRealm.Thornmere { config = HellfeatherRealm.ThornmereConfig((uint)TerrainSeed()) }
+        if realm == HellfeatherRealm.Thornmere { config = HellfeatherRealm.ThornmereConfig(TerrainSeed()) }
         else if HellfeatherRealm.IsActTwo(realm) && !inside { config = HellfeatherRealm.Below(realm) }
+        // The levels below change with the world too; rooms indoors do not.
+        if !inside && realm != HellfeatherRealm.Fenmarch && realm != HellfeatherRealm.Thornmere { config.Seed = Reseed(config.Seed) }
         // What the Thornmere shows depends on how far the story has gone.
         Terrain.Camp.CorvinHere = Quests.SouthWing >= 4
         Terrain.Camp.TentsStruck = Quests.PilgrimsTold
@@ -346,6 +348,11 @@ HellfeatherGame : QuaxelGameInstance
             return TravelTo(world, house, HellfeatherRealm.Doorstep(house), false)
         }
         if StartAt == "in-hospice" { return TravelTo(world, HellfeatherRealm.Hospice, HellfeatherRealm.Doorstep(HellfeatherRealm.Hospice), false) }
+        // At Jessa's bedside, sent by Carmine, to see her die (with --talk, at once).
+        if StartAt == "jessa" {
+            Quests.Moult = Math.Max(Quests.Moult, 2)
+            return TravelTo(world, HellfeatherRealm.Hospice, HellfeatherRealm.InRoom(HellfeatherRealm.Hospice, 4.6, -1.6), false)
+        }
         if StartAt == "in-mill" { return TravelTo(world, HellfeatherRealm.Mill, HellfeatherRealm.Doorstep(HellfeatherRealm.Mill), false) }
         if StartAt == "in-garret" {
             Quests.Rooms = Math.Max(Quests.Rooms, 1)

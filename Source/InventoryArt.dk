@@ -318,10 +318,14 @@ HellfeatherInventoryScreen
     }
 
     // The warrior's starting kit: her hand axe, her Leather Armor and Miner's Helmet,
-    // all plain, and one raven portal home. Her Cleave rune starts on the rune board.
+    // all plain, one raven portal home, two health potions and a mana potion.
+    // Her Cleave rune starts on the rune board.
     Stock()
     {
         Items.Portals = 1
+        Items.Add(HellfeatherItems.HealthPotion)
+        Items.Add(HellfeatherItems.HealthPotion)
+        Items.Add(HellfeatherItems.ManaPotion)
         Items.Equipped[HellfeatherSlot.MainHand] = HellfeatherItems.HandAxe
         Items.Equipped[HellfeatherSlot.Body] = HellfeatherItems.LeatherArmor
         Items.Equipped[HellfeatherSlot.Head] = HellfeatherItems.MinersHelmet
@@ -685,12 +689,15 @@ T{
         T.AreEqual(screen.Items.Bag.Len, 1)
     }
 
-    TheWarriorStartsInHerArmorWithHerAxeAndAnEmptyBag()
+    TheWarriorStartsInHerArmorWithHerAxeAndThreePotions()
     {
         HellfeatherInventoryScreen screen
         screen.Stock()
+        // Two health potions and one mana potion are all the bag holds.
+        T.AreEqual(screen.Items.CountOf(HellfeatherItems.HealthPotion), 2)
+        T.AreEqual(screen.Items.CountOf(HellfeatherItems.ManaPotion), 1)
+        T.AreEqual(screen.Items.Bag.Len, 3)
         // Her Cleave rune starts on the rune board, not in the bag.
-        T.AreEqual(screen.Items.Bag.Len, 0)
         T.AreEqual(screen.Items.CountOf(HellfeatherItems.RuneCleave), 0)
         T.AreEqual(screen.Items.Gold, 0)
         for slot : HellfeatherSlot {

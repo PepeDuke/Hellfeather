@@ -591,10 +591,12 @@ HellfeatherMenuScene
         placed = placed && PlaceOn(world, props.Rocks[1], -4.2, 5.0, rockHalf, 0.0, 1.0)
         placed = placed && PlaceOn(world, props.Rocks[0], 4.6, 4.8, rockHalf, 0.7, 0.7)
         placed = placed && PlaceOn(world, props.Rocks[2], 7.2, -8.4, rockHalf, 0.0, 1.0)
-        placed = placed && PlaceOn(world, props.Reeds[0], -3.0, HellfeatherMenuArt.River(-3.0) + 1.25, reedHalf, 0.0, 1.0)
-        placed = placed && PlaceOn(world, props.Reeds[1], 4.5, HellfeatherMenuArt.River(4.5) + 1.3, reedHalf, 0.6, 0.8)
-        placed = placed && PlaceOn(world, props.Reeds[0], -6.0, HellfeatherMenuArt.River(-6.0) - 1.3, reedHalf, 0.8, 0.6)
-        placed = placed && PlaceOn(world, props.Reeds[1], 2.0, HellfeatherMenuArt.River(2.0) - 1.3, reedHalf, 0.0, 1.0)
+        // The reeds' mud mound reaches about ten fine voxels from the middle.
+        float reedFoot = (float)FenmarchArt.ReedsWidth * 0.35 * fine
+        placed = placed && PlaceOnFoot(world, props.Reeds[0], -3.0, HellfeatherMenuArt.River(-3.0) + 1.25, reedFoot, reedHalf, 0.0, 1.0)
+        placed = placed && PlaceOnFoot(world, props.Reeds[1], 4.5, HellfeatherMenuArt.River(4.5) + 1.3, reedFoot, reedHalf, 0.6, 0.8)
+        placed = placed && PlaceOnFoot(world, props.Reeds[0], -6.0, HellfeatherMenuArt.River(-6.0) - 1.3, reedFoot, reedHalf, 0.8, 0.6)
+        placed = placed && PlaceOnFoot(world, props.Reeds[1], 2.0, HellfeatherMenuArt.River(2.0) - 1.3, reedFoot, reedHalf, 0.0, 1.0)
         if !placed { return false }
         // A dull red glow over the camp, from behind.
         int glow = world.CreateNode()
@@ -632,7 +634,27 @@ HellfeatherMenuScene
     // Stands a fine-voxel prop on the land at Across and Into.
     -bool PlaceOn(QuaxelWorld& world, int volume, float across, float into, float halfHeight, float facingX, float facingZ)
     {
+        return PlaceOnFoot(world, volume, across, into, 0.0, halfHeight, facingX, facingZ)
+    }
+
+    // Stands a prop whose base is Reach world units in radius on the lowest
+    // ground under that base, so on a slope no edge of it hangs in the air.
+    // The uphill side sinks into the bank instead.
+    -bool PlaceOnFoot(QuaxelWorld& world, int volume, float across, float into, float reach, float halfHeight, float facingX, float facingZ)
+    {
         float ground = HellfeatherMenuArt.Height(across, into)
+        if reach > 0.0 {
+            for ring : 1; ring <= 2; ring++ {
+                float r = reach * (float)ring * 0.5
+                for k : 0; k < 8; k++ {
+                    float angle = (float)k * 0.785398
+                    float h = HellfeatherMenuArt.Height(across + r * Math.Cos(angle), into + r * Math.Sin(angle))
+                    if h > HellfeatherMenuArt.Missing + 1.0 { ground = Math.Min(ground, h) }
+                }
+            }
+            // One voxel lower still, so the base's rim meets the ground.
+            ground -= HellfeatherArt.FineVoxel
+        }
         vec3 center = Origin() + HellfeatherMenuArt.At(across, into) + vec3(0.0, ground + halfHeight, 0.0)
         return Place(world, volume, center, HellfeatherArt.FineVoxel, facingX, facingZ)
     }
@@ -785,13 +807,17 @@ HellfeatherGame : QuaxelGameInstance
         HellfeatherItems mainHand = HellfeatherItems.HandAxe
         HellfeatherItems offHand = HellfeatherItems.None
         HellfeatherItems head = HellfeatherItems.MinersHelmet
+        // A new character has not met Jessa yet.
+        bool marked = false
         if Characters.SelectedReadable() {
             HellfeatherSaveSummary row = Characters.Rows[Characters.Selected]
             body = row.Gear[0]
             mainHand = row.Gear[1]
             offHand = row.Gear[2]
             head = row.Gear[3]
+            marked = row.Marked
         }
+        MenuScene.Wardrobe.Marked = marked
         return MenuScene.Dress(world, body, mainHand, offHand, head)
     }
 

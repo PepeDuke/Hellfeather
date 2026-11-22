@@ -31,6 +31,8 @@ HellfeatherSaveSummary
     int PlayedSeconds
     // Body, main hand, off hand and head, to dress the menu's preview.
     HellfeatherItems [4] Gear
+    // Whether she carries the Tithe-mark, which the preview shows on her arm.
+    bool Marked
 
     // Where she was when it saved.
     string Place()
@@ -167,6 +169,7 @@ HellfeatherSaves
             HellfeatherItems item = HellfeatherItems.None
             if ItemNamed(json.Text(json.Find(equipped, (string)shown[i].Name), "item"), item) { summary.Gear[i] = item }
         }
+        summary.Marked = json.Bool(json.Find(0, "quests"), "titheMark", false)
         return summary
     }
 

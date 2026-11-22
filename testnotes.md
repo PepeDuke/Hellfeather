@@ -1,11 +1,12 @@
 Issues found during testing:
 
-[] menu screen the reed base is floting 
-[] dialog - reve hollan  - "carts won't go" rephrase supply line to the city is us is cut off not trade is happning and the the town is stuggling, possibly give reeve hollam nore britih posh flere
-[] the character should start with 2 helth pot 1 mana pot
-[] zones do not randomlly generate in between the kay pointsds
-[] Quest item from enemy can only drop again if you already do not have it in inventory or personal chest
-[] no jassa brune death animation, maybe we should do dialog here as well. also it should be visible you get the the curse on your hand maybe pain animation and glow on the hand (effect)
+[x] menu screen the reed base is floting 
+[x] dialog - reve hollan  - "carts won't go" rephrase supply line to the city is us is cut off not trade is happning and the the town is stuggling, possibly give reeve hollam nore britih posh flere
+[x] the character should start with 2 helth pot 1 mana pot
+[x] zones do not randomlly generate in between the key points, each new load in/game reset the zones should regenerate not be same
+[x] Quest item from enemy can only drop again if you already do not have it in inventory or personal chest
+[x] no jassa brune death animation, maybe we should do dialog here as well. also it should be visible you get the the curse on your hand maybe pain animation and glow on the hand (effect)
+[] talking to eda should heal and regain mana to full. (add sound effect when healed and/or gain mana)
 [] jassa brune should be by the window but there is not window
 [] there should be some big notifaction if you complie the 1 out of 6 main quests
 [] there should be some visual effect on level up, maybe also some glow
@@ -26,6 +27,8 @@ Issues found during testing:
 [] the waypoints show up way too late, when you almost near them
 [] make eda just buy the fether as well so you can get rid of them if you do not feel like gamble
 [] fethers should be also avalible in the gamble show from the personal storige
+[] additional drops: blue -> 1 supportive drops (coins or pots), rare, and uniqe enemies need to drop more, rere -> aways at least one item ( incresed rarity chance) and 2 supportive drops (coins or pots), Unique -> aways at least two item ( incresed rarity chance a bit more) 4 supportive drops (coins or pots). final boss -> aways at least 3 item ( incresed rarity chance a bit more) but it does not do additional supportive drops.
+[] add a belt potion slots, this is system where we can "open" belt for aditional slots, higher bases have more slots. we can add only pots there, and we can drop them into a beld in inventory screen, potion acctions prefere pots that are free inside inventory and then the belt. on pick up of pot or buy it trys to first put it in the belt. on belt drop or sell the pots are inside the belt.
 
 act 2:
  scuffed models: 

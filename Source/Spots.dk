@@ -88,6 +88,12 @@ HellfeatherSpot
     int Volume = -1
     float Voxel = 0.025
     int Height = 72
+    // The clip an animated model rests in: idle, or dead for the dead, who
+    // never play talk.
+    string Rest = "idle"
+    // Lying down, as Jessa in her bed: the close-up lays them along the
+    // screen instead of standing them up.
+    bool Lying
     bool Shown = true
     // How far the model has grown in, 0 to 1, and how fast that changes per
     // second: up while it opens, down while it closes, after which it is hidden.
@@ -191,7 +197,7 @@ HellfeatherSpots
             if Length(spot.Model) > 0 {
                 int animation = AnimationFor(world, spot.Model)
                 if animation < 0 || !world.AttachAnimator(spot.Visual, animation) { return false }
-                world.PlayClip(spot.Visual, "idle")
+                world.PlayClip(spot.Visual, spot.Rest)
             } else if !world.AttachVoxels(spot.Visual, spot.Volume) { return false }
         }
         return true
@@ -266,12 +272,13 @@ HellfeatherSpots
         return animation
     }
 
-    // Plays talk on one person and idle on the rest.
+    // Plays talk on one person and the resting clip on the rest.
     SetTalking(QuaxelWorld& world, int talking)
     {
         for i : 0; i < Spots.Len; i++ {
             if Spots[i].Visual == 0 || Length(Spots[i].Model) == 0 { continue }
-            world.PlayClip(Spots[i].Visual, i == talking ? "talk" | "idle")
+            bool alive = Spots[i].Rest == "idle"
+            world.PlayClip(Spots[i].Visual, i == talking && alive ? "talk" | Spots[i].Rest)
         }
     }
 

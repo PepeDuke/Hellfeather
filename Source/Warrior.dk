@@ -35,11 +35,13 @@ HellfeatherWarrior
     bool IsShoutClip(string clip) { return clip == "shout" || clip == "shout_walk" }
 
     // Her body model for what she wears. Every body armor shows as the Leather
-    // Armor until it has a model of its own.
-    string BodyModel(HellfeatherItems body)
+    // Armor until it has a model of its own. Before Jessa gives her the
+    // Tithe-mark, her forearm is bare.
+    string BodyModel(HellfeatherItems body, bool marked)
     {
-        if body != HellfeatherItems.None { return "Assets/WarriorLeatherArmor.qvox" }
-        return "Assets/Warrior.qvox"
+        string unmarked = marked ? "" | "Unmarked"
+        if body != HellfeatherItems.None { return "Assets/WarriorLeatherArmor" + unmarked + ".qvox" }
+        return "Assets/Warrior" + unmarked + ".qvox"
     }
 
     // The model an item shows when worn or held, or "" for none.
@@ -70,7 +72,10 @@ HellfeatherWarrior
 // socket for her weapon, shield and helmet. Dress puts on whatever changed.
 HellfeatherWardrobe
 {
+    // Whether her forearm shows the Tithe-mark. Dress puts on the body to match.
+    bool Marked = true
     -HellfeatherItems Body
+    -bool BodyMarked
     -HellfeatherItems MainHand
     -HellfeatherItems OffHand
     -HellfeatherItems Head
@@ -86,13 +91,14 @@ HellfeatherWardrobe
     // model would not load.
     bool Dress(QuaxelWorld& world, int visual, HellfeatherItems body, HellfeatherItems mainHand, HellfeatherItems offHand, HellfeatherItems head)
     {
-        if !Dressed || body != Body {
-            int animation = Load(world, HellfeatherWarrior.BodyModel(body), true)
+        if !Dressed || body != Body || Marked != BodyMarked {
+            int animation = Load(world, HellfeatherWarrior.BodyModel(body, Marked), true)
             if animation < 0 { return false }
             // A new body starts on its first frame; carry on with the clip she was in.
             string clip = Dressed ? world.CurrentClipName(visual) | "idle"
             if !world.AttachAnimator(visual, animation) || !world.PlayClip(visual, clip) { return false }
             Body = body
+            BodyMarked = Marked
         }
         // The weapon first, so it is her first socket follower.
         if !Dressed || mainHand != MainHand {
@@ -136,6 +142,28 @@ HellfeatherWardrobe
         int node = world.CreateNode()
         if !world.AttachVoxels(node, volume) || !world.AttachToSocket(node, visual, socket) { return -1 }
         return node
+    }
+
+    // Loads an animated model ahead of need, so putting it on later does not
+    // stall: her body is large, and a stall would skip the clip she is in.
+    bool Preload(QuaxelWorld& world, string path) { return Load(world, path, true) >= 0 }
+
+    // The model already loaded from a path, or -1.
+    int LoadedAs(string path)
+    {
+        for i : 0; i < Paths.Len; i++ {
+            if Paths[i] == path { return Loaded[i] }
+        }
+        return -1
+    }
+
+    // Takes a model another wardrobe loaded in the same world, rather than
+    // loading it a second time.
+    Know(string path, int made)
+    {
+        if made < 0 || LoadedAs(path) >= 0 { return }
+        Paths += path
+        Loaded += made
     }
 
     -int Load(QuaxelWorld& world, string path, bool animated)

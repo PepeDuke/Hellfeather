@@ -569,9 +569,19 @@ def lise_hobb():
 def jessa_bed():
     """Jessa Brune, dying in the hospice: a plank bed with a straw pallet, a
     grey blanket over her, her head on the pillow with black-stained lips,
-    her right arm reaching up out of the bed. Static, 40 tall, head to -Z."""
+    her right arm reaching up out of the bed. 40 tall, head to -Z.
+
+    Her chest, head and reaching arm are bones, for the clips the game plays:
+    idle (shallow breaths, the hand trembling), talk, death (she grips, arches,
+    lets go and sinks, her head rolling aside) and dead, its last pose held."""
     rig = Rig(1.0)
     rig.bone('root', (0, 0, 0))
+    # The chest turns at the hips under the blanket, the head at the neck, the
+    # arm at the shoulder and the forearm at the elbow.
+    rig.bone('chest', (0, 20, -6), 'root')
+    rig.bone('head', (0, 25.0, -18.6), 'chest')
+    rig.bone('r_arm', (-6.5, 23, -14), 'chest')
+    rig.bone('r_hand', (-8.4, 26.6, -7.5), 'r_arm')
     wood = speckled(WOOD[:3], 100, 2, 2)
     for sx in (-15.5, 15.5):
         for sz, top in ((-31.5, 38), (31.5, 24)):
@@ -585,33 +595,67 @@ def jessa_bed():
     rig.part('root', column(11, 17, flat(14.8), flat(30.5), power=6.0), dusted(speckled(STRAW, 101, 1, 1), [STRAW[1]], 0.3, 102))
     # A big pillow propping her up against the headboard.
     rig.part('root', capsule((0, 20, -27), (0, 25, -29), 5.0), speckled(BURLAP, 103, 2, 2))
-    # The blanket over her body, ragged where it hangs over the sides.
+    # Her chest in a pale shift, raised on the pillow, and her left arm on the blanket.
+    rig.part('chest', capsule((0, 20.5, -11), (0, 22.5, -16.5), 5.6, 4.6), speckled(CLOTH_PALE, 106))
+    rig.part('chest', capsule((6.5, 21, -13), (8.5, 20, -2), 1.6), CLOTH_PALE[1])
+    # The blanket over her body, ragged where it hangs over the sides. It
+    # comes after the chest, so the chest sinks under it rather than through.
     blanket = union(ellipsoid((0, 18, 8), (12.5, 5.5, 23)), column(10, 19, flat(15.6), flat(28), flat(5.0), power=6.0))
     rag = lambda x, y, z: (y > 13 + 3 * hash2(np.floor(z / 2).astype(int), np.floor(x / 3).astype(int), 104)) | (np.abs(x) < 15)  # noqa: E731
     rig.part('root', where(minus(blanket, lambda x, y, z: z < -15), rag), speckled(WOOL, 105, 2, 2))
-    # Her chest in a pale shift, raised on the pillow.
-    rig.part('root', capsule((0, 20.5, -11), (0, 22.5, -16.5), 5.6, 4.6), speckled(CLOTH_PALE, 106))
 
     def face(x, y, z, pose):
-        # The face looks up and toward the foot of the bed.
+        # The face looks up and toward the foot of the bed. Eyes 0 is shut,
+        # mouth 1 parted and 2 open wide.
         out = pick(SKIN_PALE[1:], hash2(np.floor(x).astype(int), np.floor(y).astype(int), 107) * 0.8)
         front = (z + 22.0) * 0.6 + (y - 28.0) * 0.8 > 2.6
-        eyes = front & (np.abs(np.abs(x) - 1.8) < 0.8) & (np.abs(y - 30.6) < 0.6)
-        mouth = front & (np.abs(x) < 1.3) & (np.abs(y - 27.4) < 0.8)
-        out = np.where(eyes, FACE_DARK[0], out)
+        eyes = front & (np.abs(np.abs(x) - 1.8) < 0.8) & (np.abs(y - 30.6) < (0.6 if pose.get('eyes', 1) else 0.2))
+        opened = pose.get('mouth', 0)
+        mouth = front & (np.abs(x) < 1.3 + 0.2 * opened) & (np.abs(y - 27.4 + 0.4 * opened) < 0.8 + 0.5 * opened)
+        out = np.where(eyes, FACE_DARK[0] if pose.get('eyes', 1) else SKIN_PALE[2], out)
         return np.where(mouth, RAVEN[0], out)
-    rig.part('root', ellipsoid((0, 28.6, -22.0), (4.4, 5.0, 4.6)), face)
-    rig.part('root', ellipsoid((0, 29.6, -18.2), (0.7, 1.0, 0.8)), SKIN_PALE[2])
+    rig.part('head', ellipsoid((0, 28.6, -22.0), (4.4, 5.0, 4.6)), face)
+    rig.part('head', ellipsoid((0, 29.6, -18.2), (0.7, 1.0, 0.8)), SKIN_PALE[2])
     hair = minus(ellipsoid((0, 29.6, -24.0), (6.0, 5.6, 4.2)), lambda x, y, z: (z + 22.0) * 0.6 + (y - 28.0) * 0.8 > 1.2)
-    rig.part('root', hair, speckled(HAIR_DARK, 108, 1, 1))
+    rig.part('head', hair, speckled(HAIR_DARK, 108, 1, 1))
     # Her right arm (-X), reaching out toward the foot of the bed.
-    rig.part('root', capsule((-6.5, 23, -14), (-8.4, 26.6, -7.5), 2.0, 1.8), CLOTH_PALE[1])
-    rig.part('root', capsule((-8.4, 26.6, -7.5), (-9.6, 29.8, -0.5), 1.4, 1.2), speckled(SKIN_PALE[1:], 109, 2, 2))
-    rig.part('root', ellipsoid((-9.8, 30.5, 1.5), (1.5, 1.6, 1.8)), SKIN_PALE[1])
+    rig.part('r_arm', capsule((-6.5, 23, -14), (-8.4, 26.6, -7.5), 2.0, 1.8), CLOTH_PALE[1])
+    rig.part('r_hand', capsule((-8.4, 26.6, -7.5), (-9.6, 29.8, -0.5), 1.4, 1.2), speckled(SKIN_PALE[1:], 109, 2, 2))
+    rig.part('r_hand', ellipsoid((-9.8, 30.5, 1.5), (1.5, 1.6, 1.8)), SKIN_PALE[1])
     for k in range(4):
-        rig.part('root', capsule((-9.8 + (k - 1.5) * 0.8, 30.7, 2.4), (-9.9 + (k - 1.5) * 1.1, 31.2, 4.0), 0.4), SKIN_PALE[2])
-    rig.part('root', capsule((6.5, 21, -13), (8.5, 20, -2), 1.6), CLOTH_PALE[1])
-    return rig, []
+        rig.part('r_hand', capsule((-9.8 + (k - 1.5) * 0.8, 30.7, 2.4), (-9.9 + (k - 1.5) * 1.1, 31.2, 4.0), 0.4), SKIN_PALE[2])
+
+    # Positive pitch lowers the arm toward the blanket and raises the chest.
+    idle = [
+        ({}, 700),
+        ({'chest': (1.5, 0, 0), 'r_arm': (-2, 0, 0)}, 500),
+        ({'chest': (2.5, 0, 0), 'r_arm': (-1, 0, 1), 'r_hand': (2, 0, 0)}, 600),
+        ({'chest': (1, 0, 0), 'r_hand': (-2, 0, 0), 'head': (0, 0, 2)}, 500),
+    ]
+    talk = [
+        ({'mouth': 0}, 220),
+        ({'mouth': 1, 'chest': (1.5, 0, 0), 'head': (3, 0, 0)}, 200),
+        ({'mouth': 0, 'chest': (2, 0, 0), 'r_arm': (-2, 0, 0)}, 200),
+        ({'mouth': 1, 'head': (2, 0, 2)}, 180),
+    ]
+    dead_pose = {'chest': (-4, 0, 0), 'head': (6, 0, 28), 'r_arm': (34, 0, -8), 'r_hand': (24, 0, 0), 'eyes': 0, 'mouth': 1}
+    death = [
+        # She grips: the arm lifts, the hand closes.
+        ({'r_arm': (-14, 0, 0), 'r_hand': (-12, 0, 0), 'chest': (4, 0, 0), 'mouth': 1}, 260),
+        ({'r_arm': (-16, 0, 2), 'r_hand': (-16, 0, 0), 'chest': (6, 0, 0), 'head': (-6, 0, 0), 'mouth': 2}, 220),
+        # She arches against the pillow.
+        ({'r_arm': (-12, 0, -2), 'r_hand': (-14, 0, 0), 'chest': (9, 0, 0), 'head': (-14, 0, 0), 'mouth': 2}, 260),
+        ({'r_arm': (-15, 0, 2), 'r_hand': (-16, 0, 0), 'chest': (8, 0, 0), 'head': (-12, 0, -3), 'mouth': 2}, 160),
+        ({'r_arm': (-13, 0, -2), 'r_hand': (-15, 0, 0), 'chest': (9, 0, 0), 'head': (-14, 0, 3), 'mouth': 2}, 160),
+        # She lets go; the arm falls to the blanket.
+        ({'r_arm': (6, 0, -2), 'r_hand': (6, 0, 0), 'chest': (3, 0, 0), 'head': (-4, 0, 8), 'mouth': 1}, 160),
+        ({'r_arm': (26, 0, -6), 'r_hand': (18, 0, 0), 'chest': (-1, 0, 0), 'head': (2, 0, 18), 'mouth': 1}, 160),
+        ({'r_arm': (36, 0, -8), 'r_hand': (28, 0, 0), 'chest': (-3, 0, 0), 'head': (5, 0, 26), 'mouth': 1, 'eyes': 0}, 220),
+        # A last breath out, and still.
+        (dict(dead_pose, chest=(-5, 0, 0)), 500),
+        (dead_pose, 900),
+    ]
+    return rig, [('idle', True, idle), ('talk', True, talk), ('death', False, death), ('dead', False, [(dead_pose, 1000)])]
 
 
 PEOPLE = {

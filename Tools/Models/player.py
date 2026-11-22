@@ -5,8 +5,9 @@ oilcloth coat over a leather jerkin, a miner's leather cap with its lamp pushed
 back, a grey scarf over her mouth for the Grey Cough, her right sleeve rolled to
 show the Tithe-mark, a silver lattice from wrist to elbow (Story.md).
 
-The game (Warrior.dk, HellfeatherGame.dk) plays idle and walk, and for her
-actions attack, cleave and shout, each with a twin ending in _walk that has the
+The game (Warrior.dk, HellfeatherGame.dk) plays idle and walk, pain when the
+Tithe-mark takes (its glow rides the `mark` socket), and for her actions
+attack, cleave and shout, each with a twin ending in _walk that has the
 walk's legs under the same upper body, for acting on the move. Her axe, Assets/BattleAxe.qvox, rides the `hand_r` socket that every
 frame carries. The swing lands on frame 3 (HellfeatherGame.AxeStrikeFrame).
 HellfeatherWarrior.Height must be the model's box height, the middle number the
@@ -29,6 +30,8 @@ from kit import (BRASS, CLOTH_RED, FACE_DARK, HAIR_DARK, LEATHER, MUD, SCARF, SI
 from people import Body, coat_front, flat, speckled  # noqa: E402
 
 HEIGHT = 78
+# WarriorUnmarked and WarriorLeatherArmorUnmarked are the same bodies before
+# the Tithe-mark (Quests.TitheMark), with the lattice left off her forearm.
 # Oilcloth: a greasy olive-brown, darker in the creases.
 OILCLOTH = [MUD[0], MUD[1], SCARF[1]]
 VEST = [SMOCK[1], SMOCK[0], SCARF[0]]
@@ -40,12 +43,14 @@ SHORTS = [SCARF[1], MUD[0]]
 HEAD = (0.0, 63.0, 1.2)
 
 
-def wren(armor=False):
+def wren(armor=False, marked=True):
     """Wren in her basic attire: a worn sleeveless vest and shorts, barefoot,
     the Tithe-mark on her right forearm, dark hair in a loose bun. With armor,
     the Leather Armor on top: the oilcloth coat over a leather jerkin, a coat
     sleeve rolled above the Tithe-mark, a glove, trousers and boots, and the
-    scarf over her mouth for the Grey Cough. Both share bones and sockets."""
+    scarf over her mouth for the Grey Cough. Both share bones and sockets.
+    Unmarked, she is as she was before Jessa gave her the mark: the same
+    forearm without the lattice."""
     b = Body(shoulder=9.0, waist=7.0, depth=5.0, bust=1.0)
     r = b.rig
     skin = speckled(SKIN[:2], 406, 2, 3)
@@ -76,7 +81,8 @@ def wren(armor=False):
     def woven(x, y, z):
         u = np.arctan2(z - 2.0, x + 10.7) * 2.6
         return (np.abs(((u + y * 0.55) % 2.0) - 1.0) < 0.28) | (np.abs(((u - y * 0.55) % 2.0) - 1.0) < 0.28)
-    b.part('r_elbow', where(capsule((-10.65, 40.0, 1.3), (-10.8, 33.5, 2.8), 2.15, 1.85), woven), lattice)
+    if marked:
+        b.part('r_elbow', where(capsule((-10.65, 40.0, 1.3), (-10.8, 33.5, 2.8), 2.15, 1.85), woven), lattice)
     b.head(SKIN)
     b.hair(HAIR_DARK, 'bun')
     b.part('head', ellipsoid((-4.2, 61.5, 1.0), (1.0, 2.6, 1.4)), HAIR_DARK[1])
@@ -136,6 +142,8 @@ def wren(armor=False):
     r.socket('hand_r', 'r_elbow', (-11.0, 30.6, 3.4), yaw=180, pitch=30, roll=180)
     r.socket('hand_l', 'l_elbow', (13.4, 37.0, 1.8), yaw=90)
     r.socket('head', 'head', HEAD)
+    # The middle of the Tithe-mark, where the game puts its glow.
+    r.socket('mark', 'r_elbow', (-10.7, 36.8, 3.6))
     return b
 
 # How far each coat tail turns with its leg, as a share of the hip's pitch.
@@ -274,7 +282,27 @@ def clips():
         (dict(stance, chest=(-8, 0, 0), head=(-10, 0, 0), r_shoulder=(-15, 0, -45), l_shoulder=(-15, 0, 45), r_elbow=(-35, 0, 0), l_elbow=(-35, 0, 0), mouth=1), 120),
         ({'chest': (2, 0, 0), 'r_shoulder': (-8, 0, -10), 'l_shoulder': (-8, 0, 10)}, 110),
     ]
-    out = [('idle', True, idle), ('walk', True, walk)]
+    # Pain: the Tithe-mark takes. She snatches the marked arm in against her
+    # chest, kept low so the axe in that hand never looks raised to strike,
+    # then doubles over it, clutching the forearm with her left hand,
+    # shudders, and straightens.
+    crouch = {'l_hip': (-14, 0, 0), 'r_hip': (-10, 0, 0), 'l_knee': (18, 0, 0), 'r_knee': (16, 0, 0), 'offset': (0, -1.6, 0)}
+    clutch = dict(crouch, chest=(26, 0, 0), head=(16, 0, 0), r_shoulder=(-34, 0, 16), r_elbow=(-78, 0, 0),
+                  l_shoulder=(-48, 0, -26), l_elbow=(-58, 0, 0), mouth=1)
+    pain = [
+        ({'r_shoulder': (-22, 0, 14), 'r_elbow': (-55, 0, 0), 'chest': (-8, 0, 0), 'head': (-12, 0, 0), 'mouth': 2}, 110),
+        ({'r_shoulder': (-28, 0, 18), 'r_elbow': (-70, 0, 0), 'chest': (-12, 4, 0), 'head': (-16, 4, 0), 'l_shoulder': (-20, 0, -10), 'mouth': 2}, 160),
+        (dict(clutch, chest=(18, 0, 0), head=(10, 0, 0)), 140),
+        (clutch, 320),
+        (dict(clutch, chest=(28, 0, 3), head=(18, 0, 2)), 120),
+        (dict(clutch, chest=(25, 0, -3), head=(15, 0, -2)), 120),
+        (dict(clutch, chest=(28, 0, 2), head=(18, 0, 1)), 120),
+        (clutch, 420),
+        ({'chest': (14, 0, 0), 'head': (6, 0, 0), 'r_shoulder': (-24, 0, 8), 'r_elbow': (-50, 0, 0), 'l_shoulder': (-22, 0, -10), 'l_elbow': (-30, 0, 0),
+          'l_knee': (8, 0, 0), 'r_knee': (6, 0, 0), 'offset': (0, -0.6, 0)}, 260),
+        ({'chest': (4, 0, 0), 'r_elbow': (-20, 0, 0)}, 240),
+    ]
+    out = [('idle', True, idle), ('walk', True, walk), ('pain', False, pain)]
     # Each action has a standing clip and a twin with walking legs; the game
     # picks one with HellfeatherWarrior.ActionClip.
     for name, frames in (('attack', attack), ('cleave', cleave), ('shout', shout)):
@@ -288,12 +316,15 @@ def main():
     parser.add_argument('--preview', action='store_true')
     args = parser.parse_args()
     base = wren().rig
-    armored = wren(armor=True).rig
-    # Both scaled alike, by her own height without clothes or helmet.
+    # All scaled alike, by her own height without clothes or helmet.
     fit(base, HEIGHT)
-    armored.scale = base.scale
+    rigs = {'Warrior': base}
+    for name, armor, marked in (('WarriorLeatherArmor', True, True), ('WarriorUnmarked', False, False),
+                                ('WarriorLeatherArmorUnmarked', True, False)):
+        rigs[name] = wren(armor=armor, marked=marked).rig
+        rigs[name].scale = base.scale
     made = clips()
-    build_variants({'Warrior': base, 'WarriorLeatherArmor': armored}, made, (64, 96, 72), args.preview, frame_calls(made))
+    build_variants(rigs, made, (64, 96, 72), args.preview, frame_calls(made))
 
 
 if __name__ == '__main__':

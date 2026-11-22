@@ -697,8 +697,10 @@ T{
         T.IsTrue(game.Prepare(world))
         game.OpenChest()
         T.IsTrue(game.Inventory.Items.Add(HellfeatherItems.Ring))
-        // As a Shift-click on the ring in the bag leaves it.
-        T.IsTrue(game.Inventory.Items.PickUp(game.Inventory.Items.Bag[0].X, game.Inventory.Items.Bag[0].Y))
+        // As a Shift-click on the ring in the bag leaves it. It is the last
+        // entry, after her starting potions.
+        long ring = game.Inventory.Items.Bag.Len - 1
+        T.IsTrue(game.Inventory.Items.PickUp(game.Inventory.Items.Bag[ring].X, game.Inventory.Items.Bag[ring].Y))
         game.Inventory.QuickStoreRequest = true
         game.ApplyQuickStore()
         T.AreEqual(game.Inventory.Items.Held, HellfeatherItems.None)

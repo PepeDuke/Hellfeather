@@ -2,7 +2,9 @@
 // while a close-up conversation lasts. Both are children of the camera, held
 // in front of the world like the globes, and tilted back so that the camera
 // looks at them level instead of from above. They slide in from the sides. The
-// one speaking plays their talk clip.
+// one speaking plays their talk clip. Someone lying down, as Jessa in her bed,
+// lies along the screen with their head away from Wren, raised clear of the
+// text box.
 HellfeatherCloseUp
 {
     bool Shown
@@ -14,24 +16,42 @@ HellfeatherCloseUp
     // How far they have slid in, 0 to 1.
     -float Entered
     -HellfeatherWardrobe Wardrobe
+    // Whether Wren shows the Tithe-mark, set before Show.
+    bool Marked = true
+    // The other's resting clip: idle, or dead once they have died, after
+    // which they never play talk.
+    string ThemRest = "idle"
+    // The light on Wren's mark while it takes, or 0. The game fades it.
+    int MarkLight
+    -bool ThemLying
+    -HellfeatherItems [4] Gear
 
     // Builds both figures. Animation is the person's model, with its voxel size
-    // and box height. Gear is what Wren has on. Returns false if a model would
-    // not attach.
-    bool Show(QuaxelWorld& world, int camera, int animation, float voxel, int height, HellfeatherItems body, HellfeatherItems mainHand, HellfeatherItems offHand, HellfeatherItems head)
+    // and box height; Lying lays it along the screen, and Rest is the clip it
+    // rests in. Gear is what Wren has on. Returns false if a model would not
+    // attach.
+    bool Show(QuaxelWorld& world, int camera, int animation, float voxel, int height, bool lying, string rest, HellfeatherItems body, HellfeatherItems mainHand, HellfeatherItems offHand, HellfeatherItems head)
     {
         Hide(world)
         CameraNode = camera
         Entered = 0.0
+        ThemLying = lying
+        ThemRest = rest
+        Gear[0] = body
+        Gear[1] = mainHand
+        Gear[2] = offHand
+        Gear[3] = head
         WrenRoot = MakeRoot(world)
-        WrenVisual = MakeVisual(world, WrenRoot, HellfeatherWarrior.VoxelSize, HellfeatherWarrior.Height, 1.0)
+        WrenVisual = MakeVisual(world, WrenRoot, HellfeatherWarrior.VoxelSize, HellfeatherWarrior.Height, 1.0, TurnRadians)
         Wardrobe.Forget()
+        Wardrobe.Marked = Marked
         if !Wardrobe.Dress(world, WrenVisual, body, mainHand, offHand, head) { return false }
         world.PlayClip(WrenVisual, "idle")
         ThemRoot = MakeRoot(world)
-        ThemVisual = MakeVisual(world, ThemRoot, voxel, height, -1.0)
+        // Lying, the feet of the bed point at Wren and the head away.
+        ThemVisual = MakeVisual(world, ThemRoot, voxel, height, -1.0, lying ? LyingTurnRadians | TurnRadians)
         if animation < 0 || !world.AttachAnimator(ThemVisual, animation) { return false }
-        world.PlayClip(ThemVisual, "idle")
+        world.PlayClip(ThemVisual, rest)
         Shown = true
         return true
     }
@@ -45,6 +65,8 @@ HellfeatherCloseUp
         WrenVisual = 0
         ThemRoot = 0
         ThemVisual = 0
+        // The mark's light went with Wren's figure.
+        MarkLight = 0
         Shown = false
     }
 
@@ -57,9 +79,10 @@ HellfeatherCloseUp
     }
 
     // The figure stands on its root, scaled so that Wren is Tall view-heights
-    // high, and turned toward the middle of the screen: Turn is 1 to face
-    // right, for Wren on the left, and -1 to face left.
-    -int MakeVisual(QuaxelWorld& world, int root, float voxel, int height, float turn)
+    // high, and turned toward the middle of the screen by Radians from facing
+    // the viewer: Turn is 1 to face right, for Wren on the left, and -1 to
+    // face left.
+    -int MakeVisual(QuaxelWorld& world, int root, float voxel, int height, float turn, float radians)
     {
         int visual = world.CreateChild(root)
         world.SetCatchesEffects(visual, false)
@@ -67,20 +90,57 @@ HellfeatherCloseUp
         // In the root's frame, which is tilted to face the camera, the facing
         // of (0.707, 0.707) looks straight out of the screen and the camera's
         // right is (0.707, -0.707).
-        float c = Math.Cos(TurnRadians)
-        float s = Math.Sin(TurnRadians) * turn
+        float c = Math.Cos(radians)
+        float s = Math.Sin(radians) * turn
         pose.FacingX = 0.70710678 * (c + s)
         pose.FacingZ = 0.70710678 * (c - s)
         world.AttachTransform(visual, pose)
         return visual
     }
 
-    // The talk clip on whoever is speaking, idle on the other.
+    // The talk clip on whoever is speaking, idle on the other. The dead keep
+    // whatever they are playing: dying, then dead.
     Speaking(QuaxelWorld& world, HellfeatherVoice voice, bool typing)
     {
-        if !Shown { return }
+        if !Shown || ThemRest != "idle" { return }
         world.PlayClip(ThemVisual, voice == HellfeatherVoice.Them && typing ? "talk" | "idle")
     }
+
+    // Uses a model the game's wardrobe already loaded for Wren.
+    Know(string path, int made) { Wardrobe.Know(path, made) }
+
+    // Plays a clip on the other, such as their death.
+    PlayThem(QuaxelWorld& world, string clip)
+    {
+        if Shown { world.PlayClip(ThemVisual, clip) }
+    }
+
+    // The mark takes in Wren here too: her marked body, the pain clip, a light
+    // on the mark for the game to fade and a spray of silver from it.
+    Mark(QuaxelWorld& world)
+    {
+        if !Shown { return }
+        Marked = true
+        Wardrobe.Marked = true
+        Wardrobe.Dress(world, WrenVisual, Gear[0], Gear[1], Gear[2], Gear[3])
+        world.PlayClip(WrenVisual, "pain")
+        if MarkLight != 0 { world.DestroyNode(MarkLight) }
+        MarkLight = world.CreateNode()
+        if !world.AttachToSocket(MarkLight, WrenVisual, "mark") {
+            world.DestroyNode(MarkLight)
+            MarkLight = 0
+            return
+        }
+        mat4 socket
+        if world.GetSocketMatrix(WrenVisual, "mark", socket) {
+            world.StartEffectIgnoring(HellfeatherMark.Motes(), vec3(socket[3][0], socket[3][1], socket[3][2]), vec3(0.0, 1.0, 0.0), WrenVisual)
+        }
+    }
+
+    // The clip each figure is playing, for tests.
+    string WrenClip(QuaxelWorld& world) { return Shown ? world.CurrentClipName(WrenVisual) | "" }
+
+    string ThemClip(QuaxelWorld& world) { return Shown ? world.CurrentClipName(ThemVisual) | "" }
 
     // Slides them in.
     Step(float deltaSeconds)
@@ -111,7 +171,16 @@ HellfeatherCloseUp
         float across = Math.Min(halfWidth * Across, halfHeight * 1.1)
         float slide = (1.0 - ease) * halfWidth
         Place(world, WrenRoot, right * (-across - slide) + up * feet + forward * Depth, tilt, scale)
-        Place(world, ThemRoot, right * (across + slide) + up * feet + forward * Depth, tilt, scale)
+        if ThemLying {
+            // The bed's legs on the text box's top edge, and the whole bed on
+            // screen: its middle no nearer the right edge than half its length.
+            float lyingFeet = -halfHeight + halfHeight * 2.0 * LyingFloor
+            float half = LyingHalfLength * scale
+            float lyingAcross = Math.Min(across, halfWidth - half)
+            Place(world, ThemRoot, right * (lyingAcross + slide) + up * lyingFeet + forward * Depth, tilt, scale)
+        } else {
+            Place(world, ThemRoot, right * (across + slide) + up * feet + forward * Depth, tilt, scale)
+        }
     }
 
     -Place(QuaxelWorld& world, int root, vec3 position, quat tilt, float scale)
@@ -135,6 +204,14 @@ HellfeatherCloseUp
     #float Across = 0.6
     // How far each turns toward the other from facing the viewer.
     #float TurnRadians = 0.8
+    // Someone lying turns further, nearly side on, so the bed runs along the
+    // screen with a little of its top toward the viewer.
+    #float LyingTurnRadians = 1.3
+    // Where a bed's legs stand, as a share of the view up from the bottom:
+    // just on the text box. And half its length, in root units: 70 voxels of
+    // 0.025 at most, a little less as it turns toward the viewer.
+    #float LyingFloor = 0.2
+    #float LyingHalfLength = 0.95
     #float SlideSeconds = 0.35
 }
 
@@ -180,7 +257,7 @@ HellfeatherGame : QuaxelGameInstance
         RightMouseHeld = rightDown
     }
 
-    -bool ShowCloseUp(QuaxelWorld& world)
+    bool ShowCloseUp(QuaxelWorld& world)
     {
         int spot = Talk.Spot
         if spot < 0 || spot >= People.Spots.Len || Length(People.Spots[spot].Model) == 0 { return false }
@@ -189,7 +266,14 @@ HellfeatherGame : QuaxelGameInstance
         HellfeatherItems mainHand = Inventory.Items.Equipped[HellfeatherSlot.MainHand]
         HellfeatherItems offHand = Inventory.Items.Equipped[HellfeatherSlot.OffHand]
         HellfeatherItems head = Inventory.Items.Equipped[HellfeatherSlot.Head]
-        if CloseUp.Show(world, CameraNode, animation, People.Spots[spot].Voxel, People.Spots[spot].Height, body, mainHand, offHand, head) { return true }
+        CloseUp.Marked = Quests.TitheMark
+        // Her bodies, marked and not, as the game already loaded them.
+        for marked : 0; marked < 2; marked++ {
+            string path = HellfeatherWarrior.BodyModel(body, marked == 1)
+            CloseUp.Know(path, Wardrobe.LoadedAs(path))
+        }
+        HellfeatherSpot person = People.Spots[spot]
+        if CloseUp.Show(world, CameraNode, animation, person.Voxel, person.Height, person.Lying, person.Rest, body, mainHand, offHand, head) { return true }
         CloseUp.Hide(world)
         return false
     }
