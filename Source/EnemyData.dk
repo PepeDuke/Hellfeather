@@ -418,7 +418,7 @@ T{
         T.IsTrue(gentle > 0)
         int ford = 0
         for encounter : game.Spawner.Encounters {
-            if encounter.Group < 0 || game.Spawner.Table.Groups[encounter.Group].Zone != HellfeatherZone.FordRoad + 0 { continue }
+            if encounter.Group < 0 || game.Spawner.Table.Groups[encounter.Group].Zone != HellfeatherZone.FordRoad { continue }
             for i : encounter.First; i < encounter.First + encounter.Count; i++ {
                 if game.Spawner.Table.Kinds[game.Enemies[i].Kind].Feathers > 0 { ford++ }
             }
@@ -473,9 +473,9 @@ T{
         int late = 0
         int axes = 0
         for n : 0; n < 3000; n++ {
-            item : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.FordRoad + 0))
+            item : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.FordRoad))
             if item == HellfeatherItems.ScaleMail || item == HellfeatherItems.GreatHelm || item == HellfeatherItems.Falchion { early++ }
-            mill : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.HobbsMill + 0))
+            mill : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.HobbsMill))
             if mill == HellfeatherItems.ScaleMail || mill == HellfeatherItems.GreatHelm || mill == HellfeatherItems.FlangedMace { late++ }
             if mill == HellfeatherItems.HandAxe { axes++ }
         }
@@ -498,8 +498,8 @@ T{
         int [5] seen
         int early = 0
         for n : 0; n < 4000; n++ {
-            mill : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.HobbsMill + 0))
-            below : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.UndercroftDeep + 0))
+            mill : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.HobbsMill))
+            below : spawner.RollLootAt(loot, HellfeatherZoneNames.Level(HellfeatherZone.UndercroftDeep))
             for i : 0; i < 5; i++ {
                 if mill == deep[i] { early++ }
                 if below == deep[i] { seen[i]++ }

@@ -100,7 +100,7 @@ HellfeatherGame : QuaxelGameInstance
         for merchant : HellfeatherMerchant {
             if merchant == HellfeatherMerchant.None { continue }
             Shop.Shop.RestockFor(merchant, seed + (uint)(merchant + 1) * (uint)7919)
-            Shop.Shop.Stash(merchant + 0)
+            Shop.Shop.Stash(merchant)
         }
     }
 
@@ -119,8 +119,8 @@ HellfeatherGame : QuaxelGameInstance
     {
         if merchant == HellfeatherMerchant.None { return }
         if Trading != merchant {
-            if Trading != HellfeatherMerchant.None { Shop.Shop.Stash(Trading + 0) }
-            Shop.Shop.Unstash(merchant + 0)
+            if Trading != HellfeatherMerchant.None { Shop.Shop.Stash(Trading) }
+            Shop.Shop.Unstash(merchant)
             Trading = merchant
         }
         Shop.Shop.ForFeathers = merchant == HellfeatherMerchant.Ravens

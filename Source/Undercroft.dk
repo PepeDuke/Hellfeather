@@ -155,7 +155,7 @@ HellfeatherRealm
     QuaxelTerrainConfig Undercroft(HellfeatherRealm realm)
     {
         QuaxelTerrainConfig config
-        int level = realm + 0
+        int level = realm
         config.Seed = (uint)(40 + level)
         config.SiteGrid = 3
         config.SiteSpacing = 24.0
@@ -180,5 +180,5 @@ HellfeatherRealm
     }
 
     // Where a level's landing is, in world units.
-    vec3 Landing(HellfeatherRealm realm) { return vec3((float)(Apart * (realm + 0)) * QuaxelTerrain.Cell, 0.0, 0.0) }
+    vec3 Landing(HellfeatherRealm realm) { return vec3((float)(Apart * realm) * QuaxelTerrain.Cell, 0.0, 0.0) }
 }

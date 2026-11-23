@@ -264,10 +264,10 @@ HellfeatherStatusArt
 #{
     #int IconY = 1800
 
-    int IconX(HellfeatherStatusIcon icon) { return 200 + (icon + 0) * (Size + 3) }
+    int IconX(HellfeatherStatusIcon icon) { return 200 + icon * (Size + 3) }
 
     // A status's icon: its own, as the statuses come first among the icons.
-    HellfeatherStatusIcon IconOf(HellfeatherStatus status) { return (HellfeatherStatusIcon)(status + 0) }
+    HellfeatherStatusIcon IconOf(HellfeatherStatus status) { return (HellfeatherStatusIcon)status }
 
     // An icon with its outline, its top left at x, y on the UI grid.
     DrawIcon(QuaxelUi& ui, int x, int y, HellfeatherStatusIcon icon)

@@ -55,7 +55,7 @@ HellfeatherGame : QuaxelGameInstance
         }
     }
 
-    -Ask(HellfeatherTopic topic) { Talk.Ask(Question(topic), topic + 0) }
+    -Ask(HellfeatherTopic topic) { Talk.Ask(Question(topic), topic) }
 
     // What Wren says to bring a topic up, which is also its reply's text.
     string Question(HellfeatherTopic topic)

@@ -50,13 +50,13 @@ With an activated Emscripten SDK, build and serve the browser version:
 python -m http.server 8000 --bind 127.0.0.1 --directory .duck/build/web/wasm64/release/site
 ```
 
-Open `http://127.0.0.1:8000/Hellfeather.html` in a browser supporting WebGL 2,
+Open `http://127.0.0.1:8000/Hellfeather.html` in a browser supporting WebGPU,
 WebAssembly Memory64 and JSPI. Click New Character or Continue to play.
 Saves stay in this browser at the same origin. For command-line starts, pass
 one URL parameter per argument, for example `?arg=--start&arg=mill`.
 
 All configurations compile the same game source. The x64 Windows build
-requires the Vulkan SDK and opens a resizable window. Use `--no-menu` to start playing immediately.
+requires the Vulkan SDK and opens a resizable window. Use `--no-menu` to start playing immediately, and `--res 1920x1080` to open the window at another size in pixels.
 
 ## Gameplay and controls
 

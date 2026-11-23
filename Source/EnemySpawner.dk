@@ -207,7 +207,7 @@ EnemyGroup
         if Weight <= 0 { table.Fail("EnemyGroup " + Name + " needs a Weight above 0") }
         EnemyGroupEntry entry
         entry.Name = Name
-        entry.Zone = Zone + 0
+        entry.Zone = Zone
         entry.Weight = Weight
         entry.Spread = Spread
         entry.FirstMember = (int)table.Members.Len
@@ -271,7 +271,7 @@ EnemyTable
     }
 
     // Which group a roll chose, each with a chance in proportion to its weight.
-    int PickGroup(QuaxelRandom& random) { return PickGroupIn(random, HellfeatherZone.Any + 0) }
+    int PickGroup(QuaxelRandom& random) { return PickGroupIn(random, HellfeatherZone.Any) }
 
     bool GroupFits(int group, int zone) { return zone < 0 || Groups[group].Zone < 0 || Groups[group].Zone == zone }
 

@@ -43,7 +43,7 @@ HellfeatherGame : QuaxelGameInstance
     -vec3 ZoneMiddle(HellfeatherZone zone)
     {
         for site : Terrain.Layout.Sites {
-            if site.Module == zone + 0 { return Terrain.WorldPoint(site.X, site.Z) }
+            if site.Module == zone { return Terrain.WorldPoint(site.X, site.Z) }
         }
         return vec3(0.0, 0.0, 0.0)
     }
@@ -244,7 +244,7 @@ HellfeatherGame : QuaxelGameInstance
     // Moves the level's enemies and their encounters into its keeping.
     -KeepLevel(HellfeatherRealm realm)
     {
-        int r = realm + 0
+        int r = realm
         int start = (int)KeptEnemies.Len
         for enemy : Enemies {
             KeptEnemies += enemy
@@ -265,7 +265,7 @@ HellfeatherGame : QuaxelGameInstance
     // when there is nothing kept and the level must be rolled.
     -bool ReturnToLevel(HellfeatherRealm realm)
     {
-        int r = realm + 0
+        int r = realm
         if !Kept[r] { return false }
         // A level's enemies were kept together, in one run.
         int start = (int)KeptEnemies.Len
@@ -312,7 +312,7 @@ HellfeatherGame : QuaxelGameInstance
         if gander < 0 || duck < 0 { return }
         int best = -1
         for i : 0; i < Terrain.Layout.Sites.Len; i++ {
-            if Terrain.Layout.Sites[i].Module != HellfeatherZone.FennickWater + 0 { continue }
+            if Terrain.Layout.Sites[i].Module != HellfeatherZone.FennickWater { continue }
             if best < 0 || Terrain.Layout.Sites[i].Radius > Terrain.Layout.Sites[best].Radius { best = i }
         }
         if best < 0 { return }

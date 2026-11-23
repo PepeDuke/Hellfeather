@@ -332,13 +332,13 @@ HellfeatherGame : QuaxelGameInstance
     ExploreMap(QuaxelWorld& world)
     {
         vec3 player = world.GetPosition(PlayerNode)
-        if AutoMap.Realm != Terrain.Realm + 0 {
+        if AutoMap.Realm != Terrain.Realm {
             vec4 [] sites
             for site : Terrain.Layout.Sites {
                 vec3 middle = Terrain.WorldPoint(site.X, site.Z)
                 sites += vec4(middle.X, 0.0, middle.Z, site.Radius)
             }
-            AutoMap.Configure(ScreenMatrix(world), sites, Terrain.Realm + 0)
+            AutoMap.Configure(ScreenMatrix(world), sites, Terrain.Realm)
             MapFrames = HellfeatherAutoMap.ExploreFrames
         }
         MapFrames++

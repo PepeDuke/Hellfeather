@@ -48,8 +48,20 @@ HellfeatherGame : QuaxelGameInstance
     HellfeatherShopScreen Shop
     HellfeatherSounds Sfx
 
-    int WindowWidth() { return Benchmark.Enabled ? 1920 | 960 }
-    int WindowHeight() { return Benchmark.Enabled ? 1080 | 540 }
+    // Window size in pixels asked for with --res; 0 keeps the default.
+    int RequestedWidth = 0
+    int RequestedHeight = 0
+
+    int WindowWidth()
+    {
+        if RequestedWidth > 0 { return RequestedWidth }
+        return Benchmark.Enabled ? 1920 | 960
+    }
+    int WindowHeight()
+    {
+        if RequestedHeight > 0 { return RequestedHeight }
+        return Benchmark.Enabled ? 1080 | 540
+    }
 
     string WindowTitle() { return "Hellfeather" }
 
@@ -94,7 +106,7 @@ HellfeatherGame : QuaxelGameInstance
         probe.Realm = HellfeatherRealm.Fenmarch
         if !probe.Configure(FenmarchConfig()) { return false }
         for zone : HellfeatherZone {
-            if zone + 0 > HellfeatherZone.Fenmarch + 0 && zone + 0 < HellfeatherZone.Undercroft + 0 && !Placed(probe, zone) { return false }
+            if zone > HellfeatherZone.Fenmarch && zone < HellfeatherZone.Undercroft && !Placed(probe, zone) { return false }
         }
         probe.Realm = HellfeatherRealm.Thornmere
         if !probe.Configure(HellfeatherRealm.ThornmereConfig(TerrainSeed())) { return false }
@@ -104,7 +116,7 @@ HellfeatherGame : QuaxelGameInstance
     -bool Placed(HellfeatherTerrain& terrain, HellfeatherZone zone)
     {
         for site : terrain.Layout.Sites {
-            if site.Module == zone + 0 { return true }
+            if site.Module == zone { return true }
         }
         return false
     }
@@ -604,7 +616,7 @@ HellfeatherGame : QuaxelGameInstance
     // are Windows virtual-key codes; QuaxelKey has no members for the digits.
     -SampleSlotKeys(QuaxelInputState& input)
     {
-        int [9] keys = {0, 0, QuaxelKey.Q + 0, QuaxelKey.E + 0, QuaxelKey.F + 0, HellfeatherKeys.One, HellfeatherKeys.One + 1, HellfeatherKeys.One + 2, HellfeatherKeys.One + 3}
+        int [9] keys = {0, 0, QuaxelKey.Q, QuaxelKey.E, QuaxelKey.F, HellfeatherKeys.One, HellfeatherKeys.One + 1, HellfeatherKeys.One + 2, HellfeatherKeys.One + 3}
         for slot : HellfeatherActionSlot {
             if slot < HellfeatherActionSlot.Q { continue }
             bool down = input.Down[keys[slot]]
@@ -1337,14 +1349,14 @@ T{
         int rivers = 0
         int houses = 0
         for i : 0; i < game.Terrain.Layout.Sites.Len; i++ {
-            if game.Terrain.Layout.Sites[i].Module == HellfeatherZone.FordRoad + 0 {
+            if game.Terrain.Layout.Sites[i].Module == HellfeatherZone.FordRoad {
                 rivers++
                 T.IsTrue(game.Terrain.Layout.Sites[i].PortCount >= 2)
             }
-            if game.Terrain.Layout.Sites[i].Module == HellfeatherZone.Croft + 0 { houses++ }
+            if game.Terrain.Layout.Sites[i].Module == HellfeatherZone.Croft { houses++ }
         }
         T.IsTrue(rivers > 0 && houses > 0)
-        T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, HellfeatherZone.Ravenford + 0)
+        T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, HellfeatherZone.Ravenford)
         int buildings = 0
         for i : 0; i < game.Terrain.Placements.Len; i++ {
             if !game.Terrain.Placements[i].Prop { buildings++ }
@@ -1745,7 +1757,7 @@ T{
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
         for i : 0; i < game.Terrain.Layout.Sites.Len; i++ {
-            if game.Terrain.Layout.Sites[i].Module != HellfeatherZone.FordRoad + 0 { continue }
+            if game.Terrain.Layout.Sites[i].Module != HellfeatherZone.FordRoad { continue }
             QuaxelTerrainSite site = game.Terrain.Layout.Sites[i]
             vec3 center = game.Terrain.WorldPoint(site.X, site.Z)
             int calls = 0

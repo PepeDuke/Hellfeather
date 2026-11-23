@@ -4,17 +4,17 @@ HellfeatherZoneNames
     // The name shown for a clearing of the Fenmarch, by its module.
     string Name(int zone)
     {
-        if zone == HellfeatherZone.Ravenford + 0 { return "Ravenford" }
-        if zone == HellfeatherZone.HobbsMill + 0 { return "Hobb's Mill" }
-        if zone == HellfeatherZone.OrrasHill + 0 { return "Orra's Hill" }
-        if zone == HellfeatherZone.FordRoad + 0 { return "The Ford Road" }
-        if zone == HellfeatherZone.FennickWater + 0 { return "Fennick Water" }
-        if zone == HellfeatherZone.Croft + 0 { return "The Crofts" }
-        if zone == HellfeatherZone.Encampment + 0 { return HellfeatherQuests.CampName }
-        if zone == HellfeatherZone.HospiceRoad + 0 { return "The Hospice Road" }
-        if zone == HellfeatherZone.Shallows + 0 { return "Thornmere Shallows" }
-        if zone == HellfeatherZone.Thornwick + 0 { return "Thornwick" }
-        if zone == HellfeatherZone.Heath + 0 { return "The Thornmere" }
+        if zone == HellfeatherZone.Ravenford { return "Ravenford" }
+        if zone == HellfeatherZone.HobbsMill { return "Hobb's Mill" }
+        if zone == HellfeatherZone.OrrasHill { return "Orra's Hill" }
+        if zone == HellfeatherZone.FordRoad { return "The Ford Road" }
+        if zone == HellfeatherZone.FennickWater { return "Fennick Water" }
+        if zone == HellfeatherZone.Croft { return "The Crofts" }
+        if zone == HellfeatherZone.Encampment { return HellfeatherQuests.CampName }
+        if zone == HellfeatherZone.HospiceRoad { return "The Hospice Road" }
+        if zone == HellfeatherZone.Shallows { return "Thornmere Shallows" }
+        if zone == HellfeatherZone.Thornwick { return "Thornwick" }
+        if zone == HellfeatherZone.Heath { return "The Thornmere" }
         return "The Fenmarch"
     }
 
@@ -23,22 +23,22 @@ HellfeatherZoneNames
     // with the way the story walks Act I, from Ravenford out to the Undercroft.
     int Level(int zone)
     {
-        if zone == HellfeatherZone.Croft + 0 { return 2 }
-        if zone == HellfeatherZone.FordRoad + 0 { return 3 }
-        if zone == HellfeatherZone.FennickWater + 0 { return 5 }
-        if zone == HellfeatherZone.OrrasHill + 0 { return 7 }
-        if zone == HellfeatherZone.HobbsMill + 0 { return 9 }
-        if zone == HellfeatherZone.Undercroft + 0 || zone == HellfeatherZone.UndercroftLanding + 0 { return 10 }
-        if zone == HellfeatherZone.UndercroftDeep + 0 { return 12 }
-        if zone == HellfeatherZone.Encampment + 0 || zone == HellfeatherZone.Thornwick + 0 { return 13 }
-        if zone == HellfeatherZone.HospiceRoad + 0 { return 13 }
-        if zone == HellfeatherZone.Heath + 0 { return 14 }
-        if zone == HellfeatherZone.Shallows + 0 { return 15 }
-        if zone == HellfeatherZone.Cloister + 0 { return 16 }
-        if zone == HellfeatherZone.RecordsCellar + 0 { return 17 }
-        if zone == HellfeatherZone.SouthWing + 0 { return 18 }
-        if zone == HellfeatherZone.SouthWingDeep + 0 { return 19 }
-        if zone == HellfeatherZone.RelayChapel + 0 { return 20 }
+        if zone == HellfeatherZone.Croft { return 2 }
+        if zone == HellfeatherZone.FordRoad { return 3 }
+        if zone == HellfeatherZone.FennickWater { return 5 }
+        if zone == HellfeatherZone.OrrasHill { return 7 }
+        if zone == HellfeatherZone.HobbsMill { return 9 }
+        if zone == HellfeatherZone.Undercroft || zone == HellfeatherZone.UndercroftLanding { return 10 }
+        if zone == HellfeatherZone.UndercroftDeep { return 12 }
+        if zone == HellfeatherZone.Encampment || zone == HellfeatherZone.Thornwick { return 13 }
+        if zone == HellfeatherZone.HospiceRoad { return 13 }
+        if zone == HellfeatherZone.Heath { return 14 }
+        if zone == HellfeatherZone.Shallows { return 15 }
+        if zone == HellfeatherZone.Cloister { return 16 }
+        if zone == HellfeatherZone.RecordsCellar { return 17 }
+        if zone == HellfeatherZone.SouthWing { return 18 }
+        if zone == HellfeatherZone.SouthWingDeep { return 19 }
+        if zone == HellfeatherZone.RelayChapel { return 20 }
         return 1
     }
 
@@ -132,7 +132,7 @@ T{
     // Each zone along the story's road is at least as deep as the one before.
     AreaLevelsRiseAlongTheRoad()
     {
-        int [] road = {HellfeatherZone.Ravenford + 0, HellfeatherZone.Croft + 0, HellfeatherZone.FordRoad + 0, HellfeatherZone.FennickWater + 0, HellfeatherZone.OrrasHill + 0, HellfeatherZone.HobbsMill + 0, HellfeatherZone.Undercroft + 0, HellfeatherZone.UndercroftDeep + 0}
+        int [] road = {HellfeatherZone.Ravenford, HellfeatherZone.Croft, HellfeatherZone.FordRoad, HellfeatherZone.FennickWater, HellfeatherZone.OrrasHill, HellfeatherZone.HobbsMill, HellfeatherZone.Undercroft, HellfeatherZone.UndercroftDeep}
         for i : 1; i < road.Len; i++ { T.IsTrue(HellfeatherZoneNames.Level(road[i]) > HellfeatherZoneNames.Level(road[i - 1])) }
         HellfeatherGame game()
         QuaxelWorld world()
@@ -149,7 +149,7 @@ T{
         game.StepZone(world.GetPosition(game.PlayerNode), 1.0)
         T.AreEqual(game.ZoneName(), "Ravenford")
         for site : game.Terrain.Layout.Sites {
-            if site.Module != HellfeatherZone.HobbsMill + 0 { continue }
+            if site.Module != HellfeatherZone.HobbsMill { continue }
             vec3 middle = game.Terrain.WorldPoint(site.X, site.Z)
             game.StepZone(middle, 1.0)
             T.AreEqual(game.ZoneName(), "Hobb's Mill")

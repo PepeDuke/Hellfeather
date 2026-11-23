@@ -187,7 +187,7 @@ T{
         int zoned = 0
         for encounter : game.Spawner.Encounters {
             if encounter.Group < 0 { continue }
-            T.AreEqual(game.Spawner.Table.Groups[encounter.Group].Zone, HellfeatherZone.Undercroft + 0)
+            T.AreEqual(game.Spawner.Table.Groups[encounter.Group].Zone, HellfeatherZone.Undercroft)
             zoned++
         }
         T.IsTrue(zoned > 0)

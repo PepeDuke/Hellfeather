@@ -1011,7 +1011,7 @@ HellfeatherStatusColumn
         int [] entries
         if warCryShare > 0.0 { entries += WarCryEntry }
         for status : HellfeatherStatus {
-            if afflictions.Tier(status) > 0 { entries += status + 0 }
+            if afflictions.Tier(status) > 0 { entries += status }
         }
         return entries
     }
@@ -1160,7 +1160,7 @@ T{
         T.AreEqual(y0 + HellfeatherStatusColumn.TileHeight, 200)
         T.AreEqual(HellfeatherStatusColumn.TileUnder(100, 200, 4, x3 + 2, y3 + 2), 3)
         T.AreEqual(HellfeatherStatusColumn.TileUnder(100, 200, 4, 10, 10), -1)
-        lines : HellfeatherStatusColumn.TooltipLines(HellfeatherStatus.Chill + 0, afflictions, 0.0)
+        lines : HellfeatherStatusColumn.TooltipLines(HellfeatherStatus.Chill, afflictions, 0.0)
         T.AreEqual(lines[0], "Chill: Numbed")
         T.AreEqual(lines[1], "20% slower")
         cry : HellfeatherStatusColumn.TooltipLines(HellfeatherStatusColumn.WarCryEntry, afflictions, 3.2)

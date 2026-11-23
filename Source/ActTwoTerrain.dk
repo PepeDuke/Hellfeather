@@ -16,7 +16,7 @@ HellfeatherSurface
 HellfeatherRealm
 #{
     // Whether a level is one of Act II's.
-    bool IsActTwo(HellfeatherRealm realm) { return realm + 0 >= HellfeatherRealm.Thornmere + 0 }
+    bool IsActTwo(HellfeatherRealm realm) { return realm >= HellfeatherRealm.Thornmere }
 
     // Whether a level is underground: the Undercroft's and Act II's dungeons.
     bool IsBelow(HellfeatherRealm realm)
@@ -33,13 +33,13 @@ HellfeatherRealm
     // The zone a level's halls count as.
     int HallZone(HellfeatherRealm realm)
     {
-        if realm == HellfeatherRealm.UndercroftDeep { return HellfeatherZone.UndercroftDeep + 0 }
-        if realm == HellfeatherRealm.Cloister { return HellfeatherZone.Cloister + 0 }
-        if realm == HellfeatherRealm.RecordsCellar { return HellfeatherZone.RecordsCellar + 0 }
-        if realm == HellfeatherRealm.SouthWing { return HellfeatherZone.SouthWing + 0 }
-        if realm == HellfeatherRealm.SouthWingDeep { return HellfeatherZone.SouthWingDeep + 0 }
-        if realm == HellfeatherRealm.RelayChapel { return HellfeatherZone.RelayChapel + 0 }
-        return HellfeatherZone.Undercroft + 0
+        if realm == HellfeatherRealm.UndercroftDeep { return HellfeatherZone.UndercroftDeep }
+        if realm == HellfeatherRealm.Cloister { return HellfeatherZone.Cloister }
+        if realm == HellfeatherRealm.RecordsCellar { return HellfeatherZone.RecordsCellar }
+        if realm == HellfeatherRealm.SouthWing { return HellfeatherZone.SouthWing }
+        if realm == HellfeatherRealm.SouthWingDeep { return HellfeatherZone.SouthWingDeep }
+        if realm == HellfeatherRealm.RelayChapel { return HellfeatherZone.RelayChapel }
+        return HellfeatherZone.Undercroft
     }
 
     // The Thornmere's terrain: the Fenmarch's kind of lowland, in a level of its own.
@@ -51,7 +51,7 @@ HellfeatherRealm
         config.GroundRoughness = 1
         config.TerraceStep = 5
         config.EntryRadius = PilgrimsEncampment.Radius
-        config.OffsetColumns = Apart * (HellfeatherRealm.Thornmere + 0)
+        config.OffsetColumns = Apart * (HellfeatherRealm.Thornmere)
         return config
     }
 

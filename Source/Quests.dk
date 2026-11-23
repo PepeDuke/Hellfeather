@@ -337,7 +337,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         HellfeatherPerson person = People.Spots[spot].Person
         HellfeatherQuests q = Quests
-        if IsActTwoPerson(person) || HellfeatherRealm.IsActTwo(People.Spots[spot].Realm) || People.Spots[spot].Kind + 0 >= HellfeatherSpotKind.Road + 0 { return NewsTwo(spot) }
+        if IsActTwoPerson(person) || HellfeatherRealm.IsActTwo(People.Spots[spot].Realm) || People.Spots[spot].Kind >= HellfeatherSpotKind.Road { return NewsTwo(spot) }
         if person == HellfeatherPerson.Matthew { return q.Moult == 0 || q.Moult == 3 }
         if person == HellfeatherPerson.Carmine { return q.Moult == 1 }
         if person == HellfeatherPerson.Jessa { return q.Moult == 2 }
@@ -871,7 +871,7 @@ HellfeatherGame : QuaxelGameInstance
             Quests.GreyneckSlain = true
             Banner.Show("Old Greyneck is dead", 3.0)
         }
-        if Quests.Ford == 1 && Spawner.Table.Kinds[Enemies[i].Kind].Feathers > 0 && ZoneOf(i) == HellfeatherZone.FordRoad + 0 { Quests.DucksCleared++ }
+        if Quests.Ford == 1 && Spawner.Table.Kinds[Enemies[i].Kind].Feathers > 0 && ZoneOf(i) == HellfeatherZone.FordRoad { Quests.DucksCleared++ }
     }
 
     // The zone of the group an enemy came with, or -1.

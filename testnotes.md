@@ -29,6 +29,8 @@ Issues found during testing:
 [] fethers should be also avalible in the gamble show from the personal storige
 [] additional drops: blue -> 1 supportive drops (coins or pots), rare, and uniqe enemies need to drop more, rere -> aways at least one item ( incresed rarity chance) and 2 supportive drops (coins or pots), Unique -> aways at least two item ( incresed rarity chance a bit more) 4 supportive drops (coins or pots). final boss -> aways at least 3 item ( incresed rarity chance a bit more) but it does not do additional supportive drops.
 [] add a belt potion slots, this is system where we can "open" belt for aditional slots, higher bases have more slots. we can add only pots there, and we can drop them into a beld in inventory screen, potion acctions prefere pots that are free inside inventory and then the belt. on pick up of pot or buy it trys to first put it in the belt. on belt drop or sell the pots are inside the belt.
+[] black fethers should stack to 10
+[] we should have auto-pickup for gold in a range around the player
 
 act 2:
  scuffed models: 

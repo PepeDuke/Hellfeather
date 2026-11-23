@@ -76,7 +76,7 @@ HellfeatherGame : QuaxelGameInstance
             int site = NearestSiteOf(zone)
             if site < 0 { continue }
             vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[site].X, Terrain.Layout.Sites[site].Z)
-            AddWaypoint(HellfeatherZoneNames.Name(zone + 0), HellfeatherRealm.Fenmarch, Flat(middle), 4.0)
+            AddWaypoint(HellfeatherZoneNames.Name(zone), HellfeatherRealm.Fenmarch, Flat(middle), 4.0)
         }
         AddWaypoint("The Millrace Undercroft", HellfeatherRealm.Undercroft, HellfeatherRealm.Landing(HellfeatherRealm.Undercroft) + vec3(2.5, 0.0, 0.5), 0.0)
         AddWaypoint("The Undercroft, deeper", HellfeatherRealm.UndercroftDeep, HellfeatherRealm.Landing(HellfeatherRealm.UndercroftDeep) + vec3(2.5, 0.0, 0.5), 0.0)
@@ -104,7 +104,7 @@ HellfeatherGame : QuaxelGameInstance
         int best = -1
         float bestDistance = 0.0
         for i : 0; i < Terrain.Layout.Sites.Len; i++ {
-            if Terrain.Layout.Sites[i].Module != zone + 0 { continue }
+            if Terrain.Layout.Sites[i].Module != zone { continue }
             vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[i].X, Terrain.Layout.Sites[i].Z)
             float distance = Math.Hypot(middle.X, middle.Z)
             if best < 0 || distance < bestDistance {

@@ -215,10 +215,10 @@ HellfeatherTerrain : QuaxelTerrain
 
     int SpawnModule()
     {
-        if Realm == HellfeatherRealm.Fenmarch { return HellfeatherZone.Ravenford + 0 }
-        if Realm == HellfeatherRealm.Thornmere { return HellfeatherZone.Encampment + 0 }
-        if HellfeatherRealm.IsInterior(Realm) { return HellfeatherZone.Interior + 0 }
-        return HellfeatherZone.UndercroftLanding + 0
+        if Realm == HellfeatherRealm.Fenmarch { return HellfeatherZone.Ravenford }
+        if Realm == HellfeatherRealm.Thornmere { return HellfeatherZone.Encampment }
+        if HellfeatherRealm.IsInterior(Realm) { return HellfeatherZone.Interior }
+        return HellfeatherZone.UndercroftLanding
     }
 
     // The zone the Undercroft's halls count as on the current level.
@@ -227,45 +227,45 @@ HellfeatherTerrain : QuaxelTerrain
     QuaxelTerrainModuleRules ModuleRules(int id)
     {
         if HellfeatherRealm.IsInterior(Realm) {
-            if id == HellfeatherZone.Interior + 0 { return Room.Rules() }
+            if id == HellfeatherZone.Interior { return Room.Rules() }
             QuaxelTerrainModuleRules none
             return none
         }
         if Realm == HellfeatherRealm.Thornmere {
-            if id == HellfeatherZone.Encampment + 0 { return Camp.Rules() }
-            if id == HellfeatherZone.HospiceRoad + 0 { return Road.Rules() }
-            if id == HellfeatherZone.Shallows + 0 { return Shallows.Rules() }
-            if id == HellfeatherZone.Thornwick + 0 { return Thornwick.Rules() }
-            if id == HellfeatherZone.Heath + 0 { return Heath.Rules() }
+            if id == HellfeatherZone.Encampment { return Camp.Rules() }
+            if id == HellfeatherZone.HospiceRoad { return Road.Rules() }
+            if id == HellfeatherZone.Shallows { return Shallows.Rules() }
+            if id == HellfeatherZone.Thornwick { return Thornwick.Rules() }
+            if id == HellfeatherZone.Heath { return Heath.Rules() }
             QuaxelTerrainModuleRules none
             return none
         }
         if Realm != HellfeatherRealm.Fenmarch {
             if id == HallZone() { return HellfeatherRealm.IsActTwo(Realm) ? Below.Rules() | Hall.Rules() }
-            if id == HellfeatherZone.UndercroftLanding + 0 { return Landing.Rules() }
+            if id == HellfeatherZone.UndercroftLanding { return Landing.Rules() }
             QuaxelTerrainModuleRules none
             return none
         }
-        if id >= HellfeatherZone.Undercroft + 0 {
+        if id >= HellfeatherZone.Undercroft {
             QuaxelTerrainModuleRules none
             return none
         }
-        if id == HellfeatherZone.HobbsMill + 0 { return Mill.Rules() }
-        if id == HellfeatherZone.OrrasHill + 0 { return Hill.Rules() }
-        if id == HellfeatherZone.FordRoad + 0 { return River.Rules() }
-        if id == HellfeatherZone.FennickWater + 0 { return Marsh.Rules() }
-        if id == HellfeatherZone.Croft + 0 { return House.Rules() }
-        if id == HellfeatherZone.Ravenford + 0 { return Town.Rules() }
+        if id == HellfeatherZone.HobbsMill { return Mill.Rules() }
+        if id == HellfeatherZone.OrrasHill { return Hill.Rules() }
+        if id == HellfeatherZone.FordRoad { return River.Rules() }
+        if id == HellfeatherZone.FennickWater { return Marsh.Rules() }
+        if id == HellfeatherZone.Croft { return House.Rules() }
+        if id == HellfeatherZone.Ravenford { return Town.Rules() }
         return Valley.Rules()
     }
 
     ModuleColumn(int id, QuaxelTerrainSite site, float x, float z, QuaxelTerrainColumn& column)
     {
         if Realm == HellfeatherRealm.Thornmere {
-            if id == HellfeatherZone.Encampment + 0 { Camp.Column(site, x, z, column) }
-            else if id == HellfeatherZone.Shallows + 0 { Shallows.Column(site, x, z, column) }
-            else if id == HellfeatherZone.Thornwick + 0 { Thornwick.Column(site, x, z, column) }
-            else if id == HellfeatherZone.HospiceRoad + 0 { Road.Column(site, x, z, column) }
+            if id == HellfeatherZone.Encampment { Camp.Column(site, x, z, column) }
+            else if id == HellfeatherZone.Shallows { Shallows.Column(site, x, z, column) }
+            else if id == HellfeatherZone.Thornwick { Thornwick.Column(site, x, z, column) }
+            else if id == HellfeatherZone.HospiceRoad { Road.Column(site, x, z, column) }
             else { Heath.Column(site, x, z, column) }
             return
         }
@@ -273,28 +273,28 @@ HellfeatherTerrain : QuaxelTerrain
             Below.Column(site, x, z, column)
             return
         }
-        if id == HellfeatherZone.Interior + 0 {
+        if id == HellfeatherZone.Interior {
             vec3 shift = RoomShift(site)
             Room.ColumnIn(Realm, x + shift.X, z + shift.Z, column)
         }
-        else if id == HellfeatherZone.Undercroft + 0 || id == HellfeatherZone.UndercroftDeep + 0 { Hall.Column(site, x, z, column) }
-        else if id == HellfeatherZone.UndercroftLanding + 0 { Landing.Column(site, x, z, column) }
-        else if id == HellfeatherZone.HobbsMill + 0 { Mill.Column(site, x, z, column) }
-        else if id == HellfeatherZone.OrrasHill + 0 { Hill.Column(site, x, z, column) }
-        else if id == HellfeatherZone.FordRoad + 0 { River.Column(site, x, z, column) }
-        else if id == HellfeatherZone.FennickWater + 0 { Marsh.Column(site, x, z, column) }
-        else if id == HellfeatherZone.Croft + 0 { House.Column(site, x, z, column) }
-        else if id == HellfeatherZone.Ravenford + 0 { Town.Column(site, x, z, column) }
+        else if id == HellfeatherZone.Undercroft || id == HellfeatherZone.UndercroftDeep { Hall.Column(site, x, z, column) }
+        else if id == HellfeatherZone.UndercroftLanding { Landing.Column(site, x, z, column) }
+        else if id == HellfeatherZone.HobbsMill { Mill.Column(site, x, z, column) }
+        else if id == HellfeatherZone.OrrasHill { Hill.Column(site, x, z, column) }
+        else if id == HellfeatherZone.FordRoad { River.Column(site, x, z, column) }
+        else if id == HellfeatherZone.FennickWater { Marsh.Column(site, x, z, column) }
+        else if id == HellfeatherZone.Croft { House.Column(site, x, z, column) }
+        else if id == HellfeatherZone.Ravenford { Town.Column(site, x, z, column) }
         else { Valley.Column(site, x, z, column) }
     }
 
     ModulePlace(int id, QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
     {
         if Realm == HellfeatherRealm.Thornmere {
-            if id == HellfeatherZone.Encampment + 0 { Camp.Place(site, placer) }
-            else if id == HellfeatherZone.Shallows + 0 { Shallows.Place(site, placer) }
-            else if id == HellfeatherZone.Thornwick + 0 { Thornwick.Place(site, placer) }
-            else if id == HellfeatherZone.HospiceRoad + 0 { Road.Place(site, placer) }
+            if id == HellfeatherZone.Encampment { Camp.Place(site, placer) }
+            else if id == HellfeatherZone.Shallows { Shallows.Place(site, placer) }
+            else if id == HellfeatherZone.Thornwick { Thornwick.Place(site, placer) }
+            else if id == HellfeatherZone.HospiceRoad { Road.Place(site, placer) }
             else { Heath.Place(site, placer) }
             return
         }
@@ -302,18 +302,18 @@ HellfeatherTerrain : QuaxelTerrain
             Below.Place(site, placer)
             return
         }
-        if id == HellfeatherZone.Interior + 0 {
+        if id == HellfeatherZone.Interior {
             vec3 shift = RoomShift(site)
             Room.PlaceIn(Realm, shift.X, shift.Z, placer)
         }
-        else if id == HellfeatherZone.Undercroft + 0 || id == HellfeatherZone.UndercroftDeep + 0 { Hall.Place(site, placer) }
-        else if id == HellfeatherZone.UndercroftLanding + 0 { Landing.Place(site, placer) }
-        else if id == HellfeatherZone.HobbsMill + 0 { Mill.Place(site, placer) }
-        else if id == HellfeatherZone.OrrasHill + 0 { Hill.Place(site, placer) }
-        else if id == HellfeatherZone.FordRoad + 0 { River.Place(site, placer) }
-        else if id == HellfeatherZone.FennickWater + 0 { Marsh.Place(site, placer) }
-        else if id == HellfeatherZone.Croft + 0 { House.Place(site, placer) }
-        else if id == HellfeatherZone.Ravenford + 0 { Town.Place(site, placer) }
+        else if id == HellfeatherZone.Undercroft || id == HellfeatherZone.UndercroftDeep { Hall.Place(site, placer) }
+        else if id == HellfeatherZone.UndercroftLanding { Landing.Place(site, placer) }
+        else if id == HellfeatherZone.HobbsMill { Mill.Place(site, placer) }
+        else if id == HellfeatherZone.OrrasHill { Hill.Place(site, placer) }
+        else if id == HellfeatherZone.FordRoad { River.Place(site, placer) }
+        else if id == HellfeatherZone.FennickWater { Marsh.Place(site, placer) }
+        else if id == HellfeatherZone.Croft { House.Place(site, placer) }
+        else if id == HellfeatherZone.Ravenford { Town.Place(site, placer) }
         else { Valley.Place(site, placer) }
     }
 

@@ -78,7 +78,7 @@ T{
         T.IsTrue(game.Prepare(world))
         T.AreEqual(game.Terrain.Realm, HellfeatherRealm.Thornmere)
         QuaxelTerrainSite spawn = game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex]
-        T.AreEqual(spawn.Module, HellfeatherZone.Encampment + 0)
+        T.AreEqual(spawn.Module, HellfeatherZone.Encampment)
         vec3 middle = game.Terrain.WorldPoint(spawn.X, spawn.Z)
         vec3 camp = HellfeatherRealm.CampMiddle()
         T.IsTrue(Math.Hypot(middle.X - camp.X, middle.Z - camp.Z) < 2.0)
@@ -323,7 +323,7 @@ T{
         for encounter : game.Spawner.Encounters {
             if encounter.Group < 0 { continue }
             int zone = game.Spawner.Table.Groups[encounter.Group].Zone
-            T.IsTrue(zone == HellfeatherZone.HospiceRoad + 0 || zone == HellfeatherZone.Shallows + 0 || zone == HellfeatherZone.Heath + 0)
+            T.IsTrue(zone == HellfeatherZone.HospiceRoad || zone == HellfeatherZone.Shallows || zone == HellfeatherZone.Heath)
             rolled++
         }
         T.IsTrue(rolled > 0)

@@ -113,7 +113,7 @@ HellfeatherRealm
     QuaxelTerrainConfig Interior(HellfeatherRealm realm)
     {
         QuaxelTerrainConfig config
-        int level = realm + 0
+        int level = realm
         float radius = Math.Hypot(RoomHalfX(realm), RoomHalfZ(realm)) + 1.2
         config.Seed = (uint)(60 + level)
         config.SiteGrid = 1

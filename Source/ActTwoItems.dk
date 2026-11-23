@@ -4,7 +4,7 @@
 
 HellfeatherItems
 #{
-    bool IsActTwo(HellfeatherItems item) { return item + 0 >= HellfeatherItems.SwanboneBuckler + 0 }
+    bool IsActTwo(HellfeatherItems item) { return item >= HellfeatherItems.SwanboneBuckler }
 
     HellfeatherItemKind ActTwoKind(HellfeatherItems item)
     {

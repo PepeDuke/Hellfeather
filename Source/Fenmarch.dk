@@ -581,13 +581,13 @@ T{
         int deepest = 0
         for site : game.Terrain.Layout.Sites {
             deepest = Math.Max(deepest, site.Depth)
-            if site.Module == HellfeatherZone.HobbsMill + 0 {
+            if site.Module == HellfeatherZone.HobbsMill {
                 mills++
                 millDepth = site.Depth
             }
-            if site.Module == HellfeatherZone.OrrasHill + 0 { hills++ }
-            if site.Module == HellfeatherZone.FennickWater + 0 { marshes++ }
-            if site.Module == HellfeatherZone.FordRoad + 0 {
+            if site.Module == HellfeatherZone.OrrasHill { hills++ }
+            if site.Module == HellfeatherZone.FennickWater { marshes++ }
+            if site.Module == HellfeatherZone.FordRoad {
                 roads++
                 roadDepth = Math.Min(roadDepth, site.Depth)
             }
@@ -598,7 +598,7 @@ T{
         T.IsTrue(roads >= 1)
         T.IsTrue(roadDepth <= 2)
         T.IsTrue(millDepth >= 5)
-        T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, HellfeatherZone.Ravenford + 0)
+        T.AreEqual(game.Terrain.Layout.Sites[game.Terrain.SpawnSiteIndex].Module, HellfeatherZone.Ravenford)
     }
 
     // The mill blocks only the ground its own voxels cover, with no strip of

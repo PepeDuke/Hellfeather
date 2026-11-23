@@ -6,7 +6,42 @@
 //     Hellfeather.exe --featherfall   starts a Featherfall a few seconds in, out in the wild
 //     Hellfeather.exe --start edda --hoard   13 feathers and the ravens' hoard open
 //     Hellfeather.exe --no-menu       skips the main menu
+//     Hellfeather.exe --res 1920x1080 opens the window at that size in pixels
 // Any of the options that start somewhere also skip the main menu.
+
+// Reads "WIDTHxHEIGHT" (either x case) into width and height, in pixels.
+// Each side must be 320 to 16384; anything else leaves them alone and gives false.
+bool ParseResolution(string text, int& width, int& height)
+{
+    int w = 0
+    int h = 0
+    int digits = 0
+    bool seenX = false
+    for i : (long)0; i < Length(text); i++
+    {
+        int c = (int)CodeUnitAt(text, i)
+        if c == 120 || c == 88
+        {
+            if seenX || digits == 0 { return false }
+            seenX = true
+            digits = 0
+        }
+        else if c >= 48 && c <= 57
+        {
+            digits++
+            if digits > 5 { return false }
+            if seenX { h = h * 10 + (c - 48) }
+            else { w = w * 10 + (c - 48) }
+        }
+        else { return false }
+    }
+    if !seenX || digits == 0 { return false }
+    if w < 320 || h < 320 || w > 16384 || h > 16384 { return false }
+    width = w
+    height = h
+    return true
+}
+
 Main(string [] args)
 {
     Print("Hellfeather / Quaxel")
@@ -62,6 +97,13 @@ Main(string [] args)
             skipMenu = true
         }
         if args[i] == "--no-menu" { skipMenu = true }
+        if args[i] == "--res" {
+            if i + 1 >= args.Len || !ParseResolution(args[i + 1], game.RequestedWidth, game.RequestedHeight) {
+                Print("Expected --res WIDTHxHEIGHT, for example --res 1920x1080")
+                return
+            }
+            i++
+        }
         // A rare axe with fire, cold and lightning on it, to see the statuses.
         if args[i] == "--elements" { game.ElementsOnStart = true }
     }
@@ -100,10 +142,14 @@ Main(string [] args)
     bool fresh = game.NextIsNew
     bool ddgi = game.UseDdgi
     bool uniform = game.UniformProbeUpdates
+    int resWidth = game.RequestedWidth
+    int resHeight = game.RequestedHeight
     while again {
         HellfeatherGame next()
         next.UseDdgi = ddgi
         next.UniformProbeUpdates = uniform
+        next.RequestedWidth = resWidth
+        next.RequestedHeight = resHeight
         next.NewWorldEachRun = newWorld
         next.ActiveSlot = slot
         next.LoadSlot = fresh ? 0 | slot

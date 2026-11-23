@@ -347,7 +347,7 @@ HellfeatherGame : QuaxelGameInstance
         int at = PlacementOf(ActTwoPieces.Volume[piece])
         if at < 0 {
             // Not placed: round the square, each building's spot its own.
-            float angle = (float)(piece + 0) * 1.3
+            float angle = (float)piece * 1.3
             return ZoneMiddle(HellfeatherZone.Thornwick) + vec3(x + Math.Cos(angle) * 6.0, 0.0, Math.Sin(angle) * 6.0)
         }
         float front = ReachOf(world, at, ActTwoPieces.Half[piece], true)
@@ -454,7 +454,7 @@ HellfeatherGame : QuaxelGameInstance
             if fresh && !Quests.MatriarchSlain {
                 int best = -1
                 for i : 0; i < Terrain.Layout.Sites.Len; i++ {
-                    if Terrain.Layout.Sites[i].Module != HellfeatherZone.Shallows + 0 { continue }
+                    if Terrain.Layout.Sites[i].Module != HellfeatherZone.Shallows { continue }
                     if best < 0 || Terrain.Layout.Sites[i].Radius > Terrain.Layout.Sites[best].Radius { best = i }
                 }
                 if best >= 0 {
@@ -505,7 +505,7 @@ HellfeatherGame : QuaxelGameInstance
     }
 
     // Whether a person is one of Act II's, whom TalkActTwo speaks for.
-    bool IsActTwoPerson(HellfeatherPerson person) { return person + 0 >= HellfeatherPerson.Hesk + 0 || (Terrain.Realm == HellfeatherRealm.Thornmere && (person == HellfeatherPerson.Vale || person == HellfeatherPerson.Matthew)) }
+    bool IsActTwoPerson(HellfeatherPerson person) { return person >= HellfeatherPerson.Hesk || (Terrain.Realm == HellfeatherRealm.Thornmere && (person == HellfeatherPerson.Vale || person == HellfeatherPerson.Matthew)) }
 
     // Whether a spot of Act II's has something new to say.
     bool NewsTwo(int spot)
@@ -987,7 +987,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         HellfeatherZone [3] zones = {HellfeatherZone.HospiceRoad, HellfeatherZone.Shallows, HellfeatherZone.Thornwick}
         for zone : zones {
-            string place = HellfeatherZoneNames.Name(zone + 0)
+            string place = HellfeatherZoneNames.Name(zone)
             bool known = false
             for waypoint : Waypoints {
                 if waypoint.Name == place { known = true }
@@ -997,7 +997,7 @@ HellfeatherGame : QuaxelGameInstance
             float nearest = 0.0
             vec3 camp = HellfeatherRealm.CampMiddle()
             for i : 0; i < Terrain.Layout.Sites.Len; i++ {
-                if Terrain.Layout.Sites[i].Module != zone + 0 { continue }
+                if Terrain.Layout.Sites[i].Module != zone { continue }
                 vec3 middle = Terrain.WorldPoint(Terrain.Layout.Sites[i].X, Terrain.Layout.Sites[i].Z)
                 float distance = Math.Hypot(middle.X - camp.X, middle.Z - camp.Z)
                 if site < 0 || distance < nearest {

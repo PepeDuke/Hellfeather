@@ -91,7 +91,7 @@ HellfeatherShot
 
 HellfeatherMoves
 #{
-    bool IsActTwo(HellfeatherMove move) { return move + 0 >= HellfeatherMove.Lash + 0 }
+    bool IsActTwo(HellfeatherMove move) { return move >= HellfeatherMove.Lash }
 }
 
 HellfeatherGame : QuaxelGameInstance
