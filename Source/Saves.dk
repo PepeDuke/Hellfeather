@@ -527,6 +527,7 @@ HellfeatherGame : QuaxelGameInstance
         io.Bool("wardenWoke", q.WardenWoke)
         io.Int("framesCut", q.FramesCut)
         io.Bool("pilgrimsTold", q.PilgrimsTold)
+        io.Int("cutscenesSeen", q.CutscenesSeen)
     }
 
     // Loads the slot over the starting kit. Runs in Prepare before the world

@@ -1,0 +1,577 @@
+// Cutscenes: short scripted scenes that take the camera, hide the HUD and hold
+// the game still around the warrior. Each starts from a volume on the ground
+// she walks into, once a condition of its own holds (CutsceneReady), and plays
+// only once: the volume is removed as it fires, and the save remembers the
+// scene in HellfeatherQuests.CutscenesSeen, so a loaded character does not get
+// the volume back. While one plays she takes no damage. Holding any key or
+// mouse button for SkipSeconds skips it. Playing to the end and skipping both
+// leave through EndCutscene, which gives back the camera, the HUD and her
+// vulnerability. The scenes themselves live in their own files, as the
+// opening does in Source/OpeningScene.dk.
+
+// Every scene, by the bit it sets in HellfeatherQuests.CutscenesSeen. New
+// scenes go on the end, so the bits of old saves keep their meaning.
+HellfeatherCutscene : int
+#@{
+    None, Opening
+}
+
+// A volume on the ground: the ring of points whose distance along the ground
+// from Center lies between Inner and Outer, in world units. Inner 0 makes it a
+// disc. Heights do not count, so a ring around a town whose only ways out lead
+// across it cannot be walked around or jumped.
+HellfeatherCutsceneVolume
+{
+    HellfeatherCutscene Scene
+    HellfeatherRealm Realm
+    vec3 Center
+    float Inner
+    float Outer
+
+    bool Contains(HellfeatherRealm realm, vec3 point)
+    {
+        if realm != Realm { return false }
+        float distance = Math.Hypot(point.X - Center.X, point.Z - Center.Z)
+        return distance >= Inner && distance <= Outer
+    }
+}
+
+// The scene playing, its clock and the hold toward skipping it.
+HellfeatherCutscenePlayer
+{
+    HellfeatherCutscene Scene
+    bool Playing
+    // Seconds since it began.
+    float Clock
+    // Seconds a key or button has been held toward skipping.
+    float SkipHeld
+    // Whether every key and button has been let go since it began, so that
+    // the keys she was walking with do not count toward skipping.
+    bool Armed
+    // Whether a mouse button was down when the frame last looked.
+    bool MouseDown
+    // The camera's pose under her and its settings, given back at the end.
+    QuaxelTransform SavedCameraPose
+    QuaxelCamera SavedCamera
+    // The point the shot last looked at.
+    vec3 Aim
+    // Frame by frame, for looking at a scene closely: it moves only when
+    // asked, and keys step it instead of skipping it.
+    bool Inspect
+    bool InspectPlaying
+    // Steps the scene has run since it began, and whether it reached its end
+    // and holds there.
+    int Frame
+    bool Finished
+    // Set while a rewind plays the scene again up to a frame: no sounds.
+    bool Quiet
+    // The inspector's keys held last step, one bit each, and how long a
+    // frame key has been held toward stepping on its own.
+    int InspectKeysWere
+    float RepeatHeld
+    // Her models' poses when it began, given back on a rewind.
+    QuaxelTransform [] StartPoses
+
+    // How full the skip bar is, 0 to 1.
+    float SkipShare() { return Math.Clamp(SkipHeld / HellfeatherCutscenePlayer.SkipSeconds, 0.0, 1.0) }
+
+    // Counts a step of holding toward the skip, and drains the bar while
+    // nothing is held. True once it has been held long enough.
+    bool StepSkip(bool held, float deltaSeconds)
+    {
+        if !held { Armed = true }
+        if held && Armed { SkipHeld += deltaSeconds }
+        else { SkipHeld = Math.Max(0.0, SkipHeld - deltaSeconds * HellfeatherCutscenePlayer.SkipDrain) }
+        return SkipHeld >= HellfeatherCutscenePlayer.SkipSeconds
+    }
+}
+#{
+    // Seconds of holding that skip a scene, and how much faster the bar
+    // empties than it fills once let go.
+    #float SkipSeconds = 1.0
+    #float SkipDrain = 2.0
+    // The sampled rays of a frame: A and B from -4 to 4 across and up. Across
+    // spans a window twice as wide as high; up stops at the letterbox bars.
+    float RayAcross(int a, float halfHeight) { return (float)a * 0.25 * halfHeight * 2.0 }
+    float RayUp(int b, float halfHeight) { return (float)b * 0.25 * halfHeight * 0.8 }
+
+    // Seconds a frame key is held before it steps every frame.
+    #float RepeatAfter = 0.35
+    // The inspector's keys, as bits.
+    #int KeyForward = 1
+    #int KeyBack = 2
+    #int KeySecondOn = 4
+    #int KeySecondBack = 8
+    #int KeyPlay = 16
+    #int KeyRestart = 32
+    #int KeyEnd = 64
+    #int AllKeys = 127
+
+    // The scene a command line names, or None.
+    HellfeatherCutscene Named(string text)
+    {
+        if text == "opening" { return HellfeatherCutscene.Opening }
+        return HellfeatherCutscene.None
+    }
+
+    // Steps as seconds with two decimals, as "12.35".
+    string Seconds(int frames, int perSecond)
+    {
+        int hundredths = (frames % perSecond) * 100 / perSecond
+        string tail = hundredths < 10 ? "0" + QuaxelUi.FormatInt(hundredths) | QuaxelUi.FormatInt(hundredths)
+        return QuaxelUi.FormatInt(frames / perSecond) + "." + tail
+    }
+}
+T{
+    HoldingForASecondSkipsOnlyAfterLettingGoOnce()
+    {
+        HellfeatherCutscenePlayer player
+        // Held from before it began: does not count.
+        for step : 0; step < 120; step++ { T.IsFalse(player.StepSkip(true, 1.0 / 60.0)) }
+        T.AreEqual(player.SkipShare(), 0.0)
+        T.IsFalse(player.StepSkip(false, 1.0 / 60.0))
+        int steps = 0
+        while !player.StepSkip(true, 1.0 / 60.0) && steps < 200 { steps++ }
+        T.IsTrue(steps >= 58 && steps <= 61)
+    }
+
+    LettingGoDrainsTheBar()
+    {
+        HellfeatherCutscenePlayer player
+        player.StepSkip(false, 0.1)
+        for step : 0; step < 30; step++ { player.StepSkip(true, 1.0 / 60.0) }
+        T.IsTrue(player.SkipShare() > 0.4)
+        for step : 0; step < 30; step++ { player.StepSkip(false, 1.0 / 60.0) }
+        T.AreEqual(player.SkipShare(), 0.0)
+    }
+
+    ARingHoldsWhatLiesBetweenItsEdgesInItsRealm()
+    {
+        HellfeatherCutsceneVolume ring
+        ring.Realm = HellfeatherRealm.Fenmarch
+        ring.Inner = 10.0
+        ring.Outer = 12.0
+        T.IsTrue(ring.Contains(HellfeatherRealm.Fenmarch, vec3(0.0, 5.0, 11.0)))
+        T.IsTrue(ring.Contains(HellfeatherRealm.Fenmarch, vec3(-8.0, 0.0, -7.0)))
+        T.IsFalse(ring.Contains(HellfeatherRealm.Fenmarch, vec3(0.0, 0.0, 9.0)))
+        T.IsFalse(ring.Contains(HellfeatherRealm.Fenmarch, vec3(13.0, 0.0, 0.0)))
+        T.IsFalse(ring.Contains(HellfeatherRealm.Thornmere, vec3(0.0, 0.0, 11.0)))
+    }
+}
+
+// What a cutscene draws over the world: black bars above and below, and in
+// the bottom right corner the hint to hold a key, with its bar filling.
+HellfeatherCutsceneArt
+#{
+    #int Margin = 8
+    #string Hint = "Hold any key to skip"
+
+    Draw(QuaxelUi& ui, int width, int height, float skip)
+    {
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        int bar = Math.Max(16, gridHeight / 9)
+        ui.OverlayRect(0, 0, gridWidth, bar, 0xFF000000)
+        ui.OverlayRect(0, gridHeight - bar, gridWidth, bar, 0xFF000000)
+        // Text 8 high, a gap of 2 and the skip bar 3 high, in the lower bar.
+        int textWidth = (int)Length(Hint) * 6 - 1
+        int x = gridWidth - textWidth - Margin
+        int y = gridHeight - bar + (bar - 13) / 2
+        uint color = skip > 0.0 ? (uint)0xFFE8C878 | (uint)0xFF8A8270
+        ui.OverlayText(x, y, Hint, color)
+        ui.OverlayRect(x, y + 10, textWidth, 3, 0xFF2A2620)
+        int filled = (int)((float)textWidth * skip)
+        if filled > 0 { ui.OverlayRect(x, y + 10, filled, 3, 0xFFE8C878) }
+    }
+
+    #string InspectHint = "Left/Right frame  Up/Down second  Space play  Home restart  Esc end"
+
+    // The bars with the frame, its time and the inspector's keys in place of
+    // the skip hint.
+    DrawInspect(QuaxelUi& ui, int width, int height, int frame, int perSecond, bool playing, bool finished)
+    {
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        int bar = Math.Max(16, gridHeight / 9)
+        ui.OverlayRect(0, 0, gridWidth, bar, 0xFF000000)
+        ui.OverlayRect(0, gridHeight - bar, gridWidth, bar, 0xFF000000)
+        string state = finished ? "end" | (playing ? "playing" | "paused")
+        string status = "Frame " + QuaxelUi.FormatInt(frame) + "   " + HellfeatherCutscenePlayer.Seconds(frame, perSecond) + " s   " + state
+        ui.OverlayText(Margin, (bar - 8) / 2, status, 0xFFE8C878)
+        int textWidth = (int)Length(InspectHint) * 6 - 1
+        ui.OverlayText(Math.Max(Margin, gridWidth - textWidth - Margin), gridHeight - bar + (bar - 8) / 2, InspectHint, 0xFF8A8270)
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherCutscenePlayer Cutscene
+    // The volumes of the scenes not yet seen. One is removed as it fires.
+    HellfeatherCutsceneVolume [] CutsceneVolumes
+    // Set from the command line: a scene to play as soon as the game starts,
+    // and whether to look at it frame by frame.
+    HellfeatherCutscene CutsceneOnStart
+    bool InspectOnStart
+
+    // She takes no damage while a cutscene plays, and only then: it ends with
+    // the scene however the scene ends.
+    bool PlayerInvulnerable() { return Cutscene.Playing }
+
+    bool CutsceneSeen(HellfeatherCutscene scene)
+    {
+        int bit = 1 << scene.Value
+        return (Quests.CutscenesSeen & bit) != 0
+    }
+
+    // Lays down the volume of every scene she has not seen. Called once her
+    // save is loaded, so a scene she saw stays gone.
+    SetUpCutscenes()
+    {
+        CutsceneVolumes.Clear()
+        if !CutsceneSeen(HellfeatherCutscene.Opening) { CutsceneVolumes += OpeningVolume() }
+    }
+
+    // Whether a scene may start now, besides her standing in its volume. While
+    // it may not, its volume waits.
+    bool CutsceneReady(HellfeatherCutscene scene)
+    {
+        if PlayerHealth <= 0 || Talk.Open || Screen != HellfeatherScreen.Playing { return false }
+        Switch (scene)
+        {
+            case HellfeatherCutscene.Opening:
+                return OpeningReady()
+            default:
+                return false
+        }
+    }
+
+    // Starts the first scene whose volume she stands in and that is ready,
+    // removing its volume so it never fires again.
+    -CheckCutsceneVolumes(QuaxelWorld& world)
+    {
+        // The command line's scene goes first.
+        if Cutscene.Playing || PlayerHealth <= 0 || CutsceneOnStart != HellfeatherCutscene.None { return }
+        vec3 at = world.GetPosition(PlayerNode)
+        for i : 0; i < CutsceneVolumes.Len; i++ {
+            if !CutsceneVolumes[i].Contains(Terrain.Realm, at) { continue }
+            HellfeatherCutscene scene = CutsceneVolumes[i].Scene
+            if !CutsceneReady(scene) { continue }
+            CutsceneVolumes -= [i]
+            BeginCutscene(world, scene)
+            return
+        }
+    }
+
+    // Stops her where she stands, shuts the panels and takes the camera off
+    // her for the scene to move.
+    BeginCutscene(QuaxelWorld& world, HellfeatherCutscene scene)
+    {
+        CloseAllPanels()
+        Cutscene.Scene = scene
+        Cutscene.Playing = true
+        Cutscene.Clock = 0.0
+        Cutscene.SkipHeld = 0.0
+        Cutscene.Armed = false
+        Cutscene.Frame = 0
+        Cutscene.Finished = false
+        Cutscene.InspectPlaying = false
+        // A key must go down after it begins to count.
+        Cutscene.InspectKeysWere = HellfeatherCutscenePlayer.AllKeys
+        Cutscene.RepeatHeld = 0.0
+        RequestedAction = HellfeatherAction.None
+        DashSeconds = 0.0
+        for controller : Controllers {
+            world.SetAnimationSpeed(controller.VisualNode, 1.0)
+            world.PlayClip(controller.VisualNode, "idle")
+        }
+        Cutscene.StartPoses.Clear()
+        for controller : Controllers { Cutscene.StartPoses += world.GetTransform(controller.VisualNode) }
+        Cutscene.SavedCameraPose = world.GetTransform(CameraNode)
+        Cutscene.SavedCamera = world.GetCamera(CameraNode)
+        world.SetParent(CameraNode, 0)
+        // Whatever of the ground around her is still streaming, all of it now.
+        LoadCutsceneGround(world, world.GetPosition(PlayerNode))
+        bool started = false
+        if scene == HellfeatherCutscene.Opening { started = BeginOpening(world) }
+        // A scene that cannot set itself up is over before it began.
+        if !started { EndCutscene(world) }
+    }
+
+    // The one way out, at the end or on a skip: the scene clears its actors,
+    // counts as seen, and the camera, HUD and her vulnerability come back.
+    EndCutscene(QuaxelWorld& world)
+    {
+        if !Cutscene.Playing { return }
+        if Cutscene.Scene == HellfeatherCutscene.Opening { EndOpening(world) }
+        int bit = 1 << Cutscene.Scene.Value
+        Quests.CutscenesSeen |= bit
+        world.SetParent(CameraNode, PlayerNode)
+        world.SetTransform(CameraNode, Cutscene.SavedCameraPose)
+        world.SetCamera(CameraNode, Cutscene.SavedCamera)
+        for controller : Controllers {
+            world.SetAnimationSpeed(controller.VisualNode, 1.0)
+            world.PlayClip(controller.VisualNode, "idle")
+        }
+        Cutscene.Playing = false
+        Cutscene.Scene = HellfeatherCutscene.None
+        Cutscene.SkipHeld = 0.0
+        Cutscene.Inspect = false
+        Cutscene.Quiet = false
+    }
+
+    // While a scene is looked at frame by frame the world holds still, and
+    // the scene moves its animations and effects itself, a frame at a time.
+    bool CutsceneHoldsWorld() { return Cutscene.Playing && Cutscene.Inspect }
+
+    // Starts a scene now, wherever she is, as the command line asks; frame by
+    // frame if Inspect. Its volume, if any, is used up.
+    PlayCutsceneNow(QuaxelWorld& world, HellfeatherCutscene scene, bool inspect)
+    {
+        for i : 0; i < CutsceneVolumes.Len; i++ {
+            if CutsceneVolumes[i].Scene == scene {
+                CutsceneVolumes -= [i]
+                break
+            }
+        }
+        BeginCutscene(world, scene)
+        if Cutscene.Playing { Cutscene.Inspect = inspect }
+    }
+
+    // The command line's scene: stands her where it plays and plays it, the
+    // ground there loaded first.
+    -PlayCutsceneOnStart(QuaxelWorld& world)
+    {
+        if CutsceneOnStart == HellfeatherCutscene.None || Cutscene.Playing || Screen != HellfeatherScreen.Playing { return }
+        if Terrain.Realm != HellfeatherRealm.Fenmarch {
+            Print("That cutscene plays outside Ravenford; start there to see it")
+            CutsceneOnStart = HellfeatherCutscene.None
+            return
+        }
+        vec3 spot = OpeningSpot()
+        LoadCutsceneGround(world, spot)
+        QuaxelTransform pose = world.GetTransform(PlayerNode)
+        pose.Position = vec3(spot.X, Terrain.GroundY(spot.X, spot.Z) + PlayerRadius(), spot.Z)
+        world.SetTransform(PlayerNode, pose)
+        HellfeatherCutscene scene = CutsceneOnStart
+        CutsceneOnStart = HellfeatherCutscene.None
+        PlayCutsceneNow(world, scene, InspectOnStart)
+    }
+
+    // Builds every terrain chunk around Focus at once, instead of the few
+    // columns a step that play streams, so no chunk appears during a scene.
+    // Nothing to do where she already stands on loaded ground.
+    LoadCutsceneGround(QuaxelWorld& world, vec3 focus)
+    {
+        int calls = 0
+        while !Terrain.IsReady(focus) && calls < 4000 {
+            if !Terrain.Stream(world, focus, 1000000) {
+                Print("Terrain streaming failed")
+                return
+            }
+            calls++
+        }
+    }
+
+    // One frame of the scene as the engine would run it: her and its models'
+    // animations, the scene, then the effects. False once the scene is over.
+    -bool AdvanceCutsceneFrame(QuaxelWorld& world)
+    {
+        float dt = (float)Quaxel.FixedDeltaSeconds()
+        world.AdvanceAnimations(dt)
+        if !Cutscene.Quiet {
+            int count = world.AnimationCallCount()
+            for i : 0; i < count; i++ {
+                QuaxelAnimationCall call = world.AnimationCallAt(i)
+                AnimationCall(world, call)
+            }
+        }
+        Cutscene.Clock += dt
+        bool going = false
+        if Cutscene.Scene == HellfeatherCutscene.Opening { going = StepOpening(world, dt) }
+        world.AdvanceEffects(dt)
+        if going { Cutscene.Frame++ }
+        return going
+    }
+
+    // Moves forward Frames frames, stopping at the end.
+    -InspectForward(QuaxelWorld& world, int frames)
+    {
+        for i : 0; i < frames; i++ {
+            if Cutscene.Finished { return }
+            if !AdvanceCutsceneFrame(world) {
+                Cutscene.Finished = true
+                Cutscene.InspectPlaying = false
+            }
+        }
+    }
+
+    // Plays the scene again from its start, silently, up to Frame. The scene
+    // and its randomness are set up the same way each time, so it arrives
+    // where it was.
+    RewindCutscene(QuaxelWorld& world, int frame)
+    {
+        int target = frame < 0 ? 0 | frame
+        Cutscene.Quiet = true
+        if Cutscene.Scene == HellfeatherCutscene.Opening { ForgetOpeningEffects(world) }
+        for i : 0; i < Controllers.Len; i++ {
+            int visual = Controllers[i].VisualNode
+            if i < Cutscene.StartPoses.Len { world.SetTransform(visual, Cutscene.StartPoses[i]) }
+            world.SetAnimationSpeed(visual, 1.0)
+            world.PlayClip(visual, "idle")
+        }
+        Cutscene.Clock = 0.0
+        Cutscene.Frame = 0
+        Cutscene.Finished = false
+        bool going = false
+        if Cutscene.Scene == HellfeatherCutscene.Opening { going = BeginOpening(world) }
+        while going && Cutscene.Frame < target { going = AdvanceCutsceneFrame(world) }
+        if !going { Cutscene.Finished = true }
+        Cutscene.Quiet = false
+        if Cutscene.Scene == HellfeatherCutscene.Opening && !Cutscene.Finished { ResumeOpeningAmbience(world) }
+    }
+
+    -int InspectKeys(QuaxelInputState& input)
+    {
+        int keys = 0
+        if input.Down[HellfeatherKeys.Right] { keys |= HellfeatherCutscenePlayer.KeyForward }
+        if input.Down[HellfeatherKeys.Left] { keys |= HellfeatherCutscenePlayer.KeyBack }
+        if input.Down[HellfeatherKeys.Up] { keys |= HellfeatherCutscenePlayer.KeySecondOn }
+        if input.Down[HellfeatherKeys.Down] { keys |= HellfeatherCutscenePlayer.KeySecondBack }
+        if input.Down[HellfeatherKeys.Space] { keys |= HellfeatherCutscenePlayer.KeyPlay }
+        if input.Down[HellfeatherKeys.Home] { keys |= HellfeatherCutscenePlayer.KeyRestart }
+        if input.Down[HellfeatherKeys.Escape] { keys |= HellfeatherCutscenePlayer.KeyEnd }
+        return keys
+    }
+
+    // A step of the inspector: Right and Left a frame (held, every frame), Up
+    // and Down a second, Space plays and pauses, Home goes back to the start
+    // and Escape ends the scene as a skip would.
+    -StepInspect(QuaxelWorld& world, QuaxelInputState& input, float deltaSeconds)
+    {
+        int keys = InspectKeys(input)
+        int pressed = keys & ~Cutscene.InspectKeysWere
+        Cutscene.InspectKeysWere = keys
+        if (pressed & HellfeatherCutscenePlayer.KeyEnd) != 0 {
+            EndCutscene(world)
+            return
+        }
+        if (pressed & HellfeatherCutscenePlayer.KeyRestart) != 0 {
+            Cutscene.InspectPlaying = false
+            RewindCutscene(world, 0)
+            return
+        }
+        if (pressed & HellfeatherCutscenePlayer.KeyPlay) != 0 { Cutscene.InspectPlaying = !Cutscene.InspectPlaying && !Cutscene.Finished }
+        int perSecond = (int)Math.Round(1.0 / Quaxel.FixedDeltaSeconds())
+        int move = 0
+        if (pressed & HellfeatherCutscenePlayer.KeySecondOn) != 0 { move += perSecond }
+        if (pressed & HellfeatherCutscenePlayer.KeySecondBack) != 0 { move -= perSecond }
+        int frameKeys = keys & (HellfeatherCutscenePlayer.KeyForward | HellfeatherCutscenePlayer.KeyBack)
+        int way = 0
+        if (frameKeys & HellfeatherCutscenePlayer.KeyForward) != 0 { way += 1 }
+        if (frameKeys & HellfeatherCutscenePlayer.KeyBack) != 0 { way -= 1 }
+        if frameKeys == 0 { Cutscene.RepeatHeld = 0.0 }
+        else if (pressed & frameKeys) != 0 { move += way }
+        else {
+            Cutscene.RepeatHeld += deltaSeconds
+            if Cutscene.RepeatHeld >= HellfeatherCutscenePlayer.RepeatAfter { move += way }
+        }
+        // Stepping by hand pauses it.
+        if move != 0 { Cutscene.InspectPlaying = false }
+        else if Cutscene.InspectPlaying { move = 1 }
+        if move > 0 { InspectForward(world, move) }
+        else if move < 0 { RewindCutscene(world, Cutscene.Frame + move) }
+    }
+
+    // A step of the scene in place of the game's own. Any key, or a mouse
+    // button as the last frame saw it, held long enough skips it.
+    -StepCutscene(QuaxelWorld& world, QuaxelInputState& input, float deltaSeconds)
+    {
+        if Cutscene.Inspect {
+            StepInspect(world, input, deltaSeconds)
+            return
+        }
+        bool held = Cutscene.MouseDown
+        for key : 0; key < input.Down.Len; key++ {
+            if input.Down[key] { held = true }
+        }
+        if Cutscene.StepSkip(held, deltaSeconds) {
+            EndCutscene(world)
+            return
+        }
+        Cutscene.Clock += deltaSeconds
+        bool going = false
+        if Cutscene.Scene == HellfeatherCutscene.Opening { going = StepOpening(world, deltaSeconds) }
+        if !going { EndCutscene(world) }
+    }
+
+    // The frame of a scene: the world, the bars and the skip hint, and none of
+    // the HUD. A click here never reaches the world.
+    -UpdateCutsceneUi(QuaxelUi& ui, QuaxelWorld& world, int width, int height, bool mouseDown, bool rightDown)
+    {
+        Cutscene.MouseDown = mouseDown || rightDown
+        Globes.Stow(world)
+        HudVoxels.Stow(world)
+        CloseUp.Hide(world)
+        ui.SetVisible("fps", false)
+        if Cutscene.Inspect {
+            int perSecond = (int)Math.Round(1.0 / Quaxel.FixedDeltaSeconds())
+            HellfeatherCutsceneArt.DrawInspect(ui, width, height, Cutscene.Frame, perSecond, Cutscene.InspectPlaying, Cutscene.Finished)
+        }
+        else { HellfeatherCutsceneArt.Draw(ui, width, height, Cutscene.SkipShare()) }
+        // So that letting go of the button that skipped does not swing.
+        MouseHeld = mouseDown
+        RightMouseHeld = rightDown
+    }
+
+    // Points the scene's camera at Target, looking along the ground direction
+    // Look and down by Elevation degrees, showing HalfHeight world units above
+    // and below the target. It stands as far back as the play camera, with its
+    // settings. The terrain is then drawn from its point of view (see
+    // ViewTerrainFromCamera): what would hide open ground from it is cut down.
+    AimCutsceneCamera(QuaxelWorld& world, vec3 target, vec3 look, float elevation, float halfHeight)
+    {
+        Cutscene.Aim = target
+        vec3 flat = Math.Normalize(vec3(look.X, 0.0, look.Z))
+        float radians = elevation * 0.0174532925
+        vec3 forward = flat * Math.Cos(radians) - vec3(0.0, Math.Sin(radians), 0.0)
+        vec3 offset = Cutscene.SavedCameraPose.Position
+        QuaxelTransform pose = world.GetTransform(CameraNode)
+        pose.Position = target - forward * offset.Length()
+        world.SetTransform(CameraNode, pose)
+        QuaxelCamera camera = Cutscene.SavedCamera
+        camera.Direction = forward
+        camera.Up = vec3(0.0, 1.0, 0.0)
+        camera.FrameHalfWidth = halfHeight
+        camera.FrameHalfHeight = halfHeight
+        world.SetCamera(CameraNode, camera)
+    }
+
+    // The top of the terrain under a point as it is drawn now, cut for the
+    // camera's view, or far below where the column is not loaded.
+    float CutsceneSolidTop(QuaxelWorld& world, float x, float z)
+    {
+        int height = Terrain.ColumnHeight(Terrain.ColumnAt(x), Terrain.ColumnAt(z))
+        return height < 0 ? -1000.0 | Terrain.SurfaceY(height)
+    }
+
+    // How many of the frame's sampled rays start inside the terrain for a
+    // camera at Eye looking along Forward: each shows the inside of a hill
+    // as a dark patch, so a good shot has none. The grid spans a window up
+    // to twice as wide as it is high, between the letterbox bars.
+    int CutsceneRaysInGround(QuaxelWorld& world, vec3 eye, vec3 forward, float halfHeight)
+    {
+        vec3 right = Math.Normalize(forward.Cross(vec3(0.0, 1.0, 0.0)))
+        vec3 up = right.Cross(forward)
+        int buried = 0
+        for a : -4; a <= 4; a++ {
+            for b : -4; b <= 4; b++ {
+                vec3 at = eye + right * HellfeatherCutscenePlayer.RayAcross(a, halfHeight) + up * HellfeatherCutscenePlayer.RayUp(b, halfHeight)
+                if at.Y < CutsceneSolidTop(world, at.X, at.Z) + 0.05 { buried++ }
+            }
+        }
+        return buried
+    }
+
+}

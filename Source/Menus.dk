@@ -780,7 +780,7 @@ HellfeatherGame : QuaxelGameInstance
     // HellfeatherMenu.LoadingFrames, so the click that asked is heard first.
     -int LoadingFrames
 
-    bool WorldPaused() { return Screen == HellfeatherScreen.Paused }
+    bool WorldPaused() { return Screen == HellfeatherScreen.Paused || CutsceneHoldsWorld() }
 
     bool Restarting() { return Restart && LoadingFrames >= HellfeatherMenu.LoadingFrames }
 
@@ -960,7 +960,8 @@ HellfeatherGame : QuaxelGameInstance
         StepSaving(deltaSeconds)
         // A conversation takes Escape to leave. Otherwise Escape shuts the open
         // panels, and pauses when there are none.
-        if pressed && !Talk.Open && !CloseAllPanels() {
+        // In a cutscene Escape is one more key to hold to skip it.
+        if pressed && !Talk.Open && !Cutscene.Playing && !CloseAllPanels() {
             Pause()
             return true
         }

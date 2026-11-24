@@ -234,6 +234,8 @@ HellfeatherGame : QuaxelGameInstance
             ActiveSlot = 0
         }
         if ElementsOnStart { GiveElementalWeapon() }
+        // After her save, so a scene she has seen lays down no volume.
+        SetUpCutscenes()
         // The socketed starting rune teaches Cleave quietly, without the notice.
         SyncRuneSkills()
         Actions.Slots.LearnedSeconds = 0.0
@@ -491,6 +493,12 @@ HellfeatherGame : QuaxelGameInstance
         if Benchmark.Enabled { Benchmark.Step(input) }
         // The main menu and the pause menu hold the game still.
         if StepScreens(world, input, deltaSeconds) { return }
+        // A cutscene holds the game still and has every key to itself.
+        if Cutscene.Playing {
+            StepCutscene(world, input, deltaSeconds)
+            ViewTerrainFromCamera(world)
+            return
+        }
         int activeCamera = world.ActiveCamera
         if activeCamera == 0 { return }
         bool probeKey = input.Down[HellfeatherKeys.F8]
@@ -610,6 +618,21 @@ HellfeatherGame : QuaxelGameInstance
         }
         RequestedAction = HellfeatherAction.None
         UpdateEnemies(world, deltaSeconds)
+        CheckCutsceneVolumes(world)
+        PlayCutsceneOnStart(world)
+        ViewTerrainFromCamera(world)
+    }
+
+    // The terrain is drawn from the active camera's point of view: the play
+    // camera's in play, a cutscene's own around what it looks at while one
+    // plays. It changes only when the camera turns, as at a cut.
+    -ViewTerrainFromCamera(QuaxelWorld& world)
+    {
+        int camera = world.ActiveCamera
+        if camera == 0 { return }
+        QuaxelCamera view = world.GetCamera(camera)
+        vec3 focus = Cutscene.Playing ? Cutscene.Aim | world.GetPosition(PlayerNode)
+        if !Terrain.ViewFrom(world, view.Forward(), focus) { Print("Terrain view failed") }
     }
 
     // Q, E, F and the number keys 1 to 4 use their slots once per press. Keys
@@ -935,7 +958,7 @@ HellfeatherGame : QuaxelGameInstance
 
     -DamagePlayer(QuaxelWorld& world, int amount)
     {
-        if PlayerHealth <= 0 { return }
+        if PlayerHealth <= 0 || PlayerInvulnerable() { return }
         PlayerHealth -= amount
         Sfx.Play(world, HellfeatherSound.PlayerHurt)
         Bleed(world, PlayerNode, world.GetPosition(PlayerNode), PlayerHealth <= 0)
@@ -1215,6 +1238,11 @@ HellfeatherGame : QuaxelGameInstance
         // A menu has the screen and every click to itself.
         if Screen != HellfeatherScreen.Playing {
             UpdateMenuUi(ui, world, windowWidth, windowHeight, hasWindow, mouseX, mouseY, mouseDown, rightDown)
+            return
+        }
+        // A cutscene hides the HUD too, leaving only its bars and skip hint.
+        if Cutscene.Playing {
+            if hasWindow { UpdateCutsceneUi(ui, world, windowWidth, windowHeight, mouseDown, rightDown) }
             return
         }
         // A close-up conversation hides the HUD and has the screen to itself.

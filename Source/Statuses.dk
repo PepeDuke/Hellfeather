@@ -732,7 +732,7 @@ HellfeatherGame : QuaxelGameInstance
     // Burns hurt her without drawing blood.
     -BurnPlayer(QuaxelWorld& world, int amount)
     {
-        if PlayerHealth <= 0 || amount <= 0 { return }
+        if PlayerHealth <= 0 || amount <= 0 || PlayerInvulnerable() { return }
         PlayerHealth -= amount
         if PlayerHealth <= 0 { FallPlayer(world) }
     }

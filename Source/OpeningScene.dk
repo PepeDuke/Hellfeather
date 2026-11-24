@@ -1,0 +1,1158 @@
+// The opening: the first time she walks out of Ravenford, about twenty steps
+// down the road past the bridge, she sees the Moult take a flock of ducks.
+//
+//  0-3   She stands at the edge of the clearing, axe at her side. Grass rustles.
+//  3-6   Ravens sweep low over her head, left to right.
+//  6-10  The camera pans right with the last raven and settles on the ducks:
+//        one pecks at the dirt, another preens.
+// 10-13  Close on the preening duck. A feather fall begins: a black feather
+//        settles on its back, and more fall across the flock.
+// 13-16  Its eye glows red. Cut wide as every duck snaps its head toward her,
+//        with the ambience gone for a beat.
+// 16-18  From behind her the flock rushes at her. She draws the axe back.
+// 18-20  One Cleave through the flock. Heads and limbs fly; cut on the first thud.
+//
+// Its volume is a ring around the town (RingInner to RingOuter from the
+// middle of the square): the gate is the only way out of the walls, and every
+// way on from the gate's forecourt leads across the ring. The ducks are the
+// scene's own actors, not enemies, and go with it. Its sounds are in
+// Assets/Sounds/Cutscene; a missing one only leaves its moment silent.
+
+// A duck of the flock.
+HellfeatherOpeningDuck
+{
+    int Node
+    int Visual
+    // The red light in its eyes once they burn.
+    int Eye
+    // Whether it has turned: drawn as the red-eyed duck, no longer the calm copy.
+    bool Turned
+    // One of those off to the side: it turns with the flock but neither rushes
+    // her nor falls to the cleave, and when the scene ends it is a real enemy.
+    bool Aside
+    // Where it stood, and where its rush ends beside her, at its feet.
+    vec3 Home
+    vec3 Goal
+    // The way it faces at rest, along the ground.
+    vec3 Facing
+    // Seconds until its next peck, for the one that pecks.
+    float Timer
+    // How bright its eyes burn, 0 to 1.
+    float Glow
+}
+
+// A head or a limb the cleave throws.
+HellfeatherOpeningPart
+{
+    int Node
+    vec3 Velocity
+    // Its turn in degrees about yaw, pitch and roll, and how fast each turns.
+    vec3 Turned
+    vec3 Spin
+    bool Landed
+}
+
+HellfeatherOpeningScene
+{
+    // Her feet, the way to the flock along the ground, its side, and the
+    // middle of the flock, in world units.
+    vec3 Feet
+    vec3 Toward
+    vec3 Side
+    vec3 Flock
+    HellfeatherOpeningDuck [] Ducks
+    HellfeatherOpeningPart [] Parts
+    int [] Ravens
+    vec3 [] RavenFrom
+    vec3 [] RavenTo
+    float [] RavenStart
+    // The scene's own feathers, so that clearing them leaves the game's alone.
+    HellfeatherFeatherDrift Drift
+    // Head, leg and wing, built once.
+    int [3] PartVolumes
+    bool PartsBuilt
+    // The flock's two models: the calm copy they stand as, and the red-eyed
+    // EvilDuck they turn into. Calm is loaded once.
+    int CalmAnimation = -1
+    int RedAnimation = -1
+    // Sound clips, zero when missing, and the ambience's voice while it plays.
+    int AmbienceClip
+    int WingsClip
+    int RushClip
+    int ThudClip
+    long AmbienceVoice
+    // The moments that have passed.
+    bool RavensSent
+    bool KeyFeatherDropped
+    bool Snapped
+    bool AmbienceBack
+    bool Rushing
+    bool Swinging
+    bool Struck
+    bool Thudded
+    QuaxelRandom Random
+    // The effects it started, ended when a rewind plays it again.
+    int [] Effects
+
+    // Rotates a direction along the ground by Radians, toward Side for positive.
+    vec3 Turn(vec3 way, float radians)
+    {
+        float c = Math.Cos(radians)
+        float s = Math.Sin(radians)
+        return vec3(way.X * c - way.Z * s, 0.0, way.X * s + way.Z * c)
+    }
+}
+#{
+    // The volume: a ring this far out from the middle of Ravenford's square.
+    // On the road it starts about twenty steps past the gate, beyond the bridge.
+    #float RingInner = 36.0
+    #float RingOuter = 46.0
+    // Seconds the scene runs at most, should no part land to cut on.
+    #float Longest = 20.5
+    // How far from her the flock stands.
+    #float FlockDistance = 7.0
+    #float DuckVoxel = 0.025
+    #int DuckHeight = 72
+    // Where a duck's eyes are, from its feet with it facing +Z, read off
+    // Assets/EvilDuck.qvox.
+    #float EyeHeight = 1.51
+    #float EyeForward = 0.44
+    // EvilDuck with dark eyes in place of red: the same voxels and clips.
+    #string CalmModel = "Assets/EvilDuckCalm.qvox"
+    // How high its back is, where the first feather settles.
+    #float BackHeight = 1.05
+    #int RavenCount = 6
+    #float RavenSpeed = 5.0
+    #float Gravity = 14.0
+
+    #string AmbiencePath = "Assets/Sounds/Cutscene/grass_ambience.wav"
+    #string WingsPath = "Assets/Sounds/Cutscene/raven_wings.wav"
+    #string RushPath = "Assets/Sounds/Cutscene/flock_rush.wav"
+    #string ThudPath = "Assets/Sounds/Cutscene/gore_thud.wav"
+
+    // 0 to 1 with an ease in and out.
+    float Ease(float share)
+    {
+        float s = Math.Clamp(share, 0.0, 1.0)
+        return s * s * (3.0 - 2.0 * s)
+    }
+
+    // Where each duck stands, as offsets along the way to the flock and to its
+    // side. The first preens, the second pecks. The last AsideCount stand off
+    // past the flock, out of the rush and the cleave's reach.
+    vec3 Offset(int n)
+    {
+        float [9] along = {0.0, -0.9, 1.3, 0.4, -1.3, 1.6, 2.9, 3.5, 2.7}
+        float [9] side = {0.0, 1.4, 0.9, -1.5, -0.8, -0.9, -2.0, 0.3, 2.2}
+        return vec3(along[n], 0.0, side[n])
+    }
+
+    // The way each one faces at rest, in radians from the way to the flock:
+    // any way but toward her.
+    float RestTurn(int n)
+    {
+        float [9] turns = {0.6, 1.9, -0.4, -1.7, 2.4, 0.9, 1.2, -2.0, 2.8}
+        return turns[n]
+    }
+
+    // The ducks that rush her and fall to the cleave.
+    int DuckCount() { return 6 }
+    // The ducks off to the side, spared, that are real enemies afterward.
+    int AsideCount() { return 3 }
+    // Every duck of the scene: the flock, then those aside.
+    int AllDucks() { return DuckCount() + AsideCount() }
+
+    // Builds the pieces the cleave throws: a duck's head with its bill and a
+    // burning eye, a leg with its foot, and a piece of wing.
+    int BuildPart(QuaxelWorld& world, int kind)
+    {
+        int dark = 0x282420
+        int darker = 0x17110C
+        int bill = 0x8D4E10
+        if kind == 0 {
+            int head = world.CreateVolume(12, 11, 18)
+            if head < 0 { return -1 }
+            for x : 0; x < 12; x++ {
+                for y : 0; y < 11; y++ {
+                    for z : 0; z < 12; z++ {
+                        float dx = ((float)x - 5.5) / 6.0
+                        float dy = ((float)y - 5.0) / 5.5
+                        float dz = ((float)z - 5.5) / 6.0
+                        if dx * dx + dy * dy + dz * dz <= 1.0 { world.SetVoxel(head, x, y, z, (x + y + z) % 5 == 0 ? darker | dark) }
+                    }
+                }
+            }
+            for z : 11; z < 18; z++ {
+                for x : 4; x < 8; x++ {
+                    for y : 3; y < 6; y++ { world.SetVoxel(head, x, y, z, bill) }
+                }
+            }
+            // The eye burning on either side, and the torn neck in red.
+            for y : 6; y < 8; y++ {
+                world.SetVoxel(head, 0, y, 8, 0xE02010)
+                world.SetVoxel(head, 11, y, 8, 0xE02010)
+            }
+            for x : 3; x < 9; x++ {
+                for y : 2; y < 8; y++ { world.SetVoxel(head, x, y, 0, 0x7A0A08) }
+            }
+            return head
+        }
+        if kind == 1 {
+            int leg = world.CreateVolume(6, 16, 8)
+            if leg < 0 { return -1 }
+            for y : 3; y < 16; y++ {
+                world.SetVoxel(leg, 2, y, 3, bill)
+                world.SetVoxel(leg, 3, y, 3, bill)
+            }
+            for x : 0; x < 6; x++ {
+                for z : 1; z < 8; z++ {
+                    if Math.Abs(x - 2) + Math.Abs(z - 5) <= 3 { world.SetVoxel(leg, x, 0, z, 0x643209) }
+                }
+            }
+            for x : 1; x < 5; x++ { world.SetVoxel(leg, x, 15, 3, 0x7A0A08) }
+            return leg
+        }
+        int wing = world.CreateVolume(10, 3, 16)
+        if wing < 0 { return -1 }
+        for x : 0; x < 10; x++ {
+            for z : 0; z < 16; z++ {
+                if x + z / 3 < 12 && x > z / 4 - 1 { world.SetVoxel(wing, x, 1, z, (z + x) % 4 == 0 ? dark | darker) }
+            }
+        }
+        for x : 0; x < 4; x++ { world.SetVoxel(wing, x, 1, 0, 0x7A0A08) }
+        return wing
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherOpeningScene Opening
+
+    // The ring around Ravenford the opening waits on.
+    HellfeatherCutsceneVolume OpeningVolume()
+    {
+        HellfeatherCutsceneVolume ring
+        ring.Scene = HellfeatherCutscene.Opening
+        ring.Realm = HellfeatherRealm.Fenmarch
+        ring.Center = vec3(0.0, 0.0, 0.0)
+        ring.Inner = HellfeatherOpeningScene.RingInner
+        ring.Outer = HellfeatherOpeningScene.RingOuter
+        return ring
+    }
+
+    // Early in Act I only: before her first errand has taken her past the
+    // hospice. A character further on walks past the ring as if it were not there.
+    bool OpeningReady() { return !Quests.ActTwo && Quests.Moult <= 1 }
+
+    // Sets the stage around where she stopped. False if the duck model would
+    // not load, which ends the scene at once.
+    bool BeginOpening(QuaxelWorld& world)
+    {
+        ClearOpening(world)
+        Opening.Random.Begin((uint)0x0BE11A55)
+        Opening.Drift.SeedWith((uint)0x0FEA7E25)
+        vec3 feet = world.GetPosition(PlayerNode)
+        feet.Y = Terrain.GroundY(feet.X, feet.Z)
+        Opening.Feet = feet
+        Opening.Toward = OpeningToward(feet)
+        // Her side away from the camera, so that offsets along it are depth.
+        Opening.Side = vec3(-Opening.Toward.Z, 0.0, Opening.Toward.X)
+        vec3 flock = feet + Opening.Toward * HellfeatherOpeningScene.FlockDistance
+        flock.Y = Terrain.GroundY(flock.X, flock.Z)
+        Opening.Flock = flock
+        int kind = Spawner.Table.KindNamed("EvilDuck")
+        if kind < 0 || !Spawner.EnsureModel(world, kind) { return false }
+        Opening.RedAnimation = Spawner.Table.Kinds[kind].Animation
+        if Opening.CalmAnimation < 0 { Opening.CalmAnimation = QuaxelAssets.LoadVoxelAnimation(world, HellfeatherOpeningScene.CalmModel) }
+        // Without the copy they stand red-eyed from the start.
+        int animation = Opening.CalmAnimation >= 0 ? Opening.CalmAnimation | Opening.RedAnimation
+        if !BuildOpeningParts(world) { return false }
+        for n : 0; n < HellfeatherOpeningScene.AllDucks(); n++ {
+            vec3 offset = HellfeatherOpeningScene.Offset(n)
+            vec3 home = flock + Opening.Toward * offset.X + Opening.Side * offset.Z
+            home.Y = Terrain.GroundY(home.X, home.Z)
+            if !AddOpeningDuck(world, animation, home, Opening.Turn(Opening.Toward, HellfeatherOpeningScene.RestTurn(n)), n) { return false }
+        }
+        // Rushing, each comes to a stop in an arc before her, on its own side.
+        // Those aside stay where they stand.
+        for n : 0; n < HellfeatherOpeningScene.DuckCount(); n++ {
+            vec3 offset = HellfeatherOpeningScene.Offset(n)
+            float angle = Math.Clamp(offset.Z * 0.5 + offset.X * 0.1, -1.1, 1.1)
+            float reach = 1.45 + (float)(n % 2) * 0.4
+            vec3 goal = feet + Opening.Turn(Opening.Toward, angle) * reach
+            goal.Y = Terrain.GroundY(goal.X, goal.Z)
+            Opening.Ducks[n].Goal = goal
+        }
+        Opening.Drift.Most = 80
+        Opening.Drift.Wind = vec3(0.04, 0.0, 0.02)
+        Opening.AmbienceClip = world.LoadSound(HellfeatherOpeningScene.AmbiencePath)
+        Opening.WingsClip = world.LoadSound(HellfeatherOpeningScene.WingsPath)
+        Opening.RushClip = world.LoadSound(HellfeatherOpeningScene.RushPath)
+        Opening.ThudClip = world.LoadSound(HellfeatherOpeningScene.ThudPath)
+        if Opening.AmbienceClip > 0 { Opening.AmbienceVoice = CutsceneSound(world, Opening.AmbienceClip, 0.5, true) }
+        // Places the camera at once, so no frame shows it where she left it.
+        StepOpening(world, 0.0)
+        return true
+    }
+
+    // The way to the flock: open ground for the ducks and the way between,
+    // and level enough to see across. Out away from the town is best, then the
+    // right of the screen as she plays. Falls back to the screen's right.
+    -vec3 OpeningToward(vec3 feet)
+    {
+        vec3 screenRight = Math.Normalize(vec3(1.0, 0.0, -1.0))
+        vec3 outward = Math.Normalize(vec3(feet.X, 0.0, feet.Z))
+        vec3 best = screenRight
+        float bestScore = -1000.0
+        for n : 0; n < 32; n++ {
+            float angle = (float)n * 6.2831853 / 32.0
+            vec3 way = vec3(Math.Cos(angle), 0.0, Math.Sin(angle))
+            if !OpeningGroundFits(feet, way) { continue }
+            float score = way.Dot(outward) * 2.0 + way.Dot(screenRight)
+            if score > bestScore {
+                bestScore = score
+                best = way
+            }
+        }
+        return best
+    }
+
+    -bool OpeningGroundFits(vec3 feet, vec3 way)
+    {
+        vec3 side = vec3(-way.Z, 0.0, way.X)
+        for step : 2; step <= 18; step++ {
+            vec3 at = feet + way * ((float)step * 0.5)
+            if Terrain.CircleBlocked(at.X, at.Z, 0.5) || Math.Abs(Terrain.GroundY(at.X, at.Z) - feet.Y) > 1.5 { return false }
+        }
+        vec3 flock = feet + way * HellfeatherOpeningScene.FlockDistance
+        for n : 0; n < HellfeatherOpeningScene.AllDucks(); n++ {
+            vec3 offset = HellfeatherOpeningScene.Offset(n)
+            vec3 at = flock + way * offset.X + side * offset.Z
+            if Terrain.CircleBlocked(at.X, at.Z, 0.6) || Math.Abs(Terrain.GroundY(at.X, at.Z) - feet.Y) > 1.5 { return false }
+        }
+        return true
+    }
+
+    -bool AddOpeningDuck(QuaxelWorld& world, int animation, vec3 home, vec3 facing, int n)
+    {
+        HellfeatherOpeningDuck duck
+        duck.Home = home
+        duck.Goal = home
+        duck.Aside = n >= HellfeatherOpeningScene.DuckCount()
+        duck.Facing = facing
+        duck.Timer = 0.6 + (float)n * 0.3
+        duck.Node = world.CreateNode()
+        world.AttachTransform(duck.Node, QuaxelTransform.Make(home, vec3(1.0, 1.0, 1.0)))
+        world.SetCatchesEffects(duck.Node, false)
+        duck.Visual = world.CreateChild(duck.Node)
+        float cell = HellfeatherOpeningScene.DuckVoxel
+        QuaxelTransform pose = QuaxelTransform.Make(vec3(0.0, (float)HellfeatherOpeningScene.DuckHeight * cell * 0.5, 0.0), vec3(cell, cell, cell))
+        pose.FacingX = facing.X
+        pose.FacingZ = facing.Z
+        world.AttachTransform(duck.Visual, pose)
+        duck.Eye = world.CreateChild(duck.Node)
+        world.AttachTransform(duck.Eye, QuaxelTransform.Make(vec3(0.0, HellfeatherOpeningScene.EyeHeight, 0.0), vec3(1.0, 1.0, 1.0)))
+        duck.Turned = animation == Opening.RedAnimation
+        Opening.Ducks += duck
+        if !world.AttachAnimator(duck.Visual, animation) || !world.PlayClip(duck.Visual, "idle") { return false }
+        // Not all in step.
+        world.SetAnimationSpeed(duck.Visual, 0.85 + (float)n * 0.06)
+        return true
+    }
+
+    -bool BuildOpeningParts(QuaxelWorld& world)
+    {
+        if Opening.PartsBuilt { return true }
+        for kind : 0; kind < 3; kind++ {
+            Opening.PartVolumes[kind] = HellfeatherOpeningScene.BuildPart(world, kind)
+            if Opening.PartVolumes[kind] < 0 { return false }
+        }
+        Opening.PartsBuilt = true
+        return true
+    }
+
+    // One step of the scene by its clock. False once it is over.
+    bool StepOpening(QuaxelWorld& world, float deltaSeconds)
+    {
+        float t = Cutscene.Clock
+        vec3 up = vec3(0.0, 1.0, 0.0)
+        // Looking across the way to the flock, which runs left to right.
+        vec3 across = vec3(Opening.Toward.Z, 0.0, -Opening.Toward.X)
+        Opening.Drift.Step(world, deltaSeconds)
+        if t >= 3.0 && !Opening.RavensSent { SendOpeningRavens(world) }
+        FlyOpeningRavens(world, t)
+        StepOpeningDucks(world, t, deltaSeconds)
+        // The fall begins as the camera settles on the flock: one feather for
+        // the preening duck's back, and more across the flock.
+        if t >= 9.4 && !Opening.KeyFeatherDropped {
+            Opening.KeyFeatherDropped = true
+            vec3 back = world.GetPosition(Opening.Ducks[0].Node)
+            float floor = back.Y + HellfeatherOpeningScene.BackHeight
+            Opening.Drift.Spawn(world, vec3(back.X, floor + 1.8, back.Z) - Opening.Drift.Wind * 3.0, floor)
+        }
+        if t >= 8.6 && t < 15.5 {
+            int due = Opening.Drift.Due(t < 11.0 ? 3.0 | 7.0, deltaSeconds)
+            for n : 0; n < due; n++ {
+                vec3 at = Opening.Drift.Around(Opening.Flock, 4.0)
+                float floor = Terrain.GroundY(at.X, at.Z)
+                at.Y = Opening.Flock.Y + 4.5 + Opening.Drift.Roll(0.0, 1.5)
+                Opening.Drift.Spawn(world, at, floor)
+            }
+        }
+        // The ambience drops out for a beat as the flock turns.
+        if t >= 13.8 && !Opening.Snapped {
+            Opening.Snapped = true
+            if Opening.AmbienceVoice != 0 { world.StopSound(Opening.AmbienceVoice) }
+            Opening.AmbienceVoice = 0
+        }
+        if t >= 14.7 && !Opening.AmbienceBack {
+            Opening.AmbienceBack = true
+            if Opening.AmbienceClip > 0 { Opening.AmbienceVoice = CutsceneSound(world, Opening.AmbienceClip, 0.5, true) }
+        }
+        if t >= 16.0 && !Opening.Rushing { StartOpeningRush(world) }
+        if t >= 18.0 && !Opening.Swinging {
+            Opening.Swinging = true
+            for controller : Controllers { world.SetAnimationSpeed(controller.VisualNode, 0.8) }
+        }
+        if Opening.Rushing && !Opening.Swinging {
+            // She holds the axe drawn back: the cleave's wind-up frame.
+            for controller : Controllers {
+                QuaxelAnimator animator = world.GetAnimator(controller.VisualNode)
+                if animator.Frame >= 1 { world.SetAnimationSpeed(controller.VisualNode, 0.0) }
+            }
+        }
+        if Opening.Swinging && !Opening.Struck {
+            for controller : Controllers {
+                QuaxelAnimator animator = world.GetAnimator(controller.VisualNode)
+                if animator.Frame >= AxeStrikeFrame() || !animator.Playing { OpeningCleave(world) }
+            }
+        }
+        if StepOpeningParts(world, deltaSeconds) && !Opening.Thudded {
+            // Cut on the first thud.
+            Opening.Thudded = true
+            if Opening.ThudClip > 0 { CutsceneSound(world, Opening.ThudClip, 0.8, false) }
+            else if !Cutscene.Quiet { Sfx.Swing(world, HellfeatherSwing.Hit, WeaponCategory()) }
+            return false
+        }
+        if t >= HellfeatherOpeningScene.Longest { return false }
+        // The shots.
+        if t < 6.0 {
+            // On her, closing in a little, and holding as the ravens pass.
+            float push = HellfeatherOpeningScene.Ease(t / 4.0)
+            AimCutsceneCamera(world, Opening.Feet + up * 1.0, across, 40.0, 3.9 - 0.5 * push)
+        } else if t < 10.0 {
+            // Following the last raven to the flock, then settling on it.
+            float along = HellfeatherOpeningScene.FlockDistance * HellfeatherOpeningScene.Ease((t - 6.3) / 2.4)
+            AimCutsceneCamera(world, Opening.Feet + Opening.Toward * along + up * 1.0, across, 40.0, 3.4 - 0.4 * HellfeatherOpeningScene.Ease((t - 8.0) / 2.0))
+        } else if t < 13.8 {
+            // Close on the preening duck, easing in.
+            vec3 duck = world.GetPosition(Opening.Ducks[0].Node)
+            AimCutsceneCamera(world, duck + up * 1.1, across, 32.0, 1.6 - 0.25 * HellfeatherOpeningScene.Ease((t - 10.0) / 3.0))
+        } else if t < 16.0 {
+            // Wide: her on the left, the flock on the right, all looking at her.
+            vec3 middle = (Opening.Feet + Opening.Flock) * 0.5
+            AimCutsceneCamera(world, middle + up * 1.0, across, 38.0, 4.6)
+        } else if t < 18.0 {
+            // From behind her, the flock coming on.
+            float closer = HellfeatherOpeningScene.Ease((t - 16.0) / 2.0)
+            AimCutsceneCamera(world, Opening.Feet + Opening.Toward * 2.2 + up * 1.25, Opening.Toward, 26.0, 2.6 - 0.3 * closer)
+        } else {
+            // From the side for the blow, wide enough for what flies.
+            AimCutsceneCamera(world, Opening.Feet + Opening.Toward * 1.0 + up * 1.0, across, 32.0, 2.9)
+        }
+        return true
+    }
+
+    // Ravens in a loose line, crossing low over her one after another along
+    // the way to the flock and on past it.
+    -SendOpeningRavens(QuaxelWorld& world)
+    {
+        Opening.RavensSent = true
+        if !Ravens.Load(world) { return }
+        if Opening.WingsClip > 0 { CutsceneSound(world, Opening.WingsClip, 0.7, false) }
+        for n : 0; n < HellfeatherOpeningScene.RavenCount; n++ {
+            float offset = Opening.Random.Range(-1.2, 1.2)
+            float height = 2.5 + Opening.Random.Range(-0.4, 0.5)
+            vec3 from = Opening.Feet + Opening.Side * offset - Opening.Toward * 9.0 + vec3(0.0, height, 0.0)
+            vec3 to = Opening.Feet + Opening.Side * (offset * 0.6) + Opening.Toward * 17.0 + vec3(0.0, height + 1.2, 0.0)
+            int node = world.CreateNode()
+            world.AttachTransform(node, QuaxelTransform.Make(from, vec3(1.0, 1.0, 1.0)))
+            world.SetCatchesEffects(node, false)
+            int visual = world.CreateChild(node)
+            float cell = HellfeatherRavens.Voxel
+            QuaxelTransform pose = QuaxelTransform.Make(vec3(0.0, (float)HellfeatherRavens.Height * cell * 0.5, 0.0), vec3(cell, cell, cell))
+            pose.FacingX = Opening.Toward.X
+            pose.FacingZ = Opening.Toward.Z
+            world.AttachTransform(visual, pose)
+            if !world.AttachAnimator(visual, Ravens.Animation) || !world.PlayClip(visual, "fly") {
+                world.DestroyNode(node)
+                continue
+            }
+            world.SetAnimationSpeed(visual, 1.0 + Opening.Random.Range(-0.15, 0.15))
+            Opening.Ravens += node
+            Opening.RavenFrom += from
+            Opening.RavenTo += to
+            Opening.RavenStart += 3.0 + (float)n * 0.32
+        }
+    }
+
+    -FlyOpeningRavens(QuaxelWorld& world, float t)
+    {
+        for i : 0; i < Opening.Ravens.Len; i++ {
+            if Opening.Ravens[i] == 0 { continue }
+            float length = (Opening.RavenTo[i] - Opening.RavenFrom[i]).Length()
+            float share = (t - Opening.RavenStart[i]) * HellfeatherOpeningScene.RavenSpeed / length
+            if share >= 1.0 {
+                world.DestroyNode(Opening.Ravens[i])
+                Opening.Ravens[i] = 0
+                continue
+            }
+            QuaxelTransform transform = world.GetTransform(Opening.Ravens[i])
+            // Waiting their turn out of sight, behind where they set out.
+            transform.Position = share < 0.0 ? Opening.RavenFrom[i] - vec3(0.0, 60.0, 0.0) | Opening.RavenFrom[i].Lerp(Opening.RavenTo[i], share)
+            world.SetTransform(Opening.Ravens[i], transform)
+        }
+    }
+
+    // The flock at peace until the feather takes them: one pecks, one preens,
+    // the rest stand. Then their eyes light and they turn on her.
+    -StepOpeningDucks(QuaxelWorld& world, float t, float deltaSeconds)
+    {
+        for n : 0; n < Opening.Ducks.Len; n++ {
+            HellfeatherOpeningDuck duck = Opening.Ducks[n]
+            vec3 facing = duck.Facing
+            quat tilt = QuaxelRotation.FromDegrees(0.0, 0.0, 0.0)
+            if !Opening.Snapped && n == 1 {
+                // Pecking at the dirt now and then.
+                duck.Timer -= deltaSeconds
+                if duck.Timer <= 0.0 {
+                    world.PlayClip(duck.Visual, "attack")
+                    duck.Timer = 1.5 + Opening.Random.Range(0.0, 0.8)
+                } else {
+                    QuaxelAnimator pecking = world.GetAnimator(duck.Visual)
+                    if world.CurrentClipName(duck.Visual) == "attack" && !pecking.Playing { world.PlayClip(duck.Visual, "idle") }
+                }
+            }
+            if !Opening.Snapped && n == 0 && t < 13.0 {
+                // Preening: the head turned back over the shoulder into the
+                // feathers, and back, again and again.
+                float swing = Math.Sin(t * 2.1)
+                float amount = swing > 0.0 ? swing * swing | 0.0
+                facing = Opening.Turn(duck.Facing, 2.3 * amount)
+                tilt = QuaxelRotation.FromDegrees(0.0, 14.0 * amount, -10.0 * amount)
+            }
+            // Its eye first, as the camera is close on it, then all of theirs.
+            float lit = n == 0 ? Math.Clamp((t - 13.0) / 0.6, 0.0, 1.0) | Math.Clamp((t - 13.8) / 0.25, 0.0, 1.0)
+            duck.Glow = lit
+            // As its eyes light it is the red-eyed duck, where it was in its clip.
+            if lit > 0.0 && !duck.Turned {
+                duck.Turned = true
+                if !world.SwapAnimation(duck.Visual, Opening.RedAnimation) {
+                    world.AttachAnimator(duck.Visual, Opening.RedAnimation)
+                    world.PlayClip(duck.Visual, "idle")
+                }
+            }
+            if Opening.Snapped {
+                vec3 at = world.GetPosition(duck.Node)
+                vec3 toHer = vec3(Opening.Feet.X - at.X, 0.0, Opening.Feet.Z - at.Z)
+                if toHer.Length() > 0.05 { facing = Math.Normalize(toHer) }
+                if !Opening.Rushing { world.PlayClip(duck.Visual, "idle") }
+            }
+            if Opening.Rushing && !Opening.Struck && !duck.Aside {
+                float share = Math.Clamp((t - 16.0) / 2.15, 0.0, 1.0)
+                // Gathering speed as they come.
+                vec3 at = duck.Home.Lerp(duck.Goal, share * share * (2.0 - share))
+                at.Y = Terrain.GroundY(at.X, at.Z)
+                QuaxelTransform root = world.GetTransform(duck.Node)
+                root.Position = at
+                world.SetTransform(duck.Node, root)
+            }
+            QuaxelTransform pose = world.GetTransform(duck.Visual)
+            pose.FacingX = facing.X
+            pose.FacingZ = facing.Z
+            pose.Rotation = tilt
+            world.SetTransform(duck.Visual, pose)
+            Opening.Ducks[n] = duck
+            PlaceOpeningEyes(world, n, facing)
+        }
+    }
+
+    // The red light at a duck's eyes, by how bright they burn. The eyes
+    // themselves are the red-eyed model's own.
+    -PlaceOpeningEyes(QuaxelWorld& world, int n, vec3 facing)
+    {
+        HellfeatherOpeningDuck duck = Opening.Ducks[n]
+        if duck.Eye == 0 { return }
+        vec3 eyes = facing * HellfeatherOpeningScene.EyeForward + vec3(0.0, HellfeatherOpeningScene.EyeHeight, 0.0)
+        QuaxelTransform eye = world.GetTransform(duck.Eye)
+        eye.Position = eyes
+        world.SetTransform(duck.Eye, eye)
+        if duck.Glow <= 0.0 {
+            world.RemovePointLight(duck.Eye)
+            return
+        }
+        QuaxelPointLight light
+        light.Color = vec3(1.0, 0.1, 0.05)
+        light.Radius = 0.7
+        light.Intensity = 5.0 * duck.Glow
+        world.SetPointLight(duck.Eye, light)
+    }
+
+    // She turns to face them and draws the axe back as they come.
+    -StartOpeningRush(QuaxelWorld& world)
+    {
+        Opening.Rushing = true
+        // The feathers would hang in the air where the ducks stood.
+        Opening.Drift.Clear(world)
+        if Opening.RushClip > 0 { CutsceneSound(world, Opening.RushClip, 0.75, false) }
+        for n : 0; n < Opening.Ducks.Len; n++ {
+            if Opening.Ducks[n].Aside { continue }
+            world.PlayClip(Opening.Ducks[n].Visual, "walk")
+            world.SetAnimationSpeed(Opening.Ducks[n].Visual, 2.2)
+        }
+        for controller : Controllers {
+            FaceAlong(world, controller.VisualNode, Opening.Toward)
+            world.SetAnimationSpeed(controller.VisualNode, 1.0)
+            world.PlayClip(controller.VisualNode, "cleave")
+        }
+    }
+
+    // The blow: the arc of light, blood from every duck, and their heads,
+    // legs and wings thrown across the frame.
+    -OpeningCleave(QuaxelWorld& world)
+    {
+        Opening.Struck = true
+        vec3 origin = world.GetPosition(PlayerNode)
+        int [] streaks
+        CleaveArcInto(world, origin, streaks)
+        for streak : streaks { Opening.Effects += streak }
+        if !Cutscene.Quiet { Sfx.Swing(world, HellfeatherSwing.Hit, WeaponCategory()) }
+        for n : 0; n < Opening.Ducks.Len; n++ {
+            HellfeatherOpeningDuck duck = Opening.Ducks[n]
+            // Those aside are spared.
+            if duck.Aside { continue }
+            vec3 at = world.GetPosition(duck.Node)
+            vec3 away = Math.Normalize(vec3(at.X - origin.X, 0.0, at.Z - origin.Z))
+            Opening.Effects += world.StartEffectIgnoring(QuaxelEffectStyle.BloodSplatter(), at + vec3(0.0, 0.9, 0.0), away + vec3(0.0, 0.8, 0.0), duck.Node)
+            world.SetAnimationSpeed(duck.Visual, 1.0)
+            world.PlayClip(duck.Visual, "death")
+            // The light goes out of its eyes.
+            world.DestroyNode(duck.Eye)
+            duck.Eye = 0
+            duck.Glow = 0.0
+            Opening.Ducks[n] = duck
+            ThrowOpeningPart(world, 0, at + vec3(0.0, 1.45, 0.0), away)
+            ThrowOpeningPart(world, 1, at + vec3(0.0, 0.4, 0.0), away)
+            if n % 2 == 0 { ThrowOpeningPart(world, 1, at + vec3(0.0, 0.4, 0.0), away) }
+            else { ThrowOpeningPart(world, 2, at + vec3(0.0, 1.0, 0.0), away) }
+        }
+        if !Cutscene.Quiet {
+            Sfx.Enemy(world, 0, HellfeatherEnemyVoice.Duck, 1.0, true)
+            Sfx.Enemy(world, 0, HellfeatherEnemyVoice.Duck, 0.85, true)
+        }
+    }
+
+    // A part thrown from At, flying away from her and across the frame.
+    -ThrowOpeningPart(QuaxelWorld& world, int kind, vec3 at, vec3 away)
+    {
+        HellfeatherOpeningPart part
+        part.Node = world.CreateNode()
+        float cell = HellfeatherOpeningScene.DuckVoxel
+        world.AttachTransform(part.Node, QuaxelTransform.Make(at, vec3(cell, cell, cell)))
+        world.SetCatchesEffects(part.Node, false)
+        world.AttachVoxels(part.Node, Opening.PartVolumes[kind])
+        float sideways = Opening.Random.Range(-4.5, 4.5)
+        part.Velocity = away * Opening.Random.Range(1.5, 3.5) + Opening.Side * sideways + vec3(0.0, Opening.Random.Range(3.5, 5.5), 0.0)
+        part.Spin = vec3(Opening.Random.Range(-720.0, 720.0), Opening.Random.Range(-540.0, 540.0), Opening.Random.Range(-720.0, 720.0))
+        Opening.Parts += part
+    }
+
+    // Moves what the cleave threw. True on the step the first part lands.
+    -bool StepOpeningParts(QuaxelWorld& world, float deltaSeconds)
+    {
+        bool landed = false
+        for i : 0; i < Opening.Parts.Len; i++ {
+            HellfeatherOpeningPart part = Opening.Parts[i]
+            if part.Landed { continue }
+            QuaxelTransform pose = world.GetTransform(part.Node)
+            part.Velocity.Y -= HellfeatherOpeningScene.Gravity * deltaSeconds
+            pose.Position = pose.Position + part.Velocity * deltaSeconds
+            part.Turned = part.Turned + part.Spin * deltaSeconds
+            pose.Rotation = QuaxelRotation.FromDegrees(part.Turned.X, part.Turned.Y, part.Turned.Z)
+            float floor = Terrain.GroundY(pose.Position.X, pose.Position.Z) + 0.08
+            if part.Velocity.Y < 0.0 && pose.Position.Y <= floor {
+                pose.Position.Y = floor
+                part.Landed = true
+                landed = true
+            }
+            world.SetTransform(part.Node, pose)
+            Opening.Parts[i] = part
+        }
+        return landed
+    }
+
+    // Takes away everything the scene put in the world.
+    // The scene's end, played through or skipped: the ducks that stood aside
+    // are real enemies where they stood, and the rest is cleared away.
+    EndOpening(QuaxelWorld& world)
+    {
+        vec3 [] spared
+        for duck : Opening.Ducks {
+            if duck.Aside { spared += world.GetPosition(duck.Node) }
+        }
+        ClearOpening(world)
+        for at : spared { AddScripted(world, "EvilDuck", at.X, at.Z) }
+    }
+
+    // Where the command line stands her to play it: on the road out of the
+    // gate, just inside the ring.
+    vec3 OpeningSpot() { return vec3(0.0, 0.0, HellfeatherOpeningScene.RingInner + 1.0) }
+
+    // Ends the blood and the cleave's light it started, for a rewind.
+    ForgetOpeningEffects(QuaxelWorld& world)
+    {
+        for effect : Opening.Effects { world.EndEffect(effect) }
+        Opening.Effects.Clear()
+    }
+
+    // After a silent rewind, the ambience again if it is playing at this point.
+    ResumeOpeningAmbience(QuaxelWorld& world)
+    {
+        if Opening.AmbienceVoice != 0 || Opening.AmbienceClip <= 0 { return }
+        if Opening.Snapped && !Opening.AmbienceBack { return }
+        Opening.AmbienceVoice = CutsceneSound(world, Opening.AmbienceClip, 0.5, true)
+    }
+
+    // A sound of the scene, everywhere at once; none while a rewind replays it.
+    long CutsceneSound(QuaxelWorld& world, int clip, float gain, bool looping)
+    {
+        if Cutscene.Quiet { return 0 }
+        return world.PlaySound(clip, 0, gain, looping)
+    }
+
+    -ClearOpening(QuaxelWorld& world)
+    {
+        for duck : Opening.Ducks { world.DestroyNode(duck.Node) }
+        for node : Opening.Ravens {
+            if node != 0 { world.DestroyNode(node) }
+        }
+        for part : Opening.Parts { world.DestroyNode(part.Node) }
+        Opening.Ducks.Clear()
+        Opening.Ravens.Clear()
+        Opening.RavenFrom.Clear()
+        Opening.RavenTo.Clear()
+        Opening.RavenStart.Clear()
+        Opening.Parts.Clear()
+        Opening.Drift.Clear(world)
+        if Opening.AmbienceVoice != 0 { world.StopSound(Opening.AmbienceVoice) }
+        Opening.AmbienceVoice = 0
+        Opening.RavensSent = false
+        Opening.KeyFeatherDropped = false
+        Opening.Snapped = false
+        Opening.AmbienceBack = false
+        Opening.Rushing = false
+        Opening.Swinging = false
+        Opening.Struck = false
+        Opening.Thudded = false
+        Opening.Effects.Clear()
+    }
+}
+
+// Tests of the cutscene system through the opening.
+HellfeatherCutsceneTests
+#{
+    // Stands her on the road out of Ravenford at Z and lets one step pass.
+    StandOnRoad(HellfeatherGame& game, QuaxelWorld& world, float z)
+    {
+        HellfeatherActOne.Stand(game, world, 0.0, z, 1)
+    }
+
+    // Real EvilDucks in the level that are alive and stand in the world.
+    int LivingDucks(HellfeatherGame& game)
+    {
+        int kind = game.Spawner.Table.KindNamed("EvilDuck")
+        int count = 0
+        for enemy : game.Enemies {
+            if enemy.Kind == kind && enemy.Node != 0 && enemy.Health > 0 { count++ }
+        }
+        return count
+    }
+
+    // Taps a key: down for a step, then up for a step.
+    Press(HellfeatherGame& game, QuaxelWorld& world, int key)
+    {
+        QuaxelInputState input
+        input.Down[key] = true
+        game.Simulate(world, input, 1)
+        input.Down[key] = false
+        game.Simulate(world, input, 1)
+    }
+
+    // Starts the opening frame by frame, as --cutscene-frames opening does.
+    bool StartInspecting(HellfeatherGame& game, QuaxelWorld& world)
+    {
+        game.CutsceneOnStart = HellfeatherCutscene.Opening
+        game.InspectOnStart = true
+        int steps = 0
+        while !game.Cutscene.Playing && steps < 600 {
+            Wait(game, world, 1)
+            steps++
+        }
+        return game.Cutscene.Playing && game.Cutscene.Inspect
+    }
+
+    // Steps with every key let go.
+    Wait(HellfeatherGame& game, QuaxelWorld& world, int steps)
+    {
+        QuaxelInputState input
+        game.Simulate(world, input, steps)
+    }
+
+    // Whether the terrain leaves the line from the scene's camera to what it
+    // looks at open.
+    bool ViewIsClear(HellfeatherGame& game, QuaxelWorld& world)
+    {
+        QuaxelTransform eyePose = world.GetTransform(game.CameraNode)
+        vec3 eye = eyePose.Position
+        vec3 aim = game.Cutscene.Aim
+        float length = (aim - eye).Length()
+        vec3 way = (aim - eye) * (1.0 / Math.Max(length, 0.001))
+        float along = 0.0
+        while along < length - 0.3 {
+            vec3 at = eye + way * along
+            if at.Y < game.CutsceneSolidTop(world, at.X, at.Z) { return false }
+            along += 0.1
+        }
+        return true
+    }
+
+    // Whether every sampled ray of the scene's camera starts in open air.
+    bool FrameIsInAir(HellfeatherGame& game, QuaxelWorld& world)
+    {
+        QuaxelTransform eyePose = world.GetTransform(game.CameraNode)
+        QuaxelCamera camera = world.GetCamera(game.CameraNode)
+        return game.CutsceneRaysInGround(world, eyePose.Position, camera.Forward(), camera.FrameHalfHeight) == 0
+    }
+
+    // Plays the opening through in the world of a seed found from Start, and
+    // gives the frames whose camera sees through terrain or starts in it.
+    int BadFramesInWorld(uint start)
+    {
+        HellfeatherGame game()
+        game.WorldSeed = game.PickWorldSeed(start)
+        QuaxelWorld world()
+        if !game.Prepare(world) { return 100000 }
+        game.CutsceneOnStart = HellfeatherCutscene.Opening
+        int steps = 0
+        while !game.Cutscene.Playing && steps < 600 {
+            Wait(game, world, 1)
+            steps++
+        }
+        if !game.Cutscene.Playing { return 100000 }
+        int bad = 0
+        steps = 0
+        while game.Cutscene.Playing && steps < 1400 {
+            if !ViewIsClear(game, world) || !FrameIsInAir(game, world) { bad++ }
+            Wait(game, world, 1)
+            steps++
+        }
+        return bad
+    }
+}
+T{
+    WalkingOutOfRavenfordPlaysTheOpeningOnceAndOnlyOnce()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.AreEqual(game.CutsceneVolumes.Len, 1)
+        // Inside the walls and on the bridge, nothing.
+        HellfeatherCutsceneTests.StandOnRoad(game, world, 10.0)
+        HellfeatherCutsceneTests.StandOnRoad(game, world, 31.5)
+        T.IsFalse(game.Cutscene.Playing)
+        HellfeatherCutsceneTests.StandOnRoad(game, world, 37.0)
+        T.IsTrue(game.Cutscene.Playing)
+        T.AreEqual(game.CutsceneVolumes.Len, 0)
+        T.AreEqual(game.Opening.Ducks.Len, HellfeatherOpeningScene.AllDucks())
+        // The camera is off her for the scene.
+        T.AreEqual(world.ParentOf(game.CameraNode), 0)
+        // Nothing hurts her while it plays.
+        int health = game.PlayerHealth
+        for blow : 0; blow < 20; blow++ { T.IsFalse(game.HitPlayerAs(world, -1, 15)) }
+        T.AreEqual(game.PlayerHealth, health)
+        // Played through, it ends on its own and gives everything back.
+        int ducksBefore = HellfeatherCutsceneTests.LivingDucks(game)
+        vec3 [] aside
+        int steps = 0
+        int blocked = 0
+        while game.Cutscene.Playing && steps < 1400 {
+            // Where those aside stand at the last, and that the cleave spares them.
+            aside.Clear()
+            for duck : game.Opening.Ducks {
+                if duck.Aside {
+                    aside += world.GetPosition(duck.Node)
+                    T.AreNotEqual(world.CurrentClipName(duck.Visual), "death")
+                }
+            }
+            HellfeatherCutsceneTests.Wait(game, world, 1)
+            if game.Cutscene.Playing && !HellfeatherCutsceneTests.ViewIsClear(game, world) { blocked++ }
+            steps++
+        }
+        // No shot of it looks through the terrain.
+        T.AreEqual(blocked, 0)
+        T.IsFalse(game.Cutscene.Playing)
+        // Those aside are real ducks now, where they stood, awake and whole.
+        T.AreEqual(aside.Len, HellfeatherOpeningScene.AsideCount())
+        T.AreEqual(HellfeatherCutsceneTests.LivingDucks(game), ducksBefore + HellfeatherOpeningScene.AsideCount())
+        for at : aside {
+            bool found = false
+            for enemy : game.Enemies {
+                if enemy.Node == 0 || enemy.Health <= 0 { continue }
+                vec3 there = world.GetPosition(enemy.Node)
+                if Math.Hypot(there.X - at.X, there.Z - at.Z) < 0.5 { found = true }
+            }
+            T.IsTrue(found)
+        }
+        // Cut on the first thud of what the cleave threw, before the longest it may run.
+        T.IsTrue(steps > 60 * 18)
+        T.IsTrue((float)steps < HellfeatherOpeningScene.Longest * 60.0 - 5.0)
+        T.IsTrue(game.CutsceneSeen(HellfeatherCutscene.Opening))
+        T.AreEqual(game.Opening.Ducks.Len, 0)
+        T.AreEqual(world.ParentOf(game.CameraNode), game.PlayerNode)
+        T.IsFalse(game.PlayerInvulnerable())
+        bool hurt = false
+        for blow : 0; blow < 20; blow++ {
+            if game.HitPlayerAs(world, -1, 1) { hurt = true }
+        }
+        T.IsTrue(hurt)
+        T.IsTrue(game.PlayerHealth < health)
+        // Back over the ring, out and in again: it does not play twice.
+        HellfeatherCutsceneTests.StandOnRoad(game, world, 30.0)
+        HellfeatherCutsceneTests.StandOnRoad(game, world, 38.0)
+        T.IsFalse(game.Cutscene.Playing)
+    }
+
+    HoldingAnyKeyForASecondSkipsIt()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        // She walks in holding W, which does not count toward the skip.
+        QuaxelInputState walking
+        walking.SetDown(QuaxelKey.W, true)
+        QuaxelTransform pose = world.GetTransform(game.PlayerNode)
+        pose.Position = vec3(0.0, game.Terrain.GroundY(0.0, 37.0) + game.PlayerRadius(), 37.0)
+        world.SetTransform(game.PlayerNode, pose)
+        game.Simulate(world, walking, 1)
+        T.IsTrue(game.Cutscene.Playing)
+        int ducksBefore = HellfeatherCutsceneTests.LivingDucks(game)
+        game.Simulate(world, walking, 120)
+        T.IsTrue(game.Cutscene.Playing)
+        HellfeatherCutsceneTests.Wait(game, world, 1)
+        QuaxelInputState space
+        space.Down[HellfeatherKeys.Space] = true
+        game.Simulate(world, space, 50)
+        T.IsTrue(game.Cutscene.Playing)
+        T.IsTrue(game.Cutscene.SkipShare() > 0.7)
+        T.IsTrue(game.PlayerInvulnerable())
+        game.Simulate(world, space, 12)
+        T.IsFalse(game.Cutscene.Playing)
+        T.IsFalse(game.PlayerInvulnerable())
+        T.IsTrue(game.CutsceneSeen(HellfeatherCutscene.Opening))
+        T.AreEqual(game.Opening.Ducks.Len, 0)
+        T.AreEqual(world.ParentOf(game.CameraNode), game.PlayerNode)
+        // Skipped, those aside are real ducks all the same.
+        Print("DBG before, after")
+        Print(ducksBefore)
+        Print(HellfeatherCutsceneTests.LivingDucks(game))
+        Print(game.Enemies.Len)
+        T.AreEqual(HellfeatherCutsceneTests.LivingDucks(game), ducksBefore + HellfeatherOpeningScene.AsideCount())
+    }
+
+    ASeenSceneLaysNoVolumeAndALaterCharacterIsNotStopped()
+    {
+        HellfeatherGame seen()
+        QuaxelWorld world()
+        seen.Quests.CutscenesSeen = 1 << HellfeatherCutscene.Opening.Value
+        T.IsTrue(seen.Prepare(world))
+        T.AreEqual(seen.CutsceneVolumes.Len, 0)
+        HellfeatherGame later()
+        QuaxelWorld other()
+        T.IsTrue(later.Prepare(other))
+        later.Quests.Moult = 2
+        HellfeatherCutsceneTests.StandOnRoad(later, other, 37.0)
+        T.IsFalse(later.Cutscene.Playing)
+        T.AreEqual(later.CutsceneVolumes.Len, 1)
+    }
+
+    EveryShotDrawsTheTerrainFromItsOwnViewAndPlayGetsItsBack()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherCutsceneTests.StandOnRoad(game, world, 37.0)
+        T.IsTrue(game.Cutscene.Playing)
+        int off = 0
+        int turns = 0
+        int ownView = 0
+        vec3 last = vec3(0.0, 0.0, 0.0)
+        int steps = 0
+        while game.Cutscene.Playing && steps < 1400 {
+            QuaxelCamera shot = world.GetCamera(game.CameraNode)
+            QuaxelTransform eye = world.GetTransform(game.CameraNode)
+            vec3 back = game.Cutscene.Aim - eye.Position
+            if Math.Abs(back.Length() - 34.641) > 0.01 { off++ }
+            if !game.Terrain.ViewIsPlay() { ownView++ }
+            if !(shot.Forward() (0.001)== last) { turns++ }
+            last = shot.Forward()
+            HellfeatherCutsceneTests.Wait(game, world, 1)
+            steps++
+        }
+        T.AreEqual(off, 0)
+        // Its own angles: across the way, from behind her, and from the side,
+        // each with the terrain drawn for it.
+        T.IsTrue(turns >= 3)
+        T.IsTrue(ownView > 60 * 15)
+        // Back at play, the terrain is as built for the play camera.
+        T.IsTrue(game.Terrain.ViewIsPlay())
+    }
+
+    FrameByFrameHoldsStillAndStepsOnlyWhenAsked()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        // It starts at once, with every chunk around her already built.
+        T.IsTrue(HellfeatherCutsceneTests.StartInspecting(game, world))
+        T.IsTrue(game.Terrain.IsReady(world.GetPosition(game.PlayerNode)))
+        // Played from the command line, the volume is used up all the same.
+        T.AreEqual(game.CutsceneVolumes.Len, 0)
+        T.AreEqual(game.Cutscene.Frame, 0)
+        T.IsTrue(game.WorldPaused())
+        // Untouched, nothing moves.
+        HellfeatherCutsceneTests.Wait(game, world, 90)
+        T.AreEqual(game.Cutscene.Frame, 0)
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Right)
+        T.AreEqual(game.Cutscene.Frame, 1)
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Up)
+        T.AreEqual(game.Cutscene.Frame, 61)
+        // Held, Right steps on its own after a moment.
+        QuaxelInputState holding
+        holding.Down[HellfeatherKeys.Right] = true
+        game.Simulate(world, holding, 120)
+        T.IsTrue(game.Cutscene.Frame > 61 + 60)
+        HellfeatherCutsceneTests.Wait(game, world, 1)
+        // Into the ravens' pass: one frame back and forward again lands
+        // every raven where it was.
+        while game.Cutscene.Frame < 240 { HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Right) }
+        T.IsTrue(game.Opening.Ravens.Len > 0)
+        vec3 raven = world.GetPosition(game.Opening.Ravens[0])
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Left)
+        T.AreEqual(game.Cutscene.Frame, 239)
+        T.IsFalse(world.GetPosition(game.Opening.Ravens[0]) (0.0001)== raven)
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Right)
+        T.AreEqual(game.Cutscene.Frame, 240)
+        T.IsTrue(world.GetPosition(game.Opening.Ravens[0]) (0.0001)== raven)
+        // Space plays it on, and again pauses it.
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Space)
+        HellfeatherCutsceneTests.Wait(game, world, 30)
+        T.IsTrue(game.Cutscene.Frame >= 270)
+        T.IsTrue(game.Cutscene.InspectPlaying)
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Space)
+        int held = game.Cutscene.Frame
+        HellfeatherCutsceneTests.Wait(game, world, 30)
+        T.AreEqual(game.Cutscene.Frame, held)
+        // Home goes back to the start.
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Home)
+        T.AreEqual(game.Cutscene.Frame, 0)
+        T.AreEqual(game.Opening.Ducks.Len, HellfeatherOpeningScene.AllDucks())
+        // Escape ends it as a skip would.
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Escape)
+        T.IsFalse(game.Cutscene.Playing)
+        T.IsFalse(game.WorldPaused())
+        T.AreEqual(world.ParentOf(game.CameraNode), game.PlayerNode)
+        T.IsTrue(game.CutsceneSeen(HellfeatherCutscene.Opening))
+    }
+
+    FrameByFrameHoldsOnTheLastFrameAndRewindsThroughTheCleave()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        T.IsTrue(HellfeatherCutsceneTests.StartInspecting(game, world))
+        int seconds = 0
+        while !game.Cutscene.Finished && seconds < 25 {
+            HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Up)
+            seconds++
+        }
+        // It holds on the cut instead of ending.
+        T.IsTrue(game.Cutscene.Finished)
+        T.IsTrue(game.Cutscene.Playing)
+        int last = game.Cutscene.Frame
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Right)
+        T.AreEqual(game.Cutscene.Frame, last)
+        // Back to just after the blow, with the parts in the air.
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Left)
+        T.AreEqual(game.Cutscene.Frame, last - 1)
+        T.IsFalse(game.Cutscene.Finished)
+        T.IsTrue(game.Opening.Struck)
+        T.IsTrue(game.Opening.Parts.Len > 0)
+        vec3 part = world.GetPosition(game.Opening.Parts[0].Node)
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Down)
+        T.IsFalse(game.Opening.Struck)
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Up)
+        T.AreEqual(game.Cutscene.Frame, last - 1)
+        T.IsTrue(world.GetPosition(game.Opening.Parts[0].Node) (0.0001)== part)
+        HellfeatherCutsceneTests.Press(game, world, HellfeatherKeys.Escape)
+        T.IsFalse(game.Cutscene.Playing)
+    }
+
+    NoShotLooksThroughOrStartsInsideTheGroundInAnyWorld()
+    {
+        uint [6] starts = {(uint)7, (uint)101, (uint)2026, (uint)31337, (uint)5150, (uint)90210}
+        int total = 0
+        for start : starts {
+            int bad = HellfeatherCutsceneTests.BadFramesInWorld(start)
+            if bad > 0 {
+                Print("Bad frames in the world from seed")
+                Print(start)
+                Print(bad)
+            }
+            total += bad
+        }
+        T.AreEqual(total, 0)
+    }
+
+    TheFlockStandsCalmEyedUntilItsEyesLightThenIsTheRedEyedDuck()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        HellfeatherCutsceneTests.StandOnRoad(game, world, 37.0)
+        T.IsTrue(game.Cutscene.Playing)
+        T.IsTrue(game.Opening.CalmAnimation >= 0)
+        T.AreNotEqual(game.Opening.CalmAnimation, game.Opening.RedAnimation)
+        int calm = 0
+        for duck : game.Opening.Ducks {
+            QuaxelAnimator animator = world.GetAnimator(duck.Visual)
+            if animator.Animation == game.Opening.CalmAnimation { calm++ }
+        }
+        T.AreEqual(calm, HellfeatherOpeningScene.AllDucks())
+        // Just before the first eye lights, all still calm.
+        while game.Cutscene.Clock < 12.95 { HellfeatherCutsceneTests.Wait(game, world, 1) }
+        calm = 0
+        for duck : game.Opening.Ducks {
+            QuaxelAnimator animator = world.GetAnimator(duck.Visual)
+            if animator.Animation == game.Opening.CalmAnimation { calm++ }
+        }
+        T.AreEqual(calm, HellfeatherOpeningScene.AllDucks())
+        // Once every eye burns, every one is the red-eyed duck.
+        while game.Cutscene.Clock < 14.2 { HellfeatherCutsceneTests.Wait(game, world, 1) }
+        int red = 0
+        for duck : game.Opening.Ducks {
+            QuaxelAnimator animator = world.GetAnimator(duck.Visual)
+            if animator.Animation == game.Opening.RedAnimation { red++ }
+        }
+        T.AreEqual(red, HellfeatherOpeningScene.AllDucks())
+    }
+}

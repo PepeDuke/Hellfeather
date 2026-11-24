@@ -7,6 +7,10 @@
 //     Hellfeather.exe --start edda --hoard   13 feathers and the ravens' hoard open
 //     Hellfeather.exe --no-menu       skips the main menu
 //     Hellfeather.exe --res 1920x1080 opens the window at that size in pixels
+//     Hellfeather.exe --cutscene opening         plays the opening at once
+//     Hellfeather.exe --cutscene-frames opening  the opening, paused, to look at frame by frame:
+//                                     Left/Right a frame (hold to keep going), Up/Down a second,
+//                                     Space plays and pauses, Home goes back to the start, Esc ends it
 // Any of the options that start somewhere also skip the main menu.
 
 // Reads "WIDTHxHEIGHT" (either x case) into width and height, in pixels.
@@ -97,6 +101,17 @@ Main(string [] args)
             skipMenu = true
         }
         if args[i] == "--no-menu" { skipMenu = true }
+        if args[i] == "--cutscene" || args[i] == "--cutscene-frames" {
+            HellfeatherCutscene scene = i + 1 < args.Len ? HellfeatherCutscenePlayer.Named(args[i + 1]) | HellfeatherCutscene.None
+            if scene == HellfeatherCutscene.None {
+                Print("Expected " + args[i] + " opening")
+                return
+            }
+            game.CutsceneOnStart = scene
+            game.InspectOnStart = args[i] == "--cutscene-frames"
+            skipMenu = true
+            i++
+        }
         if args[i] == "--res" {
             if i + 1 >= args.Len || !ParseResolution(args[i + 1], game.RequestedWidth, game.RequestedHeight) {
                 Print("Expected --res WIDTHxHEIGHT, for example --res 1920x1080")

@@ -198,7 +198,7 @@ HellfeatherGame : QuaxelGameInstance
     // accuracy and elements. False when she dodged it.
     bool HitPlayerAs(QuaxelWorld& world, int kind, int physical)
     {
-        if PlayerHealth <= 0 { return false }
+        if PlayerHealth <= 0 || PlayerInvulnerable() { return false }
         stats : Stats()
         int accuracy = kind >= 0 ? Spawner.Table.Kinds[kind].Accuracy | 0
         // Scorched, her defense is cut; shocked or frozen, blows land harder.
@@ -246,6 +246,13 @@ HellfeatherGame : QuaxelGameInstance
     // Streaks of light along the cleave's arc, from her right to her left.
     CleaveArc(QuaxelWorld& world, vec3 origin)
     {
+        int [] started
+        CleaveArcInto(world, origin, started)
+    }
+
+    // As CleaveArc, adding each streak's effect to Started.
+    CleaveArcInto(QuaxelWorld& world, vec3 origin, int []& started)
+    {
         vec3 forward = PlayerFacing(world)
         // Her right: local -X of the model, which faces +Z.
         vec3 right = vec3(-forward.Z, 0.0, forward.X)
@@ -256,7 +263,7 @@ HellfeatherGame : QuaxelGameInstance
             vec3 spot = forward * Math.Cos(angle) + right * Math.Sin(angle)
             vec3 along = forward * Math.Sin(angle) - right * Math.Cos(angle)
             vec3 at = origin + spot * radius + vec3(0.0, 0.35, 0.0)
-            world.StartEffect(HellfeatherSkillEffects.CleaveStreak(), at, along)
+            started += world.StartEffect(HellfeatherSkillEffects.CleaveStreak(), at, along)
         }
     }
 

@@ -190,6 +190,13 @@ HellfeatherFeatherDrift
         Carry = 0.0
     }
 
+    // Fixes the feathers' randomness, so the same steps fall the same way.
+    SeedWith(uint seed)
+    {
+        Random.Begin(seed)
+        Seeded = true
+    }
+
     -Seed()
     {
         if Seeded { return }

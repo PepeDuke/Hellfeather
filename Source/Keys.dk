@@ -11,6 +11,9 @@ HellfeatherKeys
     #int Enter = 13
     #int Escape = 27
     #int Space = 32
+    #int Home = 36
+    #int Left = 37
     #int Up = 38
+    #int Right = 39
     #int Down = 40
 }

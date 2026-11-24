@@ -92,6 +92,8 @@ HellfeatherQuests
     bool SeveringKnown
     bool PondWoke
     bool MardraMoulted
+    // The cutscenes she has seen, a bit for each HellfeatherCutscene.
+    int CutscenesSeen
     int ThrallsSpared
     int BearersFreed
     bool GreyneckSlain
