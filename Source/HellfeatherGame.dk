@@ -244,6 +244,7 @@ HellfeatherGame : QuaxelGameInstance
         StockMerchants((uint)(clock & (long)0x7FFFFFFF))
         if NewWorldEachRun { WorldSeed = PickWorldSeed((uint)(((clock >> 8) ^ (clock >> 29)) & (long)0x7FFFFFFF)) }
         Sfx.Load(world)
+        StartMusic(world)
         bool ready = SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world) && GoToStart(world)
         if ready { ApplySavedWaypoints() }
         // A game started straight into play, as after picking a character, has begun.
@@ -492,6 +493,7 @@ HellfeatherGame : QuaxelGameInstance
         StepsSimulated++
         if Benchmark.Enabled { Benchmark.Step(input) }
         // The main menu and the pause menu hold the game still.
+        StepMusicPalette(world)
         if StepScreens(world, input, deltaSeconds) { return }
         // A cutscene holds the game still and has every key to itself.
         if Cutscene.Playing {
@@ -545,6 +547,7 @@ HellfeatherGame : QuaxelGameInstance
         Actions.Slots.Tick(deltaSeconds)
         WarCrySeconds = Math.Max(0.0, WarCrySeconds - deltaSeconds)
         if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
+        StepMusic(world, deltaSeconds)
         Fires.Step(world, Terrain.Valley.Props.Brazier, Terrain.Town.Volumes.Campfire, world.GetPosition(PlayerNode), deltaSeconds)
         if !UpdateSpawns(world, world.GetPosition(PlayerNode)) { Print("Enemy spawning failed") }
         Globes.Step(world, (float)PlayerHealth / (float)PlayerMaxHealth(), (float)PlayerMana / (float)PlayerMaxMana(), deltaSeconds)
@@ -856,6 +859,7 @@ HellfeatherGame : QuaxelGameInstance
         DropLoot(world, i)
         DropFeathers(world, i)
         CountKill(world, i)
+        MusicMourn(world, i)
         Enemies[i].Afflictions.Clear(world)
         world.SetAnimationSpeed(Enemies[i].VisualNode, 1.0)
     }

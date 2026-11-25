@@ -6,6 +6,7 @@ Issues found during testing:
 [x] zones do not randomlly generate in between the key points, each new load in/game reset the zones should regenerate not be same
 [x] Quest item from enemy can only drop again if you already do not have it in inventory or personal chest
 [x] no jassa brune death animation, maybe we should do dialog here as well. also it should be visible you get the the curse on your hand maybe pain animation and glow on the hand (effect)
+[] add click identification for rare and up droped item, s you just hold right mouse click for a bit to fill identification bar after it fills we want to do some effects to show each mod, maybe do effect around the item tooltip in UI (gold for rate) 
 [] talking to eda should heal and regain mana to full. (add sound effect when healed and/or gain mana)
 [] jassa brune should be by the window but there is not window
 [] there should be some big notifaction if you complie the 1 out of 6 main quests
@@ -31,6 +32,10 @@ Issues found during testing:
 [] add a belt potion slots, this is system where we can "open" belt for aditional slots, higher bases have more slots. we can add only pots there, and we can drop them into a beld in inventory screen, potion acctions prefere pots that are free inside inventory and then the belt. on pick up of pot or buy it trys to first put it in the belt. on belt drop or sell the pots are inside the belt.
 [] black fethers should stack to 10
 [] we should have auto-pickup for gold in a range around the player
+[] additional sound effects needed buy/sell sound, picking items in inventory
+[] areal sound effect around fire, maybe also for waypoint dirent one
+[] diffrent sound for drinking potions
+[] add options menu -> music, sound loudness, resolution
 
 act 2:
  scuffed models: 

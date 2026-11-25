@@ -1,0 +1,227 @@
+// Each place's band. A palette weighs how often each of the score's
+// instruments plays there: 1 is as the music would by itself, 2 about twice
+// as often, 0 never. Tempo is beats a minute with no danger, 0 for the
+// score's own 72. Mode is the scale and its chords (QuaxelMusicMode): Major
+// is bright, Dorian grim, Minor dark and epic, Phrygian dread, HarmonicMinor
+// tragic. The music still answers danger, kills, water and roofs on
+// top of these; a palette only colours it. A change is heard from the next
+// section, within half a minute.
+//
+// For picks the zone, as HellfeatherZoneNames names them. Any is used where
+// no palette names the zone, and Menu=true is the main menu's.
+//
+// The instruments (Quaxel's QuaxelMusicInstrument):
+//   Drone      low detuned saws on the tonic, breathing under everything
+//   Pad        slow dark chords, like strings or a choir
+//   Bass       chord roots
+//   Pluck      the riff, a nylon string
+//   Bell       sparse high chord tones from an FM bell
+//   Lead       a hollow, breathy reed
+//   Wind       resonant noise swelling on the chord root
+//   Metal      inharmonic clangs, chains or a distant anvil
+//   LowDrum    a taiko-like drum with a falling pitch
+//   FrameDrum  a dry frame drum on the half-time backbeat
+//   Shaker     a soft shh of seeds
+//   Drip       water drops tuned to the chord
+//   Erhu       a nasal bowed fiddle that slides into its notes, lamenting
+//   Dulcimer   struck string pairs, shimmering arpeggios and tremolos
+HellfeatherMusicPalettes
+#{
+    markup Build()
+    {
+        return {
+            // Where nothing more particular is set: the wilds.
+            <MusicPalette For=HellfeatherZone.Any Mode=QuaxelMusicMode.Minor Tempo=66.0 Drone=1.3 Pad=1.3 LowDrum=1.2 Shaker=0.5 Pluck=0.7/>
+
+            // Before the game starts: slow, sparse and mournful, no beat.
+            <MusicPalette Menu=true Tempo=64.0 Erhu=1.8 Pad=1.5 Drone=1.3 Bell=1.4 Wind=1.2 Dulcimer=1.0 Pluck=0.5 Lead=0.4 Bass=0.7 Metal=0.3 Drip=0.3 LowDrum=0.2 FrameDrum=0.0 Shaker=0.0/>
+
+            // The towns stay bright, in Major: Ravenford, Thornwick, the pilgrims'
+            // camp and rooms indoors. Everywhere else is in a minor mode and
+            // slower, with the big drum, drone and choir over the small drums.
+
+            // Act I, overland.
+            // The marsh between the named places: reeds and wind over a dark drone.
+            <MusicPalette For=HellfeatherZone.Fenmarch Mode=QuaxelMusicMode.Minor Tempo=64.0 Lead=1.4 Wind=1.6 Drone=1.6 Pad=1.4 LowDrum=1.3 Drip=1.2 Dulcimer=0.6 Bell=0.7 Metal=0.5 Pluck=0.6 Shaker=0.3 FrameDrum=0.6/>
+            // Home: warm strings, a lighter step, hardly any iron.
+            <MusicPalette For=HellfeatherZone.Ravenford Mode=QuaxelMusicMode.Major Tempo=76.0 Dulcimer=1.8 Pluck=1.5 Bell=1.2 Pad=1.2 Bass=1.1 FrameDrum=0.8 Shaker=0.8 Erhu=0.8 Lead=0.8 Drone=0.6 Wind=0.5 LowDrum=0.3 Metal=0.2/>
+            // Farms at the edge of the wild: still warm, but grey.
+            <MusicPalette For=HellfeatherZone.Croft Mode=QuaxelMusicMode.Dorian Tempo=68.0 Pluck=1.3 Dulcimer=1.3 Lead=1.3 Pad=1.2 Drone=1.1 Bass=1.1 Shaker=0.6 Metal=0.3/>
+            // A travelled road: a heavy, marching step.
+            <MusicPalette For=HellfeatherZone.FordRoad Mode=QuaxelMusicMode.Minor Tempo=66.0 LowDrum=1.6 Drone=1.4 Pad=1.3 Lead=1.2 Bass=1.2 Wind=1.2 FrameDrum=0.9 Pluck=0.8 Shaker=0.4/>
+            // Open water: drops and slow strings.
+            <MusicPalette For=HellfeatherZone.FennickWater Mode=QuaxelMusicMode.Dorian Tempo=64.0 Drip=2.0 Pad=1.5 Dulcimer=1.2 Bell=1.2 Wind=1.3 Drone=1.3 LowDrum=0.7 Metal=0.4 Shaker=0.3/>
+            // The hospice on the hill: bells and a grieving choir.
+            <MusicPalette For=HellfeatherZone.OrrasHill Mode=QuaxelMusicMode.Dorian Tempo=62.0 Bell=2.0 Pad=1.8 Erhu=1.4 Drone=1.4 Lead=0.6 LowDrum=0.6 Pluck=0.5 Shaker=0.2/>
+            // The mill: machinery grinding under a dark riff.
+            <MusicPalette For=HellfeatherZone.HobbsMill Mode=QuaxelMusicMode.Minor Tempo=68.0 Metal=1.8 LowDrum=1.4 Drone=1.3 Bass=1.3 FrameDrum=1.0 Pluck=1.0 Drip=1.0 Dulcimer=0.6 Wind=0.8 Shaker=0.4/>
+
+            // Act I, below: darker the deeper.
+            <MusicPalette For=HellfeatherZone.UndercroftLanding Mode=QuaxelMusicMode.Minor Tempo=64.0 Drone=1.7 Drip=1.6 Metal=1.3 Pad=1.4 LowDrum=1.3 Bell=0.7 Pluck=0.6 Dulcimer=0.4 Shaker=0.2/>
+            <MusicPalette For=HellfeatherZone.Undercroft Mode=QuaxelMusicMode.Phrygian Tempo=62.0 Drone=1.9 Metal=1.6 Drip=1.5 LowDrum=1.6 Pad=1.4 Bell=0.6 Pluck=0.5 Dulcimer=0.3 Shaker=0.2/>
+            <MusicPalette For=HellfeatherZone.UndercroftDeep Mode=QuaxelMusicMode.Phrygian Tempo=58.0 Drone=2.0 Metal=1.8 LowDrum=1.8 Pad=1.5 Erhu=1.3 Drip=1.2 Lead=0.4 Pluck=0.3 Dulcimer=0.2 Shaker=0.1 FrameDrum=0.5/>
+
+            // Inside a house, a tent or the mill: close and quiet, strings by the fire.
+            <MusicPalette For=HellfeatherZone.Interior Mode=QuaxelMusicMode.Major Pluck=1.5 Dulcimer=1.5 Bell=1.1 Pad=1.1 Drone=0.7 FrameDrum=0.5 LowDrum=0.3 Metal=0.2/>
+
+            // Act II, overland.
+            // The pilgrims' camp: hand drums and a fiddle.
+            <MusicPalette For=HellfeatherZone.Encampment Mode=QuaxelMusicMode.Major Tempo=76.0 FrameDrum=1.6 Shaker=1.5 Erhu=1.4 Lead=1.3 Pluck=1.2 Bass=1.1 Metal=0.6/>
+            // The road of the sick: slow bells and a choir.
+            <MusicPalette For=HellfeatherZone.HospiceRoad Mode=QuaxelMusicMode.Dorian Tempo=64.0 Bell=1.5 Pad=1.6 Drone=1.3 Lead=1.1 Wind=1.3 Erhu=1.2 LowDrum=1.0 Pluck=0.6 Shaker=0.3/>
+            <MusicPalette For=HellfeatherZone.Shallows Mode=QuaxelMusicMode.Minor Tempo=64.0 Drip=1.8 Wind=1.6 Drone=1.5 Pad=1.3 Lead=1.2 Dulcimer=1.0 Pluck=0.6 Shaker=0.3/>
+            // The village: strings and a dance.
+            <MusicPalette For=HellfeatherZone.Thornwick Mode=QuaxelMusicMode.Major Tempo=74.0 Pluck=1.5 Dulcimer=1.5 FrameDrum=1.2 Shaker=1.2 Bass=1.1/>
+            // The open Thornmere: wind, a war drum and a lone fiddle.
+            <MusicPalette For=HellfeatherZone.Heath Mode=QuaxelMusicMode.Minor Tempo=62.0 Wind=1.8 Drone=1.6 Erhu=1.5 LowDrum=1.4 Pad=1.4 Lead=1.0 Bell=0.7 Dulcimer=0.5 Pluck=0.5 Shaker=0.2 FrameDrum=0.6/>
+
+            // Act II, below.
+            // The looms: a gothic choir, bells and the clack of shuttles.
+            <MusicPalette For=HellfeatherZone.Cloister Mode=QuaxelMusicMode.HarmonicMinor Tempo=64.0 Bell=1.8 Pad=1.8 Metal=1.3 Erhu=1.2 Drone=1.3 LowDrum=1.0 Dulcimer=0.9 Pluck=0.5 Shaker=0.3/>
+            <MusicPalette For=HellfeatherZone.RecordsCellar Mode=QuaxelMusicMode.Minor Tempo=62.0 Drone=1.7 Drip=1.4 Pad=1.3 Metal=1.1 Bell=1.0 LowDrum=1.0 Pluck=0.8 Shaker=0.2/>
+            // The wards: a lament.
+            <MusicPalette For=HellfeatherZone.SouthWing Mode=QuaxelMusicMode.HarmonicMinor Tempo=62.0 Pad=1.7 Erhu=1.7 Drone=1.5 Bell=1.2 Metal=1.0 LowDrum=0.9 FrameDrum=0.4 Lead=0.4 Pluck=0.4 Shaker=0.2/>
+            <MusicPalette For=HellfeatherZone.SouthWingDeep Mode=QuaxelMusicMode.Phrygian Tempo=58.0 Drone=2.0 Erhu=1.6 Metal=1.5 LowDrum=1.6 Pad=1.5 Bell=0.7 Pluck=0.3 Dulcimer=0.3 Shaker=0.1/>
+            // Sparking wires in a chapel: iron and bells over a heavy drum.
+            <MusicPalette For=HellfeatherZone.RelayChapel Mode=QuaxelMusicMode.Phrygian Tempo=60.0 Metal=2.0 Bell=1.8 Pad=1.6 Drone=1.7 LowDrum=1.7 Erhu=1.0 Shaker=0.4 Pluck=0.4/>
+        }
+    }
+}
+
+// One place's band; see HellfeatherMusicPalettes.
+MusicPalette
+{
+    HellfeatherZone For = HellfeatherZone.Any
+    bool Menu
+    QuaxelMusicMode Mode = QuaxelMusicMode.Major
+    float Tempo = 0.0
+    float Drone = 1.0
+    float Pad = 1.0
+    float Bass = 1.0
+    float Pluck = 1.0
+    float Bell = 1.0
+    float Lead = 1.0
+    float Wind = 1.0
+    float Metal = 1.0
+    float LowDrum = 1.0
+    float FrameDrum = 1.0
+    float Shaker = 1.0
+    float Drip = 1.0
+    float Erhu = 1.0
+    float Dulcimer = 1.0
+
+    JoinMusic(HellfeatherMusicTable& table)
+    {
+        if Menu { table.Menu = this }
+        else { table.Palettes += this }
+    }
+
+    float Weight(QuaxelMusicInstrument instrument)
+    {
+        Switch (instrument)
+        {
+            case QuaxelMusicInstrument.Drone: return Drone
+            case QuaxelMusicInstrument.Pad: return Pad
+            case QuaxelMusicInstrument.Bass: return Bass
+            case QuaxelMusicInstrument.Pluck: return Pluck
+            case QuaxelMusicInstrument.Bell: return Bell
+            case QuaxelMusicInstrument.Lead: return Lead
+            case QuaxelMusicInstrument.Wind: return Wind
+            case QuaxelMusicInstrument.Metal: return Metal
+            case QuaxelMusicInstrument.LowDrum: return LowDrum
+            case QuaxelMusicInstrument.FrameDrum: return FrameDrum
+            case QuaxelMusicInstrument.Shaker: return Shaker
+            case QuaxelMusicInstrument.Drip: return Drip
+            case QuaxelMusicInstrument.Erhu: return Erhu
+            case QuaxelMusicInstrument.Dulcimer: return Dulcimer
+            default: return 1.0
+        }
+    }
+
+    // Gives the score this band, mode and tempo.
+    ApplyTo(QuaxelMusic& music)
+    {
+        music.SetMode(Mode)
+        for instrument : QuaxelMusicInstrument { music.Prefer(instrument, Weight(instrument)) }
+        music.SetTempo(Tempo > 0.0 ? Tempo | 72.0)
+    }
+}
+
+// The palettes, read from HellfeatherMusicPalettes.Build.
+HellfeatherMusicTable
+{
+    MusicPalette [] Palettes
+    MusicPalette Menu
+
+    // The zone's palette, else the Any one, else -1 for the music as written.
+    int Find(int zone)
+    {
+        int any = -1
+        for i : 0; i < Palettes.Len; i++ {
+            if Palettes[i].For.Value == zone { return (int)i }
+            if Palettes[i].For == HellfeatherZone.Any { any = (int)i }
+        }
+        return any
+    }
+}
+#{
+    // Reads HellfeatherMusicPalettes.Build.
+    HellfeatherMusicTable Read()
+    {
+        HellfeatherMusicTable table
+        markup data = HellfeatherMusicPalettes.Build()
+        for child : data { ?child..JoinMusic(table) }
+        return table
+    }
+}
+T{
+    // Every zone has its own palette, the menu has one, and the markup's
+    // numbers reach them.
+    EveryPlaceHasItsBand()
+    {
+        table : HellfeatherMusicTable.Read()
+        for zone : HellfeatherZone {
+            int found = table.Find(zone.Value)
+            T.IsTrue(found >= 0)
+            if zone != HellfeatherZone.Any && found >= 0 { T.IsTrue(table.Palettes[found].For == zone) }
+        }
+        T.IsTrue(table.Menu.Menu)
+        T.AreEqual(table.Menu.Tempo, 64.0)
+        T.AreEqual(table.Menu.Weight(QuaxelMusicInstrument.Shaker), 0.0)
+        int town = table.Find(HellfeatherZone.Ravenford.Value)
+        T.AreEqual(table.Palettes[town].Weight(QuaxelMusicInstrument.Dulcimer), 1.8)
+        T.AreEqual(table.Palettes[town].Weight(QuaxelMusicInstrument.Drip), 1.0)
+        // The towns stay bright; the deep places do not.
+        T.IsTrue(table.Palettes[town].Mode == QuaxelMusicMode.Major)
+        T.IsTrue(table.Palettes[table.Find(HellfeatherZone.Thornwick.Value)].Mode == QuaxelMusicMode.Major)
+        T.IsTrue(table.Palettes[table.Find(HellfeatherZone.UndercroftDeep.Value)].Mode == QuaxelMusicMode.Phrygian)
+        T.IsTrue(table.Menu.Mode == QuaxelMusicMode.Major)
+    }
+
+    // The menu plays the menu's band, and starting the game the band of
+    // where she stands.
+    TheMenuAndTheFieldsHaveTheirOwnBands()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        game.Screen = HellfeatherScreen.MainMenu
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        game.Simulate(world, input, 1)
+        T.AreEqual(game.MusicZone(), HellfeatherGame.MenuPlace)
+        T.AreEqual(world.Music.Preference(QuaxelMusicInstrument.Erhu), 1.8)
+        T.AreEqual(world.Music.BaseTempo(), 64.0)
+        game.Screen = HellfeatherScreen.Playing
+        // The first step finds which clearing she is in; the next takes up its band.
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.MusicZone() != HellfeatherGame.MenuPlace)
+        table : HellfeatherMusicTable.Read()
+        int found = table.Find(game.MusicZone())
+        T.IsTrue(found >= 0)
+        if found >= 0 {
+            T.AreEqual(world.Music.BaseTempo(), table.Palettes[found].Tempo)
+            T.IsTrue(world.Music.CurrentMode() == table.Palettes[found].Mode)
+            T.AreEqual(world.Music.Preference(QuaxelMusicInstrument.Erhu), table.Palettes[found].Erhu)
+        }
+    }
+}
