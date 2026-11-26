@@ -68,6 +68,9 @@ HellfeatherGame : QuaxelGameInstance
     // The logo, written by Tools/Models/logo.py --icon.
     string WindowIcon() { return "Assets/Hellfeather.ico" }
 
+    // The benchmark measures drawn frames, so minimizing must not pause it.
+    bool IsBenchmarkEnabled() { return Benchmark.Enabled }
+
     // World units shown each way from the player along the ground.
     float ViewHalfExtent() { return 10.0 }
 
