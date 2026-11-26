@@ -6,6 +6,9 @@
 HellfeatherFires
 {
     bool EmitPointLights = true
+    // The crackle each lit fire plays from its own node, 0 for silence. The
+    // voice ends by itself once the fire's node goes with its terrain.
+    int Crackle
     -int [] Sources
     -int [] Flames
     -int [] Smokes
@@ -133,6 +136,7 @@ HellfeatherFires
             light.Color = vec3(1.0, 0.38, 0.10)
             world.SetPointLight(id, light)
         }
+        if Crackle > 0 && world.SetAudioSource(id, HellfeatherSounds.AreaSource()) { world.PlaySoundPitched(Crackle, id, campfire ? 0.55 | 0.4, true, campfire ? 1.0 | 1.15) }
         Sources += id
         Flames += world.StartEffect(FlameStyle(world, id, campfire), point, up)
         Smokes += world.StartEffect(SmokeStyle(campfire), point + vec3(0.0, 0.3, 0.0), up)

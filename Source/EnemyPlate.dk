@@ -201,6 +201,40 @@ HellfeatherGame : QuaxelGameInstance
         HellfeatherEnemyPlate.DrawStatuses(ui, gridWidth, Enemies[HoveredEnemy].Afflictions)
     }
 }
+// What an enemy's rank adds to its drops (HellfeatherGame.DropLoot).
+HellfeatherDrops
+#{
+    // The last bosses of the acts: Mardra, and the Red Warden.
+    bool IsFinalBoss(string kind) { return kind == "Mardra" || kind == "RedWarden" }
+
+    // The fewest pieces of gear a kill always gives.
+    int GearAtLeast(HellfeatherEnemyRank rank, bool final)
+    {
+        if final { return 3 }
+        if rank == HellfeatherEnemyRank.Unique { return 2 }
+        if rank == HellfeatherEnemyRank.Rare { return 1 }
+        return 0
+    }
+
+    // Coins or potions on top.
+    int SupportDrops(HellfeatherEnemyRank rank, bool final)
+    {
+        if final { return 0 }
+        if rank == HellfeatherEnemyRank.Unique { return 4 }
+        if rank == HellfeatherEnemyRank.Rare { return 2 }
+        if rank == HellfeatherEnemyRank.Magic { return 1 }
+        return 0
+    }
+
+    // How much likelier its drops come out magic or rare.
+    float RarityBoost(HellfeatherEnemyRank rank, bool final)
+    {
+        if final { return 2.8 }
+        if rank == HellfeatherEnemyRank.Unique { return 2.2 }
+        if rank == HellfeatherEnemyRank.Rare { return 1.6 }
+        return 1.0
+    }
+}
 T{
     NamesAreSpelledOutAndRanksColored()
     {

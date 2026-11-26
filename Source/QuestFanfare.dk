@@ -1,0 +1,213 @@
+// The moment one of an act's six quests is done: a gold band across the upper
+// screen with QUEST COMPLETE in large letters, the quest's icon and title, how
+// many of the act's quests are done, a bell and a burst of gold around Wren.
+HellfeatherQuestFanfare
+{
+    // The quest being celebrated, counted over every act, or -1.
+    int Quest = -1
+    float Seconds
+    // Done quests of the act when it started, the new one included.
+    int DoneInAct
+    // Set when a celebration starts; the game plays the bell and clears it.
+    bool Started
+    // Which quests were done when last looked at, over both acts.
+    -bool [12] WasDone
+    -bool Primed
+
+    // Looks for quests done since the last step. The first look only takes
+    // note, so a loaded save does not celebrate what was done before.
+    Notice(HellfeatherQuests& quests)
+    {
+        int total = HellfeatherQuests.PerAct * 2
+        for quest : 0; quest < total; quest++ {
+            bool done = quests.StateOf(quest) == HellfeatherQuestState.Done
+            if done && !WasDone[quest] && Primed { Begin(quests, quest) }
+            WasDone[quest] = done
+        }
+        Primed = true
+    }
+
+    -Begin(HellfeatherQuests& quests, int quest)
+    {
+        Quest = quest
+        Seconds = HellfeatherQuestFanfare.Length
+        Started = true
+        int first = quest < HellfeatherQuests.PerAct ? 0 | HellfeatherQuests.PerAct
+        DoneInAct = 0
+        for n : first; n < first + HellfeatherQuests.PerAct; n++ {
+            if quests.StateOf(n) == HellfeatherQuestState.Done { DoneInAct++ }
+        }
+    }
+
+    Step(float deltaSeconds)
+    {
+        if Quest < 0 { return }
+        Seconds -= deltaSeconds
+        if Seconds <= 0.0 { Quest = -1 }
+    }
+
+    bool Showing() { return Quest >= 0 }
+
+    // Over the HUD, in the upper third of the window.
+    Draw(QuaxelUi& ui, int width, int height)
+    {
+        if Quest < 0 { return }
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        float age = HellfeatherQuestFanfare.Length - Seconds
+        // In quickly, out slowly.
+        float show = Math.Clamp(age / 0.35, 0.0, 1.0) * Math.Clamp(Seconds / 1.2, 0.0, 1.0)
+        int letter = 3
+        string headline = "QUEST COMPLETE"
+        int textWide = QuaxelUiFont.TextWidth((int)Length(headline)) * letter
+        int bandHeight = 74
+        int top = Math.Max(4, gridHeight / 4 - bandHeight / 2)
+        // The band, darker in the middle, with gold rules that widen from the center.
+        ui.OverlayRect(0, top, gridWidth, bandHeight, HellfeatherInventoryScreen.Glow(0xFF000000, 0.62 * show))
+        ui.OverlayRect(0, top + 6, gridWidth, bandHeight - 12, HellfeatherInventoryScreen.Glow(0xFF140E08, 0.45 * show))
+        int rule = (int)((float)gridWidth * 0.5 * Math.Clamp(age / 0.6, 0.0, 1.0))
+        uint gold = 0xFFE8C04A
+        ui.OverlayRect(gridWidth / 2 - rule, top, rule * 2, 1, HellfeatherInventoryScreen.Glow(gold, show))
+        ui.OverlayRect(gridWidth / 2 - rule, top + bandHeight - 1, rule * 2, 1, HellfeatherInventoryScreen.Glow(gold, show))
+        ui.OverlayRect(gridWidth / 2 - rule * 3 / 4, top + 2, rule * 3 / 2, 1, HellfeatherInventoryScreen.Glow(gold, show * 0.4))
+        ui.OverlayRect(gridWidth / 2 - rule * 3 / 4, top + bandHeight - 3, rule * 3 / 2, 1, HellfeatherInventoryScreen.Glow(gold, show * 0.4))
+        // The quest's icon on the left of the headline, in a soft halo that breathes.
+        int quest = Quest % HellfeatherQuests.PerAct
+        int iconX = (gridWidth - textWide) / 2 - HellfeatherQuestLogArt.IconSize - 14
+        int iconY = top + 10
+        float breathe = 0.5 + 0.5 * Math.Sin(age * 3.0)
+        for ring : 1; ring <= 4; ring++ {
+            ui.OverlayRect(iconX - ring * 2, iconY - ring * 2, HellfeatherQuestLogArt.IconSize + ring * 4, HellfeatherQuestLogArt.IconSize + ring * 4, HellfeatherInventoryScreen.Glow(gold, show * (0.16 - (float)ring * 0.03) * (0.6 + 0.4 * breathe)))
+        }
+        if show > 0.5 { ui.OverlayOutlinedSprite(iconX, iconY, HellfeatherQuestLogArt.IconX(quest), HellfeatherQuestLogArt.Top, HellfeatherQuestLogArt.IconSize, HellfeatherQuestLogArt.IconSize, HellfeatherInventoryArt.IconOutline) }
+        // The headline in large letters, with a shadow and a light that sweeps across once.
+        int textX = (gridWidth - textWide) / 2
+        int textY = top + 12
+        float sweep = (age - 0.3) * 1.4
+        HellfeatherBigText.Draw(ui, textX + 1, textY + 1, headline, letter, HellfeatherInventoryScreen.Glow(0xFF000000, show), -1.0)
+        HellfeatherBigText.Draw(ui, textX, textY, headline, letter, HellfeatherInventoryScreen.Glow(gold, show), sweep)
+        // The quest's name and the act's tally under it.
+        string title = HellfeatherQuests.TitleOf(Quest)
+        ui.OverlayText((gridWidth - QuaxelUiFont.TextWidth((int)Length(title))) / 2, textY + 7 * letter + 10, title, HellfeatherInventoryScreen.Glow(0xFFF4E6C4, show))
+        string tally = (Quest < HellfeatherQuests.PerAct ? "Act I" | "Act II") + "  -  " + QuaxelUi.FormatInt(DoneInAct) + " of " + QuaxelUi.FormatInt(HellfeatherQuests.PerAct) + " quests complete"
+        ui.OverlayText((gridWidth - QuaxelUiFont.TextWidth((int)Length(tally))) / 2, textY + 7 * letter + 23, tally, HellfeatherInventoryScreen.Glow(0xFFB0A080, show))
+    }
+}
+#{
+    // Seconds the celebration stays up.
+    #float Length = 5.5
+
+    // Gold motes flung up and around Wren.
+    QuaxelEffectStyle Burst()
+    {
+        QuaxelEffectStyle style = QuaxelEffectStyle.Sparks()
+        style.VoxelSize = 0.035
+        style.Floor = 0.1
+        style.Burst = 160
+        style.SpawnRadius = 0.35
+        style.SpawnFlat = true
+        style.SpeedMin = 1.5
+        style.SpeedMax = 4.0
+        style.Spread = 35.0
+        style.Gravity = -2.0
+        style.Drag = 1.2
+        style.LifeMin = 0.8
+        style.LifeMax = 1.6
+        style.SizeStart = 1.0
+        style.SizeEnd = 0.3
+        style.ColorStart = 0xfff8dc
+        style.ColorMiddle = 0xf0c048
+        style.ColorEnd = 0x9a6418
+        style.Contact = QuaxelEffectContact.Die
+        return style
+    }
+}
+
+// Text from the UI font drawn large, each font pixel a square of rects.
+HellfeatherBigText
+#{
+    // Sweep, when 0 to 1, lights a band moving left to right across the text.
+    Draw(QuaxelUi& ui, int x, int y, string text, int size, uint color, float sweep)
+    {
+        int count = (int)Length(text)
+        int wide = QuaxelUiFont.TextWidth(count) * size
+        for i : 0; i < count; i++ {
+            uint first = 0
+            uint last = 0
+            QuaxelUiFont.Glyph(CodeUnitAt(text, (long)i), first, last)
+            for column : 0; column < 5; column++ {
+                uint bits = column < 4 ? (first >> (uint)(column * 8)) & (uint)0xFF | last & (uint)0xFF
+                int px = x + (i * 6 + column) * size
+                // Lighter where the sweep passes.
+                uint shade = color
+                if sweep > 0.0 && sweep < 1.0 && Math.Abs((float)(px - x) / (float)Math.Max(1, wide) - sweep) < 0.08 { shade = (color & (uint)0xFF000000) | (uint)0x00FFF8E0 }
+                for row : 0; row < 7; row++ {
+                    if ((bits >> (uint)row) & (uint)1) == (uint)0 { continue }
+                    ui.OverlayRect(px, y + row * size, size, size, shade)
+                }
+            }
+        }
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherQuestFanfare Fanfare
+
+    // Celebrates a quest just done, with the bell and a burst at her feet.
+    StepFanfare(QuaxelWorld& world, float deltaSeconds)
+    {
+        HellfeatherQuests quests = Quests
+        Fanfare.Notice(quests)
+        Fanfare.Step(deltaSeconds)
+        if !Fanfare.Started { return }
+        Fanfare.Started = false
+        Sfx.Play(world, HellfeatherSound.QuestComplete)
+        vec3 feet = world.GetPosition(PlayerNode) - vec3(0.0, PlayerRadius(), 0.0)
+        world.StartEffect(HellfeatherQuestFanfare.Burst(), feet, vec3(0.0, 1.0, 0.0))
+    }
+}
+T{
+    FinishingAQuestCelebratesItOnceButALoadedOneDoesNot()
+    {
+        HellfeatherQuestFanfare fanfare
+        HellfeatherQuests quests
+        // Done before the first look, as in a loaded save: no celebration.
+        quests.Moult = 4
+        fanfare.Notice(quests)
+        T.IsFalse(fanfare.Showing())
+        T.IsFalse(fanfare.Started)
+        T.AreEqual(quests.StateOf(0), HellfeatherQuestState.Done)
+        // Another quest coming done is celebrated, once.
+        HellfeatherQuestFanfare later
+        HellfeatherQuests fresh
+        later.Notice(fresh)
+        fresh.Moult = 4
+        later.Notice(fresh)
+        T.IsTrue(later.Showing())
+        T.IsTrue(later.Started)
+        T.AreEqual(later.Quest, 0)
+        T.AreEqual(later.DoneInAct, 1)
+        later.Started = false
+        later.Notice(fresh)
+        T.IsFalse(later.Started)
+        later.Step(HellfeatherQuestFanfare.Length + 0.1)
+        T.IsFalse(later.Showing())
+    }
+
+    TheFanfareDrawsWithinTheWindow()
+    {
+        HellfeatherQuestFanfare fanfare
+        HellfeatherQuests quests
+        fanfare.Notice(quests)
+        quests.Moult = 4
+        fanfare.Notice(quests)
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        fanfare.Step(1.0)
+        fanfare.Draw(ui, 1920, 1080)
+        ui.Layout(1920, 1080, 0, 0, false)
+        T.IsTrue(ui.CommandCount > 50)
+    }
+}

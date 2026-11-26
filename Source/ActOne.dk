@@ -155,7 +155,7 @@ T{
         game.Use(world, game.People.FindKind(HellfeatherSpotKind.Boots, HellfeatherRealm.Garret))
         game.Answer(world, HellfeatherReply.TakeBoots)
         T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.JessasWaterwalkers), 1)
-        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.LanternToken), 1)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.BlackHoney), 1)
         int vale = game.People.FindPerson(HellfeatherPerson.Vale)
         T.IsTrue(game.People.Spots[vale].Shown)
         int before = (int)game.Enemies.Len

@@ -233,14 +233,20 @@ HellfeatherActionBar
         x += BarX
         y += BarY
         bool small = HellfeatherActionArt.IsSmall(slot)
-        int size = small ? HellfeatherActionArt.NumberIcon | (slot < HellfeatherActionSlot.Q ? HellfeatherActionArt.MouseIcon | HellfeatherActionArt.Icon)
+        // Each icon fills its well; the key in the corner is drawn over it.
+        bool mouse = slot < HellfeatherActionSlot.Q
+        int size = small ? HellfeatherActionArt.NumberIcon | (mouse ? HellfeatherActionArt.MouseIcon | HellfeatherActionArt.KeyIcon)
         int iconX = x + (width - size) / 2
-        // Below the key letter in the corner, for the number and letter slots.
-        int iconY = small ? y + height - size - 1 | (slot >= HellfeatherActionSlot.Q ? y + height - size | y + (height - size) / 2)
+        int iconY = y + (height - size) / 2
         action : Slots.Assigned[slot]
         if action != HellfeatherAction.None {
-            int sourceX = size == HellfeatherActionArt.Icon ? HellfeatherActionArt.IconX(action) | action * size
-            int sourceY = small ? HellfeatherActionArt.NumberAtlasY | (size == HellfeatherActionArt.MouseIcon ? HellfeatherActionArt.MouseAtlasY | HellfeatherActionArt.IconAtlasY)
+            int sourceX = action * size
+            int sourceY = HellfeatherActionArt.NumberAtlasY
+            if mouse { sourceY = HellfeatherActionArt.MouseAtlasY }
+            else if !small {
+                sourceX = HellfeatherActionArt.KeyAtlasX + action * size
+                sourceY = HellfeatherActionArt.KeyAtlasY
+            }
             ui.OverlaySprite(iconX, iconY, sourceX, sourceY, size, size)
             HellfeatherActionKind kind = HellfeatherAction.Get(action)
             float cooling = Slots.CooldownShare(action)

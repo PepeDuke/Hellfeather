@@ -96,7 +96,7 @@ HellfeatherItems : int
     RuneCleave,
     RuneWarCry,
     RuneDash,
-    // Act I. Black feathers stack in the bag, FeatherStack to a cell. Edda
+    // Act I. Black feathers stack in the bag, FeatherStack (ten) to a cell. Edda
     // wants some, and her ravens trade their finds for more.
     BlackFeather,
     TitheBracelet,
@@ -207,10 +207,10 @@ HellfeatherItems
         if item == HellfeatherItems.RuneWarCry { return Make("War Cry Rune", "War rune: War Cry", 2, 2, HellfeatherGear.None, 260) }
         if item == HellfeatherItems.RuneDash { return Make("Dash Rune", "Wind rune: Dash", 1, 2, HellfeatherGear.None, 180) }
         if item == HellfeatherItems.BlackFeather { return Make("Black Feather", "Edda's ravens trade for these", 1, 1, HellfeatherGear.None, 0) }
-        if item == HellfeatherItems.TitheBracelet { return Make("Tithe Bracelet", "Tin. Warm, somehow", 1, 1, HellfeatherGear.None, 5) }
-        if item == HellfeatherItems.BlackHoney { return Make("Black Honey", "Double damage, 20 s", 1, 1, HellfeatherGear.None, 0) }
-        if item == HellfeatherItems.LanternToken { return Make("Lantern Token", "Lantern & Moth", 1, 1, HellfeatherGear.None, 0) }
-        if item == HellfeatherItems.GreyKey { return Make("Grey Key", "The Ringwright's ring", 1, 1, HellfeatherGear.None, 0) }
+        if item == HellfeatherItems.TitheBracelet { return Make("Tithe Bracelet", "Tin, off the tithe rolls. Pawnable", 1, 1, HellfeatherGear.None, 25) }
+        if item == HellfeatherItems.BlackHoney { return Make("Black Honey", "Thick and black. Apothecaries pay well", 1, 1, HellfeatherGear.None, 120) }
+        if item == HellfeatherItems.LanternToken { return Make("Lantern Token", "Lantern & Moth. A curio now", 1, 1, HellfeatherGear.None, 10) }
+        if item == HellfeatherItems.GreyKey { return Make("Grey Key", "A grey ring, its lock long open", 1, 1, HellfeatherGear.None, 10) }
         if item == HellfeatherItems.EddasQuillCharm { return Make("Edda's Quill Charm", "Health 15, Defense 3", 1, 1, HellfeatherGear.Neck, 400) }
         if item == HellfeatherItems.JessasWaterwalkers { return Make("Jessa's Waterwalkers", "Defense 4, Speed 15%", 2, 2, HellfeatherGear.Feet, 450) }
         if item == HellfeatherItems.MarrasThimble { return Make("Marra's Thimble", "Defense 6, Strength 3", 1, 1, HellfeatherGear.Ring, 420) }
@@ -245,23 +245,37 @@ HellfeatherItems
         return Make("", "", 1, 1, HellfeatherGear.None, 0)
     }
 
-    // Quest items carry the story: clues and keys. They show in their own
-    // color and no merchant will buy them, so none is sold by mistake.
-    bool IsQuest(HellfeatherItems item)
+    // Health and mana potions, the only things a belt's pockets take.
+    bool IsPotion(HellfeatherItems item) { return item == HellfeatherItems.HealthPotion || item == HellfeatherItems.ManaPotion }
+
+    // How many potion pockets a belt opens: more on the heavier bases.
+    int BeltPockets(HellfeatherItems belt)
     {
-        return item == HellfeatherItems.LanternToken || item == HellfeatherItems.GreyKey || item == HellfeatherItems.TitheBracelet || item == HellfeatherItems.BlackHoney || IsActTwoQuest(item)
+        if belt == HellfeatherItems.None { return 0 }
+        if belt == HellfeatherItems.PlatedBelt { return 4 }
+        if belt == HellfeatherItems.HeavyBelt { return 3 }
+        if belt == HellfeatherItems.Belt { return 2 }
+        HellfeatherItemKind kind = Get(belt)
+        return kind.Gear == HellfeatherGear.Waist ? 1 | 0
     }
+
+    // Quest items carry the story: clues and keys. They show in their own
+    // color and no merchant will buy them, so none is sold by mistake. Act I
+    // keeps its clues in the quests instead, and what it once handed out as
+    // quest items (the tithe bracelet, black honey, Jessa's token and the grey
+    // ring) is now only sold.
+    bool IsQuest(HellfeatherItems item) { return IsActTwoQuest(item) }
 
     // Valuables do nothing themselves: they are found to be sold, and merchants
     // pay their full price for them rather than a quarter.
     bool IsValuable(HellfeatherItems item)
     {
-        return item == HellfeatherItems.GoldenKey || item == HellfeatherItems.Scroll || item == HellfeatherItems.HolyOrb || item == HellfeatherItems.EggsileEgg
+        return item == HellfeatherItems.GoldenKey || item == HellfeatherItems.Scroll || item == HellfeatherItems.HolyOrb || item == HellfeatherItems.EggsileEgg || item == HellfeatherItems.TitheBracelet || item == HellfeatherItems.BlackHoney || item == HellfeatherItems.LanternToken || item == HellfeatherItems.GreyKey
     }
 
     // How many of an item one bag cell holds. Only black feathers stack.
     int StackMost(HellfeatherItems item) { return item == HellfeatherItems.BlackFeather ? FeatherStack | 1 }
-    #int FeatherStack = 5
+    #int FeatherStack = 10
 }
 
 // An item in the backpack. X and Y are its top-left cell.
@@ -377,9 +391,11 @@ HellfeatherInventory
         return AddWith(item, none)
     }
 
-    // A stacking item tops up a stack that has room for all of it first.
+    // A stacking item tops up a stack that has room for all of it first. A
+    // potion goes into a free belt pocket before the bag.
     bool AddWith(HellfeatherItems item, HellfeatherItemMods mods)
     {
+        if HellfeatherItems.IsPotion(item) && PutInBelt(item) { return true }
         int most = HellfeatherItems.StackMost(item)
         if most > 1 {
             for i : 0; i < Bag.Len; i++ {
@@ -538,7 +554,8 @@ HellfeatherInventory
         return count
     }
 
-    // Removes one of an item from the bag. False if there is none.
+    // Removes one of an item: from the bag first, then from a belt pocket.
+    // False if there is none.
     bool Consume(HellfeatherItems item)
     {
         for i : 0; i < Bag.Len; i++ {
@@ -547,7 +564,71 @@ HellfeatherInventory
                 return true
             }
         }
+        return TakeFromBelt(item)
+    }
+
+    // How many of an item she can use, the bag's and the belt's together.
+    int UsableCount(HellfeatherItems item) { return CountOf(item) + BeltCount(item) }
+
+    // The belt's open pockets, from the belt she wears.
+    int BeltSlots() { return HellfeatherItems.BeltPockets(Equipped[HellfeatherSlot.Waist]) }
+
+    HellfeatherItems BeltPotion(int pocket)
+    {
+        if pocket < 0 || pocket >= BeltSlots() { return HellfeatherItems.None }
+        return EquippedMods[HellfeatherSlot.Waist].Potions[pocket]
+    }
+
+    int BeltCount(HellfeatherItems item)
+    {
+        int count = 0
+        for pocket : 0; pocket < BeltSlots(); pocket++ { if EquippedMods[HellfeatherSlot.Waist].Potions[pocket] == item { count++ } }
+        return count
+    }
+
+    // Puts a potion in the first empty pocket. False when there is none.
+    bool PutInBelt(HellfeatherItems item)
+    {
+        if !HellfeatherItems.IsPotion(item) { return false }
+        for pocket : 0; pocket < BeltSlots(); pocket++ {
+            if EquippedMods[HellfeatherSlot.Waist].Potions[pocket] == HellfeatherItems.None {
+                EquippedMods[HellfeatherSlot.Waist].Potions[pocket] = item
+                return true
+            }
+        }
         return false
+    }
+
+    // Takes a potion out of the last pocket that holds it.
+    bool TakeFromBelt(HellfeatherItems item)
+    {
+        for pocket : BeltSlots() - 1; pocket >= 0; pocket-- {
+            if EquippedMods[HellfeatherSlot.Waist].Potions[pocket] == item {
+                EquippedMods[HellfeatherSlot.Waist].Potions[pocket] = HellfeatherItems.None
+                return true
+            }
+        }
+        return false
+    }
+
+    // A click on a pocket: a potion on the cursor goes in, swapping with the
+    // one there; with nothing on the cursor the pocket's potion is lifted.
+    bool ClickPocket(int pocket)
+    {
+        if pocket < 0 || pocket >= BeltSlots() { return false }
+        inside : EquippedMods[HellfeatherSlot.Waist].Potions[pocket]
+        if Held == HellfeatherItems.None {
+            if inside == HellfeatherItems.None { return false }
+            Held = inside
+            HeldMods.Clear()
+            EquippedMods[HellfeatherSlot.Waist].Potions[pocket] = HellfeatherItems.None
+            return true
+        }
+        if !HellfeatherItems.IsPotion(Held) { return false }
+        EquippedMods[HellfeatherSlot.Waist].Potions[pocket] = Held
+        Held = inside
+        HeldMods.Clear()
+        return true
     }
 
     // Puts the held item back in the bag, if it fits.
@@ -574,19 +655,20 @@ T{
         T.AreEqual(HellfeatherItems.CategoryOf(HellfeatherItems.None), HellfeatherWeaponCategory.None)
     }
 
-    FeathersStackFiveToACell()
+    FeathersStackTenToACell()
     {
         HellfeatherInventory bag
+        T.AreEqual(HellfeatherItems.StackMost(HellfeatherItems.BlackFeather), 10)
+        T.AreEqual(bag.AddStack(HellfeatherItems.BlackFeather, 13), 0)
+        T.AreEqual(bag.Bag.Len, 2)
+        T.AreEqual(bag.FeatherCount(), 13)
         T.AreEqual(bag.AddStack(HellfeatherItems.BlackFeather, 7), 0)
         T.AreEqual(bag.Bag.Len, 2)
-        T.AreEqual(bag.FeatherCount(), 7)
-        T.AreEqual(bag.AddStack(HellfeatherItems.BlackFeather, 3), 0)
-        T.AreEqual(bag.Bag.Len, 2)
-        T.AreEqual(bag.FeatherCount(), 10)
-        T.IsFalse(bag.TakeStack(HellfeatherItems.BlackFeather, 11))
-        T.AreEqual(bag.FeatherCount(), 10)
-        T.IsTrue(bag.TakeStack(HellfeatherItems.BlackFeather, 6))
-        T.AreEqual(bag.FeatherCount(), 4)
+        T.AreEqual(bag.FeatherCount(), 20)
+        T.IsFalse(bag.TakeStack(HellfeatherItems.BlackFeather, 21))
+        T.AreEqual(bag.FeatherCount(), 20)
+        T.IsTrue(bag.TakeStack(HellfeatherItems.BlackFeather, 12))
+        T.AreEqual(bag.FeatherCount(), 8)
         T.AreEqual(bag.Bag.Len, 1)
     }
 
@@ -616,15 +698,15 @@ T{
     AHeldStackFillsAStackItIsDroppedOn()
     {
         HellfeatherInventory bag
-        bag.AddStack(HellfeatherItems.BlackFeather, 2)
+        bag.AddStack(HellfeatherItems.BlackFeather, 7)
         bag.Held = HellfeatherItems.BlackFeather
         bag.HeldMods.Clear()
-        bag.HeldMods.Stack = 4
+        bag.HeldMods.Stack = 6
         T.IsTrue(bag.Drop(bag.Bag[0].X, bag.Bag[0].Y))
-        T.AreEqual(bag.Bag[0].Mods.Amount(), 5)
+        T.AreEqual(bag.Bag[0].Mods.Amount(), 10)
         T.IsTrue(bag.Held == HellfeatherItems.BlackFeather)
-        T.AreEqual(bag.HeldMods.Amount(), 1)
-        T.AreEqual(bag.FeatherCount(), 6)
+        T.AreEqual(bag.HeldMods.Amount(), 3)
+        T.AreEqual(bag.FeatherCount(), 13)
     }
 
     ItemsFillTheBagWithoutOverlapping()

@@ -43,7 +43,7 @@ def write(name, rig, size=(80, 120, 80)):
     its grip socket."""
     # Lifted so parts below the grip, such as a pommel, are not cut off at
     # the canvas floor; the cut below drops the empty space again.
-    pose = {'offset': (0, 30, 0)}
+    pose = {'offset': (0, 45, 0)}
     grid = rig.render(pose, size)
     xs, ys, zs = (np.nonzero((grid >= 0).any(axis=axes))[0] for axes in ((1, 2), (0, 2), (0, 1)))
     lo = np.array([xs.min(), ys.min(), zs.min()])
@@ -175,25 +175,48 @@ def great_helm():
 
 
 def kite_shield():
-    """A tall kite shield painted dark red, rounded at the top and coming to a
-    point below, a steel rim and a black raven across its face. Built and gripped
-    like the round shield."""
+    """A tall kite shield painted dark red, rounded at the top and tapering in
+    curved sides to a point well below the arm, with a one-voxel steel rim, four
+    rivets and a black raven, wings raised, on its upper face. It is only about
+    16 voxels wide, so every part is drawn bold and flat. Built and gripped like
+    the round shield; the grip sits a third of the way down."""
     r = new_rig((0, 0, -1.6))
+    top, shoulder, point, half = 11.0, 5.5, -15.0, 7.2
 
     def outline(x, y):
-        top = np.hypot(x / 7.0, np.maximum(y - 4.0, 0) / 5.0) <= 1.0
-        below = (y <= 4.0) & (np.abs(x) <= 7.0 * np.clip((y + 14.0) / 18.0, 0, 1))
-        return top & (y <= 9.0) | below & (y >= -14.0)
+        # A half ellipse over the shoulders, then sides that curve in to the point.
+        crown = (y > shoulder) & (np.hypot(x / half, (y - shoulder) / (top - shoulder)) <= 1.0)
+        taper = half * np.sqrt(np.clip((y - point) / (shoulder - point), 0, 1))
+        body = (y <= shoulder) & (y >= point) & (np.abs(x) <= taper)
+        return crown | body
 
     def board(x, y, z):
         return outline(x, y) & (np.abs(z) < 0.8)
-    board.box = (np.array([-7.2, -14.2, -0.9]), np.array([7.2, 9.2, 0.9]))
+    board.box = (np.array([-7.4, point - 0.2, -0.9]), np.array([7.4, top + 0.2, 0.9]))
+
+    def raven(x, y):
+        # Wings raised in a broad V from the shoulders of the body, a round
+        # head between them, a body and a short fanned tail below.
+        ax = np.abs(x)
+        wings = (ax >= 1.0) & (ax <= 5.2) & (np.abs(y - (2.0 + ax * 0.8)) <= 1.1)
+        head = np.hypot(x, y - 4.6) <= 1.2
+        body = (ax <= 1.1) & (y >= -1.0) & (y <= 3.6)
+        tail = (y < -0.5) & (y >= -3.2) & (ax <= 0.6 + (-0.5 - y) * 0.5)
+        return wings | head | body | tail
 
     def paint(x, y, z, pose):
-        rim = ~outline(x * 1.16, (y - 1.0) * 1.12 + 1.0)
-        bird = (np.hypot(x / 3.6, (y - 1.0) / 1.2) <= 1.0) | (np.hypot(x / 1.2, (y - 1.5) / 3.6) <= 1.0)
-        out = np.where(bird & (z > 0), RAVEN[0], CLOTH_RED[1])
-        return np.where(rim, IRON[1], out)
+        step = 1.0
+        inner = outline(x - step, y) & outline(x + step, y) & outline(x, y - step) & outline(x, y + step)
+        front = z > 0
+        out = np.where(y < -6.0, CLOTH_RED[1], CLOTH_RED[0])
+        out = np.where(front & raven(x, y - 2.5), RAVEN[0], out)
+        # The raven's eye.
+        out = np.where(front & (np.abs(x - 0.4) < 0.5) & (np.abs(y - 7.4) < 0.5), SILVER[0], out)
+        out = np.where(~inner, IRON[1], out)
+        rivets = ((np.abs(np.abs(x) - 5.0) < 0.5) & (np.abs(y - 5.5) < 0.5)) | ((np.abs(np.abs(x) - 3.0) < 0.5) & (np.abs(y + 8.0) < 0.5))
+        out = np.where(front & inner & rivets, SILVER[1], out)
+        return np.where(~front & inner, WOOD[1], out)
+
     r.part('root', board, paint)
     r.part('root', capsule((-2.5, 0, -1.4), (2.5, 0, -1.4), 0.6), LEATHER[2])
     return r

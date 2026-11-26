@@ -53,8 +53,16 @@ HellfeatherQuests
     HellfeatherQuestState StateTwo(int quest)
     {
         if quest == 6 { return Road == 0 ? HellfeatherQuestState.Unknown | (Road >= 4 ? HellfeatherQuestState.Done | HellfeatherQuestState.Active) }
-        if quest == 7 { return Laws == 0 ? HellfeatherQuestState.Unknown | (Laws >= 4 ? HellfeatherQuestState.Done | HellfeatherQuestState.Active) }
-        if quest == 8 { return Ledgers == 0 ? HellfeatherQuestState.Unknown | (Ledgers >= 3 ? HellfeatherQuestState.Done | HellfeatherQuestState.Active) }
+        // Thornwick's two quests show as soon as there is a lead to them: the
+        // Cloister once Act II opens, the ledgers once Jessa's file is read.
+        if quest == 7 {
+            if Laws >= 4 { return HellfeatherQuestState.Done }
+            return Laws >= 1 || ActTwo ? HellfeatherQuestState.Active | HellfeatherQuestState.Unknown
+        }
+        if quest == 8 {
+            if Ledgers >= 3 { return HellfeatherQuestState.Done }
+            return Ledgers >= 1 || Laws >= 2 ? HellfeatherQuestState.Active | HellfeatherQuestState.Unknown
+        }
         if quest == 9 {
             if Archive >= 4 { return HellfeatherQuestState.Done }
             return Archive >= 1 || Ledgers >= 3 ? HellfeatherQuestState.Active | HellfeatherQuestState.Unknown
@@ -101,7 +109,15 @@ HellfeatherQuests
                 lines += "still sure of the hospice."
             }
         } else if quest == 7 {
-            if Laws == 1 {
+            if Laws == 0 {
+                lines += "Jessa learned to weave at"
+                lines += "the Cloister of Looms in"
+                lines += "Thornwick, the town past"
+                lines += "the encampment."
+                lines += ""
+                lines += "Ask for Mistress Agnet at"
+                lines += "the Cloister's door."
+            } else if Laws == 1 {
                 lines += "Mistress Agnet keeps"
                 lines += "Jessa's file in the"
                 lines += "expulsion archive under"
@@ -125,7 +141,15 @@ HellfeatherQuests
                 lines += "blank stones."
             }
         } else if quest == 8 {
-            if Ledgers == 1 {
+            if Ledgers == 0 {
+                lines += "Jessa's names are kept in"
+                lines += "the Barred Eye ledgers in"
+                lines += "Thornwick's Tithe-House."
+                lines += ""
+                lines += "Red Cuffs hold the town"
+                lines += "gate: pay their tithe,"
+                lines += "bluff, or fight."
+            } else if Ledgers == 1 {
                 lines += "The Tithe-House keeps its"
                 lines += "ledgers in a chest by"
                 lines += "its door. Steal them."
@@ -280,7 +304,8 @@ HellfeatherGame : QuaxelGameInstance
         HospiceRoadStart = Flat(gate) + vec3(side + 1.6, 0.0, front + 2.2)
         CellarDoor = Flat(gate) + vec3(-side - 0.6, 0.0, front - 1.0)
         WingDoor = Flat(gate) + vec3(side + 0.6, 0.0, front - 1.0)
-        int road = People.Add(HellfeatherSpotKind.Road, "The Hospice Road", fen, HospiceRoadStart)
+        // Named for where it goes, not for Act II's first quest on the far end.
+        int road = People.Add(HellfeatherSpotKind.Road, "North to the Thornmere", fen, HospiceRoadStart)
         People.Spots[road].Leads = HellfeatherRealm.Thornmere
         People.Spots[road].Shown = Quests.ActTwo
         int cellar = People.Add(HellfeatherSpotKind.Road, "Records cellar", fen, CellarDoor)
@@ -288,7 +313,8 @@ HellfeatherGame : QuaxelGameInstance
         People.Spots[cellar].Shown = Quests.Records >= 1
         int wing = People.Add(HellfeatherSpotKind.Road, "The south wing", fen, WingDoor)
         People.Spots[wing].Leads = HellfeatherRealm.SouthWing
-        People.Spots[wing].Shown = Quests.ActTwo
+        // Locked until Vale gives her the hospice key, at the end of II-5.
+        People.Spots[wing].Shown = Quests.Records >= 3 || Quests.SouthWing >= 1
     }
 
     // The Thornmere's people and things, each time it is built. The camp's
@@ -308,7 +334,8 @@ HellfeatherGame : QuaxelGameInstance
         int vale = People.AddPerson(HellfeatherPerson.Vale, "Sister Vale", mere, HellfeatherCastTwo.ValeAt(), "Assets/SisterVale.qvox", 0.0271, 72)
         People.Spots[vale].Shown = ValeAtCamp()
         People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(-3.6, 5.2), "Assets/Pilgrim01.qvox", 0.025, 70)
-        People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(4.2, 9.0), "Assets/Pilgrim02.qvox", 0.025, 70)
+        // Well apart from Tolly, so their names do not overlap.
+        People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(-4.5, 11.0), "Assets/Pilgrim02.qvox", 0.025, 70)
         if !q.PilgrimsTold { People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(-11.0, 9.2), "Assets/Pilgrim03.qvox", 0.025, 70) }
         People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim at the table", mere, HellfeatherCastTwo.Camp(PilgrimsEncampment.CookX + 3.4, PilgrimsEncampment.CookZ + 2.6), "Assets/PilgrimSitting.qvox", 0.025, 60)
         // Her tent's door, which the level's rebuild took with the rest.
@@ -535,7 +562,7 @@ HellfeatherGame : QuaxelGameInstance
         if kind == HellfeatherSpotKind.Road {
             HellfeatherRealm leads = People.Spots[spot].Leads
             if leads == HellfeatherRealm.Thornmere && !q.ActTwo {
-                Talk.Begin("The Hospice Road", spot, false)
+                Talk.Begin("North to the Thornmere", spot, false)
                 Talk.Narrate("The pilgrim road runs on past the hospice, north, toward the Thornmere and the weaving town.")
                 Talk.Offer("Take the road", HellfeatherReply.TakeTheRoad)
                 Talk.Offer("Not yet", HellfeatherReply.Leave)
@@ -563,8 +590,9 @@ HellfeatherGame : QuaxelGameInstance
             if q.Ledgers == 1 && q.CheckpointPassed {
                 Talk.Narrate("A chest by the counting-room door, the Barred Eye burned into its lid. The clerk is looking the other way.")
                 Talk.Offer("Take the ledgers", HellfeatherReply.StealLedgers)
-            } else if q.Ledgers == 0 {
+            } else if q.Ledgers == 0 || !q.CheckpointPassed {
                 Talk.Narrate("A counting-house with barred windows. Red Cuffs drink in its barracks wing.")
+                Talk.Narrate("Nobody gets near the ledger chest who hasn't settled with the Cuffs at the town gate.")
             } else {
                 Talk.Narrate("The chest is empty. Someone will be blamed.")
             }
@@ -660,6 +688,7 @@ HellfeatherGame : QuaxelGameInstance
             if q.Road == 0 {
                 Talk.Say("You came up the hospice road. Then you saw them hanging.")
                 Talk.Say("Cut them down, child. Every one wears a tin bracelet. And the white swan that leads the Shallows has been taking pilgrims at the water.")
+                if q.Laws == 0 { Talk.Say("And if it's the weaver girl you're asking after, they trained her at the Cloister in Thornwick. Ask for Mistress Agnet.") }
                 Talk.Offer("I'll clear the road", HellfeatherReply.HeskRoad)
             } else if q.Road == 3 {
                 Talk.Say("The road is quiet. Orra keep you. Take this, it was my husband's, and it is better on an arm than on a wall.")
@@ -667,6 +696,7 @@ HellfeatherGame : QuaxelGameInstance
                 forced = true
             } else if q.Road < 3 {
                 Talk.Say("The hanged first. Then the swan. We burn the feathers, we cannot burn those.")
+                if q.Laws == 0 { Talk.Say("Thornwick's Cloister for the weaver. Mistress Agnet keeps its door.") }
             } else if q.Records >= 2 && !q.PilgrimsTold {
                 Talk.Say("You look at the hospice road like it owes you something.")
                 Talk.Offer("Tell her what the hospice does", HellfeatherReply.TellPilgrims)
@@ -699,6 +729,7 @@ HellfeatherGame : QuaxelGameInstance
             } else if q.Laws == 2 {
                 Talk.Say("So you read it. A weaver shall not harm another weaver or a living person. No inscription without consent.")
                 Talk.Say("Everyone here breaks both for a living. Come to the Loom. Water-repel first.")
+                if q.Ledgers == 0 { Talk.Say("Her twenty-six names? The Tithe-House keeps the ledgers. The Cuffs at the gate will want their tithe before you get near it.") }
                 Talk.Offer("Learn at the Loom", HellfeatherReply.AgnetTutorial)
             } else if q.Laws == 1 {
                 Talk.Say("The archive is below, past the practice halls. Mind the looms. One of them never finished learning.")
@@ -856,6 +887,7 @@ HellfeatherGame : QuaxelGameInstance
             Banner.Show("COMPATIBLE SUCCESSOR", 3.0)
         } else if reply == HellfeatherReply.ValeKey {
             Quests.Records = 3
+            ShowRoadTo(HellfeatherRealm.SouthWing, true)
             Give(world, HellfeatherItems.HospiceKey)
             GainExperience(150)
             ShowAllOf(HellfeatherPerson.Vale, false)
@@ -1018,7 +1050,6 @@ HellfeatherGame : QuaxelGameInstance
         if !Quests.ActTwo && Quests.Millrace >= 5 {
             Quests.ActTwo = true
             ShowRoadTo(HellfeatherRealm.Thornmere, true)
-            ShowRoadTo(HellfeatherRealm.SouthWing, true)
         }
         StepHindrance(world, deltaSeconds)
         if Quests.Road == 1 && Quests.HangedCut >= HellfeatherQuests.HangedWanted { Quests.Road = 2 }

@@ -145,6 +145,85 @@ HellfeatherTerrain : QuaxelTerrain
     // The level being built. Below the Fenmarch, only the Undercroft's modules
     // claim clearings: its halls take every one but the landing.
     HellfeatherRealm Realm
+    // The waypoint fireplace's volume, set by the game. Each Fenmarch zone with
+    // a waypoint offers its fireplace in one clearing, after its buildings.
+    int WaypointFire = -1
+
+    // Whether a zone of the Fenmarch has a waypoint.
+    bool HasWaypoint(int zone)
+    {
+        return zone == HellfeatherZone.Croft || zone == HellfeatherZone.FordRoad || zone == HellfeatherZone.FennickWater || zone == HellfeatherZone.OrrasHill || zone == HellfeatherZone.HobbsMill
+    }
+
+    // The clearing of a zone that holds its waypoint: the one nearest the
+    // spawn, which the road reaches first. -1 when the zone has none.
+    int WaypointSiteOf(int zone)
+    {
+        if Layout.Sites.Len == 0 { return -1 }
+        QuaxelTerrainSite spawn = Layout.Sites[SpawnSiteIndex]
+        int best = -1
+        float bestDistance = 0.0
+        for i : 0; i < Layout.Sites.Len; i++ {
+            if Layout.Sites[i].Module != zone { continue }
+            float distance = Math.Hypot(Layout.Sites[i].X - spawn.X, Layout.Sites[i].Z - spawn.Z)
+            if best < 0 || distance < bestDistance {
+                best = (int)i
+                bestDistance = distance
+            }
+        }
+        return best
+    }
+
+    // The fireplace, offered in rings out from the clearing's middle and off
+    // the road through it. The first spot clear of the buildings and props
+    // already placed takes it.
+    -OfferWaypoint(QuaxelTerrainSite site, QuaxelTerrainPlacer& placer)
+    {
+        float margin = (float)HellfeatherTerrain.WaypointHalf * QuaxelTerrain.Cell
+        for ring : 0; ring < 7; ring++ {
+            float distance = HellfeatherTerrain.WaypointAway + (float)ring * 1.0
+            for step : 0; step < 10; step++ {
+                float angle = (float)step * 0.6283185 + (float)ring * 0.3
+                // Only where the clearing's own ground is open: not in a ford,
+                // a marsh pool or the mill's race.
+                if !ModuleGroundOpen(site, Math.Cos(angle) * distance, Math.Sin(angle) * distance, margin) { continue }
+                placer.OfferProp(HellfeatherTerrain.WaypointGroup, WaypointFire, Math.Cos(angle) * distance, Math.Sin(angle) * distance, HellfeatherTerrain.WaypointHalf, HellfeatherLandmarks.FireplaceHeight / 2 + 1, HellfeatherArt.FineVoxel)
+            }
+        }
+    }
+
+    // Whether the clearing's module leaves its ground open at a layout offset
+    // and all round it at Margin: no water and nothing built into the columns.
+    -bool ModuleGroundOpen(QuaxelTerrainSite site, float x, float z, float margin)
+    {
+        for step : -1; step < 12; step++ {
+            float px = x
+            float pz = z
+            if step >= 0 {
+                float angle = (float)step * 0.5235988
+                float reach = step % 2 == 0 ? margin | margin * 0.5
+                px += Math.Cos(angle) * reach
+                pz += Math.Sin(angle) * reach
+            }
+            QuaxelTerrainColumn column
+            column.Floor = 0
+            column.Height = 0
+            column.Surface = QuaxelTerrainSurface.Grass
+            column.Kind = QuaxelTerrainKind.Open
+            ModuleColumn(site.Module, site, px, pz, column)
+            if column.Kind != QuaxelTerrainKind.Open { return false }
+        }
+        return true
+    }
+
+    // The placement of the waypoint fireplace in a clearing, or -1.
+    int WaypointPlacement(int site)
+    {
+        for i : 0; i < Placements.Len; i++ {
+            if Placements[i].Site == site && Placements[i].Volume == WaypointFire { return (int)i }
+        }
+        return -1
+    }
 
     int ModuleCount() { return HellfeatherZone.Count - 1 }
 
@@ -155,7 +234,23 @@ HellfeatherTerrain : QuaxelTerrain
         Below.Realm = Realm
         if !this.QuaxelTerrain.Configure(config) { return false }
         LayMillRiver()
+        PlaceWaypoints()
         return true
+    }
+
+    // The last step of laying out the Fenmarch: each waypoint's fireplace, in
+    // its clearing, clear of the buildings, the props and the mill's river.
+    -PlaceWaypoints()
+    {
+        if Realm != HellfeatherRealm.Fenmarch || WaypointFire < 0 { return }
+        for zone : 0; zone < ModuleCount() + 1; zone++ {
+            if !HasWaypoint(zone) { continue }
+            int site = WaypointSiteOf(zone)
+            if site < 0 { continue }
+            QuaxelTerrainPlacer placer()
+            OfferWaypoint(Layout.Sites[site], placer)
+            PlaceOffers(site, placer)
+        }
     }
 
     -LayMillRiver()
@@ -518,6 +613,14 @@ HellfeatherTerrain : QuaxelTerrain
         if cell.Column % 9 == 0 || cell.Row % 6 == 0 { return 0x24201c }
         return HellfeatherArt.Shade(0x5c544a, 84 + cell.Hash % 30)
     }
+}
+#{
+    // The waypoint fireplace's offers: their group, the columns each keeps
+    // clear around it (a road's width beside the model), and how far from the
+    // clearing's middle the search starts, in world units.
+    #int WaypointGroup = 900
+    #int WaypointHalf = 11
+    #float WaypointAway = 4.0
 }
 
 // A ruined cottage generated in code. One cell matches one terrain column.

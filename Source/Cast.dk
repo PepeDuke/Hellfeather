@@ -162,6 +162,8 @@ HellfeatherGame : QuaxelGameInstance
             return
         }
         int pedestal = People.AddModel(HellfeatherSpotKind.Pedestal, "Ring pedestal", realm, deepest + vec3(0.0, 0.0, -2.0), Landmarks.RingPedestal, HellfeatherArt.FineVoxel, 28)
+        // Beside where Mardra waits, one of the brood the pond took.
+        People.AddModel(HellfeatherSpotKind.Remains, "A child, wrapped", realm, deepest + vec3(-2.6, 0.0, -0.6), Terrain.Room.Furniture.Volume[HellfeatherPiece.ChildRemains], HellfeatherFurniture.Voxel, 8)
         People.Spots[pedestal].Shown = Quests.Millrace >= 3
         ShowMillPortal()
     }
@@ -456,6 +458,12 @@ HellfeatherGame : QuaxelGameInstance
         StepShots(world, deltaSeconds)
         StepQuests(world)
         StepActTwo(world, deltaSeconds)
+        StepFanfare(world, deltaSeconds)
+        // Walking away from the fire closes the waypoints.
+        if WaypointWindow.Open && WaypointWindow.From >= 0 && WaypointWindow.From < Waypoints.Len {
+            vec3 fire = Waypoints[WaypointWindow.From].Feet
+            if Math.Hypot(fire.X - player.X, fire.Z - player.Z) > HellfeatherSpots.Reach + 2.5 { WaypointWindow.Close() }
+        }
         // Walking away ends a conversation.
         if Talk.Open && Talk.Spot >= 0 && Talk.Spot < People.Spots.Len && Math.Hypot(People.Spots[Talk.Spot].Feet.X - player.X, People.Spots[Talk.Spot].Feet.Z - player.Z) > HellfeatherSpots.Reach + 1.5 {
             Talk.Close()

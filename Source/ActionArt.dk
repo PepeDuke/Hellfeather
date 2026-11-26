@@ -29,8 +29,13 @@ HellfeatherActionArt
     #int RackY = 3
     #int MouseIcon = 24
     #int MouseAtlasY = 462
-    #int NumberIcon = 12
+    // Icons that fill the number slots, and Q, E and F's, which share the
+    // mouse icons' rows to their right.
+    #int NumberIcon = 16
     #int NumberAtlasY = 492
+    #int KeyIcon = 20
+    #int KeyAtlasX = 176
+    #int KeyAtlasY = 462
     // Left edges of the three raised iron bars that split the bar into sections.
     #int DividerOne = 50
     #int DividerTwo = 118
@@ -107,18 +112,19 @@ HellfeatherActionArt
         // Full icon art at each slot size, including the small numbered keys.
         for action : HellfeatherAction {
             if action == HellfeatherAction.None { continue }
-            ResizeIcon(ui, action, MouseIcon, MouseAtlasY)
-            ResizeIcon(ui, action, NumberIcon, NumberAtlasY)
+            ResizeIcon(ui, action, MouseIcon, 0, MouseAtlasY)
+            ResizeIcon(ui, action, NumberIcon, 0, NumberAtlasY)
+            ResizeIcon(ui, action, KeyIcon, KeyAtlasX, KeyAtlasY)
         }
         PaintLock(ui, LockX, IconAtlasY)
     }
 
-    -ResizeIcon(QuaxelUi& ui, int action, int side, int atlasY)
+    -ResizeIcon(QuaxelUi& ui, int action, int side, int atlasX, int atlasY)
     {
         for y : 0; y < side; y++ {
             for x : 0; x < side; x++ {
                 uint pixel = ui.AtlasTexel(IconX(action) + x * Icon / side, IconAtlasY + y * Icon / side)
-                ui.SetAtlasTexel(action * side + x, atlasY + y, pixel)
+                ui.SetAtlasTexel(atlasX + action * side + x, atlasY + y, pixel)
             }
         }
     }

@@ -180,14 +180,15 @@ HellfeatherGame : QuaxelGameInstance
     float CleaveReach() { return 2.4 }
 
     // A war cry doubles damage for this long and staggers enemies this close.
-    float WarCrySecondsTotal() { return 8.0 * (float)RunePower(HellfeatherAction.WarCry) / 100.0 }
+    float WarCrySecondsTotal() { return HellfeatherRunes.WarCrySeconds(RunePower(HellfeatherAction.WarCry)) }
 
     float WarCryRadius() { return 4.0 }
 
     // A dash covers DashSpeed * DashSecondsTotal world units.
-    float DashSpeed() { return 18.0 }
+    float DashSpeed() { return HellfeatherRunes.DashSpeed }
 
-    float DashSecondsTotal() { return 0.18 * (float)RunePower(HellfeatherAction.Dash) / 100.0 }
+    // Power lengthens the dash, so she goes further at the same speed.
+    float DashSecondsTotal() { return HellfeatherRunes.DashSeconds(RunePower(HellfeatherAction.Dash)) }
 
     float ManaPerSecond()
     {
@@ -244,6 +245,12 @@ HellfeatherGame : QuaxelGameInstance
         StockMerchants((uint)(clock & (long)0x7FFFFFFF))
         if NewWorldEachRun { WorldSeed = PickWorldSeed((uint)(((clock >> 8) ^ (clock >> 29)) & (long)0x7FFFFFFF)) }
         Sfx.Load(world)
+        // Saved loudness and resolution, from the menu's Options.
+        Options.Settings.Load()
+        Options.Settings.Apply(world)
+        Options.Settings.ApplyResolution()
+        Fires.Crackle = world.LoadSound(HellfeatherSounds.FireLoop)
+        WaypointHum = world.LoadSound(HellfeatherSounds.WaypointLoop)
         StartMusic(world)
         bool ready = SpawnTerrain(world) && SpawnPlayer(world) && SpawnEnemies(world) && SpawnCamera(world) && SpawnGlobes(world) && Ground.Build(world) && GoToStart(world)
         if ready { ApplySavedWaypoints() }
@@ -286,8 +293,19 @@ HellfeatherGame : QuaxelGameInstance
     {
         int index = Shop.BuyRequest
         bool sell = Shop.SellRequest
+        bool reroll = Shop.RerollRequest
         Shop.BuyRequest = -1
         Shop.SellRequest = false
+        Shop.RerollRequest = false
+        if reroll && Shop.Shop.ForFeathers {
+            if Purse() < HellfeatherShop.RerollPrice { Shop.Say("Not enough feathers") }
+            else {
+                PayFeathers(HellfeatherShop.RerollPrice)
+                Shop.Shop.RerollHoard()
+                Sfx.Queue(HellfeatherSound.UiPanel)
+                Banner.Show("The ravens bring new bundles", 2.0)
+            }
+        }
         if index >= 0 {
             HellfeatherShopResult quote = Shop.Shop.Quote(index, Purse())
             if quote == HellfeatherShopResult.TooPoor { Shop.Say(Shop.Shop.ForFeathers ? "Not enough feathers" | "Not enough gold") }
@@ -305,16 +323,20 @@ HellfeatherGame : QuaxelGameInstance
                 } else if Inventory.Items.AddWith(item, Shop.Shop.Stock[index].Mods) {
                     Inventory.Items.Gold -= Shop.Shop.PriceOf(index)
                     Shop.Shop.Take(index)
+                    TradeSound()
                 } else {
                     Shop.Say("No room in your bag")
                 }
             }
         }
-        if sell {
+        if sell && Shop.Shop.ForFeathers { SellAtHoard() }
+        else if sell && Inventory.Items.Held == HellfeatherItems.BlackFeather && BuysFeathers() { SellFeathers() }
+        else if sell {
             int paid = Shop.Shop.ReceiveWith(Inventory.Items.Held, Inventory.Items.HeldMods)
             if paid > 0 {
                 Inventory.Items.Gold += paid
                 Inventory.Items.ClearHeld()
+                TradeSound()
             }
         }
     }
@@ -383,6 +405,7 @@ HellfeatherGame : QuaxelGameInstance
         Terrain.Below.Props = props
         Terrain.Below.Pieces = pieces
         ActTwoPieces = pieces
+        Terrain.WaypointFire = Landmarks.Fireplace
         if !Terrain.Configure(FenmarchConfig()) || !Terrain.Start(world, vec3(0.0, 0.0, 0.0)) { return false }
         SetUpCast(world)
         SetUpInteriors()
@@ -513,6 +536,8 @@ HellfeatherGame : QuaxelGameInstance
         for controller : Controllers { DressPlayer(world, controller.VisualNode) }
         // A close-up conversation takes the keys and holds her still.
         bool talking = InCloseUp()
+        // Before the step, which a reply chosen with a digit may end.
+        bool conversing = Talk.Open
         StepTalk(input, deltaSeconds)
         bool inventoryKey = input.IsDown(QuaxelKey.I)
         if inventoryKey && !InventoryKeyHeld && !talking { ToggleHudPanel(HellfeatherHudPanel.Inventory) }
@@ -543,8 +568,9 @@ HellfeatherGame : QuaxelGameInstance
         // Taking off gear can lower her maximums below what she has.
         PlayerHealth = Math.Min(PlayerHealth, PlayerMaxHealth())
         PlayerMana = Math.Min(PlayerMana, PlayerMaxMana())
-        if !talking { SampleSlotKeys(input) }
+        SampleSlotKeys(input, talking || conversing || Talk.Open)
         Actions.Slots.Tick(deltaSeconds)
+        Inventory.Tick(deltaSeconds)
         WarCrySeconds = Math.Max(0.0, WarCrySeconds - deltaSeconds)
         if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
         StepMusic(world, deltaSeconds)
@@ -555,6 +581,8 @@ HellfeatherGame : QuaxelGameInstance
         StepAct(world, deltaSeconds)
         StepAfflictions(world, deltaSeconds)
         StepMark(world, deltaSeconds)
+        StepLevelUp(world, deltaSeconds)
+        StepGoldPickup(world)
         if PlayerHealth <= 0 {
             StepFallenPlayer(world, deltaSeconds)
             RequestedAction = HellfeatherAction.None
@@ -640,13 +668,15 @@ HellfeatherGame : QuaxelGameInstance
 
     // Q, E, F and the number keys 1 to 4 use their slots once per press. Keys
     // are Windows virtual-key codes; QuaxelKey has no members for the digits.
-    -SampleSlotKeys(QuaxelInputState& input)
+    // While a conversation is open the digits pick replies, so Quiet only
+    // takes note of which keys are held and uses no slot.
+    -SampleSlotKeys(QuaxelInputState& input, bool quiet)
     {
         int [9] keys = {0, 0, QuaxelKey.Q, QuaxelKey.E, QuaxelKey.F, HellfeatherKeys.One, HellfeatherKeys.One + 1, HellfeatherKeys.One + 2, HellfeatherKeys.One + 3}
         for slot : HellfeatherActionSlot {
             if slot < HellfeatherActionSlot.Q { continue }
             bool down = input.Down[keys[slot]]
-            if down && !SlotKeysHeld[slot] { RequestSlot(slot) }
+            if down && !SlotKeysHeld[slot] && !quiet { RequestSlot(slot) }
             SlotKeysHeld[slot] = down
         }
     }
@@ -705,7 +735,7 @@ HellfeatherGame : QuaxelGameInstance
         means.Mana = PlayerMana
         for action : HellfeatherAction {
             HellfeatherActionKind kind = HellfeatherAction.Get(action)
-            if kind.Item != HellfeatherItems.None { means.Stock[action] = Inventory.Items.CountOf(kind.Item) }
+            if kind.Item != HellfeatherItems.None { means.Stock[action] = Inventory.Items.UsableCount(kind.Item) }
         }
         return means
     }
@@ -733,7 +763,9 @@ HellfeatherGame : QuaxelGameInstance
             return
         }
         if !Perform(action) { return }
-        if action == HellfeatherAction.HealthPotion || action == HellfeatherAction.ManaPotion { Sfx.Play(world, HellfeatherSound.PotionDrink) }
+        // Each potion sounds its own: a plain swallow for health, a fizz for mana.
+        if action == HellfeatherAction.HealthPotion { Sfx.Play(world, HellfeatherSound.PotionDrink) }
+        else if action == HellfeatherAction.ManaPotion { Sfx.Play(world, HellfeatherSound.ManaDrink) }
         else if action == HellfeatherAction.Dash { Sfx.Play(world, HellfeatherSound.Dash) }
         if action == HellfeatherAction.HealthPotion { PlayerHealth = Math.Min(PlayerMaxHealth(), PlayerHealth + PlayerAfflictions.Healed(HealthPotionHeal())) }
         else if action == HellfeatherAction.ManaPotion { PlayerMana = Math.Min(PlayerMaxMana(), PlayerMana + ManaPotionRestore()) }
@@ -906,31 +938,85 @@ HellfeatherGame : QuaxelGameInstance
         return Inventory.Items.AmountOf(item) == 0 && Stash.Chest.AmountOf(item) == 0
     }
 
-    // Rolls the enemy's loot onto the ground around it, the first time it falls.
+    // Rolls the enemy's loot onto the ground around it, the first time it
+    // falls. Stronger ranks give more on top of their table: magic one
+    // supportive drop (coins or a potion); rare at least one piece of gear,
+    // likelier magic or rare, and two supportive drops; unique at least two
+    // pieces, likelier still, and four; a final boss at least three at the
+    // best odds and nothing supportive.
     -DropLoot(QuaxelWorld& world, int index)
     {
-        int loot = Spawner.Table.Kinds[Enemies[index].Kind].LootIndex
-        if loot < 0 || Enemies[index].LootDropped { return }
+        if Enemies[index].LootDropped { return }
+        int kind = Enemies[index].Kind
+        int loot = Spawner.Table.Kinds[kind].LootIndex
+        HellfeatherEnemyRank rank = Spawner.Table.Kinds[kind].Rank
+        bool final = HellfeatherDrops.IsFinalBoss(Spawner.Table.Kinds[kind].Name)
+        int wantGear = HellfeatherDrops.GearAtLeast(rank, final)
+        int support = HellfeatherDrops.SupportDrops(rank, final)
+        float boost = HellfeatherDrops.RarityBoost(rank, final)
+        if loot < 0 && wantGear == 0 && support == 0 { return }
         Enemies[index].LootDropped = true
         vec3 corpse = world.GetPosition(Enemies[index].Node)
-        HellfeatherItems [] quest
-        for roll : 0; roll < Spawner.Table.Loots[loot].Rolls; roll++ {
-            item : Spawner.RollLootAt(loot, LootLevel(index))
-            if item == HellfeatherItems.None || !MayDrop(item) { continue }
-            // One of a quest item per kill, too.
-            if HellfeatherItems.IsQuest(item) {
-                bool again = false
-                for dropped : quest {
-                    if dropped == item { again = true }
+        int level = LootLevel(index)
+        int gear = 0
+        if loot >= 0 {
+            HellfeatherItems [] quest
+            for roll : 0; roll < Spawner.Table.Loots[loot].Rolls; roll++ {
+                item : Spawner.RollLootAt(loot, level)
+                if item == HellfeatherItems.None || !MayDrop(item) { continue }
+                // One of a quest item per kill, too.
+                if HellfeatherItems.IsQuest(item) {
+                    bool again = false
+                    for dropped : quest {
+                        if dropped == item { again = true }
+                    }
+                    if again { continue }
+                    quest += item
                 }
-                if again { continue }
-                quest += item
+                if DropFound(world, item, boost, corpse) { gear++ }
+                int gold = Spawner.RollGold(loot)
+                if gold > 0 { Ground.PlaceGold(world, gold, DropSpotAround(corpse)) }
             }
-            mods : Spawner.RollMods(item)
-            Ground.PlaceWith(world, item, mods, DropSpotAround(corpse))
-            int gold = Spawner.RollGold(loot)
-            if gold > 0 { Ground.PlaceGold(world, gold, DropSpotAround(corpse)) }
         }
+        // Pieces of gear up to the rank's least, from its own table and then,
+        // if that has too little gear, from the area's.
+        int table = loot >= 0 ? loot | DropTable()
+        for tries : 0; tries < 60 && gear < wantGear; tries++ {
+            if tries == 20 { table = DropTable() }
+            item : Spawner.PickLootAt(table, level)
+            if item == HellfeatherItems.None || HellfeatherItemMods.GroupOf(item) == HellfeatherModGroup.None || !MayDrop(item) { continue }
+            if DropFound(world, item, boost, corpse) { gear++ }
+        }
+        for n : 0; n < support; n++ { DropSupport(world, level, corpse) }
+    }
+
+    // Places one dropped item, its mods rolled at the boost. True when it is
+    // a piece of gear.
+    -bool DropFound(QuaxelWorld& world, HellfeatherItems item, float boost, vec3 corpse)
+    {
+        mods : Spawner.RollModsBoosted(item, boost)
+        mods.Unidentified = HellfeatherItemMods.DropsUnidentified(mods.Rarity)
+        Ground.PlaceWith(world, item, mods, DropSpotAround(corpse))
+        return HellfeatherItemMods.GroupOf(item) != HellfeatherModGroup.None
+    }
+
+    // A supportive drop: coins, more in harder places, or a potion.
+    -DropSupport(QuaxelWorld& world, int level, vec3 corpse)
+    {
+        if Spawner.LootRandom.Unit() < 0.5 {
+            int gold = 15 + Math.Max(1, level) * 8 + Spawner.LootRandom.Below(25)
+            Ground.PlaceGold(world, gold, DropSpotAround(corpse))
+            return
+        }
+        HellfeatherItems potion = Spawner.LootRandom.Unit() < 0.65 ? HellfeatherItems.HealthPotion | HellfeatherItems.ManaPotion
+        Ground.Place(world, potion, DropSpotAround(corpse))
+    }
+
+    // The loot table of the place she is in, for gear an enemy's own table lacks.
+    int DropTable()
+    {
+        int table = Spawner.Table.LootNamed(HellfeatherRealm.IsActTwo(Terrain.Realm) ? "Act II drops" | "Duck drops")
+        return table >= 0 ? table | 0
     }
 
     // Blood flies from the wound away from the attacker, and more of it on a kill.
@@ -955,9 +1041,21 @@ HellfeatherGame : QuaxelGameInstance
     // A new level brings a passive point and refills her health and mana.
     GainExperience(int amount)
     {
-        if Passives.Level.Gain(amount) == 0 { return }
+        int gained = Passives.Level.Gain(amount)
+        if gained == 0 { return }
         PlayerHealth = PlayerMaxHealth()
         PlayerMana = PlayerMaxMana()
+        LevelsPending += gained
+        // Every merchant's shelves, the hoard's too, are stocked afresh.
+        RestockMerchants()
+    }
+
+    // New wares for every merchant. A shop open at the time shows its new shelves.
+    RestockMerchants()
+    {
+        HellfeatherMerchant open = Shop.Open ? Trading | HellfeatherMerchant.None
+        StockMerchants((uint)Spawner.LootRandom.Below(2147483647))
+        if open != HellfeatherMerchant.None { OpenShop(open) }
     }
 
     -DamagePlayer(QuaxelWorld& world, int amount)
@@ -1077,7 +1175,7 @@ HellfeatherGame : QuaxelGameInstance
     // ClickWorld decides whether it does.
     -bool ClickTaken(int mouseX, int mouseY)
     {
-        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || QuestLog.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Stash.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || People.Hovered >= 0 || Talk.Captures(mouseX, mouseY)
+        return Inventory.Captures(mouseX, mouseY) || StatsScreen.Captures(mouseX, mouseY) || Passives.Captures(mouseX, mouseY) || Runes.Captures(mouseX, mouseY) || QuestLog.Captures(mouseX, mouseY) || Shop.Captures(mouseX, mouseY) || Stash.Captures(mouseX, mouseY) || Actions.Captures(mouseX, mouseY) || People.Hovered >= 0 || Talk.Captures(mouseX, mouseY) || WaypointWindow.Captures(mouseX, mouseY)
     }
 
     // Moves the item on the cursor to the ground beside the warrior.
@@ -1173,6 +1271,7 @@ HellfeatherGame : QuaxelGameInstance
     {
         HellfeatherPerson person = People.Spots[spot].Person
         if ShiftHeld && People.Spots[spot].Kind == HellfeatherSpotKind.Person && Sells(person) {
+            if person == HellfeatherPerson.Edda { TendWounds(world) }
             OpenShop(HellfeatherMerchants.Of(person))
             return
         }
@@ -1255,10 +1354,13 @@ HellfeatherGame : QuaxelGameInstance
             return
         }
         CloseUp.Hide(world)
+        // Whether the conversation has this click, taken before it handles the
+        // click: a reply that ends it would otherwise leave the click to swing.
+        bool talkHasClick = Talk.Captures(mouseX, mouseY) || WaypointWindow.Captures(mouseX, mouseY)
         // Drawn first, so that the inventory panel covers the titles.
         if hasWindow {
             bool panelsFree = !Inventory.Captures(mouseX, mouseY) && !StatsScreen.Captures(mouseX, mouseY) && !Passives.Captures(mouseX, mouseY) && !Runes.Captures(mouseX, mouseY) && !QuestLog.Captures(mouseX, mouseY) && !Shop.Captures(mouseX, mouseY) && !Stash.Captures(mouseX, mouseY) && !Actions.Captures(mouseX, mouseY)
-            DrawPeople(ui, world, windowWidth, windowHeight, mouseX, mouseY, panelsFree && !Talk.Captures(mouseX, mouseY))
+            DrawPeople(ui, world, windowWidth, windowHeight, mouseX, mouseY, panelsFree && !Talk.Captures(mouseX, mouseY) && !WaypointWindow.Captures(mouseX, mouseY))
             Ground.DrawLabels(ui, world, CameraNode, world.GetPosition(PlayerNode), windowWidth, windowHeight, mouseX, mouseY, panelsFree)
             // An item's title wins over the person behind it.
             if Ground.Hovered >= 0 { People.Hovered = -1 }
@@ -1267,12 +1369,20 @@ HellfeatherGame : QuaxelGameInstance
             DrawEnemyPlate(ui, world, windowWidth, windowHeight, mouseX, mouseY, panelsFree && Ground.Hovered < 0 && People.Hovered < 0)
             Talk.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
             if Talk.Chosen != HellfeatherReply.None { Answer(world, Talk.Chosen) }
+            WaypointWindow.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
+            ApplyWaypointChoice(world)
             Banner.Draw(ui, windowWidth, windowHeight)
+            Fanfare.Draw(ui, windowWidth, windowHeight)
             // A copy, since the game's own fields cannot be lent by reference.
             HellfeatherQuests quests = Quests
             QuestLog.Notice(quests)
             // Where she is, in the corner the open panels on the left would cover.
             if !StatsScreen.Open && !Passives.Open && !Runes.Open && !QuestLog.Open && !Shop.Open && !Stash.Open { HellfeatherZoneNames.Draw(ui, ZoneName()) }
+        }
+        // A click the conversation took never reaches the world.
+        if talkHasClick {
+            MouseHeld = mouseDown
+            RightMouseHeld = rightDown
         }
         // Before the panels handle this click, so closing one cannot also swing the axe.
         ClickWorld(world, mouseX, mouseY, mouseDown)
@@ -1320,10 +1430,17 @@ HellfeatherGame : QuaxelGameInstance
             Runes.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
             Inventory.Items.ReplaceHeld(Runes.Held)
             Inventory.Trading = Shop.Open
-            Inventory.CanSell = Shop.Open && !Shop.Shop.ForFeathers
+            Inventory.CanSell = Shop.Open
+            Inventory.BuysFeathers = BuysFeathers()
+            Shop.BuysFeathers = BuysFeathers()
             Inventory.ShiftHeld = ShiftHeld
             Inventory.CanStore = Stash.Open
+            Inventory.RightDown = rightDown
             Inventory.Update(ui, windowWidth, windowHeight, mouseX, mouseY, mouseDown)
+            if Inventory.IdentifiedRequest {
+                Inventory.IdentifiedRequest = false
+                Sfx.Play(world, HellfeatherSound.Identify)
+            }
             ApplyQuickSell()
             ApplyQuickStore()
             if Actions.PanelRequest >= 0 {
@@ -1336,6 +1453,7 @@ HellfeatherGame : QuaxelGameInstance
             SyncChest(world)
             // An item the bag had no room for when the panel closed goes on the ground.
             if !Inventory.Open { DropHeld(world) }
+            CursorSound()
             Globes.Anchor(world, windowWidth, windowHeight, clearWidth)
             DrawStatusColumn(ui, windowWidth, windowHeight, mouseX, mouseY)
             HudVoxels.Anchor(world, windowWidth, windowHeight, Actions.BarLeft, Actions.BarTop, Actions.BarScale)
@@ -1581,24 +1699,25 @@ T{
         T.IsTrue(Math.Hypot(a.X - b.X, a.Z - b.Z) > 1.0)
     }
 
-    // The tithe bracelet drops only while she has none, in the bag or the chest.
+    // A quest item, such as the tithe ledger, drops only while she has none,
+    // in the bag or the chest.
     AQuestItemDropsOnlyWhileSheHasNone()
     {
         HellfeatherGame game()
         QuaxelWorld world()
         T.IsTrue(game.Prepare(world))
-        T.IsTrue(game.MayDrop(HellfeatherItems.TitheBracelet))
-        T.IsTrue(game.Inventory.Items.Add(HellfeatherItems.TitheBracelet))
-        T.IsFalse(game.MayDrop(HellfeatherItems.TitheBracelet))
+        T.IsTrue(game.MayDrop(HellfeatherItems.TitheLedger))
+        T.IsTrue(game.Inventory.Items.Add(HellfeatherItems.TitheLedger))
+        T.IsFalse(game.MayDrop(HellfeatherItems.TitheLedger))
         // Moved to the chest, it still counts.
         long last = game.Inventory.Items.Bag.Len - 1
         T.IsTrue(game.Inventory.Items.PickUp(game.Inventory.Items.Bag[last].X, game.Inventory.Items.Bag[last].Y))
         game.OpenChest()
         game.Inventory.QuickStoreRequest = true
         game.ApplyQuickStore()
-        T.AreEqual(game.Stash.Chest.AmountOf(HellfeatherItems.TitheBracelet), 1)
-        T.AreEqual(game.Inventory.Items.AmountOf(HellfeatherItems.TitheBracelet), 0)
-        T.IsFalse(game.MayDrop(HellfeatherItems.TitheBracelet))
+        T.AreEqual(game.Stash.Chest.AmountOf(HellfeatherItems.TitheLedger), 1)
+        T.AreEqual(game.Inventory.Items.AmountOf(HellfeatherItems.TitheLedger), 0)
+        T.IsFalse(game.MayDrop(HellfeatherItems.TitheLedger))
         // Ordinary loot drops however much of it she has.
         T.IsTrue(game.MayDrop(HellfeatherItems.HealthPotion))
     }

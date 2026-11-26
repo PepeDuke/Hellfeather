@@ -1,0 +1,359 @@
+// The options: music and sound loudness and the window's resolution, kept in
+// Saves/options.json apart from the characters, and the panel that sets them
+// from the main menu or the pause menu.
+HellfeatherSettings
+{
+    // Loudness in steps of a tenth, 0 to 10.
+    int Music = 8
+    int Sound = 10
+    // An index into HellfeatherSettings.Resolutions, or -1 for the window as it is.
+    int Resolution = -1
+
+    float MusicVolume() { return (float)Math.Clamp(Music, 0, HellfeatherSettings.Steps) / (float)HellfeatherSettings.Steps }
+
+    float SoundVolume() { return (float)Math.Clamp(Sound, 0, HellfeatherSettings.Steps) / (float)HellfeatherSettings.Steps }
+
+    // Sets the world's music and effects loudness to these.
+    Apply(QuaxelWorld& world)
+    {
+        world.Music.Volume = MusicVolume()
+        world.EffectsVolume = SoundVolume()
+    }
+
+    // Resizes the window to the chosen resolution, if one is chosen.
+    ApplyResolution()
+    {
+        if Resolution < 0 || Resolution >= HellfeatherSettings.ResolutionCount { return }
+        int width = 0
+        int height = 0
+        HellfeatherSettings.ResolutionSize(Resolution, width, height)
+        QuaxelPlatform.ResizeWindow(width, height)
+    }
+
+    bool Save()
+    {
+        if !HellfeatherSaves.EnsureFolder() { return false }
+        QuaxelJsonWriter out
+        out.BeginObject("")
+        out.Int("music", Music)
+        out.Int("sound", Sound)
+        out.Int("resolution", Resolution)
+        out.EndObject()
+        // QuaxelFiles rather than file, which the web build does not have.
+        return QuaxelFiles.WriteBytes(HellfeatherSettings.Path(), out.Bytes)
+    }
+
+    // Reads the saved options; anything missing keeps its default.
+    Load()
+    {
+        uint8 [] bytes
+        if !QuaxelFiles.ReadBytes(HellfeatherSettings.Path(), bytes) { return }
+        QuaxelJson json
+        if !json.Parse(bytes) { return }
+        Music = Math.Clamp(json.Int(0, "music", Music), 0, HellfeatherSettings.Steps)
+        Sound = Math.Clamp(json.Int(0, "sound", Sound), 0, HellfeatherSettings.Steps)
+        Resolution = Math.Clamp(json.Int(0, "resolution", Resolution), -1, HellfeatherSettings.ResolutionCount - 1)
+    }
+}
+#{
+    #int Steps = 10
+    #int ResolutionCount = 5
+
+    string Path() { return HellfeatherSaves.Folder + "/options.json" }
+
+    ResolutionSize(int index, int& width, int& height)
+    {
+        int [5] widths = {1280, 1600, 1920, 2560, 3840}
+        int [5] heights = {720, 900, 1080, 1440, 2160}
+        int i = Math.Clamp(index, 0, ResolutionCount - 1)
+        width = widths[i]
+        height = heights[i]
+    }
+
+    string ResolutionName(int index)
+    {
+        if index < 0 { return "Window" }
+        int width = 0
+        int height = 0
+        ResolutionSize(index, width, height)
+        return QuaxelUi.FormatInt(width) + " x " + QuaxelUi.FormatInt(height)
+    }
+
+    // The listed resolution nearest a window's size.
+    int Nearest(int width, int height)
+    {
+        int best = 0
+        int bestGap = 1000000000
+        for i : 0; i < ResolutionCount; i++ {
+            int w = 0
+            int h = 0
+            ResolutionSize(i, w, h)
+            int gap = Math.Abs(w - width) + Math.Abs(h - height)
+            if gap < bestGap {
+                best = i
+                bestGap = gap
+            }
+        }
+        return best
+    }
+}
+
+// The options panel: a row each for music, sound and resolution, with arrows
+// either side of the value, and Back. Up and Down pick a row, Left and Right
+// change it, Enter on Back or Escape closes it. The mouse clicks the arrows.
+HellfeatherOptionsScreen
+{
+    bool Open
+    HellfeatherSettings Settings
+    // Set when a change wants the window resized; the game does it and clears this.
+    bool ResolutionChanged
+    // The row picked: 0 music, 1 sound, 2 resolution, 3 Back.
+    int Row
+    -bool UpHeld = true
+    -bool DownHeld = true
+    -bool LeftHeld = true
+    -bool RightHeld = true
+    -bool PickHeld = true
+    -bool MouseHeld = true
+    -bool Clicked
+    -bool Hovered
+
+    Show(int windowWidth, int windowHeight)
+    {
+        Open = true
+        Row = 0
+        UpHeld = true
+        DownHeld = true
+        LeftHeld = true
+        RightHeld = true
+        PickHeld = true
+        MouseHeld = true
+        // The window's own size shows as the nearest listed one.
+        if Settings.Resolution < 0 && windowWidth > 0 { Settings.Resolution = HellfeatherSettings.Nearest(windowWidth, windowHeight) }
+    }
+
+    Close()
+    {
+        Open = false
+        Settings.Save()
+    }
+
+    bool TakeClick()
+    {
+        bool was = Clicked
+        Clicked = false
+        return was
+    }
+
+    bool TakeHover()
+    {
+        bool was = Hovered
+        Hovered = false
+        return was
+    }
+
+    // Moves a row's value one step, by -1 or +1.
+    Change(int row, int by)
+    {
+        if row == 0 { Settings.Music = Math.Clamp(Settings.Music + by, 0, HellfeatherSettings.Steps) }
+        if row == 1 { Settings.Sound = Math.Clamp(Settings.Sound + by, 0, HellfeatherSettings.Steps) }
+        if row == 2 {
+            Settings.Resolution = Math.Clamp(Settings.Resolution + by, 0, HellfeatherSettings.ResolutionCount - 1)
+            ResolutionChanged = true
+        }
+        Clicked = true
+    }
+
+    StepKeys(QuaxelInputState& input, bool escape)
+    {
+        if !Open { return }
+        bool up = input.Down[HellfeatherKeys.Up] || input.IsDown(QuaxelKey.W)
+        bool down = input.Down[HellfeatherKeys.Down] || input.IsDown(QuaxelKey.S)
+        bool left = input.Down[HellfeatherKeys.Left] || input.IsDown(QuaxelKey.A)
+        bool right = input.Down[HellfeatherKeys.Right] || input.IsDown(QuaxelKey.D)
+        bool pick = input.Down[HellfeatherKeys.Enter] || input.Down[HellfeatherKeys.Space]
+        if up && !UpHeld {
+            Row = (Row + 3) % 4
+            Hovered = true
+        }
+        if down && !DownHeld {
+            Row = (Row + 1) % 4
+            Hovered = true
+        }
+        if left && !LeftHeld && Row < 3 { Change(Row, -1) }
+        if right && !RightHeld && Row < 3 { Change(Row, 1) }
+        bool picked = pick && !PickHeld
+        UpHeld = up
+        DownHeld = down
+        LeftHeld = left
+        RightHeld = right
+        PickHeld = pick
+        if escape || (picked && Row == 3) {
+            Clicked = true
+            Close()
+        }
+    }
+
+    -string Value(int row)
+    {
+        if row == 0 { return Bar(Settings.Music) }
+        if row == 1 { return Bar(Settings.Sound) }
+        return HellfeatherSettings.ResolutionName(Settings.Resolution)
+    }
+
+    // Loudness as ten pips, lit up to the level.
+    -string Bar(int level)
+    {
+        string bar = ""
+        for i : 0; i < HellfeatherSettings.Steps; i++ { bar += i < level ? "|" | "." }
+        return bar
+    }
+
+    -string Label(int row)
+    {
+        if row == 0 { return "Music" }
+        if row == 1 { return "Sound" }
+        return "Resolution"
+    }
+
+    // Draws the panel over the menu; Dim darkens the scene behind.
+    Draw(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool mouseDown, bool dim)
+    {
+        if !Open { return }
+        int scale = ui.ScaleFor(width, height)
+        int gridWidth = width / scale
+        int gridHeight = height / scale
+        int px = mouseX / scale
+        int py = mouseY / scale
+        bool pressed = mouseDown && !MouseHeld
+        MouseHeld = mouseDown
+        if dim { ui.OverlayRect(0, 0, gridWidth, gridHeight, 0x99000000) }
+        int wide = HellfeatherOptionsScreen.Width
+        int rowTall = HellfeatherMenu.ButtonHeight + 6
+        int tall = 26 + 4 * rowTall + 6
+        int left = (gridWidth - wide) / 2
+        int top = (gridHeight - tall) / 2
+        ui.OverlayRect(left - 1, top - 1, wide + 2, tall + 2, 0xFF5A4636)
+        ui.OverlayRect(left, top, wide, tall, 0xF00C0A0A)
+        string title = "Options"
+        ui.OverlayText(left + (wide - (int)Length(title) * 6) / 2, top + 7, title, 0xFFE0B860)
+        for row : 0; row < 4; row++ {
+            int y = top + 24 + row * rowTall
+            bool over = px >= left + 4 && px < left + wide - 4 && py >= y && py < y + HellfeatherMenu.ButtonHeight
+            if over && Row != row {
+                Row = row
+                Hovered = true
+            }
+            bool lit = row == Row
+            ui.OverlayRect(left + 4, y, wide - 8, HellfeatherMenu.ButtonHeight, lit ? (uint)0xFFC8963C | (uint)0xFF4A3C30)
+            ui.OverlayRect(left + 5, y + 1, wide - 10, HellfeatherMenu.ButtonHeight - 2, lit ? (uint)0xF0301A10 | (uint)0xE0100C0B)
+            uint text = lit ? (uint)0xFFF4D894 | (uint)0xFFA89880
+            if row == 3 {
+                string back = "Back"
+                ui.OverlayText(left + (wide - (int)Length(back) * 6) / 2, y + 5, back, text)
+                if over && pressed {
+                    Clicked = true
+                    Close()
+                    return
+                }
+                continue
+            }
+            ui.OverlayText(left + 10, y + 5, Label(row), text)
+            // The value between its two arrows on the right.
+            int valueRight = left + wide - 17
+            int valueLeft = valueRight - HellfeatherOptionsScreen.ValueWidth
+            string value = Value(row)
+            ui.OverlayText(valueLeft + (HellfeatherOptionsScreen.ValueWidth - (int)Length(value) * 6) / 2, y + 5, value, text)
+            ui.OverlayText(valueLeft - 9, y + 5, "<", text)
+            ui.OverlayText(valueRight + 3, y + 5, ">", text)
+            if over && pressed {
+                if px < valueLeft { Change(row, -1) }
+                else if px >= valueRight { Change(row, 1) }
+                else if px < valueLeft + HellfeatherOptionsScreen.ValueWidth / 2 { Change(row, -1) }
+                else { Change(row, 1) }
+            }
+        }
+    }
+}
+#{
+    // In UI grid pixels.
+    #int Width = 230
+    #int ValueWidth = 96
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherOptionsScreen Options
+
+    // Opens the options over whichever menu is showing.
+    OpenOptions()
+    {
+        int width = 0
+        int height = 0
+        QuaxelPlatform.GetWindowSize(width, height)
+        Options.Show(width, height)
+    }
+
+    // Runs while the options are open: keys and the loudness, and a resize when asked.
+    StepOptions(QuaxelWorld& world, QuaxelInputState& input, bool escape)
+    {
+        Options.StepKeys(input, escape)
+        ApplyOptions(world)
+    }
+
+    ApplyOptions(QuaxelWorld& world)
+    {
+        Options.Settings.Apply(world)
+        if Options.ResolutionChanged {
+            Options.ResolutionChanged = false
+            Options.Settings.ApplyResolution()
+        }
+    }
+}
+T{
+    OptionsChangeTheLoudnessAndAreKept()
+    {
+        HellfeatherSaves.Folder = ".duck/test-options"
+        HellfeatherOptionsScreen screen
+        screen.Show(1600, 900)
+        T.AreEqual(screen.Settings.Resolution, 1)
+        QuaxelInputState input
+        // Keys held as it opened do nothing until let go.
+        screen.StepKeys(input, false)
+        input.Down[HellfeatherKeys.Left] = true
+        screen.StepKeys(input, false)
+        T.AreEqual(screen.Settings.Music, 7)
+        input.Down[HellfeatherKeys.Left] = false
+        input.Down[HellfeatherKeys.Down] = true
+        screen.StepKeys(input, false)
+        input.Down[HellfeatherKeys.Down] = false
+        screen.StepKeys(input, false)
+        for i : 0; i < 3; i++ {
+            input.Down[HellfeatherKeys.Left] = true
+            screen.StepKeys(input, false)
+            input.Down[HellfeatherKeys.Left] = false
+            screen.StepKeys(input, false)
+        }
+        T.AreEqual(screen.Settings.Sound, 7)
+        QuaxelWorld world()
+        screen.Settings.Apply(world)
+        T.AreEqual(world.EffectsVolume, 0.7)
+        T.AreEqual(world.Music.Volume, 0.7)
+        // Escape closes and saves; a fresh one reads them back.
+        screen.StepKeys(input, true)
+        T.IsFalse(screen.Open)
+        HellfeatherSettings read
+        read.Load()
+        T.AreEqual(read.Music, 7)
+        T.AreEqual(read.Sound, 7)
+        T.AreEqual(read.Resolution, 1)
+        HellfeatherSaves.Folder = "Saves"
+    }
+
+    ResolutionsAreListedAndTheNearestIsFound()
+    {
+        T.AreEqual(HellfeatherSettings.Nearest(1920, 1080), 2)
+        T.AreEqual(HellfeatherSettings.Nearest(1366, 768), 0)
+        T.AreEqual(HellfeatherSettings.ResolutionName(3), "2560 x 1440")
+    }
+}

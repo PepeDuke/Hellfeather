@@ -388,6 +388,13 @@ HellfeatherEnemySpawner
     HellfeatherItems RollLootAt(int loot, int level)
     {
         if LootRandom.Unit() >= Table.Loots[loot].Chance { return HellfeatherItems.None }
+        return PickLootAt(loot, level)
+    }
+
+    // An item from a loot table at an area level, without its chance of
+    // nothing: for drops a strong enemy always gives.
+    HellfeatherItems PickLootAt(int loot, int level)
+    {
         int first = Table.Loots[loot].FirstItem
         int total = 0
         for i : first; i < first + Table.Loots[loot].ItemCount; i++ {
@@ -405,6 +412,9 @@ HellfeatherEnemySpawner
 
     // Rarity and mods for an item that just dropped.
     HellfeatherItemMods RollMods(HellfeatherItems item) { return HellfeatherItemMods.Roll(item, (uint)LootRandom.Below(2147483647)) }
+
+    // As RollMods, with the magic and rare chances raised by Boost.
+    HellfeatherItemMods RollModsBoosted(HellfeatherItems item, float boost) { return HellfeatherItemMods.RollBoosted(item, (uint)LootRandom.Below(2147483647), boost) }
 
     // The coins that come with a successful roll of a loot table, or 0.
     int RollGold(int loot)
@@ -625,15 +635,16 @@ T{
             world.SetTransform(game.Enemies[i].Node, placed)
         }
         QuaxelInputState input
+        int purse = game.Inventory.Items.Gold
         game.SampleAttack(480, 270, false)
         game.SampleAttack(480, 270, true)
         game.Simulate(world, input, 20)
         T.AreEqual(game.Enemies[0].Health, 0)
         T.AreEqual(game.Enemies[1].Health, 0)
-        T.AreEqual(game.Ground.Entries.Len, 2)
+        // The ring stays on the ground; the gold beside her went straight to her purse.
+        T.AreEqual(game.Ground.Entries.Len, 1)
         T.AreEqual(game.Ground.Entries[0].Item, HellfeatherItems.Ring)
-        T.AreEqual(game.Ground.Entries[1].Item, HellfeatherItems.Gold)
-        T.AreEqual(game.Ground.Entries[1].Amount, 20)
+        T.AreEqual(game.Inventory.Items.Gold, purse + 20)
     }
 
     AMistakeInTheLootIsReported()

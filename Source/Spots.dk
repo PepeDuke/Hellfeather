@@ -43,7 +43,9 @@ HellfeatherSpotKind : int
     // The relay chapel's socket, severed with the grey key (II-6).
     Socket,
     // A patient bound to a frame in the relay chapel: cutting it frees them.
-    Frame
+    Frame,
+    // Something to look at and no more, such as the child beside Mardra.
+    Remains
 }
 
 HellfeatherPerson : int

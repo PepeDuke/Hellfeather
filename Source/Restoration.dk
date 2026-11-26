@@ -1,0 +1,267 @@
+// Moments that restore or lift Wren: Edda tending her, and a new level.
+// Each plays its sound and throws a burst of light around her.
+HellfeatherGlows
+#{
+    // Pale green motes that rise from a ring at her feet, for healing.
+    QuaxelEffectStyle Healing()
+    {
+        QuaxelEffectStyle style
+        style.VoxelSize = 0.035
+        style.Floor = 0.05
+        style.MaxParticles = 400
+        style.Burst = 90
+        style.Rate = 90.0
+        style.EmitSeconds = 0.8
+        style.SpawnRadius = 0.45
+        style.SpawnFlat = true
+        style.SpeedMin = 0.5
+        style.SpeedMax = 1.2
+        style.Spread = 12.0
+        style.Gravity = 1.2
+        style.Drag = 1.0
+        style.Wander = 0.6
+        style.LifeMin = 0.9
+        style.LifeMax = 1.6
+        style.SizeStart = 1.2
+        style.SizeEnd = 0.3
+        style.ColorStart = 0xf4fff0
+        style.ColorMiddle = 0x8ef0a0
+        style.ColorEnd = 0x3a8c5a
+        style.MiddleAt = 0.35
+        style.Contact = QuaxelEffectContact.Die
+        return style
+    }
+
+    // A column of gold light that rushes up around her at a new level.
+    QuaxelEffectStyle LevelColumn()
+    {
+        QuaxelEffectStyle style
+        style.VoxelSize = 0.04
+        style.Floor = 0.02
+        style.MaxParticles = 700
+        style.Burst = 260
+        style.Rate = 260.0
+        style.EmitSeconds = 0.7
+        style.SpawnRadius = 0.55
+        style.SpawnFlat = true
+        style.SpeedMin = 2.2
+        style.SpeedMax = 3.6
+        style.Spread = 6.0
+        style.Gravity = 0.8
+        style.Drag = 0.6
+        style.LifeMin = 0.5
+        style.LifeMax = 0.9
+        style.SizeStart = 1.1
+        style.SizeEnd = 0.2
+        style.DensityStart = 1.0
+        style.DensityEnd = 0.4
+        style.ColorStart = 0xfffbe8
+        style.ColorMiddle = 0xffd060
+        style.ColorEnd = 0xb07018
+        style.MiddleAt = 0.3
+        style.Streak = 1.2
+        style.Contact = QuaxelEffectContact.Die
+        return style
+    }
+
+    // A ring of sparks thrown out along the ground as the column rises.
+    QuaxelEffectStyle LevelRing()
+    {
+        QuaxelEffectStyle style = QuaxelEffectStyle.Sparks()
+        style.VoxelSize = 0.035
+        style.Floor = 0.1
+        style.Burst = 120
+        style.SpawnRadius = 0.2
+        style.SpawnFlat = true
+        style.SpeedMin = 2.5
+        style.SpeedMax = 3.5
+        style.Spread = 88.0
+        style.Gravity = -1.0
+        style.Drag = 2.0
+        style.LifeMin = 0.5
+        style.LifeMax = 0.9
+        style.ColorStart = 0xfff4d0
+        style.ColorMiddle = 0xf0b840
+        style.ColorEnd = 0x8a5010
+        style.Contact = QuaxelEffectContact.Die
+        return style
+    }
+
+    // How bright her glow is at Age seconds after a level: up at once, then a
+    // slow breath out.
+    float LevelGlow(float age)
+    {
+        if age < 0.0 || age >= LevelGlowSeconds { return 0.0 }
+        float rise = Math.Clamp(age / 0.12, 0.0, 1.0)
+        float fade = 1.0 - age / LevelGlowSeconds
+        return LevelGlowPeak * rise * fade * fade
+    }
+
+    #float LevelGlowSeconds = 2.8
+    #float LevelGlowPeak = 22.0
+
+    // Blue motes among the green, for the mana she gets back.
+    QuaxelEffectStyle Mana()
+    {
+        QuaxelEffectStyle style = Healing()
+        style.Burst = 50
+        style.Rate = 50.0
+        style.SpawnRadius = 0.3
+        style.ColorStart = 0xf0f6ff
+        style.ColorMiddle = 0x7aa6ff
+        style.ColorEnd = 0x2c4c9c
+        return style
+    }
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // Levels gained since the last step, celebrated on the next one.
+    -int LevelsPending
+    // The warm light around her after a level, and how long it has shone.
+    -int LevelLight
+    -float LevelLightAge = -1.0
+
+    // Runs every step: celebrates a new level with a sound, a column of gold
+    // light, a ring of sparks and a glow that fades, and fades that glow.
+    StepLevelUp(QuaxelWorld& world, float deltaSeconds)
+    {
+        if LevelsPending > 0 {
+            LevelsPending = 0
+            Sfx.Play(world, HellfeatherSound.LevelUp)
+            vec3 feet = world.GetPosition(PlayerNode) - vec3(0.0, PlayerRadius(), 0.0)
+            world.StartEffect(HellfeatherGlows.LevelColumn(), feet, vec3(0.0, 1.0, 0.0))
+            world.StartEffect(HellfeatherGlows.LevelRing(), feet + vec3(0.0, 0.1, 0.0), vec3(0.0, 1.0, 0.0))
+            if LevelLight == 0 {
+                LevelLight = world.CreateChild(PlayerNode)
+                world.AttachTransform(LevelLight, QuaxelTransform.Make(vec3(0.0, 0.6, 0.0), vec3(1.0, 1.0, 1.0)))
+            }
+            LevelLightAge = 0.0
+            Banner.Show("Level " + QuaxelUi.FormatInt(Passives.Level.Level) + "! A passive point to spend", 3.5)
+        }
+        if LevelLightAge < 0.0 { return }
+        LevelLightAge += deltaSeconds
+        QuaxelPointLight light
+        light.Color = vec3(1.0, 0.82, 0.45)
+        light.Radius = 4.0
+        light.Intensity = HellfeatherGlows.LevelGlow(LevelLightAge)
+        if LevelLightAge >= HellfeatherGlows.LevelGlowSeconds {
+            if LevelLight != 0 { world.DestroyNode(LevelLight) }
+            LevelLight = 0
+            LevelLightAge = -1.0
+            return
+        }
+        if LevelLight != 0 { world.SetPointLight(LevelLight, light) }
+    }
+
+    // Edda tends her whenever they talk: health and mana back to full, with a
+    // chime and a rise of light when there was anything to mend.
+    TendWounds(QuaxelWorld& world)
+    {
+        if PlayerHealth <= 0 { return }
+        bool hurt = PlayerHealth < PlayerMaxHealth()
+        bool drained = PlayerMana < PlayerMaxMana()
+        PlayerHealth = PlayerMaxHealth()
+        PlayerMana = PlayerMaxMana()
+        if !hurt && !drained { return }
+        Sfx.Play(world, HellfeatherSound.Heal)
+        vec3 feet = world.GetPosition(PlayerNode) - vec3(0.0, PlayerRadius(), 0.0)
+        if hurt { world.StartEffect(HellfeatherGlows.Healing(), feet, vec3(0.0, 1.0, 0.0)) }
+        if drained { world.StartEffect(HellfeatherGlows.Mana(), feet, vec3(0.0, 1.0, 0.0)) }
+        Banner.Show(hurt ? "Edda tends your wounds" | "Edda steadies your mind", 2.5)
+    }
+}
+T{
+    StrongerEnemiesDropMoreGearAndSupport()
+    {
+        string [3] kinds = {"OldGreyneck", "Mardra", "EvilDuck"}
+        int [3] gearWanted = {2, 3, 0}
+        for k : 0; k < 3; k++ {
+            HellfeatherGame game()
+            QuaxelWorld world()
+            T.IsTrue(game.Prepare(world))
+            vec3 at = world.GetPosition(game.PlayerNode)
+            int enemy = game.AddScripted(world, kinds[k], at.X + 3.0, at.Z + 3.0)
+            T.IsTrue(enemy >= 0)
+            long before = game.Ground.Entries.Len
+            game.DropLoot(world, enemy)
+            int gear = 0
+            int support = 0
+            for i : before; i < game.Ground.Entries.Len; i++ {
+                item : game.Ground.Entries[i].Item
+                if HellfeatherItemMods.GroupOf(item) != HellfeatherModGroup.None { gear++ }
+                if item == HellfeatherItems.Gold || item == HellfeatherItems.HealthPotion || item == HellfeatherItems.ManaPotion { support++ }
+            }
+            T.IsTrue(gear >= gearWanted[k])
+            // A unique adds four supportive drops; the final boss none of its own.
+            if k == 0 { T.IsTrue(support >= 4) }
+        }
+        T.IsTrue(HellfeatherDrops.IsFinalBoss("Mardra"))
+        T.AreEqual(HellfeatherDrops.SupportDrops(HellfeatherEnemyRank.Unique, true), 0)
+        T.AreEqual(HellfeatherDrops.SupportDrops(HellfeatherEnemyRank.Magic, false), 1)
+        T.AreEqual(HellfeatherDrops.GearAtLeast(HellfeatherEnemyRank.Rare, false), 1)
+        T.IsTrue(HellfeatherDrops.RarityBoost(HellfeatherEnemyRank.Unique, true) > HellfeatherDrops.RarityBoost(HellfeatherEnemyRank.Unique, false))
+    }
+
+    ALevelGlowsThenFadesOut()
+    {
+        T.AreEqual(HellfeatherGlows.LevelGlow(-1.0), 0.0)
+        T.IsTrue(HellfeatherGlows.LevelGlow(0.2) > HellfeatherGlows.LevelGlowPeak * 0.7)
+        T.IsTrue(HellfeatherGlows.LevelGlow(0.2) > HellfeatherGlows.LevelGlow(2.0))
+        T.AreEqual(HellfeatherGlows.LevelGlow(HellfeatherGlows.LevelGlowSeconds), 0.0)
+    }
+
+    ALevelPlaysItsGlowAndClearsIt()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.GainExperience(100000)
+        T.IsTrue(game.Passives.Level.Level > 1)
+        QuaxelInputState input
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.LevelLight != 0)
+        game.Simulate(world, input, 200)
+        T.AreEqual(game.LevelLight, 0)
+    }
+
+    ADigitPickingAReplyUsesNoActionSlot()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        game.Actions.Slots.Assign(HellfeatherActionSlot.One, HellfeatherAction.HealthPotion)
+        game.PlayerHealth = 5
+        int potions = game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion)
+        game.Talk.Begin("A stranger", -1, false)
+        game.Talk.Narrate("Nothing much.")
+        game.Talk.Offer("Leave", HellfeatherReply.Leave)
+        QuaxelInputState input
+        input.Down[HellfeatherKeys.One] = true
+        game.Simulate(world, input, 3)
+        // The conversation ends with the key still down: it stays unused.
+        game.Talk.Close()
+        game.Simulate(world, input, 3)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), potions)
+        // A fresh press outside a conversation drinks.
+        input.Down[HellfeatherKeys.One] = false
+        game.Simulate(world, input, 2)
+        input.Down[HellfeatherKeys.One] = true
+        game.Simulate(world, input, 3)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.HealthPotion), potions - 1)
+    }
+
+    TalkingToEddaRestoresHealthAndMana()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        int edda = game.People.FindPerson(HellfeatherPerson.Edda)
+        T.IsTrue(edda >= 0)
+        game.PlayerHealth = 5
+        game.PlayerMana = 1
+        game.Use(world, edda)
+        T.AreEqual(game.PlayerHealth, game.PlayerMaxHealth())
+        T.AreEqual(game.PlayerMana, game.PlayerMaxMana())
+    }
+}

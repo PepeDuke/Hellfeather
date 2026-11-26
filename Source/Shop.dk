@@ -104,6 +104,13 @@ HellfeatherShop
         }
     }
 
+    // Swaps every wrapped find on the hoard's shelves for new ones.
+    RerollHoard()
+    {
+        Stock.Clear()
+        for n : 0; n < HellfeatherShop.HoardShelves; n++ { AddHoardFind() }
+    }
+
     // Shelves one wrapped find from the hoard: a plain base, its rarity unseen.
     AddHoardFind()
     {
@@ -284,6 +291,7 @@ HellfeatherShop
     int SellValue(HellfeatherItems item, HellfeatherItemMods mods)
     {
         HellfeatherItemKind kind = HellfeatherItems.Get(item)
+        if item == HellfeatherItems.BlackFeather { return FeatherGold * mods.Amount() }
         if HellfeatherItems.IsValuable(item) { return kind.Price }
         return Math.Max(1, kind.Price * HellfeatherItemMods.PriceFactor(mods.Rarity) / 4)
     }
@@ -292,6 +300,10 @@ HellfeatherShop
     // How many wrapped finds the ravens' hoard shows, and the shares of them
     // that turn out rare and magic when bought.
     #int HoardShelves = 10
+    // Gold Edda pays for each black feather.
+    #int FeatherGold = 5
+    // Black feathers the ravens want to bring a fresh set of finds.
+    #int RerollPrice = 1
     #float HoardRare = 0.1
     #float HoardMagic = 0.35
 
@@ -388,6 +400,11 @@ HellfeatherShopArt
     #int InfoY = 150
     #int InfoWidth = 160
     #int InfoHeight = 74
+    // The hoard's reroll button, right of the purse.
+    #int RerollX = 127
+    #int RerollY = 232
+    #int RerollWidth = 38
+    #int RerollHeight = 16
 
     Paint(QuaxelUi& ui)
     {
@@ -420,6 +437,11 @@ HellfeatherShopScreen
     bool Open
     // The shop's name over the shelves, and two lines on what it sells.
     string Title = "SHOP"
+    // At the ravens' hoard: who takes what she sells there onto their own
+    // shelves, as "Edda", for the sell line.
+    string SellsTo = "Edda"
+    // Set by the game: whether this merchant takes black feathers (Edda does).
+    bool BuysFeathers
     string BlurbOne = "Potions, scrolls and"
     string BlurbTwo = "gear for the road."
     -bool MouseWasDown
@@ -432,6 +454,9 @@ HellfeatherShopScreen
     // the bag, and clears it.
     int BuyRequest = -1
     bool SellRequest
+    // At the hoard: a click on Reroll, to swap every wrapped find for new ones.
+    bool RerollRequest
+    -bool OverReroll
     // The mods of the item on the cursor, set by the game before each update.
     HellfeatherItemMods HeldMods
 
@@ -492,11 +517,36 @@ HellfeatherShopScreen
             Open = false
             return
         }
+        if held == HellfeatherItems.None && OnReroll(pointerX, pointerY) {
+            RerollRequest = true
+            return
+        }
         if held != HellfeatherItems.None {
             SellRequest = true
             return
         }
         BuyRequest = Hovered(pointerX, pointerY)
+    }
+
+    -bool OnReroll(int pointerX, int pointerY)
+    {
+        if !Shop.ForFeathers { return false }
+        return pointerX >= HellfeatherShopArt.RerollX && pointerY >= HellfeatherShopArt.RerollY && pointerX < HellfeatherShopArt.RerollX + HellfeatherShopArt.RerollWidth && pointerY < HellfeatherShopArt.RerollY + HellfeatherShopArt.RerollHeight
+    }
+
+    // The hoard's Reroll button: a bronze-edged plate, lit under the pointer
+    // and dimmed when she has no feather to pay with.
+    -DrawReroll(QuaxelUi& ui, int gold)
+    {
+        int x = PanelX + HellfeatherShopArt.RerollX
+        int y = PanelY + HellfeatherShopArt.RerollY
+        int w = HellfeatherShopArt.RerollWidth
+        int h = HellfeatherShopArt.RerollHeight
+        bool afford = gold >= HellfeatherShop.RerollPrice
+        ui.OverlayRect(x, y, w, h, 0xFF6A4E2C)
+        ui.OverlayRect(x + 1, y + 1, w - 2, h - 2, OverReroll && afford ? 0xFF3A2C1C | 0xFF1C1611)
+        string label = "Reroll"
+        ui.OverlayText(x + (w - (int)Length(label) * 6) / 2 + 1, y + 5, label, afford ? 0xFFE8B070 | 0xFF6C6258)
     }
 
     // Shows a short message under the item's price.
@@ -523,6 +573,8 @@ HellfeatherShopScreen
             ui.OverlayRect(x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, tint)
             ui.OverlayOutlinedSprite(x, y, HellfeatherInventoryArt.IconX(Shop.Stock[i].Item), HellfeatherInventoryArt.IconY(Shop.Stock[i].Item), kind.Width * cell, kind.Height * cell, HellfeatherInventoryArt.IconOutline)
         }
+        OverReroll = held == HellfeatherItems.None && OnReroll(pointerX, pointerY)
+        if Shop.ForFeathers { DrawReroll(ui, gold) }
         bool selling = held != HellfeatherItems.None && pointerX >= 0 && pointerY >= 0 && pointerX < HellfeatherInventoryArt.PanelWidth && pointerY < HellfeatherInventoryArt.PanelHeight
         if selling { ui.OverlayRect(PanelX + HellfeatherShopArt.GridX, PanelY + HellfeatherShopArt.GridY, HellfeatherShop.Columns * cell, HellfeatherShop.Rows * cell, 0x3040C060) }
         DrawInfo(ui, hovered, selling, gold, held)
@@ -544,10 +596,18 @@ HellfeatherShopScreen
 
     -DrawInfo(QuaxelUi& ui, int hovered, bool selling, int gold, HellfeatherItems held)
     {
-        if selling && (Shop.ForFeathers || !HellfeatherShop.Buys(held)) {
+        bool feathers = held == HellfeatherItems.BlackFeather && BuysFeathers
+        if feathers && selling {
+            Line(ui, 0, QuaxelUi.FormatInt(HeldMods.Amount()) + " black feathers", 0xFF9DB4F0)
+            Line(ui, 2, "Sell for " + QuaxelUi.FormatInt(HellfeatherShop.SellValue(held, HeldMods)) + " gold", 0xFFDCAE3E)
+            Line(ui, 3, "For Edda's ravens.", 0xFF8C8880)
+            Line(ui, 4, "Click to sell", 0xFF8C8880)
+            return
+        }
+        if selling && !HellfeatherShop.Buys(held) {
             HellfeatherItemKind refused = HellfeatherItems.Get(held)
             Line(ui, 0, refused.Name, HellfeatherItemMods.NameColor(held, HeldMods.Rarity))
-            Line(ui, 2, Shop.ForFeathers ? "The ravens don't buy." | "Not wanted here.", 0xFFD05A40)
+            Line(ui, 2, "Not wanted here.", 0xFFD05A40)
             if HellfeatherItems.IsQuest(held) { Line(ui, 3, "A quest item: keep it.", 0xFF8C8880) }
             if held == HellfeatherItems.BlackFeather { Line(ui, 3, "Edda's ravens take them.", 0xFF8C8880) }
             return
@@ -555,8 +615,9 @@ HellfeatherShopScreen
         if selling {
             HellfeatherItemKind carried = HellfeatherItems.Get(held)
             Line(ui, 0, carried.Name, HellfeatherItemMods.NameColor(held, HeldMods.Rarity))
-            Line(ui, 2, "Sell for " + QuaxelUi.FormatInt(Shop.SellPriceWith(held, HeldMods)) + " gold", 0xFFDCAE3E)
+            Line(ui, 2, "Sell for " + QuaxelUi.FormatInt(HellfeatherShop.SellValue(held, HeldMods)) + " gold", 0xFFDCAE3E)
             if HellfeatherItems.IsValuable(held) { Line(ui, 3, "A valuable: full price.", HellfeatherItemMods.ValuableColor) }
+            else if Shop.ForFeathers { Line(ui, 3, "To " + SellsTo + "'s shelves.", 0xFF8C8880) }
             Line(ui, 4, "Click to sell", 0xFF8C8880)
             return
         }
@@ -576,7 +637,8 @@ HellfeatherShopScreen
             mods : Shop.Stock[hovered].Mods
             int price = Shop.PriceOf(hovered)
             Line(ui, 0, kind.Name, HellfeatherItemMods.ColorOf(mods.Rarity))
-            if mods.Count > 0 {
+            if mods.Unidentified { Line(ui, 2, "Unidentified", HellfeatherItemMods.ColorOf(mods.Rarity)) }
+            else if mods.Count > 0 {
                 // The price goes beside the name, leaving a row for each of up to five mods.
                 string tag = QuaxelUi.FormatInt(price) + "g"
                 ui.OverlayText(PanelX + HellfeatherShopArt.InfoX + HellfeatherShopArt.InfoWidth - 5 - (int)Length(tag) * 6, PanelY + HellfeatherShopArt.InfoY + 5, tag, gold >= price ? 0xFFDCAE3E | 0xFFD05A40)
@@ -586,6 +648,15 @@ HellfeatherShopScreen
             Line(ui, 1, kind.Detail, 0xFFC8CCD4)
             Line(ui, 3, "Price " + QuaxelUi.FormatInt(price) + " gold", gold >= price ? 0xFFDCAE3E | 0xFFD05A40)
             Line(ui, 4, "Click to buy", 0xFF8C8880)
+            if NoticeFrames > 0 { Line(ui, 5, Notice, 0xFFD05A40) }
+            return
+        }
+        if OverReroll {
+            Line(ui, 0, "Reroll the hoard", 0xFFE8B070)
+            Line(ui, 1, "The ravens take back", 0xFFC8CCD4)
+            Line(ui, 2, "every bundle and bring", 0xFFC8CCD4)
+            Line(ui, 3, "new ones.", 0xFFC8CCD4)
+            Line(ui, 4, QuaxelUi.FormatInt(HellfeatherShop.RerollPrice) + " black feather", gold >= HellfeatherShop.RerollPrice ? 0xFF9DB4F0 | 0xFFD05A40)
             if NoticeFrames > 0 { Line(ui, 5, Notice, 0xFFD05A40) }
             return
         }

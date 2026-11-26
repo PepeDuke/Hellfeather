@@ -9,6 +9,28 @@ HellfeatherRuneTheme : int
 
 HellfeatherRunes
 #{
+    // What a skill's power does. Power scales one thing for each skill: Cleave's
+    // damage, how long War Cry lasts, and how far Dash carries her (it scales
+    // the dash's time; her dash speed stays the same).
+    #float WarCryBaseSeconds = 8.0
+    #float DashBaseSeconds = 0.18
+    #float DashSpeed = 18.0
+
+    float WarCrySeconds(int power) { return WarCryBaseSeconds * (float)power / 100.0 }
+
+    float DashSeconds(int power) { return DashBaseSeconds * (float)power / 100.0 }
+
+    // World units a dash covers at this power.
+    float DashDistance(int power) { return DashSpeed * DashSeconds(power) }
+
+    // One line on what the power gives, for the rune board.
+    string EffectLine(HellfeatherAction skill, int power)
+    {
+        if skill == HellfeatherAction.Cleave { return "Cleave deals " + QuaxelUi.FormatInt(power * 150 / 100) + "% weapon" }
+        if skill == HellfeatherAction.WarCry { return "War Cry lasts " + HellfeatherStats.FormatTenths(WarCrySeconds(power)) + " s" }
+        if skill == HellfeatherAction.Dash { return "Dash carries " + HellfeatherStats.FormatTenths(DashDistance(power)) + " units" }
+        return ""
+    }
     // The active skill a rune grants, or None for anything that is not a rune.
     HellfeatherAction SkillOf(HellfeatherItems item)
     {
@@ -288,6 +310,16 @@ T{
         T.AreEqual(board.Sockets.Len, 1)
         T.AreEqual(board.Lift(5, 5), HellfeatherItems.RuneWarCry)
         T.AreEqual(board.Lift(5, 5), HellfeatherItems.None)
+    }
+
+    PowerLengthensTheDashAndTheWarCry()
+    {
+        T.AreEqual(HellfeatherRunes.DashDistance(100), HellfeatherRunes.DashSpeed * HellfeatherRunes.DashBaseSeconds)
+        T.IsTrue(HellfeatherRunes.DashDistance(150) > HellfeatherRunes.DashDistance(100) * 1.49)
+        T.AreEqual(HellfeatherRunes.EffectLine(HellfeatherAction.Dash, 100), "Dash carries 3.2 units")
+        T.AreEqual(HellfeatherRunes.EffectLine(HellfeatherAction.WarCry, 150), "War Cry lasts 12.0 s")
+        T.AreEqual(HellfeatherRunes.EffectLine(HellfeatherAction.Cleave, 100), "Cleave deals 150% weapon")
+        for skill : HellfeatherAction { T.IsTrue(Length(HellfeatherRunes.EffectLine(skill, 300)) * 6 <= 156) }
     }
 
     TouchingRunesOfOneSkillAddPower()

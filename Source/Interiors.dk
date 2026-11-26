@@ -46,7 +46,11 @@ HellfeatherPiece : int
     FeatherScatterSmall,
     // Water dried round the dry outline of a pair of boots, and the boots.
     WaterStain,
-    Waterwalkers
+    Waterwalkers,
+    // An arched window, set in a back wall above the floor.
+    Window,
+    // A child of the brood, wrapped in sacking on a nest beside Mardra.
+    ChildRemains
 }
 
 // The furniture's shared volumes, with the footprint half and height of each
@@ -196,6 +200,8 @@ HellfeatherRoom : QuaxelTerrainModule
             Put(placer, group, HellfeatherPiece.Cot, -2.7, -4.0, 0)
             Put(placer, group, HellfeatherPiece.Cot, -0.4, -4.0, 0)
             Put(placer, group, HellfeatherPiece.Screen, 1.75, -4.2, 0)
+            // The outer ward's window, over Jessa's bed.
+            Put(placer, group, HellfeatherPiece.Window, 3.7, -4.41, 0)
             Put(placer, group, HellfeatherPiece.JarShelf, 5.6, -4.1, 0)
             Put(placer, group, HellfeatherPiece.Chest, 5.6, -1.4, 0)
             Put(placer, group, HellfeatherPiece.SconceEast, -6.36, -2.2, 32)
@@ -467,7 +473,7 @@ T{
         game.Use(world, desk)
         game.Answer(world, HellfeatherReply.SearchGarret)
         T.AreEqual(game.Quests.Rooms, 2)
-        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.LanternToken), 1)
+        T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.BlackHoney), 1)
         T.AreEqual(game.Inventory.Items.CountOf(HellfeatherItems.JessasWaterwalkers), 0)
         T.IsTrue(game.People.Spots[boots].Shown)
         game.Use(world, boots)

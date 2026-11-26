@@ -12,7 +12,7 @@ HellfeatherScreen : int
 
 HellfeatherMenuChoice : int
 #@{
-    None, Resume, SaveGame, MainMenu, ExitGame
+    None, Resume, SaveGame, MainMenu, ExitGame, Options
 }
 
 // A column of choices with one highlighted. The mouse and the keys both move
@@ -162,6 +162,7 @@ HellfeatherMenu
         if choice == HellfeatherMenuChoice.SaveGame { return "Save Game" }
         if choice == HellfeatherMenuChoice.MainMenu { return "Main Menu" }
         if choice == HellfeatherMenuChoice.ExitGame { return "Exit Game" }
+        if choice == HellfeatherMenuChoice.Options { return "Options" }
         return ""
     }
 }
@@ -827,6 +828,7 @@ HellfeatherGame : QuaxelGameInstance
         Menu.Show()
         Menu.Add(HellfeatherMenuChoice.Resume)
         Menu.Add(HellfeatherMenuChoice.SaveGame)
+        Menu.Add(HellfeatherMenuChoice.Options)
         Menu.Add(HellfeatherMenuChoice.MainMenu)
         Menu.Add(HellfeatherMenuChoice.ExitGame)
     }
@@ -834,7 +836,8 @@ HellfeatherGame : QuaxelGameInstance
     // Closes every panel that is open. Returns false if none was.
     bool CloseAllPanels()
     {
-        bool any = Inventory.Open || StatsScreen.Open || Passives.Open || Runes.Open || QuestLog.Open || Shop.Open || Stash.Open || AutoMap.Open || Actions.Picking >= 0
+        bool any = Inventory.Open || StatsScreen.Open || Passives.Open || Runes.Open || QuestLog.Open || Shop.Open || Stash.Open || AutoMap.Open || Actions.Picking >= 0 || WaypointWindow.Open
+        WaypointWindow.Close()
         // The bag puts a held item on the ground as it closes, like the I key.
         if Inventory.Open { Inventory.Toggle() }
         StatsScreen.Open = false
@@ -866,6 +869,7 @@ HellfeatherGame : QuaxelGameInstance
             if ActiveSlot <= 0 { Menu.Heading = "Saving is off" }
             else { Menu.Heading = SaveCharacter() ? "Game saved" | "Saving failed" }
         }
+        else if choice == HellfeatherMenuChoice.Options { OpenOptions() }
         else if choice == HellfeatherMenuChoice.MainMenu {
             SaveCharacter()
             if !EnterMainMenu(world) { Print("The main menu failed to build") }
@@ -893,6 +897,7 @@ HellfeatherGame : QuaxelGameInstance
             DressPreview(world)
         }
         else if action == HellfeatherCharacterAction.ExitGame { QuaxelPlatform.RequestWindowClose() }
+        else if action == HellfeatherCharacterAction.Options { OpenOptions() }
     }
 
     // The character loaded in this world plays on at once; any other needs
@@ -943,6 +948,16 @@ HellfeatherGame : QuaxelGameInstance
         bool escape = input.Down[HellfeatherKeys.Escape]
         bool pressed = escape && !EscapeKeyHeld
         EscapeKeyHeld = escape
+        // The options, over either menu, have the keys while they are open.
+        if Options.Open && Screen != HellfeatherScreen.Playing {
+            if Screen == HellfeatherScreen.MainMenu {
+                MenuScene.Step(world, deltaSeconds)
+                if !Terrain.Stream(world, world.GetPosition(PlayerNode), TerrainColumnsPerStep()) { Print("Terrain streaming failed") }
+            }
+            StepOptions(world, input, pressed)
+            PlayMenuSounds(world)
+            return true
+        }
         if Screen == HellfeatherScreen.MainMenu {
             MenuScene.Step(world, deltaSeconds)
             // The land around her keeps streaming in behind the menu.
@@ -987,7 +1002,11 @@ HellfeatherGame : QuaxelGameInstance
             LoadingFrames++
             return
         }
-        if Screen == HellfeatherScreen.MainMenu {
+        if Options.Open {
+            Options.Draw(ui, width, height, mouseX, mouseY, mouseDown, true)
+            ApplyOptions(world)
+        }
+        else if Screen == HellfeatherScreen.MainMenu {
             ChooseCharacter(world, Characters.Draw(ui, width, height, mouseX, mouseY, mouseDown))
         }
         else { Choose(world, Menu.Draw(ui, width, height, mouseX, mouseY, mouseDown, gridHeight / 2 + 8, true)) }
@@ -999,8 +1018,10 @@ HellfeatherGame : QuaxelGameInstance
     {
         bool click = Characters.TakeClick()
         click = Menu.TakeClick() || click
+        click = Options.TakeClick() || click
         bool hover = Characters.TakeHover()
         hover = Menu.TakeHover() || hover
+        hover = Options.TakeHover() || hover
         if click { Sfx.Play(world, HellfeatherSound.UiClick) }
         else if hover { Sfx.Hover(world) }
     }

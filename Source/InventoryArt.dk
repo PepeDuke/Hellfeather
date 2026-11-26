@@ -53,7 +53,32 @@ HellfeatherInventoryArt
         HellfeatherStatusArt.Paint(ui)
         for item : HellfeatherItems { if item != HellfeatherItems.None { PaintIcon(ui, item, IconX(item), IconY(item)) } }
         HellfeatherActionArt.Paint(ui)
+        // The potions shrunk to fit a belt pocket.
+        PaintPocketIcon(ui, HellfeatherItems.HealthPotion)
+        PaintPocketIcon(ui, HellfeatherItems.ManaPotion)
     }
+
+    // Belt pockets under the waist slot, PocketSize square, and where their
+    // shrunken potion icons sit in the atlas, beside the number-key icons.
+    #int PocketSize = 12
+    #int PocketY = 146
+    #int PocketAtlasX = 120
+    #int PocketAtlasY = 492
+
+    int PocketIconX(HellfeatherItems potion) { return PocketAtlasX + (potion == HellfeatherItems.ManaPotion ? PocketSize | 0) }
+
+    -PaintPocketIcon(QuaxelUi& ui, HellfeatherItems potion)
+    {
+        for y : 0; y < PocketSize; y++ {
+            for x : 0; x < PocketSize; x++ {
+                uint pixel = ui.AtlasTexel(IconX(potion) + x * Cell / PocketSize, IconY(potion) + y * Cell / PocketSize)
+                ui.SetAtlasTexel(PocketIconX(potion) + x, PocketAtlasY + y, pixel)
+            }
+        }
+    }
+
+    // The left edge of a pocket on the panel, centered under the waist slot.
+    int PocketX(int pocket, int count) { return 88 - (count * (PocketSize + 1) - 1) / 2 + pocket * (PocketSize + 1) }
 
     // Paints the whole atlas the first time any screen needs it.
     EnsurePainted(QuaxelUi& ui)
@@ -306,6 +331,23 @@ HellfeatherInventoryScreen
     // there instead. The click lifts it and sets QuickStoreRequest; the game stores it.
     bool CanStore
     bool QuickStoreRequest
+    // Set by the game: whether the open shop takes black feathers.
+    bool BuysFeathers
+    // Set by the game each frame: whether the right mouse button is down.
+    // Held over an unidentified find, it fills the identify bar.
+    bool RightDown
+    // Set when a find has just been identified; the game plays its sound and clears this.
+    bool IdentifiedRequest
+    // Game seconds since the last Update, added up by Tick.
+    -float Pending
+    // The find being identified, as a target (see TargetAt), and how long the
+    // button has been held on it.
+    -int Identifying = -1
+    -float IdentifyHeld
+    // The find just identified, as a target, and how long ago, for the reveal.
+    -int Revealing = -1
+    -float RevealSeconds
+    -long RevealBagSize
     -bool MouseWasDown
     -int Scale = 1
     -int PanelX
@@ -315,6 +357,77 @@ HellfeatherInventoryScreen
     {
         Open = !Open
         if !Open { Items.StowHeld() }
+    }
+
+    // Game time passing, for the identify bar and the reveal.
+    Tick(float deltaSeconds) { Pending += deltaSeconds }
+
+    // The bag entry under the pointer as itself, a worn slot as -2 - slot,
+    // or -1 for nothing.
+    -int TargetAt(int pointerX, int pointerY)
+    {
+        if Items.Held != HellfeatherItems.None { return -1 }
+        int slot = HellfeatherInventoryLayout.SlotAt(pointerX, pointerY)
+        if slot >= 0 { return Items.Equipped[slot] == HellfeatherItems.None ? -1 | -2 - slot }
+        if !InGrid(pointerX, pointerY) { return -1 }
+        return Items.EntryAt((pointerX - HellfeatherInventoryArt.GridX) / HellfeatherInventoryArt.Cell, (pointerY - HellfeatherInventoryArt.GridY) / HellfeatherInventoryArt.Cell)
+    }
+
+    -bool TargetUnidentified(int target)
+    {
+        if target >= 0 { return target < Items.Bag.Len && Items.Bag[target].Mods.Unidentified }
+        if target <= -2 { return Items.EquippedMods[-2 - target].Unidentified }
+        return false
+    }
+
+    -Identify(int target)
+    {
+        if target >= 0 { Items.Bag[target].Mods.Unidentified = false }
+        else if target <= -2 { Items.EquippedMods[-2 - target].Unidentified = false }
+    }
+
+    // Fills the bar while the right button is held over an unidentified find,
+    // and identifies it once full. Letting go or moving off empties the bar.
+    StepIdentify(int pointerX, int pointerY, float seconds)
+    {
+        if Revealing != -1 {
+            RevealSeconds += seconds
+            // Items moving in the bag would shift the reveal onto another one.
+            if RevealSeconds > HellfeatherInventoryScreen.RevealLength || Items.Bag.Len != RevealBagSize { Revealing = -1 }
+        }
+        int target = RightDown ? TargetAt(pointerX, pointerY) | -1
+        if target == -1 || !TargetUnidentified(target) {
+            Identifying = -1
+            IdentifyHeld = 0.0
+            return
+        }
+        if target != Identifying {
+            Identifying = target
+            IdentifyHeld = 0.0
+        }
+        IdentifyHeld += seconds
+        if IdentifyHeld < HellfeatherInventoryScreen.IdentifySeconds { return }
+        Identify(target)
+        Identifying = -1
+        IdentifyHeld = 0.0
+        Revealing = target
+        RevealSeconds = 0.0
+        RevealBagSize = Items.Bag.Len
+        IdentifiedRequest = true
+    }
+
+    // How full the identify bar is for a target, 0 to 1.
+    float IdentifyShare(int target)
+    {
+        if target != Identifying || target == -1 { return 0.0 }
+        return Math.Clamp(IdentifyHeld / HellfeatherInventoryScreen.IdentifySeconds, 0.0, 1.0)
+    }
+
+    // How far into its reveal a target is in seconds, or -1 when it is not revealing.
+    float RevealAge(int target)
+    {
+        if target != Revealing || target == -1 { return -1.0 }
+        return RevealSeconds
     }
 
     // The warrior's starting kit: her hand axe, her Leather Armor and Miner's Helmet,
@@ -355,7 +468,13 @@ HellfeatherInventoryScreen
         HellfeatherInventoryArt.EnsurePainted(ui)
         bool pressed = down && !MouseWasDown
         MouseWasDown = down
-        if !Open { return }
+        float seconds = Pending
+        Pending = 0.0
+        if !Open {
+            Identifying = -1
+            IdentifyHeld = 0.0
+            return
+        }
         Scale = ui.ScaleFor(width, height)
         PanelX = Math.Max(0, width / Scale - HellfeatherInventoryArt.PanelWidth - Margin)
         PanelY = Math.Max(0, (height / Scale - HellfeatherInventoryArt.PanelHeight) / 2)
@@ -363,7 +482,11 @@ HellfeatherInventoryScreen
         int gridMouseY = mouseY / Scale
         int pointerX = gridMouseX - PanelX
         int pointerY = gridMouseY - PanelY
-        if pressed { Click(pointerX, pointerY) }
+        if pressed {
+            Revealing = -1
+            Click(pointerX, pointerY)
+        }
+        StepIdentify(pointerX, pointerY, seconds)
         if Open { Draw(ui, gridMouseX, gridMouseY, pointerX, pointerY) }
     }
 
@@ -389,10 +512,27 @@ HellfeatherInventoryScreen
         return pointerX >= HellfeatherInventoryArt.CloseX && pointerY >= HellfeatherInventoryArt.CloseY && pointerX < HellfeatherInventoryArt.CloseX + HellfeatherInventoryArt.CloseSize && pointerY < HellfeatherInventoryArt.CloseY + HellfeatherInventoryArt.CloseSize
     }
 
+    // The belt pocket under a panel point, or -1.
+    -int PocketAt(int pointerX, int pointerY)
+    {
+        int count = Items.BeltSlots()
+        if pointerY < HellfeatherInventoryArt.PocketY || pointerY >= HellfeatherInventoryArt.PocketY + HellfeatherInventoryArt.PocketSize { return -1 }
+        for pocket : 0; pocket < count; pocket++ {
+            int x = HellfeatherInventoryArt.PocketX(pocket, count)
+            if pointerX >= x && pointerX < x + HellfeatherInventoryArt.PocketSize { return pocket }
+        }
+        return -1
+    }
+
     -Click(int pointerX, int pointerY)
     {
         if OnClose(pointerX, pointerY) {
             Toggle()
+            return
+        }
+        int pocket = PocketAt(pointerX, pointerY)
+        if pocket >= 0 {
+            Items.ClickPocket(pocket)
             return
         }
         int slot = HellfeatherInventoryLayout.SlotAt(pointerX, pointerY)
@@ -410,7 +550,7 @@ HellfeatherInventoryScreen
         // Shift-click while trading sells what the merchant will buy, without
         // carrying it over. Anything else is picked up as usual.
         int entry = Items.EntryAt(cellX, cellY)
-        bool quick = CanSell && ShiftHeld && entry >= 0 && HellfeatherShop.Buys(Items.Bag[entry].Item)
+        bool quick = CanSell && ShiftHeld && entry >= 0 && (HellfeatherShop.Buys(Items.Bag[entry].Item) || (BuysFeathers && Items.Bag[entry].Item == HellfeatherItems.BlackFeather))
         bool store = CanStore && ShiftHeld && entry >= 0
         bool lifted = Items.PickUp(cellX, cellY)
         if lifted && quick { QuickSellRequest = true }
@@ -440,6 +580,7 @@ HellfeatherInventoryScreen
         string title = "INVENTORY"
         ui.OverlayText(OnGridX((HellfeatherInventoryArt.PanelWidth - (int)Length(title) * 6) / 2), OnGridY(9), title, 0xFFE8B070)
         for slot : HellfeatherSlot { DrawSlot(ui, slot, pointerX, pointerY) }
+        DrawPockets(ui, pointerX, pointerY)
         DrawBag(ui, pointerX, pointerY)
         string gold = QuaxelUi.FormatInt(Items.Gold)
         ui.OverlayText(OnGridX(HellfeatherInventoryArt.GoldX + HellfeatherInventoryArt.GoldWidth - 4 - (int)Length(gold) * 6), OnGridY(HellfeatherInventoryArt.GoldY + 5), gold, 0xFFDCAE3E)
@@ -450,6 +591,26 @@ HellfeatherInventoryScreen
             int heldY = mouseY - kind.Height * HellfeatherInventoryArt.Cell / 2
             Icon(ui, Items.Held, heldX, heldY)
             if HellfeatherItems.StackMost(Items.Held) > 1 { StackCount(ui, Items.HeldMods.Amount(), heldX, heldY) }
+        }
+    }
+
+    // The belt's pockets: a dark well each, its potion small inside, lit
+    // under the pointer and glowing where a held potion could go.
+    -DrawPockets(QuaxelUi& ui, int pointerX, int pointerY)
+    {
+        int count = Items.BeltSlots()
+        int hovered = PocketAt(pointerX, pointerY)
+        int size = HellfeatherInventoryArt.PocketSize
+        bool potionHeld = HellfeatherItems.IsPotion(Items.Held)
+        for pocket : 0; pocket < count; pocket++ {
+            int x = HellfeatherInventoryArt.PocketX(pocket, count)
+            int y = HellfeatherInventoryArt.PocketY
+            Highlight(ui, x - 1, y - 1, size + 2, size + 2, 0xFF625749)
+            Highlight(ui, x, y, size, size, 0xFF14110E)
+            potion : Items.BeltPotion(pocket)
+            if potion != HellfeatherItems.None { ui.OverlaySprite(OnGridX(x), OnGridY(y), HellfeatherInventoryArt.PocketIconX(potion), HellfeatherInventoryArt.PocketAtlasY, size, size) }
+            if pocket == hovered { Highlight(ui, x, y, size, size, potionHeld || Items.Held == HellfeatherItems.None ? 0x40FFFFFF | 0x50C04030) }
+            else if potionHeld { Highlight(ui, x, y, size, size, 0x30E8B070) }
         }
     }
 
@@ -502,6 +663,18 @@ HellfeatherInventoryScreen
             Highlight(ui, x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, hovered ? 0x40FFFFFF | HellfeatherItemMods.CellTint(item, Items.Bag[i].Mods.Rarity))
             Icon(ui, item, OnGridX(x), OnGridY(y))
             if HellfeatherItems.StackMost(item) > 1 { StackCount(ui, Items.Bag[i].Mods.Amount(), OnGridX(x), OnGridY(y)) }
+            uint rarityColor = HellfeatherItemMods.ColorOf(Items.Bag[i].Mods.Rarity)
+            // An unidentified find carries a question mark, and fills with light while identified.
+            if Items.Bag[i].Mods.Unidentified {
+                ui.OverlayText(OnGridX(x) + 2, OnGridY(y) + 1, "?", rarityColor)
+                float share = IdentifyShare(i)
+                if share > 0.0 {
+                    int filled = (int)((float)(kind.Height * cell - 2) * share)
+                    Highlight(ui, x + 1, y + kind.Height * cell - 1 - filled, kind.Width * cell - 1, filled, HellfeatherInventoryScreen.Glow(rarityColor, 0.35))
+                }
+            }
+            float age = RevealAge(i)
+            if age >= 0.0 { Highlight(ui, x + 1, y + 1, kind.Width * cell - 1, kind.Height * cell - 1, HellfeatherInventoryScreen.Glow(rarityColor, HellfeatherInventoryScreen.RevealFade(age) * 0.5)) }
         }
     }
 
@@ -516,9 +689,25 @@ HellfeatherInventoryScreen
     -DrawTooltip(QuaxelUi& ui, int mouseX, int mouseY, int pointerX, int pointerY)
     {
         if Items.Held != HellfeatherItems.None { return }
+        int pocket = PocketAt(pointerX, pointerY)
+        if pocket >= 0 {
+            potion : Items.BeltPotion(pocket)
+            HellfeatherItemKind inside = HellfeatherItems.Get(potion)
+            string first = potion == HellfeatherItems.None ? "Empty pocket" | inside.Name
+            string second = potion == HellfeatherItems.None ? "Drop a potion here" | "In your belt"
+            int wide = (int)Math.Max(Length(first), Length(second)) * 6 + 12
+            int px = Math.Max(2, mouseX - wide - 6)
+            int py = Math.Max(2, mouseY - 29)
+            ui.OverlayRect(px - 1, py - 1, wide + 2, 28, 0xFF625749)
+            ui.OverlayRect(px, py, wide, 26, 0xF0120F0D)
+            ui.OverlayText(px + 6, py + 4, first, 0xFFEDE6D8)
+            ui.OverlayText(px + 6, py + 15, second, 0xFF8C8880)
+            return
+        }
         item : HellfeatherItems.None
         HellfeatherItemMods mods
         mods.Clear()
+        int target = TargetAt(pointerX, pointerY)
         int slot = HellfeatherInventoryLayout.SlotAt(pointerX, pointerY)
         if slot >= 0 {
             item = Items.Equipped[slot]
@@ -539,12 +728,25 @@ HellfeatherInventoryScreen
             kind.Name = QuaxelUi.FormatInt(mods.Amount()) + " " + kind.Name + (mods.Amount() == 1 ? "" | "s")
             kind.Detail = "Stack " + QuaxelUi.FormatInt(mods.Amount()) + " of " + QuaxelUi.FormatInt(most) + ". " + kind.Detail
         }
+        // A belt says how many pockets it opens and what it carries.
+        int pockets = HellfeatherItems.BeltPockets(item)
+        if pockets > 0 {
+            kind.Detail = kind.Detail + ", " + QuaxelUi.FormatInt(pockets) + " pockets"
+            if mods.PotionCount() > 0 { kind.Detail = kind.Detail + " (" + QuaxelUi.FormatInt(mods.PotionCount()) + " full)" }
+        }
         // The name in its rarity's color, the base stat, then one line per mod.
+        // An unidentified find hides its mods behind a hint and the identify bar;
+        // one just identified shows them one after another.
+        bool hidden = mods.Unidentified
+        float age = RevealAge(target)
+        string hint = "Hold right click to identify"
+        int modLines = hidden ? 2 | mods.Count
+        int barHeight = hidden ? 6 | 0
         int characters = (int)Math.Max(Length(kind.Name), Length(kind.Detail))
         for i : 0; i < mods.Count; i++ { characters = Math.Max(characters, (int)Length(mods.Line(i))) }
+        if hidden { characters = Math.Max(characters, (int)Length(hint)) }
         string price = Trading ? "Sells for " + QuaxelUi.FormatInt(HellfeatherShop.SellValue(item, mods)) + " gold" | ""
-        if CanSell && slot < 0 { price = price + ", Shift-click" }
-        if Trading && !HellfeatherShop.Buys(item) { price = "Merchants don't buy these" }
+        if Trading && !HellfeatherShop.Buys(item) && !(BuysFeathers && item == HellfeatherItems.BlackFeather) { price = "Merchants don't buy these" }
         if Trading && HellfeatherItems.IsQuest(item) { price = "Not for sale" }
         // A quest item or a valuable says so under its name.
         bool quest = HellfeatherItems.IsQuest(item)
@@ -552,19 +754,45 @@ HellfeatherInventoryScreen
         int below = quest || valuable ? 11 | 0
         characters = Math.Max(characters, (int)Length(price))
         int boxWidth = characters * 6 + 12
-        int boxHeight = 26 + below + mods.Count * 11 + (Trading ? 13 | 0)
+        int boxHeight = 26 + below + modLines * 11 + barHeight + (Trading ? 13 | 0)
         // Toward the middle of the window, away from the edge the panel sits on.
         int x = Math.Max(2, mouseX - boxWidth - 6)
         int y = Math.Max(2, mouseY - boxHeight - 3)
-        ui.OverlayRect(x - 1, y - 1, boxWidth + 2, boxHeight + 2, 0xFF625749)
+        uint rarityColor = HellfeatherItemMods.ColorOf(mods.Rarity)
+        // A halo in the rarity's color: rising while identifying, bright at the
+        // reveal and fading as the last mod settles.
+        float halo = 0.0
+        if hidden { halo = IdentifyShare(target) * 0.6 }
+        else if age >= 0.0 { halo = HellfeatherInventoryScreen.RevealFade(age) }
+        if halo > 0.0 {
+            for ring : 1; ring <= 4; ring++ { ui.OverlayRect(x - 1 - ring, y - 1 - ring, boxWidth + 2 + ring * 2, boxHeight + 2 + ring * 2, HellfeatherInventoryScreen.Glow(rarityColor, halo * (0.5 - (float)ring * 0.1))) }
+        }
+        ui.OverlayRect(x - 1, y - 1, boxWidth + 2, boxHeight + 2, halo > 0.0 ? rarityColor | 0xFF625749)
         ui.OverlayRect(x, y, boxWidth, boxHeight, 0xF0120F0D)
         ui.OverlayText(x + 6, y + 4, kind.Name, HellfeatherItemMods.NameColor(item, mods.Rarity))
         if quest { ui.OverlayText(x + 6, y + 15, "Quest item", HellfeatherItemMods.QuestColor) }
         if valuable { ui.OverlayText(x + 6, y + 15, "Valuable", HellfeatherItemMods.ValuableColor) }
         ui.OverlayText(x + 6, y + 15 + below, kind.Detail, 0xFFC8CCD4)
-        for i : 0; i < mods.Count; i++ { ui.OverlayText(x + 6, y + 26 + below + i * 11, mods.Line(i), 0xFF8FB4FF) }
+        int modsY = y + 26 + below
+        if hidden {
+            ui.OverlayText(x + 6, modsY, "Unidentified", rarityColor)
+            ui.OverlayText(x + 6, modsY + 11, hint, 0xFF8C8880)
+            int barWidth = boxWidth - 12
+            ui.OverlayRect(x + 6, modsY + 22, barWidth, 4, 0xFF2A241E)
+            int filled = (int)((float)barWidth * IdentifyShare(target))
+            if filled > 0 { ui.OverlayRect(x + 6, modsY + 22, filled, 4, rarityColor) }
+        }
+        else {
+            for i : 0; i < mods.Count; i++ {
+                // During a reveal each mod arrives in turn with a flash behind it.
+                float since = age >= 0.0 ? age - (float)i * HellfeatherInventoryScreen.RevealStep | 1.0
+                if since < 0.0 { continue }
+                if since < 0.5 { ui.OverlayRect(x + 3, modsY + i * 11 - 1, boxWidth - 6, 10, HellfeatherInventoryScreen.Glow(rarityColor, (0.5 - since) * 0.9)) }
+                ui.OverlayText(x + 6, modsY + i * 11, mods.Line(i), since < 0.2 ? 0xFFFFF6DC | 0xFF8FB4FF)
+            }
+        }
         if Trading {
-            int priceY = y + 26 + below + mods.Count * 11
+            int priceY = modsY + modLines * 11 + barHeight
             ui.OverlayRect(x + 4, priceY, boxWidth - 8, 1, 0xFF3A3128)
             ui.OverlayText(x + 6, priceY + 3, price, 0xFFDCAE3E)
         }
@@ -578,6 +806,21 @@ HellfeatherInventoryScreen
 #{
     // UI pixels between the panel and the right edge of the window.
     #int Margin = 4
+    // Seconds the right button is held to identify a find, then the gap
+    // between its mods appearing, and how long the whole reveal glows.
+    #float IdentifySeconds = 1.0
+    #float RevealStep = 0.35
+    #float RevealLength = 3.0
+
+    // A color at a share of full opacity.
+    uint Glow(uint color, float share)
+    {
+        int alpha = (int)(Math.Clamp(share, 0.0, 1.0) * 255.0)
+        return (uint)(alpha << 24) | (color & (uint)0x00FFFFFF)
+    }
+
+    // How bright the reveal's glow is, at its age in seconds.
+    float RevealFade(float age) { return Math.Clamp(1.0 - age / RevealLength, 0.0, 1.0) }
 }
 T{
     ClosedInventoryDrawsNothingAndIgnoresTheMouse()
@@ -625,6 +868,117 @@ T{
             T.AreEqual(command.X % 4, 0)
             T.AreEqual(command.Y % 4, 0)
         }
+    }
+
+    HoldingTheRightButtonIdentifiesAFindAndHidesItsModsUntilThen()
+    {
+        HellfeatherInventoryScreen screen
+        QuaxelUi ui()
+        ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
+        mods : HellfeatherItemMods.RollAs(HellfeatherItems.Boots, HellfeatherRarity.Rare, 3)
+        mods.Unidentified = true
+        T.IsTrue(screen.Items.AddWith(HellfeatherItems.Boots, mods))
+        // Hidden mods add nothing to her stats.
+        HellfeatherStats stats
+        HellfeatherStats before = stats
+        screen.Items.Bag[0].Mods.ApplyTo(stats)
+        T.AreEqual(stats.MoveSpeed, before.MoveSpeed)
+        T.AreEqual(stats.MaxHealth, before.MaxHealth)
+        screen.Toggle()
+        screen.Update(ui, 960, 540, 0, 0, false)
+        int mouseX = (screen.PanelLeft + HellfeatherInventoryArt.GridX + 2) * screen.PanelScale
+        int mouseY = (screen.PanelTop + HellfeatherInventoryArt.GridY + 2) * screen.PanelScale
+        // Letting go part way empties the bar again.
+        screen.RightDown = true
+        screen.Tick(0.6)
+        screen.Update(ui, 960, 540, mouseX, mouseY, false)
+        screen.RightDown = false
+        screen.Tick(0.1)
+        screen.Update(ui, 960, 540, mouseX, mouseY, false)
+        screen.RightDown = true
+        screen.Tick(0.6)
+        screen.Update(ui, 960, 540, mouseX, mouseY, false)
+        T.IsTrue(screen.Items.Bag[0].Mods.Unidentified)
+        T.IsFalse(screen.IdentifiedRequest)
+        screen.Tick(0.5)
+        screen.Update(ui, 960, 540, mouseX, mouseY, false)
+        T.IsFalse(screen.Items.Bag[0].Mods.Unidentified)
+        T.IsTrue(screen.IdentifiedRequest)
+        T.AreEqual(screen.Items.Bag[0].Mods.Count, mods.Count)
+        // The reveal draws while the mods come in.
+        screen.Tick(0.4)
+        screen.Update(ui, 960, 540, mouseX, mouseY, false)
+    }
+
+    ABeltCarriesPotionsAndTheyTravelWithIt()
+    {
+        HellfeatherInventory items
+        T.AreEqual(items.BeltSlots(), 0)
+        items.Equipped[HellfeatherSlot.Waist] = HellfeatherItems.HeavyBelt
+        items.EquippedMods[HellfeatherSlot.Waist].Clear()
+        T.AreEqual(items.BeltSlots(), 3)
+        // Picked up or bought, potions fill the pockets before the bag.
+        T.IsTrue(items.Add(HellfeatherItems.HealthPotion))
+        T.IsTrue(items.Add(HellfeatherItems.ManaPotion))
+        T.IsTrue(items.Add(HellfeatherItems.HealthPotion))
+        T.AreEqual(items.Bag.Len, (long)0)
+        T.IsTrue(items.Add(HellfeatherItems.HealthPotion))
+        T.AreEqual(items.CountOf(HellfeatherItems.HealthPotion), 1)
+        T.AreEqual(items.UsableCount(HellfeatherItems.HealthPotion), 3)
+        // Drinking takes the bag's first, then the belt's.
+        T.IsTrue(items.Consume(HellfeatherItems.HealthPotion))
+        T.AreEqual(items.CountOf(HellfeatherItems.HealthPotion), 0)
+        T.AreEqual(items.BeltCount(HellfeatherItems.HealthPotion), 2)
+        T.IsTrue(items.Consume(HellfeatherItems.HealthPotion))
+        T.AreEqual(items.BeltCount(HellfeatherItems.HealthPotion), 1)
+        // A pocket's potion can be lifted out and put back.
+        T.IsTrue(items.ClickPocket(1))
+        T.IsTrue(items.Held == HellfeatherItems.ManaPotion)
+        T.IsTrue(items.ClickPocket(1))
+        T.IsTrue(items.Held == HellfeatherItems.None)
+        T.AreEqual(items.BeltCount(HellfeatherItems.ManaPotion), 1)
+        // Only potions go in.
+        items.Held = HellfeatherItems.Ring
+        T.IsFalse(items.ClickPocket(2))
+        items.ClearHeld()
+        // Taken off, the belt keeps its potions.
+        T.IsTrue(items.ClickSlot(HellfeatherSlot.Waist))
+        T.IsTrue(items.Held == HellfeatherItems.HeavyBelt)
+        T.AreEqual(items.HeldMods.PotionCount(), 2)
+        T.AreEqual(items.BeltSlots(), 0)
+        T.AreEqual(items.UsableCount(HellfeatherItems.ManaPotion), 0)
+        // Worn again, they are there to drink.
+        T.IsTrue(items.ClickSlot(HellfeatherSlot.Waist))
+        T.AreEqual(items.UsableCount(HellfeatherItems.ManaPotion), 1)
+        T.AreEqual(HellfeatherItems.BeltPockets(HellfeatherItems.Belt), 2)
+        T.AreEqual(HellfeatherItems.BeltPockets(HellfeatherItems.PlatedBelt), 4)
+    }
+
+    ABeltsPotionsAreSavedWithIt()
+    {
+        HellfeatherItemMods mods
+        mods.Clear()
+        mods.Potions[0] = HellfeatherItems.HealthPotion
+        mods.Potions[2] = HellfeatherItems.ManaPotion
+        QuaxelJsonWriter out
+        out.BeginObject("")
+        HellfeatherSaves.WriteItem(out, "belt", HellfeatherItems.HeavyBelt, mods, false, 0, 0)
+        out.EndObject()
+        QuaxelJson json
+        T.IsTrue(json.Parse(out.Bytes))
+        HellfeatherItems item = HellfeatherItems.None
+        HellfeatherItemMods read
+        T.IsTrue(HellfeatherSaves.ReadItem(json, json.Find(0, "belt"), item, read))
+        T.IsTrue(read.Potions[0] == HellfeatherItems.HealthPotion)
+        T.IsTrue(read.Potions[1] == HellfeatherItems.None)
+        T.IsTrue(read.Potions[2] == HellfeatherItems.ManaPotion)
+    }
+
+    OnlyRareDropsComeUnidentified()
+    {
+        T.IsTrue(HellfeatherItemMods.DropsUnidentified(HellfeatherRarity.Rare))
+        T.IsFalse(HellfeatherItemMods.DropsUnidentified(HellfeatherRarity.Magic))
+        T.IsFalse(HellfeatherItemMods.DropsUnidentified(HellfeatherRarity.Common))
     }
 
     PanelGrowsWithALargerWindow()

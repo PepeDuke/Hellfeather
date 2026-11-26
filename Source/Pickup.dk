@@ -1,0 +1,45 @@
+// Coins she walks near jump into her purse on their own, so gold never needs
+// a click. Other items still wait for one.
+HellfeatherPickup
+#{
+    // World units from her within which gold on the ground is picked up.
+    #float GoldReach = 2.2
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    // Runs every step: gold within reach goes to the purse with a jingle.
+    StepGoldPickup(QuaxelWorld& world)
+    {
+        if PlayerHealth <= 0 { return }
+        vec3 player = world.GetPosition(PlayerNode)
+        bool took = false
+        for i : (int)Ground.Entries.Len - 1; i >= 0; i-- {
+            if Ground.Entries[i].Item != HellfeatherItems.Gold { continue }
+            vec3 at = Ground.Entries[i].Position
+            if Math.Hypot(at.X - player.X, at.Z - player.Z) > HellfeatherPickup.GoldReach { continue }
+            Inventory.Items.Gold += Ground.Entries[i].Amount
+            Ground.Remove(world, i)
+            took = true
+        }
+        if took { Sfx.Play(world, HellfeatherSound.GoldPickup) }
+    }
+}
+T{
+    GoldNearHerIsPickedUpOnItsOwn()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        vec3 player = world.GetPosition(game.PlayerNode)
+        T.IsTrue(game.Ground.PlaceGold(world, 40, vec3(player.X + 1.0, 0.0, player.Z)))
+        T.IsTrue(game.Ground.PlaceGold(world, 25, vec3(player.X + 6.0, 0.0, player.Z)))
+        T.IsTrue(game.Ground.Place(world, HellfeatherItems.Ring, vec3(player.X - 1.0, 0.0, player.Z)))
+        int gold = game.Inventory.Items.Gold
+        QuaxelInputState input
+        game.Simulate(world, input, 2)
+        T.AreEqual(game.Inventory.Items.Gold, gold + 40)
+        // Gold out of reach and other items stay where they are.
+        T.AreEqual(game.Ground.Entries.Len, (long)2)
+    }
+}

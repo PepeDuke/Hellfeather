@@ -1,7 +1,21 @@
 // The game's sound effects, in Assets/Sounds.
 HellfeatherSound : int
 #@{
-    PlayerHurt, PotionDrink, Dash, UiClick, UiPanel
+    PlayerHurt, PotionDrink, Dash, UiClick, UiPanel,
+    // A rare find's mods revealed.
+    Identify,
+    // Edda's care: health and mana back to full.
+    Heal,
+    LevelUp,
+    // One of the act's main quests done.
+    QuestComplete,
+    // Gold changing hands at a merchant.
+    Coins,
+    // An item lifted from or set down in the bag.
+    ItemPick,
+    ItemDrop,
+    ManaDrink,
+    GoldPickup
 }
 
 // The parts of an axe swing. Her attack clips call for Start and Whoosh on
@@ -173,6 +187,8 @@ T{
         sounds.Load(world)
         for sound : HellfeatherSound
             T.IsTrue(sounds.Loaded(sound))
+        T.IsTrue(world.LoadSound(HellfeatherSounds.FireLoop) > 0)
+        T.IsTrue(world.LoadSound(HellfeatherSounds.WaypointLoop) > 0)
         for footing : HellfeatherFooting
             T.AreEqual(world.SoundGroupSize(sounds.StepVariants(footing)), 4)
         for set : HellfeatherSwingSet
@@ -346,6 +362,21 @@ T{
         return source
     }
 
+    // A sound that belongs to a place, such as a fire's crackle: full within
+    // a few units of her and gone some way off, measured from the camera
+    // about 35 units above her.
+    QuaxelAudioSource AreaSource()
+    {
+        QuaxelAudioSource source
+        source.InnerRadius = 35.5
+        source.OuterRadius = 40.5
+        return source
+    }
+
+    // Looping ambience, loaded by whoever places it.
+    #string FireLoop = "Assets/Sounds/fire_loop.wav"
+    #string WaypointLoop = "Assets/Sounds/waypoint_loop.wav"
+
     string [] VoicePaths(HellfeatherEnemyVoice voice, bool death)
     {
         string stem = "Assets/Sounds/Enemies/" + VoiceStem(voice)
@@ -516,6 +547,24 @@ T{
                 return "Assets/Sounds/dash.wav"
             case HellfeatherSound.UiClick:
                 return "Assets/Sounds/ui_click.wav"
+            case HellfeatherSound.Identify:
+                return "Assets/Sounds/identify.wav"
+            case HellfeatherSound.Heal:
+                return "Assets/Sounds/heal.wav"
+            case HellfeatherSound.LevelUp:
+                return "Assets/Sounds/level_up.wav"
+            case HellfeatherSound.QuestComplete:
+                return "Assets/Sounds/quest_complete.wav"
+            case HellfeatherSound.Coins:
+                return "Assets/Sounds/coins.wav"
+            case HellfeatherSound.ItemPick:
+                return "Assets/Sounds/item_pick.wav"
+            case HellfeatherSound.ItemDrop:
+                return "Assets/Sounds/item_drop.wav"
+            case HellfeatherSound.ManaDrink:
+                return "Assets/Sounds/mana_drink.wav"
+            case HellfeatherSound.GoldPickup:
+                return "Assets/Sounds/gold_pickup.wav"
             default:
                 return "Assets/Sounds/ui_panel.wav"
         }
@@ -527,8 +576,12 @@ T{
         {
             case HellfeatherSound.PlayerHurt:
                 return 0.7
-            case HellfeatherSound.UiClick, HellfeatherSound.UiPanel:
+            case HellfeatherSound.UiClick, HellfeatherSound.UiPanel, HellfeatherSound.ItemPick, HellfeatherSound.ItemDrop:
                 return 0.45
+            case HellfeatherSound.Coins, HellfeatherSound.GoldPickup:
+                return 0.5
+            case HellfeatherSound.LevelUp, HellfeatherSound.QuestComplete:
+                return 0.75
             default:
                 return 0.6
         }

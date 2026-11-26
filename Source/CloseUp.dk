@@ -24,6 +24,9 @@ HellfeatherCloseUp
     // The light on Wren's mark while it takes, or 0. The game fades it.
     int MarkLight
     -bool ThemLying
+    // Much shorter than Wren, as Edda's raven: stood on the text box rather
+    // than below the screen's edge, where it would hide behind the text.
+    -bool ThemSmall
     -HellfeatherItems [4] Gear
 
     // Builds both figures. Animation is the person's model, with its voxel size
@@ -36,6 +39,7 @@ HellfeatherCloseUp
         CameraNode = camera
         Entered = 0.0
         ThemLying = lying
+        ThemSmall = HellfeatherCloseUp.IsSmall(voxel, height)
         ThemRest = rest
         Gear[0] = body
         Gear[1] = mainHand
@@ -178,6 +182,9 @@ HellfeatherCloseUp
             float half = LyingHalfLength * scale
             float lyingAcross = Math.Min(across, halfWidth - half)
             Place(world, ThemRoot, right * (lyingAcross + slide) + up * lyingFeet + forward * Depth, tilt, scale)
+        } else if ThemSmall {
+            float perch = -halfHeight + halfHeight * 2.0 * SmallFloor
+            Place(world, ThemRoot, right * (across + slide) + up * perch + forward * Depth, tilt, scale)
         } else {
             Place(world, ThemRoot, right * (across + slide) + up * feet + forward * Depth, tilt, scale)
         }
@@ -213,6 +220,12 @@ HellfeatherCloseUp
     #float LyingFloor = 0.2
     #float LyingHalfLength = 0.95
     #float SlideSeconds = 0.35
+    // Where a small figure stands, as a share of the view up from the bottom:
+    // on the text box, like a bed, a little higher.
+    #float SmallFloor = 0.24
+
+    // Whether a figure is under half Wren's height, as a bird is.
+    bool IsSmall(float voxel, int height) { return (float)height * voxel < 0.5 * (float)HellfeatherWarrior.Height * HellfeatherWarrior.VoxelSize }
 }
 
 HellfeatherGame : QuaxelGameInstance

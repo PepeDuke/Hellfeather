@@ -916,8 +916,85 @@ def waterwalkers():
     return m
 
 
+# The grey of a body the lattice has drained, and the down of a brood's nest.
+DRAINED = color('drained skin', (150, 148, 140), (128, 126, 120))
+DOWN = color('down', (196, 190, 176), (172, 166, 152), (120, 116, 108))
+
+
+def child_remains():
+    """A small body wrapped in sacking and tied with rope, laid on a nest of
+    down and straw beside Mardra: a child of the brood. One grey hand shows at
+    the sack's edge and a carved toy duck lies by it. 1.05 long, 0.3 tall:
+    44 x 12 x 30."""
+    m = Model(46, 14, 32)
+    cx, cz = 22.5, 15.5
+    # The nest: a low oval of down, ragged at its edge, straw through it.
+    nest = (((m.x - cx) / 21.0) ** 2 + ((m.z - cz) / 14.0) ** 2 <= 1.0 - hash2(m.x, m.z, 71) * 0.12) & (m.y < 2)
+    m.fill(nest, pick(DOWN, hash2(m.x // 2, m.z // 2, 72)))
+    m.fill(nest & (m.y == 1) & (hash2(m.x, m.z, 73) < 0.18), STRAW[0])
+    # The body in its sack, the head end a little narrower.
+    sack = (((m.x - cx) / 15.0) ** 2 + ((m.y - 4.0) / 3.6) ** 2 + ((m.z - cz) / (5.8 - np.clip((m.x - cx) / 15.0, 0, 1) * 1.2)) ** 2 <= 1.0) & (m.y >= 1)
+    m.fill(sack, pick(BURLAP, hash2(m.x // 3, m.z // 2, 74)))
+    head = (np.hypot(np.hypot(m.x - (cx + 14.0), m.y - 4.0), m.z - cz) <= 3.6) & (m.y >= 1)
+    m.fill(head, BURLAP[1])
+    # Rope ties at the shoulders, waist and knees.
+    for tx in (cx - 9.0, cx, cx + 9.5):
+        m.fill((sack | head) & (np.abs(m.x - tx) < 0.8), WOOD_DARK[0])
+    # One small grey hand out at the side of the sack.
+    m.fill(m.box(int(cx) - 5, 2, int(cz) + 4, int(cx) - 2, 4, int(cz) + 10), DRAINED[0])
+    m.fill(m.box(int(cx) - 6, 2, int(cz) + 9, int(cx) - 1, 3, int(cz) + 11), DRAINED[1])
+    # A carved toy duck beside it, fallen on its side.
+    dx, dz = cx + 9.0, cz + 9.0
+    m.fill((((m.x - dx) / 2.8) ** 2 + ((m.y - 3.0) / 1.8) ** 2 + ((m.z - dz) / 1.8) ** 2 <= 1.0), OAK[0])
+    m.fill(np.hypot(np.hypot(m.x - (dx + 2.6), m.y - 4.2), m.z - dz) <= 1.3, OAK[3])
+    m.fill(m.box(int(dx) + 3, 4, int(dz), int(dx) + 5, 5, int(dz) + 1), CLAY[0])
+    return m
+
+
+# Daylight through old glass, and the lead between the panes.
+SKY = color('sky', (184, 206, 218), (160, 186, 204), (210, 224, 232), (140, 164, 184))
+LEAD = color('lead', (44, 46, 52))
+
+
+def window():
+    """An arched window set in the back wall: a stone surround with a deep
+    sill, a mullion and a transom, and leaded diamond panes of pale daylight.
+    1.1 wide, 1.5 tall, its sill 1.2 off the floor: 44 x 60 x 6 above SILL."""
+    sill = 48
+    w, h = 44, 60
+    m = Model(w + 4, sill + h + 2, 8)
+    cx = (w + 4 - 1) / 2.0
+    top = sill + h
+    spring = top - (w // 2)
+
+    def opening(margin):
+        half = w / 2.0 - margin
+        rect = (np.abs(m.x - cx) <= half) & (m.y >= sill + margin) & (m.y < spring)
+        arch = (np.hypot(m.x - cx, m.y - spring) <= half) & (m.y >= spring) & (m.y < top - margin + 1)
+        return rect | arch
+
+    surround = opening(0) & (m.z < 4)
+    m.fill(surround, pick(STONE, hash2(m.x // 4, m.y // 3, 61)))
+    m.fill(surround & (hash2(m.x // 4, m.y // 3, 61) < 0.12), MORTAR[0])
+    # The glass sits at the back of the reveal, so the stone frames it in depth.
+    glass = opening(4)
+    m.clear(glass & (m.z >= 1) & (m.z < 4))
+    m.fill(glass & (m.z == 0), pick(SKY, hash2(m.x // 3, m.y // 5, 62)))
+    lattice = glass & (m.z == 1) & ((((m.x + m.y) % 7) == 0) | (((m.x - m.y) % 7) == 0))
+    m.fill(lattice, LEAD[0])
+    # A stone mullion up the middle and a transom across, both in the glass plane.
+    m.fill(glass & (np.abs(m.x - cx) <= 1.0) & (m.z < 3), STONE[1])
+    m.fill(glass & (np.abs(m.y - (sill + (spring - sill) // 2)) <= 1) & (m.z < 3), STONE[1])
+    # The sill juts out under it.
+    m.fill(m.box(1, sill - 2, 0, w + 3, sill + 1, 7), pick(STONE, hash2(m.x // 5, m.z, 63)))
+    m.fill(m.box(1, sill - 3, 0, w + 3, sill - 2, 6), STONE[5])
+    return m
+
+
 RECIPES = {
     'InsideDoor': inside_door,
+    'Window': window,
+    'ChildRemains': child_remains,
     'Sconce': sconce,
     'WallLantern': wall_lantern,
     'Table': table,

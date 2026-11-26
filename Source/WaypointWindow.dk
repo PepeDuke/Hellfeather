@@ -1,0 +1,183 @@
+// The window a lit waypoint opens: every fire she knows of, split into a tab
+// for each act. A lit fire is a click away; a cold one shows its name dimmed;
+// the one she stands at is marked. Escape, Leave or walking away closes it.
+HellfeatherWaypointWindow
+{
+    bool Open
+    // The waypoint she used to open it.
+    int From = -1
+    // The tab shown: 0 for Act I, 1 for Act II.
+    int Tab
+    // Whether Act II's tab is there yet.
+    bool ShowActTwo
+    // The waypoint clicked this frame, or -1; the game travels and clears it.
+    int Chosen = -1
+    -string [] Names
+    -int [] Indexes
+    -int [] Acts
+    -bool [] Lit
+    -bool MouseHeld = true
+    -int Scale = 1
+    -int PanelX
+    -int PanelY
+    -int Hovered = -1
+
+    Begin(int from, int tab, bool actTwo)
+    {
+        Open = true
+        From = from
+        Tab = actTwo ? Math.Clamp(tab, 0, 1) | 0
+        ShowActTwo = actTwo
+        Chosen = -1
+        MouseHeld = true
+        Names.Clear()
+        Indexes.Clear()
+        Acts.Clear()
+        Lit.Clear()
+    }
+
+    Add(string place, int index, int act, bool lit)
+    {
+        Names += place
+        Indexes += index
+        Acts += act
+        Lit += lit
+    }
+
+    Close()
+    {
+        Open = false
+        From = -1
+        Chosen = -1
+    }
+
+    // How many fires are on a tab.
+    int CountOn(int tab)
+    {
+        int count = 0
+        for act : Acts { if act == tab { count++ } }
+        return count
+    }
+
+    bool Captures(int mouseX, int mouseY)
+    {
+        if !Open { return false }
+        int x = mouseX / Scale
+        int y = mouseY / Scale
+        return x >= PanelX && y >= PanelY && x < PanelX + HellfeatherWaypointWindow.Width && y < PanelY + Height()
+    }
+
+    -int Height() { return HellfeatherWaypointWindow.ListTop + HellfeatherWaypointWindow.Rows * HellfeatherWaypointWindow.RowHeight + 26 }
+
+    -bool Inside(int px, int py, int x, int y, int w, int h) { return px >= x && py >= y && px < x + w && py < y + h }
+
+    Update(QuaxelUi& ui, int width, int height, int mouseX, int mouseY, bool down)
+    {
+        if !Open {
+            MouseHeld = down
+            return
+        }
+        Scale = ui.ScaleFor(width, height)
+        int gridWidth = width / Scale
+        int gridHeight = height / Scale
+        int wide = HellfeatherWaypointWindow.Width
+        int tall = Height()
+        PanelX = (gridWidth - wide) / 2
+        PanelY = Math.Max(2, (gridHeight - tall) / 2 - 10)
+        int px = mouseX / Scale
+        int py = mouseY / Scale
+        bool pressed = down && !MouseHeld
+        MouseHeld = down
+        ui.OverlayRect(PanelX - 1, PanelY - 1, wide + 2, tall + 2, 0xFF5A4636)
+        ui.OverlayRect(PanelX, PanelY, wide, tall, 0xF00C0A0A)
+        string title = "Waypoints"
+        ui.OverlayText(PanelX + (wide - (int)Length(title) * 6) / 2, PanelY + 6, title, 0xFFE0B860)
+        // The tabs, one per act she has reached.
+        int tabs = ShowActTwo ? 2 | 1
+        int tabWide = (wide - 8 - (tabs - 1) * 3) / tabs
+        for t : 0; t < tabs; t++ {
+            int tx = PanelX + 4 + t * (tabWide + 3)
+            int ty = PanelY + 18
+            bool chosen = t == Tab
+            bool over = Inside(px, py, tx, ty, tabWide, 13)
+            ui.OverlayRect(tx, ty, tabWide, 13, chosen ? (uint)0xFFC8963C | (uint)0xFF4A3C30)
+            ui.OverlayRect(tx + 1, ty + 1, tabWide - 2, chosen ? 12 | 11, chosen ? (uint)0xF0301A10 | (over ? (uint)0xF01C1612 | (uint)0xE0100C0B))
+            string label = t == 0 ? "Act I" | "Act II"
+            ui.OverlayText(tx + (tabWide - (int)Length(label) * 6) / 2, ty + 3, label, chosen ? (uint)0xFFF4D894 | (uint)0xFFA89880)
+            if over && pressed { Tab = t }
+        }
+        // The fires on this tab.
+        Hovered = -1
+        int row = 0
+        for i : 0; i < Names.Len; i++ {
+            if Acts[i] != Tab || row >= HellfeatherWaypointWindow.Rows { continue }
+            int x = PanelX + 4
+            int y = PanelY + HellfeatherWaypointWindow.ListTop + row * HellfeatherWaypointWindow.RowHeight
+            int w = wide - 8
+            int h = HellfeatherWaypointWindow.RowHeight - 2
+            bool here = Indexes[i] == From
+            bool can = Lit[i] && !here
+            bool over = can && Inside(px, py, x, y, w, h)
+            if over { Hovered = (int)i }
+            ui.OverlayRect(x, y, w, h, over ? (uint)0xFFC8963C | (uint)0xFF2A221C)
+            ui.OverlayRect(x + 1, y + 1, w - 2, h - 2, over ? (uint)0xF0301A10 | (uint)0xE0100C0B)
+            // A blue flame for a lit fire, an ash-grey one for a cold one.
+            ui.OverlayRect(x + 4, y + 3, 3, h - 6, Lit[i] ? (uint)0xFF3C9CFF | (uint)0xFF4A4642)
+            ui.OverlayRect(x + 5, y + 2, 1, 1, Lit[i] ? (uint)0xFFE6F6FF | (uint)0xFF5A5652)
+            string shown = Lit[i] ? Names[i] | Names[i] + " (cold)"
+            uint color = 0xFFA89880
+            if can { color = over ? (uint)0xFFF4D894 | (uint)0xFFDCD0BC }
+            if !Lit[i] { color = 0xFF5E564C }
+            if here { color = 0xFF8FB4FF }
+            ui.OverlayText(x + 12, y + (h - 7) / 2 + 1, shown, color)
+            if here { ui.OverlayText(x + w - 6 - 4 * 6, y + (h - 7) / 2 + 1, "here", 0xFF8FB4FF) }
+            if over && pressed { Chosen = Indexes[i] }
+            row++
+        }
+        if row == 0 { ui.OverlayText(PanelX + 10, PanelY + HellfeatherWaypointWindow.ListTop + 4, "No fires found here yet", 0xFF8C8880) }
+        // Leave, along the bottom.
+        int leaveY = PanelY + tall - 20
+        bool overLeave = Inside(px, py, PanelX + 4, leaveY, wide - 8, 16)
+        ui.OverlayRect(PanelX + 4, leaveY, wide - 8, 16, overLeave ? (uint)0xFFC8963C | (uint)0xFF4A3C30)
+        ui.OverlayRect(PanelX + 5, leaveY + 1, wide - 10, 14, 0xE0100C0B)
+        string leave = "Leave"
+        ui.OverlayText(PanelX + (wide - (int)Length(leave) * 6) / 2, leaveY + 5, leave, overLeave ? (uint)0xFFF4D894 | (uint)0xFFA89880)
+        if overLeave && pressed { Close() }
+    }
+}
+#{
+    // In UI grid pixels.
+    #int Width = 200
+    #int ListTop = 36
+    #int RowHeight = 15
+    #int Rows = 10
+}
+
+HellfeatherGame : QuaxelGameInstance
+{
+    HellfeatherWaypointWindow WaypointWindow
+
+    // The act a waypoint belongs to: 0 for Act I's levels, 1 for Act II's.
+    int WaypointAct(int i) { return HellfeatherRealm.IsActTwo(Waypoints[i].Realm) ? 1 | 0 }
+
+    // Opens the window at a lit fire, on the tab of the act she is in.
+    OpenWaypointWindow(int from)
+    {
+        WaypointWindow.Begin(from, WaypointAct(from), Quests.ActTwo)
+        for i : 0; i < Waypoints.Len; i++ {
+            // Act II's fires only once Act II is open.
+            if WaypointAct(i) == 1 && !Quests.ActTwo { continue }
+            WaypointWindow.Add(Waypoints[i].Name, i, WaypointAct(i), Waypoints[i].Lit)
+        }
+    }
+
+    // Travels to a fire picked in the window, closing it.
+    ApplyWaypointChoice(QuaxelWorld& world)
+    {
+        if WaypointWindow.Chosen < 0 { return }
+        int chosen = WaypointWindow.Chosen
+        WaypointWindow.Close()
+        Sfx.Play(world, HellfeatherSound.UiClick)
+        TravelToWaypoint(world, chosen)
+    }
+}

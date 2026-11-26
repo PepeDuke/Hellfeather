@@ -213,8 +213,11 @@ HellfeatherGame : QuaxelGameInstance
     -StepMardra(QuaxelWorld& world, int i, vec3 direction, float distance, float deltaSeconds)
     {
         int visual = Enemies[i].VisualNode
-        float pace = Enemies[i].Health * 2 < Enemies[i].MaxHealth ? 1.3 | 1.0
-        if Enemies[i].Health * 2 < Enemies[i].MaxHealth {
+        // After the Moult, below half health, she is faster, calls a bigger
+        // brood that grows sooner, and pulls and calls more often.
+        bool moulted = Enemies[i].Health * 2 < Enemies[i].MaxHealth
+        float pace = moulted ? 1.45 | 1.0
+        if moulted {
             if !Quests.MardraMoulted {
                 Quests.MardraMoulted = true
                 Banner.Show("The Moult", 3.0)
@@ -230,25 +233,27 @@ HellfeatherGame : QuaxelGameInstance
             // Ring Pull, channelled. A hit now staggers her; see StrikeEnemies.
             FaceAlong(world, visual, direction)
             if Enemies[i].PhaseTime < 1.6 { return }
-            Knock(world, world.GetPosition(Enemies[i].Node), -Math.Max(0.0, Math.Min(4.0, distance - Enemies[i].Reach * 0.8)))
+            Knock(world, world.GetPosition(Enemies[i].Node), -Math.Max(0.0, Math.Min(5.0, distance - Enemies[i].Reach * 0.8)))
             NextPhase(i, 0)
-            WindUp(world, i, 0.35)
+            // The cleaver follows the pull at once.
+            WindUp(world, i, 0.3)
             return
         }
         if phase == 2 {
             // Brood Call.
             if Enemies[i].PhaseTime < 1.0 { return }
             vec3 at = world.GetPosition(Enemies[i].Node)
-            for n : 0; n < 3; n++ {
-                float angle = (float)n * 2.094 + Enemies[i].PhaseTime
+            int brood = moulted ? 5 | 3
+            for n : 0; n < brood; n++ {
+                float angle = (float)n * 6.2831853 / (float)brood + Enemies[i].PhaseTime
                 int duckling = AddScripted(world, "Duckling", at.X + Math.Cos(angle) * 2.5, at.Z + Math.Sin(angle) * 2.5)
-                if duckling >= 0 { Enemies[duckling].GrowTimer = 12.0 }
+                if duckling >= 0 { Enemies[duckling].GrowTimer = moulted ? 8.0 | 11.0 }
             }
             NextPhase(i, 0)
             return
         }
         Enemies[i].Strikes++
-        if Enemies[i].PhaseTime > 7.0 / pace && !Attacking(world, i) {
+        if Enemies[i].PhaseTime > 5.5 / pace && !Attacking(world, i) {
             // Alternates between the ring and the brood.
             bool ring = (Enemies[i].Aim.X == 0.0)
             Enemies[i].Aim = ring ? vec3(1.0, 0.0, 0.0) | vec3(0.0, 0.0, 0.0)
@@ -275,8 +280,8 @@ HellfeatherGame : QuaxelGameInstance
         } else if Enemies[i].Cooldown > 0.0 {
             world.PlayClip(visual, "idle")
         } else {
-            WindUp(world, i, 0.55)
-            Enemies[i].Cooldown = 1.4
+            WindUp(world, i, 0.5)
+            Enemies[i].Cooldown = moulted ? 0.9 | 1.15
         }
     }
 

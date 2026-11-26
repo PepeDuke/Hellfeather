@@ -259,6 +259,7 @@ HellfeatherRuneScreen
             Line(ui, 0, kind.Name, 0xFFE8B070)
             Line(ui, 1, kind.Detail, 0xFFC8CCD4)
             Line(ui, 2, "Power " + QuaxelUi.FormatInt(found.Power) + "%  kin " + QuaxelUi.FormatInt(found.Kin), 0xFFDCAE3E)
+            Line(ui, 3, HellfeatherRunes.EffectLine(HellfeatherRunes.SkillOf(item), found.Power), 0xFF8FB4FF)
             return
         }
         if OnBoard() && Held == HellfeatherItems.None && Board.CanExpand(CellX(), CellY(), Points()) {

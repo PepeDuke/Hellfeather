@@ -312,6 +312,12 @@ HellfeatherSaves
         }
         if mods.Rarity != HellfeatherRarity.Common { out.Text("rarity", mods.Rarity.Name) }
         if mods.Stack > 0 { out.Int("stack", mods.Stack) }
+        if mods.Unidentified { out.Bool("unidentified", true) }
+        if mods.PotionCount() > 0 {
+            out.BeginArray("potions")
+            for potion : mods.Potions { out.Text("", potion.Name) }
+            out.EndArray()
+        }
         if mods.Count > 0 {
             out.BeginArray("mods")
             for i : 0; i < Math.Min(mods.Count, (int)mods.Kinds.Len); i++ {
@@ -339,6 +345,13 @@ HellfeatherSaves
         HellfeatherRarity rarity = HellfeatherRarity.Common
         if RarityNamed(json.Text(node, "rarity"), rarity) { mods.Rarity = rarity }
         mods.Stack = Math.Max(0, json.Int(node, "stack", 0))
+        mods.Unidentified = json.Bool(node, "unidentified", false)
+        int pocket = 0
+        for entry : json.First(json.Find(node, "potions")); entry >= 0 && pocket < 4; entry = json.Next(entry) {
+            HellfeatherItems potion = HellfeatherItems.None
+            if ItemNamed(json.AsText(entry), potion) && HellfeatherItems.IsPotion(potion) { mods.Potions[pocket] = potion }
+            pocket++
+        }
         int list = json.Find(node, "mods")
         for entry : json.First(list); entry >= 0; entry = json.Next(entry) {
             if mods.Count >= mods.Kinds.Len { break }

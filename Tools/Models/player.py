@@ -25,8 +25,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from enemies import legs  # noqa: E402
 from figure import build_variants, capsule, column, ellipsoid, fit, minus, union, where  # noqa: E402
-from kit import (BRASS, CLOTH_RED, FACE_DARK, HAIR_DARK, LEATHER, MUD, SCARF, SILVER, SKIN, SMOCK,  # noqa: E402
-                 TROUSERS, hash2, pick)
+from kit import (BRASS, CLOTH_RED, FACE_DARK, HAIR_DARK, IRON, LEATHER, MUD, SCARF, SILVER, SKIN, SMOCK,  # noqa: E402
+                 TROUSERS, color, hash2, pick)
 from people import Body, coat_front, flat, speckled  # noqa: E402
 
 HEIGHT = 78
@@ -36,6 +36,45 @@ HEIGHT = 78
 OILCLOTH = [MUD[0], MUD[1], SCARF[1]]
 VEST = [SMOCK[1], SMOCK[0], SCARF[0]]
 SHORTS = [SCARF[1], MUD[0]]
+# Scale mail's bronze plates and the dark gaps between their rows.
+BRONZE = color('bronze scale', (156, 112, 60), (128, 90, 48), (176, 132, 76))
+BRONZE_DARK = color('bronze gap', (62, 44, 28))
+
+
+def ring_mail(x, y, z, pose):
+    """Riveted rings, light and dark in alternate rows and columns, so a
+    hauberk reads as mail at one voxel to a ring."""
+    row = np.floor(y).astype(int)
+    column = np.floor((x + z) * 0.9).astype(int)
+    lit = (row + column) % 2 == 0
+    return np.where(lit, IRON[1], np.where(hash2(column, row, 451) < 0.25, SILVER[1], IRON[0]))
+
+
+def scale_mail(x, y, z, pose):
+    """Overlapping bronze scales in rows two voxels tall, each row shifted by
+    half a scale, with dark gaps under and between them."""
+    row = np.floor(y / 2.0).astype(int)
+    along = (x + z) * 0.8 + (row % 2) * 1.0
+    gap_below = (y - row * 2.0) < 0.55
+    gap_side = (np.floor(along).astype(int) % 2 == 0) & ((along % 1.0) < 0.25)
+    out = pick(BRONZE, hash2(np.floor(along).astype(int), row, 452))
+    return np.where(gap_below | gap_side, BRONZE_DARK[0], out)
+
+
+def plate_mail(x, y, z, pose):
+    """Bands of polished steel, three voxels tall, with dark seams between."""
+    band = np.floor(y / 3.0).astype(int)
+    out = np.where(band % 2 == 0, SILVER[1], SILVER[0])
+    seam = (y - band * 3.0) < 0.6
+    return np.where(seam, IRON[0], out)
+
+
+# The patterns of each body armor's coat, and its trim, over the same coat shape.
+ARMOR = {
+    'ring': (ring_mail, IRON[0]),
+    'scale': (scale_mail, BRONZE_DARK[0]),
+    'plate': (plate_mail, IRON[0]),
+}
 
 
 # The head socket sits at the middle of her skull; helmets are built around it
@@ -44,6 +83,12 @@ HEAD = (0.0, 63.0, 1.2)
 
 
 def wren(armor=False, marked=True):
+    """armor is False, True or 'leather' for the Leather Armor, or 'ring',
+    'scale' or 'plate' for the mail coats, which are the same coat in metal."""
+    return wren_body(armor, marked)
+
+
+def wren_body(armor, marked):
     """Wren in her basic attire: a worn sleeveless vest and shorts, barefoot,
     the Tithe-mark on her right forearm, dark hair in a loose bun. With armor,
     the Leather Armor on top: the oilcloth coat over a leather jerkin, a coat
@@ -90,6 +135,10 @@ def wren(armor=False, marked=True):
     if armor:
         coat = speckled(OILCLOTH, 400, 2, 4)
         jerkin = speckled(LEATHER[1:3], 401, 2, 3)
+        trim = MUD[1]
+        if armor in ARMOR:
+            coat, trim = ARMOR[armor]
+            jerkin = coat
         # Trousers over her legs and tall laced boots to the knee.
         for side, hip, knee in ((-3.6, 'r_hip', 'r_knee'), (3.6, 'l_hip', 'l_knee')):
             b.part(hip, capsule((side, 34, 0), (side, 18, 0.4), 3.6, 3.1), speckled(TROUSERS, 402))
@@ -112,7 +161,7 @@ def wren(armor=False, marked=True):
             front = z > 1.8
             inside = front & (np.abs(x) < opening(y))
             lapel = front & (np.abs(x) >= opening(y)) & (np.abs(x) < opening(y) + 1.8) & (y > 44)
-            out = np.where(lapel, MUD[1], out)
+            out = np.where(lapel, trim, out)
             out = np.where(inside, jerkin(x, y, z, pose), out)
             strap = inside & ((np.abs(y - 47) < 0.7) | (np.abs(y - 42.5) < 0.7))
             return np.where(strap, LEATHER[2], out)
@@ -124,10 +173,10 @@ def wren(armor=False, marked=True):
         b.part('r_coat', ellipsoid((-6.0, 33.6, 7.2), (2.0, 2.4, 1.6)), LEATHER[1])
         # Sleeves: the right rolled above the Tithe-mark, the left full, gloved.
         b.part('r_shoulder', capsule((-9.0, 53, 0), (-10.6, 42, 1.0), 3.3, 3.0), coat)
-        b.part('r_elbow', capsule((-10.6, 42.5, 1.0), (-10.65, 40.6, 1.2), 3.4), MUD[1])
+        b.part('r_elbow', capsule((-10.6, 42.5, 1.0), (-10.65, 40.6, 1.2), 3.4), trim)
         b.part('l_shoulder', capsule((9.0, 53, 0), (10.6, 42, 1.0), 3.3, 3.0), coat)
         b.part('l_elbow', capsule((10.6, 42, 1.0), (10.6, 32.5, 2.6), 2.9, 2.6), coat)
-        b.part('l_elbow', capsule((10.6, 34.5, 2.3), (10.6, 32.5, 2.6), 3.1), MUD[1])
+        b.part('l_elbow', capsule((10.6, 34.5, 2.3), (10.6, 32.5, 2.6), 3.1), trim)
         b.part('l_elbow', ellipsoid((10.6, 30.3, 2.9), (2.2, 2.6, 2.2)), LEATHER[2])
         # A red kerchief at the throat, the grey scarf over mouth and nose.
         b.part('chest', ellipsoid((0, 55.4, 0.6), (5.6, 2.0, 5.0)), CLOTH_RED[1])
@@ -319,8 +368,11 @@ def main():
     # All scaled alike, by her own height without clothes or helmet.
     fit(base, HEIGHT)
     rigs = {'Warrior': base}
-    for name, armor, marked in (('WarriorLeatherArmor', True, True), ('WarriorUnmarked', False, False),
-                                ('WarriorLeatherArmorUnmarked', True, False)):
+    variants = [('WarriorLeatherArmor', True, True), ('WarriorUnmarked', False, False),
+                ('WarriorLeatherArmorUnmarked', True, False)]
+    for armor, title in (('ring', 'WarriorRingMail'), ('scale', 'WarriorScaleMail'), ('plate', 'WarriorPlateMail')):
+        variants += [(title, armor, True), (title + 'Unmarked', armor, False)]
+    for name, armor, marked in variants:
         rigs[name] = wren(armor=armor, marked=marked).rig
         rigs[name].scale = base.scale
     made = clips()

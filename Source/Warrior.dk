@@ -34,12 +34,16 @@ HellfeatherWarrior
     // The war cry plays over walking and standing until it ends or a swing starts.
     bool IsShoutClip(string clip) { return clip == "shout" || clip == "shout_walk" }
 
-    // Her body model for what she wears. Every body armor shows as the Leather
-    // Armor until it has a model of its own. Before Jessa gives her the
-    // Tithe-mark, her forearm is bare.
+    // Her body model for what she wears: the mail coats have their own, the
+    // same coat in rings, bronze scales or steel bands, and every other body
+    // armor shows as the Leather Armor. Before Jessa gives her the Tithe-mark,
+    // her forearm is bare.
     string BodyModel(HellfeatherItems body, bool marked)
     {
         string unmarked = marked ? "" | "Unmarked"
+        if body == HellfeatherItems.RingMail { return "Assets/WarriorRingMail" + unmarked + ".qvox" }
+        if body == HellfeatherItems.ScaleMail { return "Assets/WarriorScaleMail" + unmarked + ".qvox" }
+        if body == HellfeatherItems.PlateMail { return "Assets/WarriorPlateMail" + unmarked + ".qvox" }
         if body != HellfeatherItems.None { return "Assets/WarriorLeatherArmor" + unmarked + ".qvox" }
         return "Assets/Warrior" + unmarked + ".qvox"
     }
@@ -176,5 +180,20 @@ HellfeatherWardrobe
         Paths += path
         Loaded += made
         return made
+    }
+}
+T{
+    EachMailCoatHasItsOwnBodyModel()
+    {
+        T.AreEqual(HellfeatherWarrior.BodyModel(HellfeatherItems.LeatherArmor, true), "Assets/WarriorLeatherArmor.qvox")
+        T.AreEqual(HellfeatherWarrior.BodyModel(HellfeatherItems.RingMail, true), "Assets/WarriorRingMail.qvox")
+        T.AreEqual(HellfeatherWarrior.BodyModel(HellfeatherItems.ScaleMail, false), "Assets/WarriorScaleMailUnmarked.qvox")
+        T.AreEqual(HellfeatherWarrior.BodyModel(HellfeatherItems.PlateMail, true), "Assets/WarriorPlateMail.qvox")
+        QuaxelWorld world()
+        HellfeatherItems [3] mail = {HellfeatherItems.RingMail, HellfeatherItems.ScaleMail, HellfeatherItems.PlateMail}
+        for body : mail {
+            T.IsTrue(QuaxelAssets.LoadVoxelAnimation(world, HellfeatherWarrior.BodyModel(body, true)) >= 0)
+            T.IsTrue(QuaxelAssets.LoadVoxelAnimation(world, HellfeatherWarrior.BodyModel(body, false)) >= 0)
+        }
     }
 }

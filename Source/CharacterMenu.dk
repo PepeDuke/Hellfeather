@@ -7,7 +7,7 @@
 
 HellfeatherCharacterAction : int
 #@{
-    None, Select, Continue, NewCharacter, ConfirmDelete, ExitGame
+    None, Select, Continue, NewCharacter, ConfirmDelete, ExitGame, Options
 }
 
 HellfeatherCharacterMenu
@@ -163,8 +163,9 @@ HellfeatherCharacterMenu
         // With no one saved yet, just the two choices under the warrior.
         if Rows.Len == 0 {
             if Button(ui, middle, under, buttonWide, "New Character", true, px, py, pressed) { asked = HellfeatherCharacterAction.NewCharacter }
-            if Button(ui, middle, under + step, buttonWide, "Exit Game", false, px, py, pressed) { asked = HellfeatherCharacterAction.ExitGame }
-            if Length(Notice) > 0 { Centered(ui, gridWidth, under + 2 * step + 4, Notice, 0xFFC8A070) }
+            if Button(ui, middle, under + step, buttonWide, "Options", false, px, py, pressed) { asked = HellfeatherCharacterAction.Options }
+            if Button(ui, middle, under + 2 * step, buttonWide, "Exit Game", false, px, py, pressed) { asked = HellfeatherCharacterAction.ExitGame }
+            if Length(Notice) > 0 { Centered(ui, gridWidth, under + 3 * step + 4, Notice, 0xFFC8A070) }
             return asked
         }
 
@@ -195,6 +196,7 @@ HellfeatherCharacterMenu
             if Button(ui, left + 3, y, wide - 6, "New Character", false, px, py, pressed) { asked = HellfeatherCharacterAction.NewCharacter }
         }
         int exitY = panelBottom - 4 - HellfeatherMenu.ButtonHeight
+        if Button(ui, left + 3, exitY - HellfeatherMenu.ButtonHeight - 4, wide - 6, "Options", false, px, py, pressed) { asked = HellfeatherCharacterAction.Options }
         if Button(ui, left + 3, exitY, wide - 6, "Exit Game", false, px, py, pressed) { asked = HellfeatherCharacterAction.ExitGame }
 
         // Under the warrior in the middle: Continue and Delete for the chosen one.
@@ -299,7 +301,7 @@ HellfeatherCharacterMenu
     #int DeleteKey = 46
 }
 T{
-    WithNoOneSavedOnlyNewCharacterAndExitShow()
+    WithNoOneSavedOnlyNewCharacterOptionsAndExitShow()
     {
         QuaxelUi ui()
         ui.FitPixels(HellfeatherHud.GridWidth, HellfeatherHud.GridHeight)
@@ -314,7 +316,11 @@ T{
         // New Character, then Exit Game below it, in the middle.
         menu.Draw(ui, 960, 540, 480, (under + 7) * 2, false)
         T.AreEqual(menu.Draw(ui, 960, 540, 480, (under + 7) * 2, true), HellfeatherCharacterAction.NewCharacter)
-        int exitY = under + HellfeatherMenu.ButtonHeight + 5 + 7
+        // Options under it, then Exit Game.
+        int optionsY = under + HellfeatherMenu.ButtonHeight + 5 + 7
+        menu.Draw(ui, 960, 540, 480, optionsY * 2, false)
+        T.AreEqual(menu.Draw(ui, 960, 540, 480, optionsY * 2, true), HellfeatherCharacterAction.Options)
+        int exitY = under + 2 * (HellfeatherMenu.ButtonHeight + 5) + 7
         menu.Draw(ui, 960, 540, 480, exitY * 2, false)
         T.AreEqual(menu.Draw(ui, 960, 540, 480, exitY * 2, true), HellfeatherCharacterAction.ExitGame)
     }

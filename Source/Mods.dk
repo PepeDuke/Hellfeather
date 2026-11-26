@@ -49,6 +49,12 @@ HellfeatherItemMods
     int Count
     // How many of a stacking item, such as black feathers, this one is. 0 is one.
     int Stack
+    // Rare finds drop unidentified: their mods are hidden and give nothing
+    // until she holds the right mouse button over them in her bag.
+    bool Unidentified
+    // A belt's pockets: the potions it carries, None where a pocket is empty.
+    // They stay with the belt wherever it goes, sold or dropped.
+    HellfeatherItems [4] Potions
     HellfeatherModKind [5] Kinds
     int [5] Values
 
@@ -73,6 +79,16 @@ HellfeatherItemMods
         Rarity = HellfeatherRarity.Common
         Count = 0
         Stack = 0
+        Unidentified = false
+        for i : 0; i < 4; i++ { Potions[i] = HellfeatherItems.None }
+    }
+
+    // How many potions the pockets hold.
+    int PotionCount()
+    {
+        int count = 0
+        for potion : Potions { if potion != HellfeatherItems.None { count++ } }
+        return count
     }
 
     // How many of the item these mods go with: one, or a stack's size.
@@ -81,6 +97,7 @@ HellfeatherItemMods
     // Adds every mod to the warrior's stats.
     ApplyTo(HellfeatherStats& stats)
     {
+        if Unidentified { return }
         for i : 0; i < Count; i++ {
             kind : Kinds[i]
             int value = Values[i]
@@ -108,6 +125,8 @@ HellfeatherItemMods
 }
 #{
     #int MaxMods = 5
+    // Whether a find of this rarity drops unidentified: rare and up.
+    bool DropsUnidentified(HellfeatherRarity rarity) { return rarity == HellfeatherRarity.Rare }
     // The share of mod-bearing drops that come out magic or rare.
     #float MagicChance = 0.22
     #float RareChance = 0.08
@@ -241,13 +260,17 @@ HellfeatherItemMods
 
     // Rolls rarity and mods for a dropped item from a seed. Items that cannot be
     // worn stay common.
-    HellfeatherItemMods Roll(HellfeatherItems item, uint seed)
+    HellfeatherItemMods Roll(HellfeatherItems item, uint seed) { return RollBoosted(item, seed, 1.0) }
+
+    // As Roll, with the rare and magic chances each multiplied by Boost, for
+    // the drops of strong enemies.
+    HellfeatherItemMods RollBoosted(HellfeatherItems item, uint seed, float boost)
     {
         QuaxelRandom random
         random.Begin(seed)
         float rarity = random.Unit()
-        if rarity < RareChance { return RollAs(item, HellfeatherRarity.Rare, random.Below(1000000)) }
-        if rarity < RareChance + MagicChance { return RollAs(item, HellfeatherRarity.Magic, random.Below(1000000)) }
+        if rarity < RareChance * boost { return RollAs(item, HellfeatherRarity.Rare, random.Below(1000000)) }
+        if rarity < (RareChance + MagicChance) * boost { return RollAs(item, HellfeatherRarity.Magic, random.Below(1000000)) }
         HellfeatherItemMods common
         common.Clear()
         return common
