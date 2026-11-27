@@ -26,7 +26,7 @@ from figure import Rig, build, capsule, column, ellipsoid, fit, minus, union, wh
 from kit import (BALD, BILL, BILL_DARK, BLOOD, BRASS, BURLAP, CLOTH_PALE, CLOTH_RED, EYE_WHITE, FACE_DARK,  # noqa: E402
                  FEATHER_BROWN, FEATHER_GREY, FEATHER_PALE, FEET, MALLARD, CHESTNUT, FLOUR, GLOW, HABIT, HAIR_DARK, HAIR_GREY,
                  GAMBESON, HONEY, IRON, LEATHER, LEECH_MOUTH, MUD, RAVEN, ROPE, SCARF, SHIELD, SILVER, SKIN,
-                 SKIN_PALE, SMOCK, STRAW, TROUSERS, WIMPLE, WOOD, WOOD_DARK, WOOL, hash2, pick)
+                 SKIN_PALE, SMOCK, STRAW, TROUSERS, WIMPLE, WOOD, WOOD_DARK, WOOL, TIN, hash2, pick)
 from people import Body, dusted, flat, speckled  # noqa: E402
 
 
@@ -900,6 +900,294 @@ def mardra():
     return r, human_clips({}, attack, lean=6, stride=16, swing=8, idle=idle)
 
 
+# Act II: the Hospice Road and the Thornmere.
+
+def tithe_hanged():
+    """The Tithe-Hanged: a pilgrim woman cut down from a gibbet and walking. A
+    long draped robe of grey pilgrim wool, a shawl over one shoulder, bare
+    grey feet, long grey hair hanging over her face, her head tilted hard to
+    one side, the rope still round her neck with its long noose end in her
+    right hand, a tin tithe bracelet on each wrist. Her lash whirls the noose
+    overhead and whips it out (HellfeatherMove.Lash). Her walk sways side to
+    side as much as it goes forward."""
+    b = Body(shoulder=8.4, waist=6.8, depth=5.0, bust=0.8)
+    wool = speckled([HABIT[2], HABIT[0], WOOL[2], HABIT[1]], 700, 2, 5)
+    skin = speckled([SKIN_PALE[1], SKIN_PALE[2], SKIN_PALE[0]], 701, 1, 2)
+    legs(b, skin, SKIN_PALE[2], gap=3.2, thigh=(2.8, 2.3), shin=(2.2, 1.6))
+    rx = lambda y: b.waist + 0.8 + 3.2 * np.clip((39 - y) / 31.0, 0, 1)  # noqa: E731
+    rz = lambda y: b.depth + 0.6 + 2.4 * np.clip((39 - y) / 31.0, 0, 1)  # noqa: E731
+    b.part('root', ragged(column(6, 39, rx, rz, flat(0.3)), 6, 702, depth=5.0, holes=0.02), wool)
+    b.torso(wool)
+    # The shawl, over her left shoulder and across to her right hip.
+    b.part('chest', ragged(where(minus(column(30, 57, lambda y: b.torso_x(y) + 2.0, lambda y: b.torso_z(y) + 2.0, b.torso_c, power=2.3),
+                                       column(29, 58, lambda y: b.torso_x(y) + 0.2, lambda y: b.torso_z(y) + 0.2, b.torso_c, power=2.3)),
+                                 lambda x, y, z: y > 40 + x * 0.9), 30, 703, depth=3.0, holes=0.0), speckled([HABIT[0], WOOL[2], HABIT[1]], 704, 2, 3))
+    for side, sx in ((-1, -8.4), (1, 8.4)):
+        b.arm(side, (sx, 53, 0), (sx * 1.08, 42, 0.5), (sx * 1.02, 31.5, 2.0), wool, skin, SKIN_PALE[2], r=2.5, flare=0.8)
+        b.part('r_elbow' if side < 0 else 'l_elbow', ellipsoid((sx * 1.02, 33.5, 2.0), (2.4, 1.1, 2.4)), TIN[0])
+    b.head(SKIN_PALE, lips=HABIT[1], eyes_down=True)
+    # Long grey hair: a cap and a curtain falling over the face and shoulders.
+    b.hair(HAIR_GREY, 'wavy')
+    curtain = minus(column(44, 67, lambda y: 5.8 + np.clip(60 - y, 0, None) * 0.15, lambda y: 5.6 + np.clip(60 - y, 0, None) * 0.1, flat(0.0)),
+                    column(43, 68, flat(4.6), flat(4.6), flat(0.6)))
+    b.part('head', minus(curtain, lambda x, y, z: (z > 2.0) & (np.abs(x) < 1.6) & (y > 58)), speckled(HAIR_GREY[:2] + [HABIT[2]], 705, 1, 3))
+    # The rope: a loop round her neck, its end over her shoulder to her right
+    # hand, and the noose hanging from her fist.
+    b.part('chest', minus(column(54.5, 57, flat(3.6), flat(3.6)), column(54, 58, flat(2.4), flat(2.4))), ROPE[1])
+    b.part('chest', capsule((-2.4, 56, 2.6), (-8.6, 44, 4.0), 0.7), ROPE[0])
+    b.part('r_elbow', capsule((-8.6, 44, 4.0), (-8.8, 31, 3.0), 0.7), ROPE[0])
+    b.part('r_elbow', capsule((-8.8, 29.5, 3.0), (-8.0, 14, 5.0), 0.7), ROPE[0])
+    b.part('r_elbow', minus(ellipsoid((-8.0, 11.0, 5.2), (2.6, 3.2, 1.0)), ellipsoid((-8.0, 11.0, 5.2), (1.4, 2.0, 2.0))), ROPE[1])
+    b.part('r_elbow', ellipsoid((-8.0, 14.5, 5.0), (1.2, 1.4, 1.2)), ROPE[1])
+    base = {'head': (8, 0, 24), 'chest': (4, 0, -3)}
+    attack = ({'r_shoulder': (-140, 0, -25), 'r_elbow': (-30, 0, 0), 'chest': (-6, -10, 0)},
+              {'r_shoulder': (-170, 40, -15), 'r_elbow': (-20, 0, 0), 'chest': (-8, -22, 0)},
+              {'r_shoulder': (-75, -20, -5), 'r_elbow': (-5, 0, 0), 'chest': (10, 20, 0)},
+              {'r_shoulder': (-55, -25, 0), 'chest': (12, 24, 0)},
+              {'r_shoulder': (-20, 0, 0), 'chest': (4, 6, 0)})
+    clips = human_clips(base, attack, lean=4, stride=14, swing=6)
+    # The swaying walk: the body rolls and drifts sideways with every step.
+    sway = []
+    for phase in (1, 0, -1, 0):
+        sway.append((merged(base, {'r_hip': (-14 * phase, 0, 0), 'l_hip': (14 * phase, 0, 0),
+                                   'r_knee': (18 if phase < 0 else 4, 0, 0), 'l_knee': (18 if phase > 0 else 4, 0, 0),
+                                   'chest': (4, 0, 10 * phase), 'head': (0, 0, 8 * phase),
+                                   'r_shoulder': (6 * phase, 0, -8 * phase), 'l_shoulder': (-6 * phase, 0, -8 * phase),
+                                   'offset': (1.6 * phase, -0.6 if phase else 0.0, 0)}), 170))
+    clips[1] = ('walk', True, sway)
+    fit(b.rig, 72)
+    return b.rig, clips
+
+
+class Beast:
+    """A four-legged animal facing +Z, authored about 44 tall at the
+    shoulder's top: a deep chest and a tucked waist, a neck and a head with
+    a jaw that opens, four legs of two bones each, a tail. Its rig: root,
+    body, neck, head, jaw, tail, and {fl,fr,hl,hr}_hip and _knee."""
+
+    def __init__(self, fur, skin, shoulder=28, length=30, chest=(7.5, 9.0, 10.0), waist=5.5, gap=4.8,
+                 neck=((0, 32, 12), (0, 37, 22)), head=(4.4, 4.6, 5.6), snout=8.0):
+        r = self.rig = Rig()
+        half = length / 2.0
+        self.half, self.shoulder = half, shoulder
+        r.bone('root', (0, 0, 0))
+        r.bone('body', (0, shoulder, 0), 'root')
+        cx, cy, cz = chest
+        r.part('body', ellipsoid((0, shoulder, half * 0.45), (cx, cy, cz)), fur)
+        r.part('body', capsule((0, shoulder + 1.5, half * 0.3), (0, shoulder + 0.5, -half * 0.75), waist + 1.0, waist), fur)
+        r.part('body', ellipsoid((0, shoulder + 0.5, -half * 0.8), (cx * 0.85, cy * 0.7, cz * 0.7)), fur)
+        (nx0, ny0, nz0), (nx1, ny1, nz1) = neck
+        r.bone('neck', (nx0, ny0, nz0), 'body')
+        r.part('neck', capsule((nx0, ny0, nz0), (nx1, ny1, nz1), 5.6, 4.0), fur)
+        r.bone('head', (nx1, ny1, nz1), 'neck')
+        hx, hy, hz = head
+        hc = (0, ny1 + 1.0, nz1 + 2.5)
+        self.head_at = hc
+        r.part('head', ellipsoid(hc, head), fur)
+        tip = (0, hc[1] - 1.6, hc[2] + hz * 0.6 + snout)
+        r.part('head', capsule((0, hc[1] - 0.6, hc[2] + hz * 0.4), tip, 2.8, 1.8), fur)
+        r.part('head', ellipsoid((0, tip[1] + 0.4, tip[2] + 0.8), (1.4, 1.1, 1.0)), FACE_DARK[0])
+        for side in (-1, 1):
+            r.part('head', capsule((side * 2.6, hc[1] + 3.0, hc[2] - 1.0), (side * 3.8, hc[1] + 8.0, hc[2] - 2.6), 1.6, 0.6), fur)
+            r.part('head', ellipsoid((side * 2.4, hc[1] + 1.2, hc[2] + 4.0), (0.9, 0.7, 0.6)), GLOW[2])
+        r.bone('jaw', (0, hc[1] - 2.6, hc[2] + 2.0), 'head')
+        jaw_tip = (0, tip[1] - 2.2, tip[2] - 0.6)
+        r.part('jaw', capsule((0, hc[1] - 2.8, hc[2] + 2.0), jaw_tip, 2.0, 1.2), fur)
+        # The mouth: red inside, teeth along both edges, the lips drawn back.
+        r.part('head', capsule((0, hc[1] - 2.4, hc[2] + 4.0), (0, tip[1] - 1.4, tip[2] - 1.0), 1.4, 1.0), LEECH_MOUTH[1])
+        for k in range(5):
+            z = hc[2] + 5.0 + k * (tip[2] - hc[2] - 6.0) / 4.0
+            for side in (-1, 1):
+                r.part('head', ellipsoid((side * 1.5, tip[1] - 1.6, z), (0.4, 0.8, 0.4)), EYE_WHITE[0])
+                r.part('jaw', ellipsoid((side * 1.2, jaw_tip[1] + 1.2, z - 0.4), (0.4, 0.7, 0.4)), EYE_WHITE[0])
+        r.bone('tail', (0, shoulder + 2, -half - 2), 'body')
+        r.part('tail', capsule((0, shoulder + 2, -half - 2), (0, shoulder - 8, -half - 14), 2.6, 1.2), fur)
+        for name, z, side in (('fl', half * 0.55, 1), ('fr', half * 0.55, -1), ('hl', -half * 0.8, 1), ('hr', -half * 0.8, -1)):
+            front = name[0] == 'f'
+            x = side * gap
+            hip = (x, shoulder - 2, z)
+            knee = (x, shoulder * 0.46, z + (1.0 if front else -5.0))
+            paw = (x, 1.6, z + (2.0 if front else -2.0))
+            r.bone(f'{name}_hip', hip, 'body')
+            r.bone(f'{name}_knee', knee, f'{name}_hip')
+            r.part(f'{name}_hip', capsule(hip, knee, 3.0 if front else 3.6, 1.9), fur)
+            r.part(f'{name}_knee', capsule(knee, paw, 1.7, 1.3), fur)
+            r.part(f'{name}_knee', ellipsoid((x, 1.2, paw[2] + 1.0), (1.9, 1.3, 2.6)), skin[0])
+            for dx in (-0.9, 0.0, 0.9):
+                r.part(f'{name}_knee', capsule((x + dx, 0.8, paw[2] + 2.6), (x + dx, 0.4, paw[2] + 3.8), 0.4), skin[1])
+
+    def part(self, bone, shape, material, when=None):
+        self.rig.part(bone, shape, material, when)
+
+
+def beast_clips(base=None, stride=26):
+    """idle, walk (a trot: each front leg with the hind leg across from it),
+    attack (a crouch, a lunge and a snap that lands on frame 2), hit and
+    death (onto its side)."""
+    base = base or {}
+    idle = [{}, {'body': (-2, 0, 0), 'neck': (-4, 0, 0), 'head': (0, 12, 0)}, {'body': (-3, 0, 0), 'neck': (-6, 0, 0), 'tail': (0, 18, 0)},
+            {'neck': (2, 0, 0), 'head': (4, -10, 0), 'jaw': (8, 0, 0), 'tail': (0, -14, 0)}]
+    clips = [('idle', True, [(merged(base, p), 480) for p in idle])]
+    walk = []
+    for p in (1, 0, -1, 0):
+        walk.append(merged(base, {'fl_hip': (-stride * p, 0, 0), 'hr_hip': (-stride * p, 0, 0), 'fr_hip': (stride * p, 0, 0), 'hl_hip': (stride * p, 0, 0),
+                                  'fl_knee': (24 if p < 0 else 4, 0, 0), 'fr_knee': (24 if p > 0 else 4, 0, 0),
+                                  'hl_knee': (-20 if p < 0 else -4, 0, 0), 'hr_knee': (-20 if p > 0 else -4, 0, 0),
+                                  'body': (0, 0, 3 * p), 'neck': (4 + 3 * abs(p), 0, 0), 'tail': (-10, 12 * p, 0),
+                                  'offset': (0, -0.8 if p else 0.4, 0)}))
+    clips.append(('walk', True, [(p, 110) for p in walk]))
+    crouch = {'body': (-6, 0, 0), 'fl_hip': (14, 0, 0), 'fr_hip': (14, 0, 0), 'fl_knee': (20, 0, 0), 'fr_knee': (20, 0, 0),
+              'hl_hip': (20, 0, 0), 'hr_hip': (20, 0, 0), 'hl_knee': (-30, 0, 0), 'hr_knee': (-30, 0, 0), 'neck': (16, 0, 0), 'offset': (0, -3, -2)}
+    lunge = {'body': (8, 0, 0), 'fl_hip': (-50, 0, 0), 'fr_hip': (-40, 0, 0), 'hl_hip': (40, 0, 0), 'hr_hip': (34, 0, 0),
+             'neck': (14, 0, 0), 'head': (6, 0, 0), 'offset': (0, 2, 9)}
+    attack = (crouch, merged(crouch, {'jaw': (30, 0, 0), 'head': (-12, 0, 0), 'tail': (-20, 0, 0)}),
+              merged(lunge, {'jaw': (4, 0, 0)}), merged(lunge, {'jaw': (18, 0, 0), 'offset': (0, 0, -3), 'head': (10, 10, 0)}),
+              {'neck': (6, 0, 0), 'offset': (0, 0, 2)})
+    clips.append(attack_clip(base, *attack))
+    hit = [{'body': (-10, 0, 6), 'neck': (-24, 0, 0), 'head': (-10, 0, 0), 'offset': (0, 0, -3)}, {'body': (-4, 0, 2), 'neck': (-8, 0, 0)}]
+    clips.append(('hit', False, [(merged(base, p), 110) for p in hit]))
+    death = [
+        {'body': (-8, 0, 0), 'neck': (-30, 0, 0), 'jaw': (30, 0, 0), 'fl_hip': (20, 0, 0), 'fr_hip': (20, 0, 0)},
+        {'root': (0, 0, 35), 'neck': (10, 0, 15), 'jaw': (20, 0, 0), 'fl_knee': (40, 0, 0), 'offset': (0, -3, 0)},
+        {'root': (0, 0, 70), 'neck': (20, 0, 25), 'head': (10, 0, 10), 'fl_hip': (-30, 0, 0), 'hl_hip': (30, 0, 0), 'offset': (0, -5, 0)},
+        {'root': (0, 0, 88), 'neck': (25, 0, 30), 'head': (10, 0, 15), 'fl_hip': (-35, 0, 0), 'fr_hip': (-20, 0, 0), 'hl_hip': (35, 0, 0), 'hr_hip': (20, 0, 0),
+         'tail': (0, 20, 0), 'offset': (0, -6, 0)},
+    ]
+    clips.append(('death', False, [(merged(base, p), 140 if i < 3 else 500) for i, p in enumerate(death)]))
+    return clips
+
+
+def moulting_hound():
+    """The Moulting Hound: a lean wild dog of the Hospice Road, its grey-brown
+    fur mangy and coming out in tufts, bare grey hide and ribs showing on its
+    flanks, black quills pushing out along its spine and shoulders, lips
+    drawn back from yellowed teeth, eyes like coals. Bites low and fast
+    (HellfeatherMove.Bite). 44 tall, about 70 long."""
+    def fur(x, y, z, pose):
+        # Shaggy locks: streaks a little longer than wide, hanging down.
+        lane = np.floor(x / 2.0).astype(int) * 31 + np.floor(z / 2.0).astype(int)
+        out = pick([FEATHER_BROWN[0], MUD[0], FEATHER_BROWN[2], FEATHER_BROWN[1], FEATHER_GREY[1]], hash2(lane, np.floor(y / 4).astype(int), 720) ** 1.6)
+        mange = hash2(np.floor(x / 3).astype(int) * 7 + np.floor(z / 3).astype(int), np.floor(y / 3).astype(int), 721) < 0.04
+        return np.where(mange, FACE_DARK[0], out)
+
+    def flank(x, y, z, pose):
+        out = fur(x, y, z, pose)
+        side = (np.abs(x) > 4.5) & (y < 31) & (y > 22) & (z > -4) & (z < 13)
+        ribs = side & (np.sin(z * 1.3) > 0.45)
+        hide = pick([FEATHER_GREY[1], MUD[0], FEATHER_BROWN[1]], hash2(np.floor(z).astype(int), np.floor(y).astype(int), 723))
+        return np.where(ribs, FACE_DARK[0], np.where(side, hide, out))
+    h = Beast(fur, [FACE_DARK[0], FACE_DARK[0]], shoulder=27, length=32, chest=(8.5, 10.0, 11.0),
+              neck=((0, 31, 12), (0, 33, 21)), head=(4.6, 4.6, 5.8), snout=9.0)
+    # The ruff: shaggy fur heaped over the shoulders and round the throat.
+    h.part('neck', ellipsoid((0, 31, 15), (8.4, 8.4, 6.4)), fur)
+    for k in range(18):
+        a = k / 18.0 * math.pi * 2
+        h.part('neck', capsule((math.cos(a) * 6.5, 31 + math.sin(a) * 6.5, 16), (math.cos(a) * 9.0, 30 + math.sin(a) * 8.0 - 2.0, 11), 1.4, 0.6), fur)
+    # A bushy tail.
+    h.part('tail', capsule((0, 29, -18), (0, 20, -29), 3.6, 2.0), fur)
+    # The flanks over the ribs, and shaggy tufts hanging off the chest and belly.
+    h.part('body', capsule((0, 28.5, 8.0), (0, 28.5, -4.0), 7.2, 6.2), flank)
+    for k in range(14):
+        z = -12 + k * 2.0
+        x = (hash2(k, 0, 724) - 0.5) * 8.0
+        h.part('body', capsule((x, 22.5, z), (x * 1.2, 18.0 + hash2(k, 1, 724) * 2, z - 1.5), 1.3, 0.6), fur)
+    for k in range(6):
+        h.part('neck', capsule(((k - 2.5) * 1.6, 30, 15), ((k - 2.5) * 2.0, 24, 16.5), 1.2, 0.5), fur)
+    # Quills: black spines along the back and the shoulders, leaning back.
+    for k in range(16):
+        z = 16 - k * 2.2
+        x = (hash2(k, 2, 725) - 0.5) * 6.0
+        top = 34.5 + (4.0 if z > 4 else 1.5) + hash2(k, 3, 725) * 3.0
+        h.part('body', capsule((x, 34, z), (x * 1.4, top + 4.0, z - 5.0), 0.9, 0.4), RAVEN[k % 3])
+    for k in range(5):
+        h.part('neck', capsule(((hash2(k, 4, 725) - 0.5) * 4, 37, 15 + k * 1.5), ((hash2(k, 5, 725) - 0.5) * 6, 43, 11 + k * 1.5), 0.8, 0.3), RAVEN[k % 2])
+    fit(h.rig, 44)
+    return h.rig, beast_clips({'jaw': (10, 0, 0), 'neck': (6, 0, 0)})
+
+
+def featherblight_swan():
+    """A Featherblight Swan: the only true white anywhere, a great mute swan
+    with its wings half raised like fans, black veins of blight spreading
+    through the white feathers from the wingbones out, a long S of a neck,
+    an orange bill with a black knob, black feet. Its fan is a wing-buffet
+    that pushes and chills (HellfeatherMove.Fan)."""
+    white = [SILVER[2], SILVER[0], WIMPLE[0], SILVER[1]]
+
+    def quill(root, d, w, length, shade, vein):
+        """One flight feather's paint, in its own frame: a flat shade, a
+        greyer tip, and if vein, the blight as a fine black stroke down its
+        shaft from a quarter of the way out, with one grey twig off it."""
+        def material(x, y, z, pose):
+            px, py, pz = x - root[0], y - root[1], z - root[2]
+            along = px * d[0] + py * d[1] + pz * d[2]
+            across = px * w[0] + py * w[1] + pz * w[2]
+            out = np.where(along > length - 2.5, SILVER[1], shade)
+            if vein:
+                shaft = (np.abs(across) < 0.45) & (along > length * 0.25) & (along < length - 3.0)
+                a0 = length * 0.6
+                twig = (np.abs(across - (along - a0) * 0.6) < 0.45) & (along > a0) & (along < a0 + 4.0)
+                out = np.where(twig, RAVEN[2], np.where(shaft, RAVEN[0], out))
+            return np.broadcast_to(out, np.shape(x))
+        return material
+    b = Bird(feathered(white, 743, 1.2), feathered(white, 740, 1.2), leg=16, body=(18, 15, 28), neck=((0, 46, 22), (0, 78.5, 20)), neck_r=(6.4, 4.2),
+             head=(4.6, 5.2, 7.6), bill=('duck', 12), bill_color=[BILL[1], BILL_DARK[0]], feet=[RAVEN[0], RAVEN[1]], gap=7, eye=FACE_DARK[0], eye_r=0.9)
+    # The S of the neck in place of Bird's straight one: forward out of the
+    # breast, bowed back through the middle, forward again under the head.
+    b.rig.parts = [part for part in b.rig.parts if part[0] != 'neck']
+    curve = [(22, 40), (27, 46.5), (26, 53), (19, 58.5), (10, 63), (5, 68), (5, 73), (9, 77), (15, 79), (20, 78.5)]
+    # A full breast swelling up into the neck's base, so the two read as one.
+    b.part('body', ellipsoid((0, 37, 17), (12.5, 11.5, 12.5)), feathered(white, 745, 1.2))
+    for k, ((z0, y0), (z1, y1)) in enumerate(zip(curve[:-1], curve[1:])):
+        r0 = 6.8 - k * 0.3
+        b.part('neck', capsule((0, y0, z0), (0, y1, z1), r0, r0 - 0.3), feathered(white, 744, 1.0))
+    # The black knob at the base of the bill and the black patch round each eye.
+    hx, hy, hz = b.head_at
+    b.part('head', ellipsoid((0, hy + 0.6, hz + 6.8), (1.6, 1.8, 1.6)), RAVEN[0])
+    for side in (-1, 1):
+        b.part('head', ellipsoid((side * 3.6, hy - 0.6, hz + 5.2), (1.0, 1.4, 2.4)), RAVEN[0])
+    # The fanned wings: big raised blades of feather either side of the body.
+    # The fans replace Bird's folded wings: one pair, not two.
+    b.rig.parts = [part for part in b.rig.parts if part[0] not in ('l_wing', 'r_wing')]
+    for side, name in ((-1, 'r'), (1, 'l')):
+        # The fan: long feathers radiating from the shoulder, from up and out
+        # (the V seen from the front) round to back along the body (the swept
+        # mass seen from the side), with short coverts filling in at the root.
+        shoulder = np.array([side * 13.0, 44.0, 4.0])
+        # Up and out, straight out, back, then back and down over the flank
+        # and rump, the lowest feathers draping down the body's side.
+        # Every direction keeps leaning out, so from the front the wing's
+        # edge is one sweep from the top of the fan down to its lowest tip.
+        keys = [np.array([side * 0.5, 0.85, -0.12]), np.array([side * 0.92, 0.38, -0.2]), np.array([side * 0.78, 0.05, -0.62]),
+                np.array([side * 0.7, -0.3, -0.65]), np.array([side * 0.62, -0.62, -0.48])]
+        segments = len(keys) - 1
+        normal = np.cross(keys[0], keys[-1])
+        normal /= np.linalg.norm(normal)
+        for k in range(33):
+            t = k / 32.0 * segments
+            i = min(int(t), segments - 1)
+            d = keys[i] * (1 - (t - i)) + keys[i + 1] * (t - i)
+            d /= np.linalg.norm(d)
+            # The lower feathers are longer and stand off the flank, so their
+            # tips hang below the body as a wing rather than vanish into it.
+            low = max(t - 2.0, 0.0)
+            # One smooth curve over the whole fan, longest in the middle, so
+            # the edge has no notch where the raised part meets the drape.
+            length = 25.0 + 9.0 * math.sin(t / segments * math.pi)
+            root = shoulder + np.array([side * 3.0 * min(low, 1.0), 0.0, 0.0])
+            # Coverts first, short and plain, so the flight feathers and
+            # their veins lie over them rather than under.
+            b.part(f'{name}_wing', capsule(tuple(root), tuple(root + d * length * 0.5), 3.8, 2.6), SILVER[2])
+            across = np.cross(d, normal)
+            across /= np.linalg.norm(across)
+            shade = [SILVER[2], WIMPLE[0], SILVER[0]][k % 3]
+            paint = quill(root, d, across, length, shade, k % 4 == 1 and 3 < k < 31)
+            b.part(f'{name}_wing', capsule(tuple(root + d * 3.0), tuple(root + d * length), 2.8, 1.0), paint)
+    fit(b.rig, 72)
+    # The head bowed at the top of the S, the bill pointing down and forward.
+    base = {'l_wing': (0, 0, 8), 'r_wing': (0, 0, -8), 'head': (28, 0, 0)}
+    return b.rig, bird_clips('wingslam', base=base)
+
+
 ENEMIES = {
     'PilgrimPenitent': (pilgrim_penitent, (72, 96, 120)),
     'TitheStray': (tithe_stray, (60, 90, 90)),
@@ -922,6 +1210,10 @@ ENEMIES = {
     'BroodDrake': (brood_drake, (90, 96, 100)),
     'BlackHoneyLeech': (black_honey_leech, (44, 40, 60)),
     'Mardra': (mardra, (100, 90, 100)),
+    # Act II.
+    'TitheHanged': (tithe_hanged, (70, 100, 90)),
+    'MoultingHound': (moulting_hound, (60, 70, 110)),
+    'FeatherblightSwan': (featherblight_swan, (130, 120, 130)),
 }
 
 

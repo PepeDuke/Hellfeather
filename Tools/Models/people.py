@@ -25,6 +25,7 @@ from figure import Rig, build, capsule, column, ellipsoid, minus, shell, union, 
 from kit import (BRASS, BURLAP, CLOTH_BROWN, CLOTH_PALE, CLOTH_RED, COAT_BROWN, FACE_DARK, FLOUR, GLOW, GUANO,  # noqa: E402
                  HABIT, HAIR_DARK, HAIR_GREY, IRON, LEATHER, LIPS_RED, NAVY, PAPER, RAVEN, SCARF, SKIN, SKIN_PALE,
                  SMOCK, STRAW, TAPE, TROUSERS, VELVET, WAISTCOAT, WIMPLE, WOOD, WOOD_DARK, WOOL, DRESS_MILL,
+                 CANVAS, CANVAS_OILED, CLOTH_GREY, DYE_BLUE, DYE_RED, FELT, MOSS, ROPE, SOOT, TIN,
                  hash2, pick)
 
 
@@ -658,6 +659,378 @@ def jessa_bed():
     return rig, [('idle', True, idle), ('talk', True, talk), ('death', False, death), ('dead', False, [(dead_pose, 1000)])]
 
 
+# Act II: the Pilgrims' Encampment. The pilgrims share grey undyed wool, rope
+# belts, ragged hems, hoods and the tin Orran Eye; parts for those first.
+
+def ragged(shape, hem, depth, seed, teeth=7.0):
+    """shape with its lower edge torn: the hem rises by up to `depth` in
+    tongues `teeth` to the radian round the body."""
+    def keep(x, y, z):
+        tongue = np.floor((np.arctan2(z, x) + math.pi) * teeth).astype(int)
+        return y > hem + depth * hash2(tongue, 0, seed)
+    return where(shape, keep)
+
+
+def robe(shades, seed):
+    """Undyed wool: the shades but the last speckled in hanging folds, and
+    the last, darker, in a few worn spots."""
+    base = speckled(shades[:-1], seed, 2, 5)
+
+    def material(x, y, z, pose):
+        out = base(x, y, z, pose)
+        worn = hash2(np.floor(x / 3).astype(int) * 7 + np.floor(z / 3).astype(int), np.floor(y / 3).astype(int), seed + 1) < 0.04
+        return np.where(worn, shades[-1], out)
+    return material
+
+
+def robe_skirt(b, material, hem, seed, flare=3.4, depth=3.5, grow=0.0, top=39):
+    """A long skirt like Body.skirt with a torn hem."""
+    wx, wz = b.waist + 0.6 + grow, b.depth + 0.4 + grow
+    body = column(hem - depth, top, lambda y: wx + flare * np.clip((top - y) / (top - hem), 0, 1.2),
+                  lambda y: wz + flare * 0.8 * np.clip((top - y) / (top - hem), 0, 1.2), flat(0.3))
+    b.part('root', ragged(body, hem - depth, depth, seed), material)
+
+
+def cowl(b, material, low, seed, grow=1.6, depth=4.0, top=56.5):
+    """A shawl or the shoulder cape of a hood over the shoulders and upper
+    arms, its lower edge torn, open a little at the throat."""
+    def rx(y):
+        return b.torso_x(y) + grow + 1.8 * bump(y, 52, 4.5)
+
+    def rz(y):
+        return b.torso_z(y) + grow
+    inner = column(low - depth - 1, top, lambda y: b.torso_x(y) + 0.2 + 1.4 * bump(y, 52, 4.5), lambda y: b.torso_z(y) + 0.2, b.torso_c, power=2.3)
+    outer = column(low - depth, top, rx, rz, b.torso_c, power=2.3)
+    throat = lambda x, y, z: (z > 2.0) & (np.abs(x) < 1.0 + np.clip(y - 50, 0, None) * 0.3) & (y > 50)  # noqa: E731
+    b.part('chest', minus(ragged(shell(inner, outer), low - depth, depth, seed, teeth=5.0), throat), material)
+
+
+def hood_up(b, material, seed, peak=True):
+    """A hood drawn up: a deep cowl round the head, the face in its opening,
+    its point falling behind, its hem spread over the neck."""
+    outer = ellipsoid((0, 64.4, 0.2), (6.4, 6.9, 6.8))
+    if peak:
+        outer = union(outer, capsule((0, 67, -3.0), (0, 62, -8.0), 3.2, 1.6))
+    inner = ellipsoid((0, 63.2, 1.2), (4.9, 6.0, 5.2))
+    face = lambda x, y, z: (z > 0.8) & (np.abs(x) < 3.9 - np.clip(y - 66, 0, None) * 0.8) & (y > 56.0) & (y < 68.0)  # noqa: E731
+    b.part('head', where(minus(minus(outer, inner), face), lambda x, y, z: y > 55.5), material)
+    neck = shell(column(51, 59, flat(4.6), flat(4.4), flat(0.0)), column(51, 58.5, flat(6.8), flat(6.4), flat(-0.4)))
+    b.part('chest', minus(neck, lambda x, y, z: (z > 2.6) & (np.abs(x) < 2.6) & (y > 53)), material)
+
+
+def hood_down(b, material):
+    """A hood pushed back: bunched behind the neck and round it."""
+    b.part('chest', ellipsoid((0, 57.0, -5.4), (5.8, 3.4, 3.2)), material)
+    b.part('chest', minus(shell(column(53, 58, flat(3.4), flat(3.4)), column(53, 57.5, flat(5.6), flat(5.4), flat(-0.6))),
+                          lambda x, y, z: (z > 3.0) & (np.abs(x) < 2.0)), material)
+
+
+def rope_belt(b, y=38, tails=(2.0, -2.5), length=12):
+    """A rope cord round the waist, knotted at the front, its ends hanging."""
+    w, d = b.waist + 0.9 + b.belly * 0.4, b.depth + 0.9 + b.belly * 0.5
+    b.part('root', shell(column(y - 1, y + 2, flat(w - 1.4), flat(d - 1.4)), column(y - 0.5, y + 1.5, flat(w), flat(d))),
+           lambda x, y_, z, pose: pick(ROPE, hash2(np.floor(np.arctan2(z, x) * 6 + y_).astype(int), 0, 300)))
+    b.part('root', ellipsoid((tails[0], y + 0.5, d + 0.3), (1.4, 1.2, 1.0)), ROPE[1])
+    for k, x in enumerate(tails):
+        b.part('root', capsule((x, y, d + 0.4), (x + 0.6 * k, y - length + k * 3, d + 1.6), 0.6), ROPE[k % 2])
+        b.part('root', ellipsoid((x + 0.6 * k, y - length + k * 3, d + 1.6), (0.9, 1.4, 0.9)), ROPE[0])
+
+
+def orran_eye(b, x, y, z, bone='chest'):
+    """The tin badge of the Orran Eye: a pale almond with a dark pupil."""
+    b.part(bone, ellipsoid((x, y, z), (1.9, 1.2, 0.6)), TIN[0])
+    b.part(bone, ellipsoid((x, y, z + 0.4), (0.7, 0.7, 0.5)), FACE_DARK[0])
+    for dx in (-2.4, 2.4):
+        b.part(bone, ellipsoid((x + dx, y, z - 0.1), (0.4, 0.4, 0.4)), TIN[1])
+
+
+def lower(rig, dy):
+    """Moves every part and bone so far down by dy, for a seated figure built
+    from a standing one: the legs are added after, in their place."""
+    def shifted(shape):
+        def moved(x, y, z):
+            return shape(x, y + dy, z)
+        lo, hi = shape.box
+        moved.box = (lo - np.array([0, dy, 0]), hi - np.array([0, dy, 0]))
+        return moved
+
+    def recolored(material):
+        if callable(material):
+            return lambda x, y, z, pose: material(x, y + dy, z, pose)
+        return material
+    rig.parts = [(bone, shifted(shape), recolored(material), when) for bone, shape, material, when in rig.parts]
+    rig.bones = {name: (joint - np.array([0, dy, 0]) if name != 'root' else joint, parent) for name, (joint, parent) in rig.bones.items()}
+
+
+PILGRIM_WOOL = [WOOL[0], CLOTH_GREY[1], WOOL[2], FELT[1]]
+
+
+def pilgrim_mother_hesk():
+    """Pilgrim Mother Hesk: a broad, weathered woman of sixty in layers of
+    undyed wool over a madder underskirt, a ragged shawl, her grey hood down
+    and grey hair pinned up. A pale apron sewn with a red fern, pouches and
+    bottles at her belt, a tin Orran Eye on a cord, soot on her hands, and in
+    her right hand a tall staff hung with tin badges and ribbons. 72 tall."""
+    b = Body(scale=72 / 70, shoulder=10.8, waist=10.4, depth=7.4, bust=1.6, belly=1.6)
+    wool = robe([WOOL[0], CANVAS[1], WOOL[1], FELT[1]], 400)
+    shawl = robe([CANVAS[0], WOOL[2], CANVAS[1], CANVAS_OILED[0]], 401)
+    b.boots(top=6, shades=LEATHER[1:3])
+    b.skirt(speckled(DYE_RED, 402), hem=3, flare=3.4, wave=0.5)
+    robe_skirt(b, wool, hem=9, seed=403, flare=3.6, depth=4.0, grow=0.4)
+    robe_skirt(b, shawl, hem=22, seed=404, flare=2.4, depth=5.0, grow=1.2)
+    b.torso(wool)
+
+    def apron(x, y, z, pose):
+        out = pick(CLOTH_PALE, hash2(np.floor(x / 2).astype(int), np.floor(y / 5).astype(int), 405) * 0.9)
+        stem = (np.abs(x) < 0.6) & (y > 15) & (y < 33)
+        barbs = (np.abs(np.abs(x) - ((y - 15) % 4.0) * 1.1) < 0.6) & (np.abs(x) < 3.6 - (y - 15) * 0.05) & (y > 16) & (y < 32)
+        hem = y < 13.5
+        return np.where(stem | barbs, DYE_RED[0], np.where(hem, CLOTH_PALE[1], out))
+    b.apron(apron, hem=12, low_half=6.6, bib_half=0, flare=3.6, grow=2.0)
+    b.belt(LEATHER[2], y=37.5, buckle=TIN[1])
+    for sx in (-8.0, 8.4):
+        b.part('root', ellipsoid((sx, 33.0, 7.6), (2.4, 2.8, 1.8)), LEATHER[1])
+        b.part('root', ellipsoid((sx, 35.0, 8.6), (2.4, 1.0, 1.0)), LEATHER[2])
+    # Bottles hung from the belt: green and madder, corked.
+    for sx, color in ((-4.4, MOSS[2]), (4.6, DYE_RED[1]), (-1.6, TIN[1])):
+        b.part('root', capsule((sx, 36, 10.2), (sx, 33.5, 10.4), 0.3), ROPE[0])
+        b.part('root', ellipsoid((sx, 31.6, 10.6), (1.3, 2.0, 1.1)), color)
+        b.part('root', ellipsoid((sx, 33.6, 10.6), (0.5, 0.5, 0.5)), WOOD[3])
+    # Lavender tied at her left hip.
+    b.part('root', capsule((10.4, 36, 5.0), (12.0, 24, 6.0), 1.3, 0.6), lambda x, y, z, pose: np.where(y > 33, MOSS[1], pick([DYE_BLUE[0], DYE_BLUE[2]], hash2(np.floor(x).astype(int), np.floor(y).astype(int), 406))))
+    # The shawl, two layers of it, ragged.
+    cowl(b, shawl, 43, 407, grow=1.8, depth=4.5)
+    hood_down(b, wool)
+    # The Orran Eye on its cord.
+    zc = b.torso_z(np.array(47.0)) + b.torso_c(np.array(47.0)) + 3.4
+    b.part('chest', capsule((-2.2, 56, 4.0), (0, 48.4, zc), 0.4), ROPE[1])
+    b.part('chest', capsule((2.2, 56, 4.0), (0, 48.4, zc), 0.4), ROPE[1])
+    orran_eye(b, 0, 47.2, zc)
+    soot = lambda x, y, z, pose: pick([SKIN[1], SOOT[0], SKIN[2]], hash2(np.floor(x).astype(int), np.floor(y).astype(int), 409))  # noqa: E731
+    # Right hand on the staff, left hanging by the lavender.
+    b.arm(-1, (-10.8, 53, 0), (-13.2, 43.5, 2.5), (-13.6, 44.5, 7.4), wool, wool, soot, r=3.3, flare=0.6, cuff=CLOTH_GREY[0])
+    b.arm(1, (10.8, 53, 0), (12.6, 42, 1.0), (12.4, 32, 3.0), wool, wool, soot, r=3.3, flare=0.6, cuff=CLOTH_GREY[0])
+    b.head(SKIN)
+    b.hair(HAIR_GREY, 'bun')
+    # The staff, rooted beside her: a crook at the top, badges and ribbons.
+    sx, sz = -13.8, 9.8
+    b.part('root', capsule((sx, 0, sz), (sx + 0.4, 70, sz), 1.0), speckled(WOOD[:3], 410, 1, 3))
+    b.part('root', minus(ellipsoid((sx + 2.2, 71.5, sz), (2.8, 3.0, 1.0)), ellipsoid((sx + 2.2, 71.5, sz), (1.6, 1.8, 2.0))), WOOD[1])
+    for k, (dx, y) in enumerate(((1.6, 66), (-1.4, 64), (1.2, 61), (-1.2, 59), (0.6, 68.5))):
+        b.part('root', capsule((sx, y + 2, sz), (sx + dx, y, sz + 0.4), 0.3), ROPE[0])
+        b.part('root', ellipsoid((sx + dx, y - 1.0, sz + 0.4), (0.9, 1.2, 0.5)), TIN[k % 3])
+    for dx, color, length in ((0.8, DYE_RED[0], 9), (-0.8, CLOTH_PALE[1], 7)):
+        b.part('root', capsule((sx, 69, sz + 0.5), (sx + dx, 69 - length, sz + 1.0), 0.5), color)
+    return b.rig, b.talking({'l_elbow': (-55, -10, 0), 'l_shoulder': (-10, 0, 10)})
+
+
+def tolly_tinker():
+    """Tolly the Tinker: a wiry, quick man in a patched leather apron over a
+    madder shirt faded with washing, sleeves rolled, a burn scar on his left
+    forearm. A ring of keys and awls at his belt, tools in the apron pocket,
+    a rag at his hip, goggles pushed up into curly brown hair, stubble, tall
+    boots. 72 tall."""
+    b = Body(scale=72 / 70, shoulder=9.4, waist=7.6, depth=5.6)
+    shirt = speckled([DYE_RED[0], CLOTH_RED[1], DYE_RED[1]], 420)
+    b.boots(top=16, shades=LEATHER[1:3])
+    b.legs(speckled([CLOTH_BROWN[0], TROUSERS[0], CLOTH_BROWN[1]], 421), r=2.9)
+    # The shirt's tail hangs below the belt behind the apron.
+    b.skirt(shirt, hem=31, flare=1.2, wave=0.3)
+    b.torso(lambda x, y, z, pose: np.where((z > 2) & (np.abs(x) < 0.6) & (y > 49), DYE_RED[2], shirt(x, y, z, pose)))
+
+    def apron(x, y, z, pose):
+        out = pick(LEATHER[:3], hash2(np.floor(x / 2).astype(int), np.floor(y / 5).astype(int), 422) * 0.8)
+        cell_x, cell_y = np.floor((x + 9) / 4.5).astype(int), np.floor(y / 5).astype(int)
+        patch = hash2(cell_x, cell_y, 423) < 0.22
+        inset = ((x + 9) % 4.5 > 0.6) & (y % 5 > 0.6)
+        fill = pick([CANVAS[1], FELT[1], LEATHER[3], CANVAS_OILED[0]], hash2(cell_x, cell_y, 424))
+        out = np.where(patch & inset, fill, out)
+        stitch = patch & (((x + 9) % 4.5 < 0.6) | (y % 5 < 0.6)) & (hash2(np.floor(x).astype(int), np.floor(y).astype(int), 425) < 0.6)
+        out = np.where(stitch, ROPE[0], out)
+        pocket = (y > 25) & (y < 31) & (np.abs(x + 3.2) < 2.6)
+        return np.where(pocket, LEATHER[2], out)
+    b.apron(apron, hem=13, low_half=7.6, bib_half=5.4, bib_top=52, straps=LEATHER[2], flare=1.4)
+    b.belt(LEATHER[2], y=37, buckle=IRON[1], height=2)
+    # Tools in the pocket.
+    for k, color in enumerate((IRON[1], WOOD[3], IRON[0])):
+        b.part('root', capsule((-4.6 + k * 1.2, 29, 9.4), (-4.8 + k * 1.4, 34.5 - k, 9.6), 0.45), color)
+    # The ring of keys and awls on his left hip.
+    b.part('root', minus(ellipsoid((8.8, 31.5, 5.2), (2.6, 2.6, 0.7)), ellipsoid((8.8, 31.5, 5.2), (1.6, 1.6, 1.6))), IRON[0])
+    b.part('root', capsule((8.6, 36.5, 5.0), (8.8, 34, 5.2), 0.5), LEATHER[2])
+    for k in range(5):
+        a = -0.6 + k * 0.3
+        x0, y0 = 8.8 + math.sin(a) * 2.4, 29.2
+        b.part('root', capsule((x0, y0, 5.8), (x0 + math.sin(a) * 1.5, y0 - 4.5, 6.2), 0.45), BRASS[k % 2] if k % 3 else IRON[1])
+    # A rag at his right hip.
+    b.part('root', capsule((-8.4, 36, 4.0), (-9.4, 24, 4.8), 1.4, 2.0), speckled(CLOTH_GREY + [CANVAS[3]], 426, 1, 2))
+
+    def burnt(x, y, z, pose):
+        out = speckled(SKIN[:2], 427, 3)(x, y, z, pose)
+        scar = (y > 34) & (y < 40) & (z > 0.5) & (hash2(np.floor(x).astype(int), np.floor(y).astype(int), 428) < 0.7)
+        return np.where(scar, FACE_DARK[1], out)
+    b.arm(-1, (-9.4, 53, 0), (-11.0, 43, 1.0), (-11.0, 33, 3.0), shirt, SKIN, SKIN[1], r=2.9, cuff=DYE_RED[1])
+    b.arm(1, (9.4, 53, 0), (11.0, 43, 1.0), (11.0, 33, 3.0), shirt, burnt, SKIN[1], r=2.9, cuff=DYE_RED[1])
+    b.head(SKIN, beard=HAIR_DARK[:2])
+    b.hair([HAIR_DARK[1], COAT_BROWN[1], HAIR_DARK[0]], 'wavy')
+    # Curls standing up off the crown.
+    for k in range(9):
+        a = k * 0.7
+        b.part('head', ellipsoid((math.cos(a) * 3.2, 68.6 + (k % 3) * 0.4, math.sin(a) * 3.2), (1.5, 1.2, 1.5)), HAIR_DARK[1] if k % 2 else COAT_BROWN[1])
+    # Goggles pushed up on the forehead, on a strap round the head.
+    b.part('head', shell(ellipsoid((0, 67.4, 0.6), (5.6, 1.6, 5.8)), ellipsoid((0, 67.4, 0.6), (6.0, 1.0, 6.2))), LEATHER[2])
+    for sx in (-2.0, 2.0):
+        b.part('head', ellipsoid((sx, 68.0, 5.4), (1.7, 1.5, 1.2)), BRASS[1])
+        b.part('head', ellipsoid((sx, 68.0, 6.2), (1.0, 0.9, 0.6)), DYE_BLUE[2])
+    return b.rig, b.talking({'r_elbow': (-60, 10, 0), 'r_shoulder': (-12, 0, -10)})
+
+
+def pilgrim_mother():
+    """A pilgrim mother: a young woman hooded in grey wool over a madder
+    underskirt, a rope belt, the Orran Eye on her breast, her coughing child,
+    hooded too, on her left hip. 70 tall."""
+    b = Body(shoulder=9.0, waist=7.8, depth=5.8, bust=1.0)
+    wool = robe(PILGRIM_WOOL, 440)
+    b.boots(top=7)
+    b.skirt(speckled(DYE_RED, 441), hem=4, flare=3.0, wave=0.5)
+    robe_skirt(b, wool, hem=10, seed=442, flare=3.4, depth=4.0, grow=0.4)
+    b.torso(wool)
+    rope_belt(b, y=38, tails=(-1.8, 1.0), length=14)
+    cowl(b, wool, 45, 443, depth=4.0)
+    hood_up(b, wool, 444)
+    orran_eye(b, -3.8, 50.0, b.torso_z(np.array(50.0)) + 2.8)
+    b.arm(-1, (-9.0, 53, 0), (-10.4, 42, 0.5), (-10.2, 32, 2.0), wool, wool, SKIN[1], r=2.9, flare=0.6, cuff=WOOL[1])
+    b.arm(1, (9.0, 53, 0), (10.8, 43, 3.0), (3.6, 40.5, 9.4), wool, wool, SKIN[1], r=2.9, flare=0.5, cuff=WOOL[1])
+    b.head(SKIN_PALE, eyes_down=True)
+    # The child on her left hip, its face turned to the camera on her shoulder.
+    child = robe([CLOTH_GREY[0], WOOL[2], CANVAS[1]], 445)
+    b.part('chest', capsule((7.6, 42.5, 6.6), (7.2, 51.0, 6.0), 3.8, 3.2), child)
+    for dz in (0.0, 2.4):
+        b.part('chest', capsule((6.0, 42.0, 8.0 + dz * 0.3), (2.6 + dz, 39.0, 10.6), 1.5), child)
+    b.part('chest', ellipsoid((3.0, 38.6, 11.0), (1.2, 1.0, 1.4)), LEATHER[2])
+
+    def child_face(x, y, z, pose):
+        out = pick(SKIN_PALE[:2], hash2(np.floor(x).astype(int), np.floor(y).astype(int), 446) * 0.7)
+        eye = (z > 7.8) & (np.abs(np.abs(x - 7.2) - 1.2) < 0.6) & (np.abs(y - 55.8) < 0.4)
+        return np.where(eye, FACE_DARK[0], out)
+    b.part('chest', ellipsoid((7.2, 55.0, 6.0), (2.9, 3.1, 2.9)), child_face)
+    b.part('chest', minus(minus(ellipsoid((7.2, 55.6, 5.6), (3.7, 3.9, 3.7)), ellipsoid((7.2, 55.0, 6.0), (2.9, 3.1, 2.9))),
+                          lambda x, y, z: (z > 7.0) & (y < 57.6)), child)
+    return b.rig, b.talking({'r_elbow': (-50, -10, 0), 'r_shoulder': (-8, 0, -8)})
+
+
+def pilgrim_young():
+    """A young pilgrim: curly dark hair, a ragged knee-length tunic of grey
+    wool with its hood pushed back, a rope belt, leggings bound with strips
+    up the shin, the Orran Eye on his breast and a tin tithe bracelet he
+    does not know the meaning of on his right wrist. 70 tall."""
+    b = Body(shoulder=9.4, waist=7.8, depth=5.8)
+    wool = robe(PILGRIM_WOOL, 460)
+
+    def leggings(x, y, z, pose):
+        out = pick([WOOL[1], CLOTH_GREY[1]], hash2(np.floor(x).astype(int), np.floor(y / 3).astype(int), 461))
+        bound = (y < 24) & ((np.floor(y + x * 0.3) % 3) < 1.2)
+        return np.where(bound, CLOTH_PALE[1], out)
+    b.boots(top=8, shades=LEATHER[1:3])
+    b.legs(leggings, r=2.8)
+    robe_skirt(b, wool, hem=20, seed=462, flare=2.4, depth=4.5)
+    b.torso(wool)
+    rope_belt(b, y=37.5, tails=(2.2, 3.0), length=10)
+    cowl(b, wool, 46, 463, depth=3.5)
+    hood_down(b, wool)
+    orran_eye(b, 3.6, 50.5, b.torso_z(np.array(50.5)) + 2.6)
+    for side, sx in ((-1, -9.4), (1, 9.4)):
+        b.arm(side, (sx, 53, 0), (sx * 1.12, 43, 0.8), (sx * 1.1, 33, 2.6), wool, SKIN, SKIN[1], r=2.9, cuff=WOOL[0])
+    b.part('r_elbow', ellipsoid((-10.3, 35.0, 2.4), (2.4, 1.0, 2.4)), TIN[0])
+    b.part('l_elbow', ellipsoid((10.3, 35.0, 2.4), (2.3, 1.2, 2.3)), CLOTH_PALE[1])
+    b.head(SKIN)
+    b.hair(HAIR_DARK, 'wavy')
+    for k in range(8):
+        a = k * 0.8 + 0.3
+        b.part('head', ellipsoid((math.cos(a) * 3.4, 68.4 + (k % 2) * 0.5, math.sin(a) * 3.0 - 0.4), (1.4, 1.2, 1.4)), HAIR_DARK[k % 3])
+    return b.rig, b.talking({'l_elbow': (-60, -15, 0), 'l_shoulder': (-10, 0, 10)})
+
+
+def pilgrim_old():
+    """An old pilgrim on a crutch: a long ragged cloak of dark wool, its hood
+    back, a rope belt with long tails, a bandage round his bald head over the
+    right eye, a long white beard, the Orran Eye on his breast. 70 tall,
+    stooped."""
+    b = Body(shoulder=10.0, waist=9.2, depth=6.4)
+    wool = robe([WOOL[1], WOOL[0], CLOTH_GREY[1], FELT[1]], 480)
+    b.boots(top=7, shades=[LEATHER[2], FACE_DARK[0]])
+    b.legs(speckled(TROUSERS, 481), r=2.9)
+    robe_skirt(b, wool, hem=9, seed=482, flare=3.4, depth=5.5)
+    b.torso(wool)
+    rope_belt(b, y=38, tails=(1.6, -2.0), length=18)
+    cowl(b, robe([CLOTH_GREY[0], WOOL[0], WOOL[2], FELT[1]], 483), 41, 484, grow=2.0, depth=5.0)
+    hood_down(b, wool)
+    orran_eye(b, 4.2, 50.0, b.torso_z(np.array(50.0)) + 3.0)
+    b.arm(-1, (-10.0, 53, 0), (-12.6, 43, 3.0), (-12.8, 39.5, 7.8), wool, wool, SKIN[1], r=3.1, flare=0.8, cuff=WOOL[2])
+    b.arm(1, (10.0, 53, 0), (11.6, 42, 1.0), (11.2, 32, 3.0), wool, wool, SKIN[1], r=3.1, flare=0.8, cuff=WOOL[2])
+    b.head(SKIN, beard=HAIR_GREY)
+    b.hair(HAIR_GREY, 'fringe')
+    # The long beard over his chest.
+    b.part('head', capsule((0, 59.0, 4.4), (0, 49.0, 6.4), 3.4, 1.4), speckled(HAIR_GREY + [CLOTH_PALE[1]], 485, 1, 2))
+    # The bandage: a band round the head and a pad over his right eye.
+    band = shell(ellipsoid((0, 63, 1.2), (4.6, 5.7, 4.9)), ellipsoid((0, 63, 1.2), (5.3, 6.3, 5.6)))
+    b.part('head', where(band, lambda x, y, z: np.abs(y - 65.0 - x * 0.22) < 1.0), speckled(CLOTH_PALE, 486, 1, 1))
+    b.part('head', ellipsoid((-1.9, 63.8, 5.2), (2.0, 1.5, 0.9)), CLOTH_PALE[1])
+    # The crutch, on the ground at his right.
+    cx, cz = -13.0, 9.8
+    b.part('root', capsule((cx, 0, cz), (cx, 46, cz - 0.6), 0.9), speckled(WOOD[:3], 487, 1, 3))
+    b.part('root', capsule((cx, 46, cz - 3.2), (cx, 46, cz + 2.2), 1.0), WOOD[3])
+    b.part('root', capsule((cx, 39.6, cz - 1.0), (cx, 39.6, cz + 1.2), 0.7), WOOD[2])
+    b.part('root', capsule((cx, 20, cz), (cx, 22, cz), 1.3), ROPE[0])
+    stoop = {'chest': (10, 0, 0), 'head': (10, 0, 0)}
+    return b.rig, b.talking({'l_elbow': (-55, -10, 0), 'l_shoulder': (-8, 0, 10)}, idle_extra=stoop)
+
+
+def pilgrim_sitting():
+    """A pilgrim at the long table: hooded, seated on its bench facing the
+    camera, eating from a bowl held in her left hand, spoon at her mouth, a
+    bedroll strapped across her back and a satchel at her hip. Built standing
+    and lowered onto the bench, 20 voxels up (the table's bench top), so the
+    table in front hides her knees. 54 tall."""
+    b = Body(shoulder=8.8, waist=7.6, depth=5.6, bust=0.8)
+    wool = robe(PILGRIM_WOOL, 500)
+    b.torso(wool)
+    cowl(b, wool, 45, 501, depth=4.0)
+    hood_up(b, wool, 502)
+    b.part('head', ellipsoid((0, 70.8, 2.2), (0.6, 1.8, 0.6)), DYE_RED[0])
+    b.part('head', ellipsoid((0, 71.2, 2.3), (1.6, 0.6, 0.6)), DYE_RED[0])
+    rope_belt(b, y=38, tails=(1.0, -1.5), length=6)
+    b.arm(-1, (-8.8, 53, 0), (-10.2, 45, 5.0), (-3.4, 55.2, 7.4), wool, wool, SKIN_PALE[1], r=2.8, flare=0.5, cuff=WOOL[1])
+    b.arm(1, (8.8, 53, 0), (10.2, 44, 3.5), (3.0, 43.5, 9.6), wool, wool, SKIN_PALE[1], r=2.8, flare=0.5, cuff=WOOL[1])
+    b.part('r_elbow', capsule((-1.6, 57.2, 8.6), (-0.4, 59.6, 7.4), 0.5), WOOD[3])
+    b.part('l_elbow', minus(ellipsoid((0.6, 44.8, 11.0), (3.6, 1.9, 3.0)), ellipsoid((0.6, 46.2, 11.0), (2.8, 1.4, 2.2))), WOOD[1])
+    b.part('l_elbow', ellipsoid((0.6, 45.4, 11.0), (2.6, 0.6, 2.0)), WOOD[3])
+    b.head(SKIN_PALE, eyes_down=True)
+    b.hair(HAIR_DARK, 'wavy')
+    # Bedroll across the back, its rolled ends showing; a satchel at her hip.
+    b.part('chest', capsule((-7.0, 55.0, -9.0), (7.0, 55.0, -9.0), 3.2), lambda x, y, z, pose: np.where(
+        np.abs(x) > 6.2, np.where(np.hypot(y - 55.0, z + 9.0) % 1.6 < 0.7, CANVAS[3], CANVAS[2]), pick(CANVAS[:3], hash2(np.floor(x / 2).astype(int), 0, 503))))
+    for sx in (-4.0, 4.0):
+        b.part('chest', capsule((sx, 52.0, -6.2), (sx, 58.4, -6.4), 0.7), LEATHER[2])
+    b.part('root', ellipsoid((9.6, 33.0, 2.0), (1.6, 3.0, 3.2)), LEATHER[1])
+    lower(b.rig, 18.0)
+    # Her lap, knees and the robe falling in front of her shins.
+    lap = union(ellipsoid((0, 21.0, 4.0), (9.4, 4.6, 9.0)), column(14, 22, flat(9.8), flat(7.0), flat(1.0)))
+    b.part('root', lap, wool)
+    for side in (-3.8, 3.8):
+        b.part('root', capsule((side, 20.5, 3.0), (side, 20.0, 11.5), 3.0), wool)
+        b.part('root', capsule((side, 19.0, 12.0), (side, 4.0, 12.8), 2.4), speckled(TROUSERS, 504))
+        b.part('root', ellipsoid((side, 1.8, 14.4), (2.5, 1.8, 3.4)), lambda x, y, z, pose: np.where(y < 0.8, FACE_DARK[0], LEATHER[2]))
+
+    def drape(x, y, z):
+        return (np.abs(x) < 9.0) & (z > 13.0) & (z < 15.4) & (y < 22.0) & (y > 6.0 + 4.0 * hash2(np.floor(x / 1.6).astype(int), 0, 505))
+    drape.box = (np.array([-9.0, 6.0, 13.0]), np.array([9.0, 22.0, 15.4]))
+    b.part('root', drape, wool)
+    under = lambda x, y, z: (np.abs(x) < 8.4) & (z > 12.4) & (z < 14.0) & (y < 14.0) & (y > 4.0)  # noqa: E731
+    under.box = (np.array([-8.4, 4.0, 12.4]), np.array([8.4, 14.0, 14.0]))
+    b.part('root', under, speckled(DYE_RED, 506))
+    return b.rig, b.talking({'r_elbow': (-15, 0, 0)})
+
+
 PEOPLE = {
     'Edda': (edda, (64, 76, 64)),
     'Matthew': (matthew, (60, 78, 60)),
@@ -669,6 +1042,13 @@ PEOPLE = {
     'OldHobb': (old_hobb, (60, 74, 64)),
     'LiseHobb': (lise_hobb, (64, 78, 60)),
     'JessaBed': (jessa_bed, (40, 44, 72)),
+    # Act II.
+    'PilgrimMotherHesk': (pilgrim_mother_hesk, (64, 84, 64)),
+    'TollyTinker': (tolly_tinker, (60, 80, 60)),
+    'Pilgrim01': (pilgrim_mother, (60, 76, 60)),
+    'Pilgrim02': (pilgrim_young, (60, 76, 60)),
+    'Pilgrim03': (pilgrim_old, (64, 76, 64)),
+    'PilgrimSitting': (pilgrim_sitting, (60, 64, 60)),
 }
 
 

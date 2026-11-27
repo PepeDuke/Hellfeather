@@ -1,4 +1,11 @@
-// Live flames and smoke on the braziers and campfires near the player. Fires
+// What a fire burns in: each kind has its own flame height, size and light.
+HellfeatherFireKind : int
+#@{
+    Brazier, Campfire, Torch
+}
+
+// Live flames, smoke and light on the braziers, campfires and torches near
+// the player. Fires
 // light and go out as the terrain streams their props in and out of range. The
 // engine plays at most 128 effects, and blood stains hold theirs for seconds, so
 // a fire lit while every slot is busy gets nothing; each look relights the
@@ -6,6 +13,9 @@
 HellfeatherFires
 {
     bool EmitPointLights = true
+    // The volume of the lit torch pole round the Act II camp, -1 where there
+    // is none. Its cold sister is never lit.
+    int Torch = -1
     // The crackle each lit fire plays from its own node, 0 for silence. The
     // voice ends by itself once the fire's node goes with its terrain.
     int Crackle
@@ -31,9 +41,9 @@ HellfeatherFires
         for i : (int)Sources.Len - 1; i >= 0; i-- {
             int source = Sources[i]
             if world.Has(source, QuaxelComponents.Voxels) && Near(world.WorldPosition(source), player) {
-                bool logs = world.VolumeOf(source) == campfire
-                if !world.IsEffectPlaying(Flames[i]) { Flames[i] = world.StartEffect(FlameStyle(world, source, logs), FlamePoint(world, source, logs), vec3(0.0, 1.0, 0.0)) }
-                if !world.IsEffectPlaying(Smokes[i]) { Smokes[i] = world.StartEffect(SmokeStyle(logs), FlamePoint(world, source, logs) + vec3(0.0, 0.3, 0.0), vec3(0.0, 1.0, 0.0)) }
+                HellfeatherFireKind kind = KindOf(world.VolumeOf(source), campfire)
+                if !world.IsEffectPlaying(Flames[i]) { Flames[i] = world.StartEffect(FlameStyle(world, source, kind), FlamePoint(world, source, kind), vec3(0.0, 1.0, 0.0)) }
+                if !world.IsEffectPlaying(Smokes[i]) { Smokes[i] = world.StartEffect(SmokeStyle(kind), FlamePoint(world, source, kind) + vec3(0.0, 0.3, 0.0), vec3(0.0, 1.0, 0.0)) }
                 continue
             }
             if EmitPointLights { world.RemovePointLight(source) }
@@ -47,9 +57,9 @@ HellfeatherFires
         for id : world.NextWith(0, mask); id != 0; id = world.NextWith(id, mask) {
             if Sources.Len >= MaxFires() { return }
             int volume = world.VolumeOf(id)
-            if volume < 0 || (volume != brazier && volume != campfire) { continue }
+            if volume < 0 || (volume != brazier && volume != campfire && volume != Torch) { continue }
             if Tracking(id) || !Near(world.WorldPosition(id), player) { continue }
-            Light(world, id, volume == campfire)
+            Light(world, id, KindOf(volume, campfire))
         }
     }
 
@@ -91,55 +101,102 @@ HellfeatherFires
         return count
     }
 
-    // Both props are 40 voxels tall. Flames rise from the embers heaped to the
-    // rim of the brazier's bowl and from the campfire's logs at voxel 5.
-    -float Base(bool campfire) { return campfire ? 5.0 | (float)HellfeatherArt.FlameBase }
-
-    -vec3 FlamePoint(QuaxelWorld& world, int id, bool campfire)
+    -HellfeatherFireKind KindOf(int volume, int campfire)
     {
-        mat4 model = world.VolumeModel(id)
-        return vec3(model * vec4(vec3(0.0, Base(campfire) / 40.0 - 0.5, 0.0), 1.0))
+        if volume == campfire { return HellfeatherFireKind.Campfire }
+        if volume == Torch { return HellfeatherFireKind.Torch }
+        return HellfeatherFireKind.Brazier
     }
 
-    -QuaxelEffectStyle FlameStyle(QuaxelWorld& world, int id, bool campfire)
+    // The brazier and campfire are 40 voxels tall; a torch pole is as tall
+    // as its model.
+    -float Height(QuaxelWorld& world, int id, HellfeatherFireKind kind)
+    {
+        if kind == HellfeatherFireKind.Torch {
+            ivec3 cells = world.VolumeCells(world.VolumeOf(id))
+            return (float)cells.Y
+        }
+        return 40.0
+    }
+
+    // Flames rise from the embers heaped to the rim of the brazier's bowl,
+    // from the campfire's logs at voxel 5, and from the coals in a torch's
+    // basket, 2 voxels below its rim.
+    -float Base(QuaxelWorld& world, int id, HellfeatherFireKind kind)
+    {
+        if kind == HellfeatherFireKind.Campfire { return 5.0 }
+        if kind == HellfeatherFireKind.Torch { return Height(world, id, kind) - 3.0 }
+        return (float)HellfeatherArt.FlameBase
+    }
+
+    -vec3 FlamePoint(QuaxelWorld& world, int id, HellfeatherFireKind kind)
     {
         mat4 model = world.VolumeModel(id)
-        float cell = vec3(model[1][0], model[1][1], model[1][2]).Length() / 40.0
+        return vec3(model * vec4(vec3(0.0, Base(world, id, kind) / Height(world, id, kind) - 0.5, 0.0), 1.0))
+    }
+
+    -QuaxelEffectStyle FlameStyle(QuaxelWorld& world, int id, HellfeatherFireKind kind)
+    {
+        mat4 model = world.VolumeModel(id)
+        float cell = vec3(model[1][0], model[1][1], model[1][2]).Length() / Height(world, id, kind)
         QuaxelEffectStyle flame = QuaxelEffectStyle.Fire()
-        flame.SpawnRadius = cell * (campfire ? 7.0 | 4.5)
-        flame.Rate = campfire ? 60.0 | 40.0
-        flame.SizeStart = campfire ? 2.4 | 1.8
-        flame.LifeMax = campfire ? 0.9 | 0.7
+        Switch (kind)
+        {
+            case HellfeatherFireKind.Campfire:
+                flame.SpawnRadius = cell * 7.0
+                flame.Rate = 60.0
+                flame.SizeStart = 2.4
+                flame.LifeMax = 0.9
+                break
+            case HellfeatherFireKind.Torch:
+                // A tall tongue from a small basket.
+                flame.SpawnRadius = cell * 2.0
+                flame.Rate = 26.0
+                flame.SizeStart = 1.1
+                flame.LifeMax = 0.6
+                break
+            default:
+                flame.SpawnRadius = cell * 4.5
+                flame.Rate = 40.0
+                flame.SizeStart = 1.8
+                flame.LifeMax = 0.7
+                break
+        }
         return flame
     }
 
-    -QuaxelEffectStyle SmokeStyle(bool campfire)
+    -QuaxelEffectStyle SmokeStyle(HellfeatherFireKind kind)
     {
         QuaxelEffectStyle smoke = QuaxelEffectStyle.Smoke()
-        smoke.Rate = campfire ? 7.0 | 3.5
-        smoke.DensityStart = 0.6
+        smoke.Rate = kind == HellfeatherFireKind.Campfire ? 7.0 | (kind == HellfeatherFireKind.Torch ? 2.0 | 3.5)
+        smoke.DensityStart = kind == HellfeatherFireKind.Torch ? 0.45 | 0.6
         return smoke
     }
 
-    -Light(QuaxelWorld& world, int id, bool campfire)
+    -Light(QuaxelWorld& world, int id, HellfeatherFireKind kind)
     {
-        float base = Base(campfire)
-        vec3 point = FlamePoint(world, id, campfire)
+        float base = Base(world, id, kind)
+        vec3 point = FlamePoint(world, id, kind)
         vec3 up = vec3(0.0, 1.0, 0.0)
+        bool torch = kind == HellfeatherFireKind.Torch
+        bool logs = kind == HellfeatherFireKind.Campfire
 
         if EmitPointLights {
+            // The offset is in the model's voxels from its centre: above the
+            // flames, a little for a torch, more for the wide fires.
             QuaxelPointLight light
-            light.Offset = vec3(0.0, base - 20.0 + (campfire ? 21.0 | 19.0), 0.0)
-            light.CastShadows = true
-            light.Radius = campfire ? 7.0 | 8.0
-            light.Intensity = campfire ? 32.0 | 24.0
-            light.Color = vec3(1.0, 0.38, 0.10)
+            light.Offset = vec3(0.0, base - Height(world, id, kind) * 0.5 + (torch ? 4.0 | (logs ? 21.0 | 19.0)), 0.0)
+            // A ring of torches throwing shadows would cost more than it shows.
+            light.CastShadows = !torch
+            light.Radius = torch ? 5.5 | (logs ? 7.0 | 8.0)
+            light.Intensity = torch ? 14.0 | (logs ? 32.0 | 24.0)
+            light.Color = torch ? vec3(1.0, 0.46, 0.14) | vec3(1.0, 0.38, 0.10)
             world.SetPointLight(id, light)
         }
-        if Crackle > 0 && world.SetAudioSource(id, HellfeatherSounds.AreaSource()) { world.PlaySoundPitched(Crackle, id, campfire ? 0.55 | 0.4, true, campfire ? 1.0 | 1.15) }
+        if Crackle > 0 && world.SetAudioSource(id, HellfeatherSounds.AreaSource()) { world.PlaySoundPitched(Crackle, id, logs ? 0.55 | (torch ? 0.25 | 0.4), true, logs ? 1.0 | (torch ? 1.3 | 1.15)) }
         Sources += id
-        Flames += world.StartEffect(FlameStyle(world, id, campfire), point, up)
-        Smokes += world.StartEffect(SmokeStyle(campfire), point + vec3(0.0, 0.3, 0.0), up)
+        Flames += world.StartEffect(FlameStyle(world, id, kind), point, up)
+        Smokes += world.StartEffect(SmokeStyle(kind), point + vec3(0.0, 0.3, 0.0), up)
     }
 }
 T{

@@ -86,8 +86,10 @@ def npc(name, height, flip=False, **extra):
 
 
 def recipe(name, height):
-    """A model a recipe file (camp.py, thornwick.py) builds; listed so
-    inspect_models.py scores it against its sheet."""
+    """A model a recipe file (camp.py, road.py, thornwick.py) builds; listed so
+    inspect_models.py scores it against its sheet. People built by
+    people.py and enemies.py are their npc() or creature() entry marked
+    recipe=True."""
     return dict(name=name, height=height, kind='static', recipe=True, flip=True, crops=CROPS)
 
 
@@ -101,35 +103,35 @@ MODELS = [
     recipe('WrensTent', 48),
     recipe('PilgrimTent', 40),
     recipe('PilgrimTentB', 40),
-    # Camp props.
+    # Camp props: the ones the camp's services stand at are recipes too.
     hull('Brazier', 20),
     hull('CampWagon', 40),
     hull('CampWagonB', 40),
-    hull('CookPot', 24),
+    recipe('CookPot', 24),
     hull('CorvinsBench', 40),
     hull('CorvinsBenchPacked', 36),
     hull('DryingRack', 40, loose=True),
-    hull('FeatherSack', 16),
-    hull('HesksWagon', 56),
+    recipe('FeatherSack', 16),
+    recipe('HesksWagon', 56),
     hull('Jetty', 20),
     hull('LatrineScreen', 28),
-    hull('LongTable', 16, loose=True),
+    recipe('LongTable', 19),
     hull('OfferingPile', 10),
     hull('PilgrimTentStruck', 14),
-    hull('RavenCage', 44),
+    recipe('RavenCage', 44),
     hull('StakePalisade', 32),
     hull('SwanScare', 48, loose=True),
-    hull('TinkersCart', 40),
-    hull('TorchPole', 52, loose=True),
-    hull('TorchPoleCold', 48, loose=True),
-    hull('WaterBarrels', 20),
+    recipe('TinkersCart', 47),
+    recipe('TorchPole', 51),
+    recipe('TorchPoleCold', 48),
+    recipe('WaterBarrels', 20),
     # The Hospice Road and Thornmere.
-    hull('RoadGibbet', 64),
-    hull('RoadGibbetEmpty', 64, loose=True),
+    recipe('RoadGibbet', 61),
+    recipe('RoadGibbetEmpty', 61),
     hull('RoadsideShrine', 48),
     hull('SwanNest', 14),
     hull('SwanMatriarchNest', 20),
-    hull('DrownedCart', 24, loose=True),
+    recipe('DrownedCart', 33),
     hull('PilgrimCampRoadside', 48),
     # Thornwick (thornwick.py recipes), the Cloister and the hospice's south wing.
     recipe('ThornwickGate', 128),
@@ -168,26 +170,26 @@ MODELS = [
     hull('PatientFrame', 52),
     hull('PatientFrameEmpty', 48, loose=True),
     # People.
-    npc('PilgrimMotherHesk', 72),
-    npc('TollyTinker', 72),
+    dict(npc('PilgrimMotherHesk', 76), recipe=True),
+    dict(npc('TollyTinker', 73), recipe=True),
     npc('CorvinHale', 66),
     npc('CorvinHaleChained', 60),
     npc('MistressAgnet', 74),
     npc('CloisterNovice', 66),
     npc('CloisterNoviceWriting', 66),
-    npc('Pilgrim01', 70),
-    npc('Pilgrim02', 70),
-    npc('Pilgrim03', 70, flip=True),
-    npc('PilgrimSitting', 60, flip=True),
+    dict(npc('Pilgrim01', 71), recipe=True),
+    dict(npc('Pilgrim02', 70), recipe=True),
+    dict(npc('Pilgrim03', 69, flip=True), recipe=True),
+    dict(npc('PilgrimSitting', 54, flip=True), recipe=True),
     npc('ThornwickDyerMadder', 72),
     npc('ThornwickDyerWoad', 72),
     npc('ThornwickGateCuff', 76),
     npc('TitheClerk', 72),
     # Enemies of the Hospice Road and Thornmere.
-    creature('TitheHanged', 76),
-    creature('MoultingHound', 44, legs=0.4),
+    dict(creature('TitheHanged', 97), recipe=True),
+    dict(creature('MoultingHound', 48, legs=0.4), recipe=True),
     creature('HighwayCuff', 76),
-    creature('FeatherblightSwan', 96, legs=0.25, flip=True),
+    dict(creature('FeatherblightSwan', 72, legs=0.25, flip=True), recipe=True),
     creature('SwanMatriarch', 130, legs=0.25),
     creature('CygnetBrood', 30, legs=0.3),
     creature('ReedDrowner', 74, flip=True),

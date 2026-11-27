@@ -4,6 +4,7 @@ HellfeatherBenchmark
     bool LightShadows = true
     int LightCount = -1
     -double LightingMs
+    -double [] SectionMs
     // Fixed lights around spawn let every run cover the same lit ground.
     PlaceLights(QuaxelWorld& world, vec3 spawn)
     {
@@ -96,6 +97,7 @@ HellfeatherBenchmark
             double [] samples
             Finished = QuaxelRenderer.FinishGpuTiming(samples) && samples.Len == Frames && EndTick > StartTick
             LightingMs = QuaxelRenderer.MeanLightingMs()
+            for s : 0; s < QuaxelRenderer.GpuSectionCount(); s++ { SectionMs += QuaxelRenderer.MeanGpuSectionMs(s) }
             for ms : samples { GpuMs += ms }
             Distance = Math.Length(vec3(player.X - Spawn.X, 0.0, player.Z - Spawn.Z))
             QuaxelPlatform.RequestWindowClose()
@@ -132,6 +134,10 @@ HellfeatherBenchmark
         Print((double)(CpuEnd - CpuStart) / (10000.0 * (double)Frames))
         Print("Mean GPU command-buffer time (ms)")
         Print(gpuTotal / (double)Frames)
+        for i : 0; i < SectionMs.Len; i++ {
+            Print("GPU section (ms): " + (string)QuaxelRenderer.GpuSectionName((int)i))
+            Print(SectionMs[i])
+        }
         if RecordFrameTimes {
             Print("Total measured time (ms)")
             Print(1000.0 * seconds)

@@ -15,6 +15,9 @@ Issues found during testing:
 [] severing the ring on the pedistal should have some big magic explosion effect
 [] marra should have dedicated boss room that has bit more space, maybe she has bird throne there, egs so there it bit more space to put the child and the peddistal not that close to each other.
 [] the NPC portal to Hobb's mill does not have open animtion
+[] if you save in act 2, you load in act 1, you should load into act that you saved in last.
+[] manny suffed act 2 model
+
 
 
 

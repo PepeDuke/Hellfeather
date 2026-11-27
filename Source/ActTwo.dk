@@ -325,19 +325,20 @@ HellfeatherGame : QuaxelGameInstance
         HellfeatherRealm mere = HellfeatherRealm.Thornmere
         People.RemoveRealm(world, mere)
         HellfeatherQuests q = Quests
-        People.AddPerson(HellfeatherPerson.Hesk, "Pilgrim Mother Hesk", mere, HellfeatherCastTwo.HeskAt(), "Assets/PilgrimMotherHesk.qvox", 0.025, 72)
-        People.AddPerson(HellfeatherPerson.Tolly, "Tolly the Tinker", mere, HellfeatherCastTwo.TollyAt(), "Assets/TollyTinker.qvox", 0.025, 72)
+        People.AddPerson(HellfeatherPerson.Hesk, "Pilgrim Mother Hesk", mere, HellfeatherCastTwo.HeskAt(), "Assets/PilgrimMotherHesk.qvox", 0.025, 76)
+        People.AddPerson(HellfeatherPerson.Tolly, "Tolly the Tinker", mere, HellfeatherCastTwo.TollyAt(), "Assets/TollyTinker.qvox", 0.025, 73)
         int corvin = People.AddPerson(HellfeatherPerson.Corvin, "Corvin Hale, the Ringwright", mere, HellfeatherCastTwo.CorvinAt(), "Assets/CorvinHale.qvox", 0.025, 66)
         People.Spots[corvin].Shown = q.SouthWing >= 4
         int raven = People.AddPerson(HellfeatherPerson.EddaRaven, "Edda's raven", mere, HellfeatherCastTwo.RavenAt(), "Assets/Raven.qvox", 0.025, 37)
         People.Spots[raven].Top = 1.4
         int vale = People.AddPerson(HellfeatherPerson.Vale, "Sister Vale", mere, HellfeatherCastTwo.ValeAt(), "Assets/SisterVale.qvox", 0.0271, 72)
         People.Spots[vale].Shown = ValeAtCamp()
-        People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(-3.6, 5.2), "Assets/Pilgrim01.qvox", 0.025, 70)
+        People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(-3.6, 5.2), "Assets/Pilgrim01.qvox", 0.025, 71)
         // Well apart from Tolly, so their names do not overlap.
         People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(-4.5, 11.0), "Assets/Pilgrim02.qvox", 0.025, 70)
-        if !q.PilgrimsTold { People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(-11.0, 9.2), "Assets/Pilgrim03.qvox", 0.025, 70) }
-        People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim at the table", mere, HellfeatherCastTwo.Camp(PilgrimsEncampment.CookX + 3.4, PilgrimsEncampment.CookZ + 2.6), "Assets/PilgrimSitting.qvox", 0.025, 60)
+        if !q.PilgrimsTold { People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim", mere, HellfeatherCastTwo.Camp(-11.0, 9.2), "Assets/Pilgrim03.qvox", 0.025, 69) }
+        // On the long table's far bench, facing the camera over it.
+        People.AddPerson(HellfeatherPerson.Pilgrim, "A pilgrim at the table", mere, HellfeatherCastTwo.Camp(PilgrimsEncampment.CookX + 3.4, PilgrimsEncampment.CookZ + 0.5), "Assets/PilgrimSitting.qvox", 0.025, 54)
         // Her tent's door, which the level's rebuild took with the rest.
         int tent = People.Add(HellfeatherSpotKind.Entrance, HellfeatherHome.Title(HellfeatherResidence.PilgrimTent), mere, HellfeatherHome.Door(HellfeatherResidence.PilgrimTent))
         People.Spots[tent].Leads = HellfeatherRealm.PilgrimTent

@@ -408,6 +408,7 @@ HellfeatherGame : QuaxelGameInstance
         Terrain.Below.Props = props
         Terrain.Below.Pieces = pieces
         ActTwoPieces = pieces
+        Fires.Torch = pieces.Volume[HellfeatherActTwoPiece.TorchPole]
         Terrain.WaypointFire = Landmarks.Fireplace
         if !Terrain.Configure(FenmarchConfig()) || !Terrain.Start(world, vec3(0.0, 0.0, 0.0)) { return false }
         SetUpCast(world)
@@ -2092,6 +2093,31 @@ T{
         game.Simulate(world, input, 20)
         T.IsFalse(world.Has(brazier, QuaxelComponents.PointLight))
         T.AreEqual(game.Fires.Burning(), already)
+    }
+    // The camp's lit torch poles burn like braziers, with flames, smoke and a
+    // light of their own; the cold ones stay dark.
+    TorchPolesBurnButColdOnesDoNot()
+    {
+        HellfeatherGame game()
+        QuaxelWorld world()
+        T.IsTrue(game.Prepare(world))
+        QuaxelInputState input
+        game.Simulate(world, input, 2)
+        T.IsTrue(game.Fires.Torch >= 0)
+        int already = game.Fires.Burning()
+        vec3 player = world.GetPosition(game.PlayerNode)
+        float cell = HellfeatherArt.FineVoxel
+        int torch = world.CreateNode()
+        world.AttachTransform(torch, QuaxelTransform.Make(player + vec3(2.0, 1.6, 0.0), vec3(cell, cell, cell)))
+        world.AttachVoxels(torch, game.Fires.Torch)
+        int cold = world.CreateNode()
+        world.AttachTransform(cold, QuaxelTransform.Make(player + vec3(-2.0, 1.5, 0.0), vec3(cell, cell, cell)))
+        world.AttachVoxels(cold, game.ActTwoPieces.Volume[HellfeatherActTwoPiece.TorchPoleCold])
+        game.Simulate(world, input, 20)
+        T.IsTrue(world.Has(torch, QuaxelComponents.PointLight))
+        T.IsFalse(world.Has(cold, QuaxelComponents.PointLight))
+        T.AreEqual(game.Fires.Burning(), already + 1)
+        T.AreEqual(game.Fires.Unlit(world), 0)
     }
 
     AxeMissesADuckOutOfReach()
